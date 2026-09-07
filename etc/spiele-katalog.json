@@ -878,8 +878,13 @@
     "art": "keins"
    },
    "adresse_port": 25565,
-   "ausschluss": [],
-   "hinweis": "ACHTUNG: Die Installation setzt EULA=TRUE - das ist die Zustimmung zu Mojangs Nutzungsbedingungen. Minecraft kennt kein Serverpasswort; stattdessen ist die Weissliste an: Mitspieler mit \"whitelist add <Name>\" freischalten.",
+   "ausschluss": [
+    "libraries",
+    "versions",
+    "minecraft_server.*.jar",
+    "logs"
+   ],
+   "hinweis": "ACHTUNG: Die Installation setzt EULA=TRUE - das ist die Zustimmung zu Mojangs Nutzungsbedingungen. Minecraft kennt kein Serverpasswort; stattdessen ist die Weissliste an: Mitspieler mit \"whitelist add <Name>\" freischalten. Die Spielerzahl setzt der Einrichtungsschritt in server.properties (max-players).",
    "spieler": 4,
    "appid": 0
   },

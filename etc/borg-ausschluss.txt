@@ -48,7 +48,12 @@ sh:/srv/games/starrupture/starrupture/StarRupture/Plugins
 sh:/srv/games/starrupture/starrupture/Licenses
 sh:/srv/games/starrupture/.wine
 sh:/srv/games/starrupture/Steam
-# >>> panel:necesse (automatisch, nicht von Hand aendern)
-sh:/srv/games/necesse/steamcmd
-sh:/srv/games/necesse/serverfiles/steamapps
-# <<< panel:necesse
+# Ab hier haengt spiel-verwalten Bloecke der Form
+#   # >>> panel:<spiel> ... # <<< panel:<spiel>
+# an, sobald ein Spiel aus dem Katalog installiert wird. Diese Bloecke gehoeren
+# NICHT ins Repositorium: sie beschreiben, was auf DIESER Maschine gerade
+# installiert ist, nicht den Bauplan. werkzeuge/abgleich.sh blendet sie
+# deshalb beim Vergleich aus.
+# *From here on spiel-verwalten appends per-game blocks as games are installed.
+#  They describe what is installed on this machine, not the blueprint, and are
+#  therefore excluded from the repository and ignored by the comparison tool.*

@@ -235,6 +235,18 @@ hätte den Server nicht mehr gefunden.
   sollen. Bei echter Kollision lehnt die Installation mit „Port bereits belegt"
   ab — sie prüft gegen die tatsächlich gebundenen Ports, nicht gegen den Katalog.
 
+* **Minecraft hat kein Beitrittspasswort** — das Spiel kennt keins. Der
+  Eintrag setzt stattdessen `ENABLE_WHITELIST` und `ENFORCE_WHITELIST`. Das ist
+  strenger als ein Passwort, aber es heißt: **nach der Installation kommt
+  niemand rein**, bis der erste Name auf der Liste steht:
+
+  ```bash
+  docker exec minecraft rcon-cli whitelist add <Spielername>
+  ```
+
+  Ebenfalls zu wissen: Die Installation setzt `EULA=TRUE` — das ist die
+  Zustimmung zu Mojangs Nutzungsbedingungen.
+
 * **`corekeeper` hat gar keine Portangabe.** Laut der Vorlage des Images ist
   keine Portweiterleitung nötig; der Beitritt läuft über eine GameID, die nach
   dem Start im Protokoll steht.

@@ -27,6 +27,24 @@ ProtectSystem=full
 # Kein ProtectHome: panel-aktion liest /root/.borg-passphrase. Der Schutz kommt
 # hier aus den Dateirechten (0600 root), nicht aus dem Namensraum — der Nutzer
 # "panel" kaeme ohnehin nicht heran.
+# ProtectSystem=full macht /etc schreibgeschuetzt — und sudo erbt den
+# Namensraum des Dienstes. Jeder Schreibzugriff von panel-aktion auf /etc
+# scheiterte deshalb mit "Errno 30 Read-only file system", OBWOHL es als root
+# lief. Getroffen hat es genau eine Datei: die Ausschlussliste der Sicherung,
+# die bei jeder Installation und Deinstallation fortgeschrieben wird. Die
+# Deinstallation ueber die Oberflaeche brach dadurch mitten im Ablauf ab und
+# liess Ausschlussblock, Titelbild und Zugangsdaten stehen (belegt am
+# 2026-09-07 am Traceback der Necesse-Entfernung vom Vortag).
+# NUR diese eine Datei freigeben — nicht /etc als Ganzes: der Spielekatalog
+# daneben MUSS schreibgeschuetzt bleiben, er ist die Positivliste, aus der die
+# Oberflaeche Images und Volumes bezieht.
+# *ProtectSystem=full makes /etc read-only, and sudo inherits the service's
+#  namespace — so panel-aktion's writes to /etc failed with Errno 30 even as
+#  root. Exactly one file is affected: the backup exclusion list. Uninstalling
+#  through the panel aborted mid-way because of it. Only this file is opened up,
+#  never /etc as a whole: the catalogue next to it must stay read-only, being
+#  the allow-list the panel draws images and volumes from.*
+ReadWritePaths=/etc/borg-ausschluss.txt
 
 [Install]
 WantedBy=multi-user.target

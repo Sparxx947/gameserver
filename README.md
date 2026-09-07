@@ -151,6 +151,14 @@ Notausgang: `GAMESERVER_KEIN_GATE=1 git commit …`
 
 ## Dokumentation
 
+**Wer hier mitentwickelt, liest zuerst [CLAUDE.md](CLAUDE.md)** — Arbeitsweise,
+die vier nicht verhandelbaren Sicherheitsgrenzen und die Fallstricke, die schon
+Zeit gekostet haben.
+
+> *Anyone contributing should start with [CLAUDE.md](CLAUDE.md): working
+> practices, the four non-negotiable security boundaries, and the traps that have
+> already cost time.*
+
 | Kapitel | Inhalt |
 |---|---|
 | [01 Architektur](docs/01-architektur.md) | Wie die Teile zusammenhängen, Datenflüsse, Verzeichnisse |
