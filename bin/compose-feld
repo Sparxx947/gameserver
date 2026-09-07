@@ -49,11 +49,35 @@ GESPERRT = {
     "GAME_ID", "APPID", "STEAM_APPID",      # waere ein anderes Spiel
     "EULA", "TS3SERVER_LICENSE",            # Zustimmung, kein Schalter
     "PATH", "LD_PRELOAD", "LD_LIBRARY_PATH", "HOME",
+    "UMASK", "DATA_PERM",                   # Dateirechte der Spielstaende
 }
 
 # Diese Teile der erzeugten Konfiguration muessen unveraendert bleiben.
 UNANTASTBAR = ("volumes", "ports", "image", "user", "privileged", "cap_add",
                "devices", "pid", "network_mode", "security_opt")
+
+
+def yaml_skalar(w: str) -> str:
+    """Gibt den Wert als einfach gequotetes YAML zurueck.
+
+    Noetig, weil GAME_PARAMS - bei 37 der 41 Katalogspiele die einzige
+    Stellschraube - selbst Anfuehrungszeichen enthaelt:
+
+        -SteamServerName="mjfabrix" -MaxPlayers=4 -PSW="geheim"
+
+    In doppelte Anfuehrungszeichen gesetzt zerlegt das die Datei; der
+    Strukturvergleich rollte die Aenderung dann zwar korrekt zurueck, aber der
+    Wert liess sich UEBERHAUPT nicht mehr setzen (gemessen 2026-09-07). In
+    einfachen Anfuehrungszeichen sind doppelte unproblematisch; ein einfaches
+    wird nach YAML-Regel verdoppelt.
+
+    *Needed because GAME_PARAMS - the only knob for 37 of 41 catalogue games -
+     contains double quotes itself. Wrapping it in double quotes broke the file:
+     the structural check rolled it back correctly, but the value could not be
+     set at all. Single quotes handle double quotes; a literal single quote is
+     doubled per the YAML rule.*
+    """
+    return "'" + w.replace("'", "''") + "'"
 
 
 def fehler(t):
@@ -156,9 +180,14 @@ def setzen(p: Path, name: str, wert: str):
         # Schreibweise beibehalten: "- KEY=wert" (Liste) oder "KEY: wert" (Map).
         # Beide kommen hier vor, und ein Wechsel wuerde die Datei zerlegen.
         if m.group(2):
-            zeilen[i] = f"{m.group(1)}{m.group(2)}{name}={wert}{ende}"
+            # Listenform: der GANZE Ausdruck "KEY=wert" ist ein Skalar und wird
+            # als solcher gequotet - sonst wuerde ein "#" im Wert als Kommentar
+            # gelesen und der Rest verschwiegen.
+            # *List form: the whole "KEY=wert" expression is one scalar; without
+            #  quoting, a "#" in the value would start a comment.*
+            zeilen[i] = f"{m.group(1)}{m.group(2)}{yaml_skalar(name + '=' + wert)}{ende}"
         else:
-            zeilen[i] = f'{m.group(1)}{name}: "{wert}"{ende}'
+            zeilen[i] = f"{m.group(1)}{name}: {yaml_skalar(wert)}{ende}"
         getroffen = True
         break
     if not getroffen:

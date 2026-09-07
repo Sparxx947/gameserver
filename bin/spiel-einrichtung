@@ -20,7 +20,7 @@ Netz. Dieser Weg meldet stattdessen ehrlich, was er NICHT gefunden hat.
   spiel-einrichtung            alle offenen Einrichtungen abarbeiten
   spiel-einrichtung <stack>    nur diesen, auch wenn er nicht offen ist
 """
-import json, re, subprocess, sys, time
+import json, os, re, subprocess, sys, time
 from pathlib import Path
 
 STACKS = Path("/opt/stacks")
@@ -204,6 +204,43 @@ def einrichten(stack: str) -> dict:
     return gefunden
 
 
+ZAHLEN = Path("/opt/panel/daten/konfigzahlen.json")
+
+
+def konfigzahlen():
+    """Haelt fest, wieviele Konfigurationsdateien jeder Server derzeit hat.
+
+    Die Uebersicht zeigt die Zahl neben dem Knopf "Konfigdateien". Ohne sie
+    muesste man jeden Server einzeln aufmachen, um zu sehen, ob es schon etwas
+    zu bearbeiten gibt - und direkt nach einer Installation gibt es NICHTS, weil
+    der Server erst mehrere Gigabyte laedt. Gemessen 2026-09-07: das Zaehlen
+    kostet 27 bis 88 ms je Server, zusammen knapp eine halbe Sekunde.
+
+    Bewusst in einer eigenen Datei und nicht in panel.json: die von Hand
+    gebauten Stacks (enshrouded, palworld, ...) haben gar keine panel.json,
+    sollen die Zahl aber genauso zeigen.
+    *Deliberately its own file rather than panel.json: the hand-built stacks have
+     no panel.json at all but should show the count just the same.*
+    """
+    zahlen = {}
+    for d in sorted(STACKS.glob("*/compose.yaml")):
+        stack = d.parent.name
+        try:
+            r = subprocess.run(["/usr/local/bin/konfig-datei", "liste", stack],
+                               capture_output=True, text=True, timeout=60)
+            zahlen[stack] = len([z for z in r.stdout.splitlines() if z.strip()])
+        except Exception:
+            continue
+    try:
+        ZAHLEN.parent.mkdir(parents=True, exist_ok=True)
+        tmp = ZAHLEN.with_suffix(".tmp")
+        tmp.write_text(json.dumps(zahlen, indent=1))
+        os.chmod(tmp, 0o644)
+        tmp.replace(ZAHLEN)
+    except Exception:
+        pass          # ohne die Datei fehlt nur eine Zahl in der Anzeige
+
+
 def lauf(nur=None):
     for verz in sorted(STACKS.glob("*/panel.json")):
         stack = verz.parent.name
@@ -235,6 +272,7 @@ def lauf(nur=None):
         spieler_offen = not erg["spieler"]
 
         p["einrichtung_gefunden"] = erg
+
         if fertig:
             p["einrichtung_offen"] = False
             stand = ("über die Umgebung gesetzt" if per_env else
@@ -267,3 +305,4 @@ def neustart(stack):
 
 if __name__ == "__main__":
     lauf(sys.argv[1] if len(sys.argv) > 1 else None)
+    konfigzahlen()

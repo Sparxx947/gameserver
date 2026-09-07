@@ -48,11 +48,22 @@ ENDUNGEN = {".ini", ".cfg", ".json", ".properties", ".conf", ".txt", ".yaml", ".
 # *Noise that looks like configuration but is not: without this filter the real
 #  file drowns among crash-reporter stubs and licence texts.*
 RAUSCHEN = re.compile(
-    r"(^|/)(steamapps|steamcmd|logs?|Content|Binaries|Engine|Plugins|libraries|versions|"
+    r"(^|/)(steamapps|steamcmd|logs?|Content|Binaries|Plugins|libraries|versions|"
     r"Licenses|Steam|\.steam|\.wine|drive_c|dosdevices|\.sentry-native|CrashReportClient|"
-    r"ImGui|Crashes|Intermediate|Saved/Logs)(/|$)"
+    r"ImGui|Crashes|Intermediate|Saved/Logs|"
+    # Wine legt unter .local/share/mime dutzende XML-Dateien an, die wie
+    # Konfiguration aussehen und keine sind. Bei Astroneer standen sie noch vor
+    # der echten AstroServerSettings.ini in der Liste (gemessen 2026-09-07).
+    # *Wine creates dozens of MIME XML files that look like configuration and
+    #  are not; at Astroneer they preceded the real settings file.*
+    r"\.local|\.cache|\.config/menus|applications|mime)(/|$)"
     r"|(^|/)(Manifest_[^/]*|usercache\.json|\.vanilla-manifest\.json|steam_appid\.txt|"
     r"[^/]*readme[^/]*\.txt)$"
+    # "Engine" als VERZEICHNIS ist die Spiel-Engine (raus), "Engine.ini" als
+    # DATEI ist Konfiguration (bleibt). Vorher fiel beides unter dieselbe Regel.
+    # *"Engine" as a directory is the game engine; "Engine.ini" as a file is
+    #  configuration. Both used to match the same rule.*
+    r"|(^|/)Engine/"
     # Eigene Sicherungen: ohne diesen Ausschluss waechst die Dateiliste bei
     # jeder Aenderung um einen Eintrag, und nach zehn Aenderungen findet
     # niemand mehr die Datei, um die es geht.
