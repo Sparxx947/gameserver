@@ -89,9 +89,10 @@ werkzeuge/abgleich.sh gameserver
 ```
 
 Setzt die Platzhalter aus `konfiguration.env` ein und vergleicht das Ergebnis
-mit der laufenden Maschine — 27 Prüfpunkte: 22 Dateien byte-genau, dazu die
+mit der laufenden Maschine — 31 Prüfpunkte: 23 Dateien byte-genau, dazu die
 Python-Umgebung des Panels gegen `requirements.txt`, die ttyd-Version gegen die
-in Stufe 40 festgeschriebene und die drei selbst erzeugten Symbole. Exit 0 =
+in Stufe 40 festgeschriebene, die selbst erzeugten Symbole und Titelbilder sowie
+die Vollständigkeit der Katalogbilder. Exit 0 =
 deckungsgleich, 1 = Abweichungen (mit Diff), 2 = nicht erreichbar. Ändert nichts.
 
 Eine Dokumentation, die vom System abweicht, ist schlimmer als keine — man

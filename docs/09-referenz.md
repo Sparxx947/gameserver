@@ -103,6 +103,45 @@ echte `compose.yaml` und lässt `docker compose config -q` darauf laufen, fragt
 
 Ergebnis vom 2026-09-06: 34 ohne Befund, 5 Hinweis, 0 Fehler, 2 installiert.
 
+### `katalogbilder-holen`
+
+```
+katalogbilder-holen              fehlende Titelbilder der Katalogseite holen
+katalogbilder-holen --alle       auch vorhandene neu holen
+katalogbilder-holen --pruefen    nur berichten (Exit 1 = Lücken)
+```
+
+Holt die Steam-Header nach `/opt/panel/bilder/katalog`. Spiele ohne
+Steam-Eintrag (`"appid": 0`) bekommen das selbst gezeichnete Bild aus
+`/opt/panel/bilder/eigene`.
+
+**Dieses Verzeichnis wurde bisher von keinem Skript gefüllt** — die Bilder waren
+einmal von Hand geholt worden. Nach einem Neuaufbau nach `install/` wäre die
+Katalogseite vollständig bildlos gewesen. Stufe 30 ruft das Werkzeug jetzt auf;
+ein Fehlschlag ist erlaubt (kein Netz), die Kacheln bleiben dann blass.
+
+> *Fetches Steam headers for the catalogue page; games with no Steam entry get
+> the self-drawn image instead. The directory was previously populated by no
+> script at all — after a rebuild the page would have been entirely image-less.
+> Stage 30 now calls it, and is allowed to fail.*
+
+### `titelbild.py` (in `werkzeuge/`)
+
+```
+werkzeuge/titelbild.py <schluessel> <Name> <Untertitel> <Adresse> [--motiv wuerfel|welle|kreis]
+```
+
+Zeichnet ein Titelbild im Format der Steam-Header (460×215) in den Farben des
+Panels und legt es unter `panel/bilder/eigene/` ab. **Selbst gezeichnet, nicht
+geladen:** Steam-Header sind Werke Dritter und liegen deshalb nicht im
+Repositorium; ein eigenes Bild darf hier liegen. Es enthält bewusst kein fremdes
+Logo und keine Marke.
+
+> *Draws artwork in the Steam header format and the panel's colours. Self-drawn
+> rather than fetched: Steam headers are third-party works and stay out of the
+> repository, while a self-made image may live here — deliberately carrying no
+> foreign logo or brand.*
+
 ### `ttyd`
 
 Das Webterminal, Version 1.7.7 als Release-Binary. Nicht aus Debian: bookworm
@@ -114,7 +153,7 @@ liefert 1.6, dessen `--base-path` sich anders verhält.
 
 ### `abgleich.sh <ssh-ziel>`
 
-Vergleicht das Repositorium mit einer laufenden Maschine — **27 Prüfpunkte**:
+Vergleicht das Repositorium mit einer laufenden Maschine — **31 Prüfpunkte**:
 
 | Was | Wie verglichen |
 |---|---|
@@ -122,6 +161,8 @@ Vergleicht das Repositorium mit einer laufenden Maschine — **27 Prüfpunkte**:
 | Python-Umgebung des Panels | `pip list --format=freeze` gegen `panel/requirements.txt` |
 | ttyd | installierte Version gegen `TTYD_VERSION` in Stufe 40 |
 | 3 Symbole | byte-genau |
+| selbst gezeichnete Titelbilder | byte-genau |
+| Katalogbilder | nur Vollständigkeit — die Steam-Header liegen nicht im Repositorium |
 
 Die letzten vier Punkte fehlten zunächst. Aufgefallen ist das erst, als ein
 Dependabot-PR `requirements.txt` änderte und der Abgleich von Hand nachgezogen
