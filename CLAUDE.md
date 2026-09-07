@@ -145,10 +145,11 @@ das gesamte Hook-Verzeichnis und schaltet vorhandene Haken ab.
 ## Vor und nach jeder Arbeit an einer laufenden Maschine
 
 ```bash
-werkzeuge/abgleich.sh gameserver
+werkzeuge/abgleich.sh gameserver                      # vergleichen
+werkzeuge/ausrollen.sh gameserver bin/panel-aktion    # ausrollen
 ```
 
-27 Prüfpunkte, muss `abweichend: 0` melden. Weicht etwas ab, ist **zuerst zu
+32 Prüfpunkte, muss `abweichend: 0` melden. Weicht etwas ab, ist **zuerst zu
 klären, welche Seite recht hat** — nicht blind in eine Richtung angleichen.
 
 **Voraussetzung:** eine ausgefüllte `konfiguration.env` (Vorlage:
@@ -240,6 +241,10 @@ Jeder Punkt ist ein realer Vorfall, nicht eine Vermutung.
 | Cloudflare `proxied` | Der Proxy kann nur HTTP(S). Ein Spielport dahinter ist von außen tot. |
 | `borg extract` | Läuft von `/` aus, weil die Archive absolute Pfade tragen. Aus einem anderen Verzeichnis entsteht ein Unterbaum an falscher Stelle, und der Server startet mit leerer Welt — ohne Fehlermeldung. |
 | ich777-Images | Erwarten `UID`/`GID`, **nicht** `PUID`/`PGID`, und brauchen `steamcmd/` und `serverfiles/` vor dem ersten Start. |
+| Pfadprüfung | **Erst auflösen, dann prüfen.** Unter StarRupture liegt ein Symlink `z: -> /`; eine Prüfung vor dem Auflösen macht aus jedem Editor einen Root-Schreibzugriff aufs ganze System. |
+| Spielserver und ihre Konfiguration | Viele schreiben sie beim Start **selbst neu**. Bei Minecraft nachgemessen: geänderte Werte überleben, eigene Kommentare und unbekannte Zeilen verschwinden. |
+| Dateien auf die Maschine bringen | Nie `scp` direkt — die `@@PLATZHALTER@@` gehen sonst mit. `werkzeuge/ausrollen.sh` benutzen; es bricht bei einem übrig gebliebenen Platzhalter ab. |
+| `sudo` aus einem systemd-Dienst | Wechselt den Benutzer, **nicht den Mount-Namensraum**. `ProtectSystem=full` lässt Schreibzugriffe auf `/etc` auch als root scheitern. `/proc/<pid>/mountinfo` prüfen, nicht die Dateirechte. |
 
 ---
 

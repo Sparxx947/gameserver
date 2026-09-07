@@ -103,6 +103,37 @@ echte `compose.yaml` und lässt `docker compose config -q` darauf laufen, fragt
 
 Ergebnis vom 2026-09-06: 34 ohne Befund, 5 Hinweis, 0 Fehler, 2 installiert.
 
+### `konfig-datei`
+
+```
+konfig-datei liste <stack>
+konfig-datei lesen <stack> <relpfad>
+konfig-datei schreiben <stack> <relpfad>     (Inhalt über stdin)
+```
+
+Listet, liest und schreibt die Konfigurationsdateien der Spiele unter
+`/srv/games` bzw. `/srv/dienste`. Aufgerufen nur über `panel-aktion`.
+
+**Die Pfadprüfung ist der Kern:** Jeder Pfad wird **zuerst vollständig
+aufgelöst** und **danach** geprüft, ob er noch im Datenverzeichnis liegt. Diese
+Reihenfolge ist nicht verhandelbar — unter
+`/srv/games/starrupture/.wine/dosdevices/` liegt ein Symlink `z:` auf `/`.
+Nachgemessen am 2026-09-07: `readlink -f` auf `…/z:/etc/passwd` ergibt
+`/etc/passwd`. Ein Editor, der als root schreibt und vor dem Auflösen prüft,
+wäre ein Schreibzugriff auf das gesamte Dateisystem.
+
+Weitere Grenzen: nur bekannte Endungen, 4 B bis 256 KB, ein Rauschfilter gegen
+Manifeste, Lizenztexte, Absturzberichte und die eigenen Sicherungen, keine neuen
+Dateien (nur bestehende ändern), Eigentümer und Rechte werden vom Original
+übernommen — nie von root, sonst kann der Container seine eigene Datei nicht
+mehr schreiben.
+
+> *Lists, reads and writes the games' configuration files, invoked only through
+> `panel-aktion`. Every path is resolved **first** and checked **afterwards** —
+> non-negotiable, because a `z: -> /` symlink exists in StarRupture's Wine
+> prefix; checking before resolving would turn the editor into a root write to
+> the entire filesystem. Ownership is inherited from the original, never root.*
+
 ### `katalogbilder-holen`
 
 ```
@@ -153,7 +184,7 @@ liefert 1.6, dessen `--base-path` sich anders verhält.
 
 ### `abgleich.sh <ssh-ziel>`
 
-Vergleicht das Repositorium mit einer laufenden Maschine — **31 Prüfpunkte**:
+Vergleicht das Repositorium mit einer laufenden Maschine — **32 Prüfpunkte**:
 
 | Was | Wie verglichen |
 |---|---|
@@ -177,6 +208,22 @@ Exit 0 = deckungsgleich, 1 = Abweichungen (mit Diff), 2 = nicht erreichbar.
 > environment, the ttyd version, and the three icons. The last four were missing
 > at first and only surfaced when a Dependabot PR changed `requirements.txt` — a
 > check that never looks at an area reports it as fine.*
+
+### `ausrollen.sh <ssh-ziel> <repo-datei> [...]`
+
+Bringt Repo-Dateien **mit eingesetzten Platzhaltern** auf die Maschine, legt
+vorher eine Sicherung an und ersetzt atomar. Bricht ab, wenn ein Platzhalter
+übrig bleibt oder das Ziel unbekannt ist.
+
+Entstanden, weil an einem Tag **zweimal** eine Datei per `scp` direkt kopiert
+wurde und die `@@PLATZHALTER@@` mitgingen — einmal stand der Weltname als
+`@@WELT_NAME@@` im Katalog, einmal war das Borg-Repository in `panel-aktion`
+weg. Beide Male fand `abgleich.sh` es. Die Ersetzung von Hand zu tippen ist der
+Fehler, nicht das Vergessen.
+
+> *Deploys repository files with placeholders substituted, backing up first and
+> replacing atomically; aborts on a left-over placeholder or unknown target. It
+> exists because two files were scp'd across untouched in a single day.*
 
 ### `vollstaendigkeit.sh`
 
