@@ -1,6 +1,6 @@
 {
- "_hinweis": "Katalog installierbarer Spiele. Erzeugt 2026-09-06 aus den Vorlagen von ich777 (github.com/ich777/docker-templates) plus drei Spezial-Images. Steam-App-IDs und Ports stammen aus den Vorlagen bzw. den Image-Manifesten, nicht aus Schaetzungen.",
- "_ports": "Host-Ports sind gegen die am 2026-09-06 belegten geprueft. Sie sind untereinander NICHT durchgaengig eindeutig: 8766/udp (dontstarvetogether, sonsoftheforest, theforest, wurmunlimited), 26900+26901/udp (7daystodie, creativerse), 8777/udp (astroneer, soulmask) und 27020/udp (avorion, wurmunlimited) sind mehrfach vergeben. Das ist unschaedlich, solange die betroffenen Spiele nicht gleichzeitig laufen; spiel-verwalten prueft vor jeder Installation gegen die TATSAECHLICH belegten Ports und lehnt bei echter Kollision mit \"Port bereits belegt\" ab.",
+ "_hinweis": "Katalog installierbarer Spiele. Erzeugt 2026-09-06, erweitert 2026-09-07 mit werkzeuge/katalog-ergaenzen.py aus den Unraid-Vorlagen von ich777 (github.com/ich777/docker-templates). Steam-App-IDs, Ports und Startparameter stammen aus diesen Vorlagen, nicht aus Schaetzungen - im Image steht bei vielen Tags nur GAME_ID=template, und ein Container daraus laedt nichts herunter. AUSNAHME: mem_gb und platte_gb sind Schaetzungen nach Bauart des Spiels; sie steuern nur die Vorabpruefung und die Speichergrenze und lassen sich im Panel aendern.",
+ "_ports": "Host-Ports sind gegen die am 2026-09-07 belegten geprueft, MIT Protokoll: TCP und UDP kollidieren nicht, derselbe Port laesst sich einmal je Protokoll binden. Fuenf Teilungen bleiben untereinander bestehen (8766/udp bei vier Waldspielen, 26900+26901/udp, 8777/udp, 27020/udp) - unschaedlich, solange die betroffenen Spiele nicht gleichzeitig laufen sollen. spiel-verwalten prueft vor jeder Installation gegen die TATSAECHLICH belegten Ports und lehnt bei echter Kollision mit \"Port bereits belegt\" ab.",
  "spiele": [
   {
    "schluessel": "7daystodie",
@@ -84,6 +84,108 @@
    ]
   },
   {
+   "schluessel": "alienswarm",
+   "name": "AlienSwarm",
+   "kurz": "Koop-Shooter aus der Vogelperspektive, bis 4",
+   "appid": 635,
+   "image": "ghcr.io/ich777/steamcmd:alienswarm",
+   "mem_gb": 2,
+   "platte_gb": 15,
+   "ports": [
+    "30100:27015/udp",
+    "27015:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/alienswarm:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "635",
+    "GAME_PARAMS": "+map lobby -maxplayers 4 +exec server.cfg",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30100,
+   "spieler": 4,
+   "hinweis": "Koop-Shooter aus der Vogelperspektive, bis 4. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "alienswarmreactivedrop",
+   "name": "AlienSwarm ReactiveDrop",
+   "kurz": "Alien Swarm mit neuen Kampagnen, Koop bis 4",
+   "appid": 563560,
+   "image": "ghcr.io/ich777/steamcmd:alienswarmreactivedrop",
+   "mem_gb": 2,
+   "platte_gb": 15,
+   "ports": [
+    "30101:27015/udp",
+    "30100:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/alienswarmreactivedrop:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "563560",
+    "GAME_PARAMS": "+map lobby -maxplayers 4 +exec server.cfg",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30101,
+   "spieler": 4,
+   "hinweis": "Alien Swarm mit neuen Kampagnen, Koop bis 4. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "altitude",
+   "name": "Altitude",
+   "kurz": "2D-Luftkampf-Arena, schnelle Runden",
+   "appid": 0,
+   "image": "ghcr.io/ich777/altitude:latest",
+   "mem_gb": 1,
+   "platte_gb": 3,
+   "ports": [
+    "27276:27276/udp"
+   ],
+   "volumes": [
+    "/srv/games/altitude:/serverdata"
+   ],
+   "env": {
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 27276,
+   "spieler": 4,
+   "hinweis": "2D-Luftkampf-Arena, schnelle Runden. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": []
+  },
+  {
    "schluessel": "americantrucksimulator",
    "name": "AmericanTruckSimulator",
    "kurz": "Convoy-Modus in den USA",
@@ -114,6 +216,82 @@
    "adresse_port": 30041,
    "spieler": 4,
    "hinweis": "Abweichender Port (Standard war belegt): 27015->30041, 27016->30042. This Docker will download and install SteamCMD. It will also install American Truck Simulator and run it. **Server Credentials:** The default name from the server is: **Docker Server** and the password is: **Docker** **ATTENTION:*… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "americasarmyprovinggrounds",
+   "name": "AmericasArmy ProvingGrounds",
+   "kurz": "Taktischer Team-Shooter der US Army",
+   "appid": 203300,
+   "image": "ghcr.io/ich777/steamcmd:aaprovinggrounds",
+   "mem_gb": 4,
+   "platte_gb": 10,
+   "ports": [
+    "30102:27015/udp",
+    "30103:7778/udp",
+    "8778:8778/udp"
+   ],
+   "volumes": [
+    "/srv/games/americasarmyprovinggrounds:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "203300",
+    "GAME_PARAMS": "",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30102,
+   "spieler": 4,
+   "hinweis": "Taktischer Team-Shooter der US Army. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "assettocorsa",
+   "name": "AssettoCorsa",
+   "kurz": "Rennsimulation mit Fahrphysik",
+   "appid": 302550,
+   "image": "ghcr.io/ich777/steamcmd:assettocorsa",
+   "mem_gb": 8,
+   "platte_gb": 30,
+   "ports": [
+    "9600:9600/tcp",
+    "9600:9600/udp",
+    "8081:8081/tcp",
+    "50041:50041/tcp",
+    "8772:8772/tcp"
+   ],
+   "volumes": [
+    "/srv/games/assettocorsa:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "302550",
+    "GAME_PARAMS": "",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 9600,
+   "spieler": 4,
+   "hinweis": "Rennsimulation mit Fahrphysik. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -224,6 +402,43 @@
    "adresse_port": 30006,
    "spieler": 4,
    "hinweis": "Abweichender Port (Standard war belegt): 27015->30006, 27016->30007. This Docker will download and install SteamCMD. It will also install Barotrauma and run it. ATTENTION: First Startup can take very long since it downloads the gameserver files! Update Notice: Simply restart the container if a newe… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "chivalrymedievalwarfare",
+   "name": "Chivalry MedievalWarfare",
+   "kurz": "Mittelalterlicher Nahkampf, grosse Schlachten",
+   "appid": 220070,
+   "image": "ghcr.io/ich777/steamcmd:chivalrymw",
+   "mem_gb": 4,
+   "platte_gb": 10,
+   "ports": [
+    "7000:7000/udp",
+    "7010:7010/udp",
+    "30105:27015/udp"
+   ],
+   "volumes": [
+    "/srv/games/chivalrymedievalwarfare:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "220070",
+    "GAME_PARAMS": "",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 7000,
+   "spieler": 4,
+   "hinweis": "Mittelalterlicher Nahkampf, grosse Schlachten. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -374,6 +589,36 @@
    ]
   },
   {
+   "schluessel": "counterstrike2d",
+   "name": "CounterStrike2D",
+   "kurz": "Counter-Strike als 2D-Draufsicht, sehr genuegsam",
+   "appid": 0,
+   "image": "ghcr.io/ich777/cs2dserver:latest",
+   "mem_gb": 1,
+   "platte_gb": 3,
+   "ports": [
+    "36963:36963/udp"
+   ],
+   "volumes": [
+    "/srv/games/counterstrike2d:/serverdata"
+   ],
+   "env": {
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 36963,
+   "spieler": 4,
+   "hinweis": "Counter-Strike als 2D-Draufsicht, sehr genuegsam. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": []
+  },
+  {
    "schluessel": "craftopia",
    "name": "Craftopia",
    "kurz": "Sandbox-Mischung aus Survival, Farmen und Automatisierung",
@@ -445,6 +690,181 @@
     "steamcmd",
     "serverfiles/steamapps"
    ]
+  },
+  {
+   "schluessel": "cstrike16",
+   "name": "CStrike1.6",
+   "kurz": "Counter-Strike 1.6, der Klassiker",
+   "appid": 90,
+   "image": "ghcr.io/ich777/steamcmd:cstrike1.6",
+   "mem_gb": 4,
+   "platte_gb": 10,
+   "ports": [
+    "30104:27015/udp",
+    "30101:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/cstrike16:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "90",
+    "GAME_PARAMS": "+maxplayers 32 +map de_dust",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30104,
+   "spieler": 4,
+   "hinweis": "Counter-Strike 1.6, der Klassiker. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "dayofdefeatsource",
+   "name": "DayOfDefeatSource",
+   "kurz": "Zweiter Weltkrieg, Team gegen Team",
+   "appid": 232290,
+   "image": "ghcr.io/ich777/steamcmd:dods",
+   "mem_gb": 4,
+   "platte_gb": 10,
+   "ports": [
+    "30106:27015/udp",
+    "30102:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/dayofdefeatsource:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "232290",
+    "GAME_PARAMS": "-secure +maxplayers 24 +map dod_kalt",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30106,
+   "spieler": 4,
+   "hinweis": "Zweiter Weltkrieg, Team gegen Team. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "dayofinfamy",
+   "name": "DayOfInfamy",
+   "kurz": "Zweiter Weltkrieg, taktisch und ohne Fadenkreuz",
+   "appid": 462310,
+   "image": "ghcr.io/ich777/steamcmd:dayofinfamy",
+   "mem_gb": 2,
+   "platte_gb": 15,
+   "ports": [
+    "30107:27015/udp",
+    "30103:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/dayofinfamy:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "462310",
+    "GAME_PARAMS": "+map sicily +mp_gamemode frontline",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30107,
+   "spieler": 4,
+   "hinweis": "Zweiter Weltkrieg, taktisch und ohne Fadenkreuz. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "daysofwar",
+   "name": "DaysOfWar",
+   "kurz": "Zweiter Weltkrieg im Stil klassischer Team-Shooter",
+   "appid": 541790,
+   "image": "ghcr.io/ich777/steamcmd:daysofwar",
+   "mem_gb": 2,
+   "platte_gb": 15,
+   "ports": [
+    "30108:27015/udp",
+    "30109:7777/udp"
+   ],
+   "volumes": [
+    "/srv/games/daysofwar:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "541790",
+    "GAME_PARAMS": "dow_cathedral",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30108,
+   "spieler": 4,
+   "hinweis": "Zweiter Weltkrieg im Stil klassischer Team-Shooter. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "ddnet",
+   "name": "DDNet",
+   "kurz": "Koop-Plattformer, Teeworlds-Ableger, sehr genuegsam",
+   "appid": 0,
+   "image": "ghcr.io/ich777/ddnetserver:latest",
+   "mem_gb": 1,
+   "platte_gb": 3,
+   "ports": [
+    "8303:8303/udp",
+    "8303:8303/tcp"
+   ],
+   "volumes": [
+    "/srv/games/ddnet:/serverdata"
+   ],
+   "env": {
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 8303,
+   "spieler": 4,
+   "hinweis": "Koop-Plattformer, Teeworlds-Ableger, sehr genuegsam. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": []
   },
   {
    "schluessel": "dontstarvetogether",
@@ -586,6 +1006,76 @@
    "appid": 427520
   },
   {
+   "schluessel": "fistfuloffrags",
+   "name": "FistfulOfFrags",
+   "kurz": "Western-Shooter mit Revolvern und Fausthieben",
+   "appid": 295230,
+   "image": "ghcr.io/ich777/steamcmd:fistfuloffrags",
+   "mem_gb": 2,
+   "platte_gb": 15,
+   "ports": [
+    "30110:27015/udp",
+    "30104:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/fistfuloffrags:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "295230",
+    "GAME_PARAMS": "+maxplayers 20 +map fof_fistful",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30110,
+   "spieler": 4,
+   "hinweis": "Western-Shooter mit Revolvern und Fausthieben. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "fivem",
+   "name": "FiveM",
+   "kurz": "Mehrspieler-Framework fuer GTA V, braucht das Spiel",
+   "appid": 0,
+   "image": "ghcr.io/ich777/fivemserver:latest",
+   "mem_gb": 4,
+   "platte_gb": 10,
+   "ports": [
+    "30110:30110/tcp",
+    "30120:30120/tcp",
+    "30111:30110/udp",
+    "30120:30120/udp",
+    "9016:8080/tcp"
+   ],
+   "volumes": [
+    "/srv/games/fivem:/serverdata"
+   ],
+   "env": {
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30110,
+   "spieler": 4,
+   "hinweis": "Mehrspieler-Framework fuer GTA V, braucht das Spiel. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": []
+  },
+  {
    "schluessel": "frozenflame",
    "name": "FrozenFlame",
    "kurz": "Fantasy-Survival mit Drachen und Basisbau",
@@ -619,6 +1109,114 @@
    "adresse_port": 30016,
    "spieler": 4,
    "hinweis": "Verwaltungszugang (TCP 2 - RCON) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 7777->30016, 7777->30017, 27015->30018, 27015->30019, 25575->30020. This Docker will download and install SteamCMD. It will also install FrozenFlame and run it. **ATTENTION:** First Startup can take very long since it downloads the gameserver files! **Update Notice:** Simply restart the container … Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "garrysmod",
+   "name": "GarrysMod",
+   "kurz": "Sandbox mit Source-Physik, alles ist moeglich",
+   "appid": 4020,
+   "image": "ghcr.io/ich777/steamcmd:garrysmod",
+   "mem_gb": 2,
+   "platte_gb": 15,
+   "ports": [
+    "30112:27015/udp",
+    "30105:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/garrysmod:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "4020",
+    "GAME_PARAMS": "-secure +maxplayers 12 +map gm_flatgrass",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30112,
+   "spieler": 4,
+   "hinweis": "Sandbox mit Source-Physik, alles ist moeglich. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "halflife2deathmatch",
+   "name": "HalfLife2DeathMatch",
+   "kurz": "Half-Life 2 im Deathmatch, mit Schwerkraftgewehr",
+   "appid": 232370,
+   "image": "ghcr.io/ich777/steamcmd:hl2dm",
+   "mem_gb": 4,
+   "platte_gb": 10,
+   "ports": [
+    "30114:27015/udp",
+    "30107:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/halflife2deathmatch:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "232370",
+    "GAME_PARAMS": "-secure +maxplayers 16 +map dm_overwatch",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30114,
+   "spieler": 4,
+   "hinweis": "Half-Life 2 im Deathmatch, mit Schwerkraftgewehr. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "halflifedeathmatch",
+   "name": "HalfLife Deathmatch",
+   "kurz": "Half-Life 1 im Deathmatch",
+   "appid": 90,
+   "image": "ghcr.io/ich777/steamcmd:hldm",
+   "mem_gb": 4,
+   "platte_gb": 10,
+   "ports": [
+    "30106:27015/tcp",
+    "30113:27015/udp"
+   ],
+   "volumes": [
+    "/srv/games/halflifedeathmatch:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "90",
+    "GAME_PARAMS": "-secure +maxplayers 32 +map gasworks.bsp",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30106,
+   "spieler": 4,
+   "hinweis": "Half-Life 1 im Deathmatch. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -700,6 +1298,157 @@
    ]
   },
   {
+   "schluessel": "insurgency",
+   "name": "Insurgency",
+   "kurz": "Taktischer Shooter ohne Trefferanzeige",
+   "appid": 237410,
+   "image": "ghcr.io/ich777/steamcmd:insurgency",
+   "mem_gb": 2,
+   "platte_gb": 15,
+   "ports": [
+    "30115:27015/udp",
+    "30108:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/insurgency:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "237410",
+    "GAME_PARAMS": "+map market_coop +maxplayers 6",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30115,
+   "spieler": 4,
+   "hinweis": "Taktischer Shooter ohne Trefferanzeige. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "insurgencysandstorm",
+   "name": "InsurgencySandstorm",
+   "kurz": "Nachfolger von Insurgency, moderner Konflikt",
+   "appid": 581330,
+   "image": "ghcr.io/ich777/steamcmd:insurgencysandstorm",
+   "mem_gb": 8,
+   "platte_gb": 30,
+   "ports": [
+    "27102:27102/udp",
+    "27131:27131/udp"
+   ],
+   "volumes": [
+    "/srv/games/insurgencysandstorm:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "581330",
+    "GAME_PARAMS": "Oilfield?Scenario=Scenario_Refinery_Push_Security?MaxPlayers=28?Password=Docker",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 27102,
+   "spieler": 4,
+   "hinweis": "Nachfolger von Insurgency, moderner Konflikt. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "killingfloor",
+   "name": "KillingFloor",
+   "kurz": "Koop gegen Monsterwellen, bis 6",
+   "appid": 215360,
+   "image": "ghcr.io/ich777/steamcmd:killingfloor",
+   "mem_gb": 4,
+   "platte_gb": 10,
+   "ports": [
+    "7707:7707/udp",
+    "7708:7708/udp",
+    "7717:7717/udp",
+    "28852:28852/tcp",
+    "28852:28852/udp",
+    "8075:8075/tcp",
+    "20560:20560/udp"
+   ],
+   "volumes": [
+    "/srv/games/killingfloor:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "215360",
+    "GAME_PARAMS": "KF-bioticslab.rom?game=KFmod.KFGameType?VACSecured=true?MaxPlayers=6",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 7707,
+   "spieler": 4,
+   "hinweis": "Koop gegen Monsterwellen, bis 6. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "killingfloor2",
+   "name": "KillingFloor2",
+   "kurz": "Koop gegen Monsterwellen, Nachfolger, bis 6",
+   "appid": 232130,
+   "image": "ghcr.io/ich777/steamcmd:killingfloor2",
+   "mem_gb": 8,
+   "platte_gb": 30,
+   "ports": [
+    "30116:7777/udp",
+    "30117:27015/udp",
+    "8080:8080/tcp",
+    "30118:20560/udp"
+   ],
+   "volumes": [
+    "/srv/games/killingfloor2:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "232130",
+    "GAME_PARAMS": "kf-bioticslab",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30116,
+   "spieler": 4,
+   "hinweis": "Koop gegen Monsterwellen, Nachfolger, bis 6. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
    "schluessel": "lastoasis",
    "name": "LastOasis",
    "kurz": "Nomaden-Survival mit Wanderbasen",
@@ -729,7 +1478,43 @@
    },
    "adresse_port": 5555,
    "spieler": 4,
-   "hinweis": "Abweichender Port (Standard war belegt): 27015->30026. This Docker will download and install SteamCMD. It will also install Last Oasis and run it. **Customer &amp; Provider Key:** You have to first create your own Provider Key here: https://myrealm.lastoasis.gg and fill in the generat… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "hinweis": "Abweichender Port (Standard war belegt): 27015->30026. This Docker will download and install SteamCMD. It will also install Last Oasis and run it. **Customer Provider Key:** You have to first create your own Provider Key here: https://myrealm.lastoasis.gg and fill in the generat… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "left4dead",
+   "name": "Left4Dead",
+   "kurz": "Koop-Kampagne gegen Zombies, genau 4 Spieler",
+   "appid": 222840,
+   "image": "ghcr.io/ich777/steamcmd:l4d",
+   "mem_gb": 4,
+   "platte_gb": 10,
+   "ports": [
+    "30119:27015/udp",
+    "30109:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/left4dead:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "222840",
+    "GAME_PARAMS": "+maxplayers 4 +map l4d_farm04_barn",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30119,
+   "spieler": 4,
+   "hinweis": "Koop-Kampagne gegen Zombies, genau 4 Spieler. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -851,6 +1636,38 @@
    ]
   },
   {
+   "schluessel": "mindustry",
+   "name": "Mindustry",
+   "kurz": "Fabrikbau und Tower Defense, Koop, sehr genuegsam",
+   "appid": 0,
+   "image": "ghcr.io/ich777/mindustry-server:latest",
+   "mem_gb": 1,
+   "platte_gb": 3,
+   "ports": [
+    "6567:6567/tcp",
+    "6567:6567/udp",
+    "127.0.0.1:9031:8080/tcp"
+   ],
+   "volumes": [
+    "/srv/games/mindustry:/serverdata"
+   ],
+   "env": {
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 6567,
+   "spieler": 4,
+   "hinweis": "Fabrikbau und Tower Defense, Koop, sehr genuegsam. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": []
+  },
+  {
    "schluessel": "minecraft",
    "name": "Minecraft (Java)",
    "kurz": "Klassiker, laeuft mit sehr wenig Ressourcen",
@@ -889,6 +1706,75 @@
    "appid": 0
   },
   {
+   "schluessel": "mordhau",
+   "name": "Mordhau",
+   "kurz": "Mittelalterlicher Nahkampf mit freiem Schlagsystem",
+   "appid": 629800,
+   "image": "ghcr.io/ich777/steamcmd:mordhau",
+   "mem_gb": 8,
+   "platte_gb": 30,
+   "ports": [
+    "30121:7777/udp",
+    "30122:27015/udp",
+    "30123:15000/udp"
+   ],
+   "volumes": [
+    "/srv/games/mordhau:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "629800",
+    "GAME_PARAMS": "false",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30121,
+   "spieler": 4,
+   "hinweis": "Mittelalterlicher Nahkampf mit freiem Schlagsystem. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "multitheftauto",
+   "name": "MultiTheftAuto",
+   "kurz": "Mehrspieler fuer GTA San Andreas",
+   "appid": 0,
+   "image": "ghcr.io/ich777/mtaserver:latest",
+   "mem_gb": 4,
+   "platte_gb": 10,
+   "ports": [
+    "22003:22003/udp",
+    "22126:22126/udp",
+    "22005:22005/tcp"
+   ],
+   "volumes": [
+    "/srv/games/multitheftauto:/serverdata"
+   ],
+   "env": {
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 22003,
+   "spieler": 4,
+   "hinweis": "Mehrspieler fuer GTA San Andreas. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": []
+  },
+  {
    "schluessel": "necesse",
    "name": "Necesse",
    "kurz": "Pixel-Sandbox mit Basisbau und Bossen",
@@ -920,6 +1806,171 @@
    "adresse_port": 14159,
    "spieler": 4,
    "hinweis": "Verwaltungszugang (TCP - WebConsole) ist nur lokal erreichbar, nicht aus dem Internet. This Docker will download and install SteamCMD. It will also install Necesse and run it. ATTENTION: First Startup can take very long since it downloads the gameserver files! Update Notice: Simply restart the container if a newer v… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "neotokyo",
+   "name": "NEOTOKYO",
+   "kurz": "Cyberpunk-Taktikshooter auf Source-Basis",
+   "appid": 313600,
+   "image": "ghcr.io/ich777/steamcmd:neotokyo",
+   "mem_gb": 2,
+   "platte_gb": 15,
+   "ports": [
+    "30124:27015/udp",
+    "30111:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/neotokyo:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "313600",
+    "GAME_PARAMS": "+maxplayers 32 +map nt_dawn_ctg",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30124,
+   "spieler": 4,
+   "hinweis": "Cyberpunk-Taktikshooter auf Source-Basis. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "openmwtes3mp",
+   "name": "OpenMW TES3MP",
+   "kurz": "Morrowind zu mehreren, offene Neuimplementierung",
+   "appid": 0,
+   "image": "ghcr.io/ich777/docker-openmw-tes3mp:latest",
+   "mem_gb": 1,
+   "platte_gb": 3,
+   "ports": [
+    "30112:25565/tcp",
+    "25565:25565/udp"
+   ],
+   "volumes": [
+    "/srv/games/openmwtes3mp:/serverdata"
+   ],
+   "env": {
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30112,
+   "spieler": 4,
+   "hinweis": "Morrowind zu mehreren, offene Neuimplementierung. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": []
+  },
+  {
+   "schluessel": "openrct2",
+   "name": "OpenRCT2",
+   "kurz": "Freizeitpark bauen, gemeinsam - RollerCoaster Tycoon 2",
+   "appid": 0,
+   "image": "ghcr.io/ich777/openrct2server:latest",
+   "mem_gb": 1,
+   "platte_gb": 3,
+   "ports": [
+    "11753:11753/tcp"
+   ],
+   "volumes": [
+    "/srv/games/openrct2:/serverdata"
+   ],
+   "env": {
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 11753,
+   "spieler": 4,
+   "hinweis": "Freizeitpark bauen, gemeinsam - RollerCoaster Tycoon 2. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": []
+  },
+  {
+   "schluessel": "openttd",
+   "name": "OpenTTD",
+   "kurz": "Transportunternehmen aufbauen, Koop, sehr genuegsam",
+   "appid": 0,
+   "image": "ghcr.io/ich777/openttdserver:latest",
+   "mem_gb": 1,
+   "platte_gb": 3,
+   "ports": [
+    "3979:3979/tcp",
+    "3979:3979/udp",
+    "127.0.0.1:9015:8080/tcp"
+   ],
+   "volumes": [
+    "/srv/games/openttd:/serverdata"
+   ],
+   "env": {
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 3979,
+   "spieler": 4,
+   "hinweis": "Transportunternehmen aufbauen, Koop, sehr genuegsam. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": []
+  },
+  {
+   "schluessel": "postscriptum",
+   "name": "PostScriptum",
+   "kurz": "Zweiter Weltkrieg, grosse koordinierte Gefechte",
+   "appid": 746200,
+   "image": "ghcr.io/ich777/steamcmd:postscriptum",
+   "mem_gb": 8,
+   "platte_gb": 30,
+   "ports": [
+    "10027:10027/udp",
+    "10037:10037/udp"
+   ],
+   "volumes": [
+    "/srv/games/postscriptum:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "746200",
+    "GAME_PARAMS": "Port=10027 QueryPort=10037 -log",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 10027,
+   "spieler": 4,
+   "hinweis": "Zweiter Weltkrieg, grosse koordinierte Gefechte. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -964,6 +2015,112 @@
    ]
   },
   {
+   "schluessel": "pvkii",
+   "name": "PVK II",
+   "kurz": "Piraten gegen Wikinger gegen Ritter, Nahkampf",
+   "appid": 17575,
+   "image": "ghcr.io/ich777/steamcmd:pvkii",
+   "mem_gb": 2,
+   "platte_gb": 15,
+   "ports": [
+    "30125:27015/udp",
+    "30113:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/pvkii:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "17575",
+    "GAME_PARAMS": "-maxplayers 18 +map bt_island",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30125,
+   "spieler": 4,
+   "hinweis": "Piraten gegen Wikinger gegen Ritter, Nahkampf. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "quakelive",
+   "name": "QuakeLive",
+   "kurz": "Arena-Shooter, schnell und ohne Schnickschnack",
+   "appid": 349090,
+   "image": "ghcr.io/ich777/steamcmd:quakelive",
+   "mem_gb": 4,
+   "platte_gb": 10,
+   "ports": [
+    "27960:27960/udp",
+    "28690:28690/tcp"
+   ],
+   "volumes": [
+    "/srv/games/quakelive:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "349090",
+    "GAME_PARAMS": "27960",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 27960,
+   "spieler": 4,
+   "hinweis": "Arena-Shooter, schnell und ohne Schnickschnack. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "redm",
+   "name": "RedM",
+   "kurz": "Mehrspieler-Framework fuer Red Dead Redemption 2",
+   "appid": 0,
+   "image": "ghcr.io/ich777/redmserver:latest",
+   "mem_gb": 4,
+   "platte_gb": 10,
+   "ports": [
+    "30114:30110/tcp",
+    "30121:30120/tcp",
+    "30126:30110/udp",
+    "30127:30120/udp",
+    "30115:8080/tcp"
+   ],
+   "volumes": [
+    "/srv/games/redm:/serverdata"
+   ],
+   "env": {
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30114,
+   "spieler": 4,
+   "hinweis": "Mehrspieler-Framework fuer Red Dead Redemption 2. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": []
+  },
+  {
    "schluessel": "rust",
    "name": "RUST",
    "kurz": "Hartes PvP-Survival, grosse Karten",
@@ -999,6 +2156,42 @@
    "adresse_port": 28015,
    "spieler": 4,
    "hinweis": "Verwaltungszugang (TCP1 - RCON Port) ist nur lokal erreichbar, nicht aus dem Internet. This Docker will download and install SteamCMD. It will also install RUST and run it. ATTENTION: First Startup can take very long since it downloads the gameserver files! Update Notice: Simply restart the container if a newer vers… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "scpsecretlaboratory",
+   "name": "SCP SecretLaboratory",
+   "kurz": "SCP-Horror, rundenbasiert, Rollen gegeneinander",
+   "appid": 996560,
+   "image": "ghcr.io/ich777/steamcmd:scp-secretlaboratory",
+   "mem_gb": 8,
+   "platte_gb": 30,
+   "ports": [
+    "30128:7777/udp",
+    "30116:7777/tcp"
+   ],
+   "volumes": [
+    "/srv/games/scpsecretlaboratory:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "996560",
+    "GAME_PARAMS": "7777",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30128,
+   "spieler": 4,
+   "hinweis": "SCP-Horror, rundenbasiert, Rollen gegeneinander. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -1077,6 +2270,47 @@
    ]
   },
   {
+   "schluessel": "squad",
+   "name": "Squad",
+   "kurz": "Militaersimulation mit grossen Teams und Sprachfunk",
+   "appid": 403240,
+   "image": "ghcr.io/ich777/steamcmd:squad",
+   "mem_gb": 8,
+   "platte_gb": 30,
+   "ports": [
+    "7787:7787/udp",
+    "7788:7788/udp",
+    "27165:27165/udp",
+    "27166:27166/udp",
+    "27166:27166/tcp",
+    "21114:21114/tcp",
+    "21114:21114/udp"
+   ],
+   "volumes": [
+    "/srv/games/squad:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "403240",
+    "GAME_PARAMS": "Port=7787 QueryPort=27165",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 7787,
+   "spieler": 4,
+   "hinweis": "Militaersimulation mit grossen Teams und Sprachfunk. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
    "schluessel": "starbound",
    "name": "Starbound",
    "kurz": "2D-Weltraum-Sandbox mit Basisbau",
@@ -1112,6 +2346,36 @@
     "steamcmd",
     "serverfiles/steamapps"
    ]
+  },
+  {
+   "schluessel": "starmade",
+   "name": "Starmade",
+   "kurz": "Raumschiffe bauen und fliegen, Sandbox",
+   "appid": 0,
+   "image": "ghcr.io/ich777/starmade-server:latest",
+   "mem_gb": 1,
+   "platte_gb": 3,
+   "ports": [
+    "4242:4242/tcp"
+   ],
+   "volumes": [
+    "/srv/games/starmade:/serverdata"
+   ],
+   "env": {
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 4242,
+   "spieler": 4,
+   "hinweis": "Raumschiffe bauen und fliegen, Sandbox. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": []
   },
   {
    "schluessel": "subsistence",
@@ -1186,6 +2450,78 @@
    ]
   },
   {
+   "schluessel": "svencoop",
+   "name": "SvenCOOP",
+   "kurz": "Half-Life 1 als Koop-Kampagne",
+   "appid": 276060,
+   "image": "ghcr.io/ich777/steamcmd:svencoop",
+   "mem_gb": 2,
+   "platte_gb": 15,
+   "ports": [
+    "30129:27015/udp",
+    "30117:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/svencoop:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "276060",
+    "GAME_PARAMS": "+maxplayers 20 +map hl_c00.bsp +servercfgfile servers/server.cfg",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30129,
+   "spieler": 4,
+   "hinweis": "Half-Life 1 als Koop-Kampagne. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "teamfortress2",
+   "name": "TeamFortress2",
+   "kurz": "Klassenbasierter Team-Shooter, neun Klassen",
+   "appid": 232250,
+   "image": "ghcr.io/ich777/steamcmd:tf2",
+   "mem_gb": 4,
+   "platte_gb": 10,
+   "ports": [
+    "30118:27015/tcp",
+    "30130:27015/udp"
+   ],
+   "volumes": [
+    "/srv/games/teamfortress2:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "232250",
+    "GAME_PARAMS": "+sv_pure 1 +randommap +maxplayers 24",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30118,
+   "spieler": 4,
+   "hinweis": "Klassenbasierter Team-Shooter, neun Klassen. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
    "schluessel": "teamspeak",
    "name": "TeamSpeak 3",
    "kurz": "Sprachserver für alle Spielrunden",
@@ -1210,6 +2546,99 @@
    "adresse_port": 9987,
    "spieler": 4,
    "hinweis": "Das Serverpasswort setzt man im TeamSpeak-Client selbst (Serververwaltung → Server bearbeiten). Beim allerersten Start steht der Admin-Token im Containerprotokoll. Die Installation nimmt die TeamSpeak-Lizenzbedingungen an (TS3SERVER_LICENSE=accept).",
+   "ausschluss": []
+  },
+  {
+   "schluessel": "teeworlds",
+   "name": "Teeworlds",
+   "kurz": "2D-Arena mit Enterhaken, sehr genuegsam",
+   "appid": 0,
+   "image": "ghcr.io/ich777/teeworldsserver:latest",
+   "mem_gb": 1,
+   "platte_gb": 3,
+   "ports": [
+    "30131:8303/udp",
+    "30119:8303/tcp"
+   ],
+   "volumes": [
+    "/srv/games/teeworlds:/serverdata"
+   ],
+   "env": {
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30131,
+   "spieler": 4,
+   "hinweis": "2D-Arena mit Enterhaken, sehr genuegsam. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": []
+  },
+  {
+   "schluessel": "terraria",
+   "name": "Terraria",
+   "kurz": "2D-Sandbox mit Bossen und Erkundung, Koop",
+   "appid": 0,
+   "image": "ghcr.io/ich777/terrariaserver:latest",
+   "mem_gb": 1,
+   "platte_gb": 3,
+   "ports": [
+    "30122:7777/tcp",
+    "127.0.0.1:9012:8080/tcp"
+   ],
+   "volumes": [
+    "/srv/games/terraria:/serverdata"
+   ],
+   "env": {
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30122,
+   "spieler": 4,
+   "hinweis": "2D-Sandbox mit Bossen und Erkundung, Koop. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": []
+  },
+  {
+   "schluessel": "terrariatshock",
+   "name": "Terraria TShock",
+   "kurz": "Terraria mit Server-Plugins und Rechteverwaltung",
+   "appid": 0,
+   "image": "ghcr.io/ich777/terrariaserver:tshock",
+   "mem_gb": 1,
+   "platte_gb": 3,
+   "ports": [
+    "30123:7777/tcp",
+    "127.0.0.1:9014:8080/tcp"
+   ],
+   "volumes": [
+    "/srv/games/terrariatshock:/serverdata"
+   ],
+   "env": {
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30123,
+   "spieler": 4,
+   "hinweis": "Terraria mit Server-Plugins und Rechteverwaltung. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": []
   },
   {
@@ -1363,42 +2792,34 @@
    ]
   },
   {
-   "schluessel": "vrising",
-   "name": "V Rising",
-   "kurz": "Vampir-Survival mit Schlossbau",
-   "appid": 1604030,
-   "image": "ghcr.io/ich777/steamcmd:vrising",
-   "mem_gb": 6,
-   "platte_gb": 12,
+   "schluessel": "urbanterror",
+   "name": "Urban Terror",
+   "kurz": "Realistischer Arena-Shooter, frei spielbar",
+   "appid": 0,
+   "image": "ghcr.io/ich777/urbanterror:latest",
+   "mem_gb": 1,
+   "platte_gb": 3,
    "ports": [
-    "9876:9876/udp",
-    "9877:9877/udp"
+    "30132:27960/udp"
    ],
    "volumes": [
-    "/srv/games/vrising:/serverdata"
+    "/srv/games/urbanterror:/serverdata"
    ],
    "env": {
-    "GAME_ID": "1829350",
-    "GAME_PARAMS": "",
     "UID": "4711",
     "GID": "4711",
     "UMASK": "000",
-    "DATA_PERM": "770",
-    "SERVER_NAME": "@@WELT_NAME@@",
-    "WORLD_NAME": "@@WELT_NAME@@"
+    "DATA_PERM": "770"
    },
    "passwort": {
     "art": "datei",
     "pfad": "",
     "feld": ""
    },
-   "adresse_port": 9876,
+   "adresse_port": 30132,
    "spieler": 4,
-   "hinweis": "This Docker will download and install SteamCMD. It will also install V Rising and run it. **Save Files:** The save files are located in: .../vrising/save-data/Saves **Config Files:** The config files are located in: .../vrising/sa… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
-   "ausschluss": [
-    "steamcmd",
-    "serverfiles/steamapps"
-   ]
+   "hinweis": "Realistischer Arena-Shooter, frei spielbar. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": []
   },
   {
    "schluessel": "valheim",
@@ -1472,6 +2893,74 @@
    "appid": 0
   },
   {
+   "schluessel": "vrising",
+   "name": "V Rising",
+   "kurz": "Vampir-Survival mit Schlossbau",
+   "appid": 1604030,
+   "image": "ghcr.io/ich777/steamcmd:vrising",
+   "mem_gb": 6,
+   "platte_gb": 12,
+   "ports": [
+    "9876:9876/udp",
+    "9877:9877/udp"
+   ],
+   "volumes": [
+    "/srv/games/vrising:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "1829350",
+    "GAME_PARAMS": "",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770",
+    "SERVER_NAME": "@@WELT_NAME@@",
+    "WORLD_NAME": "@@WELT_NAME@@"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 9876,
+   "spieler": 4,
+   "hinweis": "This Docker will download and install SteamCMD. It will also install V Rising and run it. **Save Files:** The save files are located in: .../vrising/save-data/Saves **Config Files:** The config files are located in: .../vrising/sa… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "windward",
+   "name": "Windward",
+   "kurz": "Segelschiffe, Handel und Gefechte, Koop",
+   "appid": 0,
+   "image": "ghcr.io/ich777/windward:latest",
+   "mem_gb": 1,
+   "platte_gb": 3,
+   "ports": [
+    "5127:5127/tcp"
+   ],
+   "volumes": [
+    "/srv/games/windward:/serverdata"
+   ],
+   "env": {
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 5127,
+   "spieler": 4,
+   "hinweis": "Segelschiffe, Handel und Gefechte, Koop. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": []
+  },
+  {
    "schluessel": "wurmunlimited",
    "name": "WurmUnlimited",
    "kurz": "Tiefes Mittelalter-Sandbox-MMO, sehr eigen",
@@ -1509,6 +2998,66 @@
     "steamcmd",
     "serverfiles/steamapps"
    ]
+  },
+  {
+   "schluessel": "xonotic",
+   "name": "Xonotic",
+   "kurz": "Schneller Arena-Shooter, frei und quelloffen",
+   "appid": 0,
+   "image": "ghcr.io/ich777/xonotic:latest",
+   "mem_gb": 1,
+   "platte_gb": 3,
+   "ports": [
+    "26000:26000/udp"
+   ],
+   "volumes": [
+    "/srv/games/xonotic:/serverdata"
+   ],
+   "env": {
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 26000,
+   "spieler": 4,
+   "hinweis": "Schneller Arena-Shooter, frei und quelloffen. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": []
+  },
+  {
+   "schluessel": "zandronum",
+   "name": "Zandronum",
+   "kurz": "Doom im Mehrspieler, Koop und Deathmatch",
+   "appid": 0,
+   "image": "ghcr.io/ich777/zandronum:latest",
+   "mem_gb": 1,
+   "platte_gb": 3,
+   "ports": [
+    "10666:10666/udp"
+   ],
+   "volumes": [
+    "/srv/games/zandronum:/serverdata"
+   ],
+   "env": {
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 10666,
+   "spieler": 4,
+   "hinweis": "Doom im Mehrspieler, Koop und Deathmatch. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "ausschluss": []
   }
  ]
 }

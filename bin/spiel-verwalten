@@ -42,24 +42,48 @@ def installiert() -> set:
 
 
 def belegte_ports() -> set:
-    """Ports, die schon vergeben sind - aus den compose-Dateien UND vom System.
+    """Vergebene Ports als (nummer, protokoll) - aus den compose-Dateien UND vom System.
 
     Beides ist noetig: Ein gestoppter Stack taucht in "ss" nicht auf, sein Port
     ist aber trotzdem vergeben. Umgekehrt lauschen Systemdienste (SSH, Caddy,
     Tailscale), die in keiner compose-Datei stehen.
+
+    MIT PROTOKOLL, seit 2026-09-07: TCP und UDP kollidieren nicht - derselbe
+    Port laesst sich einmal fuer jedes Protokoll binden. Ohne diese
+    Unterscheidung meldete die Vorpruefung einen FEHLER, weil Palworld 27015/udp
+    haelt und AlienSwarm 27015/tcp wollte. Ein Fehlalarm in einer Pruefung ist
+    gefaehrlich: man gewoehnt sich daran, sie zu uebergehen.
+    *With protocol since 2026-09-07: TCP and UDP do not collide. Without the
+     distinction the pre-flight check reported an error because Palworld holds
+     27015/udp while AlienSwarm wanted 27015/tcp. A false alarm in a check is
+     dangerous - people learn to ignore it.*
     """
     p = set()
     for f in STACKS.glob("*/compose.yaml"):
-        for m in re.finditer(r'^\s*-\s*"(?:[\d.]+:)?(\d+):', f.read_text(), re.M):
-            p.add(int(m.group(1)))
+        # Protokoll steht hinter dem Schraegstrich; fehlt es, ist TCP gemeint.
+        for m in re.finditer(r'^\s*-\s*"(?:[\d.]+:)?(\d+):\d+(?:/(\w+))?"', f.read_text(), re.M):
+            p.add((int(m.group(1)), (m.group(2) or "tcp").lower()))
     aus = subprocess.run(["ss", "-tulnH"], capture_output=True, text=True).stdout
     for zeile in aus.splitlines():
         teile = zeile.split()
         if len(teile) >= 5:
             m = re.search(r":(\d+)$", teile[4])
             if m:
-                p.add(int(m.group(1)))
+                p.add((int(m.group(1)), teile[0].lower()))
     return p
+
+
+def port_und_proto(angabe: str) -> tuple:
+    """(Hostport, Protokoll) aus einer Docker-Portangabe.
+
+    Drei Formen kommen vor: "8080:80", "8080:80/udp" und
+    "127.0.0.1:8080:80/tcp" - bei der dritten ist der Hostport das VORLETZTE
+    Feld, nicht das erste. Ein frueherer Zugriff ueber [0] ergab dort die
+    IP-Adresse und stuerzte ab.
+    *Three forms occur; in the third the host port is the second-to-last field.*
+    """
+    proto = angabe.rsplit("/", 1)[-1].lower() if "/" in angabe else "tcp"
+    return int(angabe.split("/")[0].split(":")[-2]), proto
 
 
 def freie_gb(pfad="/") -> int:
@@ -217,7 +241,10 @@ def installieren(sch: str):
     # Portangaben haben zwei Formen: "8080:8080/tcp" und - bei nur lokal
     # gebundenen Verwaltungszugaengen - "127.0.0.1:8080:8080/tcp". Der Host-Port
     # ist in beiden Faellen das VORLETZTE Feld, nicht das erste.
-    kollision = [p for p in g["ports"] if int(p.split(":")[-2]) in belegt]
+    # Nur oeffentliche Ports pruefen: eine dreiteilige Angabe bindet an
+    # 127.0.0.1 und kann mit nichts kollidieren, was von aussen kommt.
+    kollision = [p for p in g["ports"]
+                 if len(p.split("/")[0].split(":")) < 3 and port_und_proto(p) in belegt]
     if kollision:
         fehler("Port bereits belegt: " + ", ".join(kollision))
 

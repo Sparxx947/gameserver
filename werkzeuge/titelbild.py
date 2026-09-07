@@ -104,7 +104,25 @@ def erzeugen(schluessel, name, unter, adresse, motiv="wuerfel", akzent=None):
     while groesse > 15 and d.textlength(name, font=font(groesse, True)) > BREITE - 165:
         groesse -= 1
     d.text((150, 62), name, font=font(groesse, True), fill=TEXT)
-    d.text((152, 108), unter, font=font(17), fill=GEDIMMT)
+
+    # Der Untertitel bekam zunaechst keine Breitenpruefung - "Transportunternehmen
+    # aufbauen, Koop, sehr genuegsam" endete als "Transportunternehmen aufbauen,
+    # Ko" mitten im Wort. Erst schrumpfen, dann notfalls an einer Wortgrenze
+    # kuerzen: ein abgeschnittenes Wort sieht nach Fehler aus, ein Auslassungs-
+    # zeichen nach Absicht.
+    # *The subtitle had no width check at first and was cut mid-word, which reads
+    #  as a defect; shrink first, then truncate at a word boundary with an
+    #  ellipsis, which reads as intent.*
+    platz = BREITE - 165
+    ug = 17
+    while ug > 12 and d.textlength(unter, font=font(ug)) > platz:
+        ug -= 1
+    if d.textlength(unter, font=font(ug)) > platz:
+        worte = unter.split()
+        while worte and d.textlength(" ".join(worte) + " …", font=font(ug)) > platz:
+            worte.pop()
+        unter = (" ".join(worte) + " …") if worte else unter[:20] + "…"
+    d.text((152, 108), unter, font=font(ug), fill=GEDIMMT)
     if adresse:
         d.text((152, 136), adresse, font=font(15), fill=tuple(int(k * .85) for k in akzent))
 

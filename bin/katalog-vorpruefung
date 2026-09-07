@@ -45,15 +45,19 @@ for g in KAT:
 
     # --- Ports: gegen das System und gegen die anderen Katalogeintraege
     for p in g["ports"]:
+        # Dreiteilige Angabe = an 127.0.0.1 gebunden, kollidiert nach aussen nie.
+        if len(p.split("/")[0].split(":")) >= 3:
+            continue
         try:
-            hp = int(p.split(":")[-2])
+            schluessel_port = sv.port_und_proto(p)
         except Exception:
             fehler.append(f"Portangabe unlesbar: {p}"); continue
-        if hp in belegt and s not in schon_da:
-            fehler.append(f"Port {hp} ist auf dem Server belegt")
-        if hp in gesehen_ports and gesehen_ports[hp] != s:
-            warnung.append(f"Port {hp} teilt sich mit {gesehen_ports[hp]}")
-        gesehen_ports[hp] = s
+        hp, proto = schluessel_port
+        if schluessel_port in belegt and s not in schon_da:
+            fehler.append(f"Port {hp}/{proto} ist auf dem Server belegt")
+        if schluessel_port in gesehen_ports and gesehen_ports[schluessel_port] != s:
+            warnung.append(f"Port {hp}/{proto} teilt sich mit {gesehen_ports[schluessel_port]}")
+        gesehen_ports[schluessel_port] = s
 
     # --- compose.yaml erzeugen und von Docker selbst pruefen lassen
     try:
