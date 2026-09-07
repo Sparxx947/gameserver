@@ -1,0 +1,5 @@
+# Die Weboberflaeche laeuft als "panel" und darf ausschliesslich panel-aktion
+# aufrufen — kein docker, kein borg, keine Shell. panel-aktion selbst prueft
+# jeden Parameter gegen eine Positivliste.
+panel ALL=(root) NOPASSWD: /usr/local/bin/panel-aktion
+Defaults!/usr/local/bin/panel-aktion !requiretty

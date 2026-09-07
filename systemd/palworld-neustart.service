@@ -1,0 +1,6 @@
+[Unit]
+Description=Palworld-Server neu starten (gegen das bekannte Speicherleck)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/docker restart palworld

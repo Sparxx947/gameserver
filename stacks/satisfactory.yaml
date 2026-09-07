@@ -1,0 +1,26 @@
+# Satisfactory-Server, angelegt 2026-09-06.
+# Speicherhungrigster Server der Sammlung: 8 GB Minimum laut Hersteller, bei
+# grossen Fabriken mehr. Laeuft deshalb NICHT dauerhaft mit — starten mit
+#   spiel start satisfactory
+services:
+  satisfactory:
+    image: wolveix/satisfactory-server:latest
+    container_name: satisfactory
+    hostname: satisfactory
+    restart: unless-stopped
+    stop_grace_period: 90s
+    mem_limit: 10g
+    memswap_limit: 10g
+    ports:
+      - "7777:7777/tcp"
+      - "7777:7777/udp"
+      - "8888:8888/tcp"
+    volumes:
+      - /srv/games/satisfactory:/config
+    environment:
+      MAXPLAYERS: 4
+      PUID: 4711
+      PGID: 4711
+      STEAMBETA: "false"
+      AUTOPAUSE: "true"
+      AUTOSAVEINTERVAL: 300

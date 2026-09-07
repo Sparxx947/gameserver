@@ -1,0 +1,41 @@
+# Enshrouded-Server, angelegt 2026-09-06.
+# Bind-Mount nach /srv/games/enshrouded, damit Borg die Spielstaende direkt
+# sichern kann (kein Umweg ueber ein Docker-Volume).
+# /dev/ntsync bewusst weggelassen: Debian 12 faehrt Kernel 6.1, ntsync gibt es
+# erst ab 6.14. Der Container nutzt stattdessen esync/fsync.
+services:
+  enshrouded:
+    image: mornedhels/enshrouded-server:latest
+    container_name: enshrouded
+    hostname: enshrouded
+    restart: unless-stopped
+    stop_grace_period: 90s
+    mem_limit: 6g
+    memswap_limit: 6g
+    ports:
+      - "15637:15637/udp"
+    volumes:
+      - /srv/games/enshrouded:/opt/enshrouded
+    environment:
+      - SERVER_NAME=@@WELT_NAME@@
+      - SERVER_SLOT_COUNT=4
+      - BACKUP_CRON=*/30 * * * *
+      - BACKUP_MAX_COUNT=8
+      - SERVER_ENABLE_TEXT_CHAT=true
+      - SERVER_ROLE_0_NAME=Admin
+      - SERVER_ROLE_0_PASSWORD=@@PASSWORT@@
+      - SERVER_ROLE_0_CAN_KICK_BAN=true
+      - SERVER_ROLE_0_CAN_ACCESS_INVENTORIES=true
+      - SERVER_ROLE_0_CAN_EDIT_WORLD=true
+      - SERVER_ROLE_0_CAN_EDIT_BASE=true
+      - SERVER_ROLE_0_CAN_EXTEND_BASE=true
+      - SERVER_ROLE_0_RESERVED_SLOTS=1
+      - SERVER_ROLE_1_NAME=Freunde
+      - SERVER_ROLE_1_PASSWORD=@@PASSWORT@@
+      - SERVER_ROLE_1_CAN_KICK_BAN=false
+      - SERVER_ROLE_1_CAN_ACCESS_INVENTORIES=true
+      - SERVER_ROLE_1_CAN_EDIT_WORLD=true
+      - SERVER_ROLE_1_CAN_EDIT_BASE=true
+      - SERVER_ROLE_1_CAN_EXTEND_BASE=true
+      - PUID=4711
+      - PGID=4711

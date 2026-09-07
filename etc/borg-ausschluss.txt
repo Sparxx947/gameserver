@@ -1,0 +1,54 @@
+# Spielinstallationen gehoeren NICHT in die Sicherung - SteamCMD laedt sie
+# jederzeit neu (Enshrouded allein: 8,9 GB). Gesichert werden Spielstaende,
+# Serverkonfiguration und die compose-Dateien.
+sh:/srv/games/*/server/*.dat
+sh:/srv/games/*/server/*.exe
+sh:/srv/games/*/server/*.kfc*
+sh:/srv/games/*/server/*.pdb
+sh:/srv/games/*/server/steamapps
+sh:/srv/games/*/server/logs
+sh:/srv/games/*/.steam
+sh:/srv/games/*/steamcmd
+sh:/srv/games/*/current_version
+# Palworld (Image thijsvanloef): Installation und SteamCMD bleiben draussen,
+# gesichert werden Pal/Saved (Welt, Spielerstaende, Konfiguration) und backups/.
+sh:/srv/games/palworld/Pal/Binaries
+sh:/srv/games/palworld/Pal/Content
+sh:/srv/games/palworld/Pal/Plugins
+sh:/srv/games/palworld/Engine
+sh:/srv/games/palworld/steamapps
+sh:/srv/games/palworld/PalServer.sh
+sh:/srv/games/palworld/*.so
+sh:/srv/games/palworld/steamclient*
+# Satisfactory: Installation raus, "saved" und "backups" bleiben drin.
+sh:/srv/games/satisfactory/gamefiles
+sh:/srv/games/satisfactory/logs
+# FOUNDRY: Installation raus, "data" (Spielstaende) bleibt.
+sh:/srv/games/foundry/server
+# Windrose: alles unter server/ ist Installation AUSSER R5/Saved und
+# R5/ServerDescription.json — deshalb gezielt die dicken Brocken ausschliessen
+# statt "server" pauschal, sonst faellt der Spielstand mit heraus.
+sh:/srv/games/windrose/server/steamapps
+sh:/srv/games/windrose/server/Engine
+sh:/srv/games/windrose/server/R5/Content
+sh:/srv/games/windrose/server/R5/Binaries
+sh:/srv/games/windrose/server/R5/Plugins
+sh:/srv/games/windrose/server/R5/.sentry-native
+# StarRupture: Wine-Praefix und Spielinstallation raus.
+# StarRupture: die Installation liegt unter starrupture/starrupture — dort
+# stecken aber AUCH die Spielstaende (StarRupture/Saved). Deshalb NICHT den
+# ganzen Zweig ausschliessen, sondern die dicken Brocken einzeln; Saved und
+# DSSettings.txt bleiben drin.
+sh:/srv/games/starrupture/starrupture/Engine/Binaries
+sh:/srv/games/starrupture/starrupture/Engine/Content
+sh:/srv/games/starrupture/starrupture/Engine/Plugins
+sh:/srv/games/starrupture/starrupture/StarRupture/Content
+sh:/srv/games/starrupture/starrupture/StarRupture/Binaries
+sh:/srv/games/starrupture/starrupture/StarRupture/Plugins
+sh:/srv/games/starrupture/starrupture/Licenses
+sh:/srv/games/starrupture/.wine
+sh:/srv/games/starrupture/Steam
+# >>> panel:necesse (automatisch, nicht von Hand aendern)
+sh:/srv/games/necesse/steamcmd
+sh:/srv/games/necesse/serverfiles/steamapps
+# <<< panel:necesse

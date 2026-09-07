@@ -1,0 +1,317 @@
+#!/usr/bin/env python3
+"""spiel-verwalten — legt Spielserver aus dem Katalog an und entfernt sie wieder.
+
+Wird ausschliesslich von panel-aktion aufgerufen (das wiederum die einzige
+sudo-Bruecke der Weboberflaeche ist). Die Weboberflaeche uebergibt NIE eigene
+Werte fuer Image, Ports oder Volumes - nur einen Katalogschluessel. Alles
+andere stammt aus /etc/spiele-katalog.json, die root gehoert.
+
+Schutz gegen versehentliches Loeschen: entfernt werden darf nur, was diese
+Datei selbst angelegt hat. Das erkennt sie an /opt/stacks/<name>/panel.json.
+Die von Hand gebauten Stacks (enshrouded, palworld, ...) haben die nicht und
+sind ueber die Oberflaeche deshalb gar nicht loeschbar.
+
+  spiel-verwalten katalog
+  spiel-verwalten installieren <schluessel>
+  spiel-verwalten deinstallieren <stack>
+"""
+import json, os, re, secrets, shutil, string, subprocess, sys, urllib.request
+from pathlib import Path
+
+KATALOG = Path("/etc/spiele-katalog.json")
+ZUGAENGE = Path("/opt/panel/daten/zugangsdaten.json")
+STACKS = Path("/opt/stacks")
+SPIELE = Path("/srv/games")
+AUSSCHLUSS = Path("/etc/borg-ausschluss.txt")
+BILDER = Path("/opt/panel/bilder")
+RESERVE_GB = 10          # so viel Platte bleibt auf jeden Fall frei
+PUID = PGID = 4711
+
+
+def fehler(*t):
+    print("FEHLER:", *t, file=sys.stderr)
+    sys.exit(1)
+
+
+def katalog() -> dict:
+    return {g["schluessel"]: g for g in json.loads(KATALOG.read_text())["spiele"]}
+
+
+def installiert() -> set:
+    return {d.name for d in STACKS.iterdir() if d.is_dir()} if STACKS.exists() else set()
+
+
+def belegte_ports() -> set:
+    """Ports, die schon vergeben sind - aus den compose-Dateien UND vom System.
+
+    Beides ist noetig: Ein gestoppter Stack taucht in "ss" nicht auf, sein Port
+    ist aber trotzdem vergeben. Umgekehrt lauschen Systemdienste (SSH, Caddy,
+    Tailscale), die in keiner compose-Datei stehen.
+    """
+    p = set()
+    for f in STACKS.glob("*/compose.yaml"):
+        for m in re.finditer(r'^\s*-\s*"(?:[\d.]+:)?(\d+):', f.read_text(), re.M):
+            p.add(int(m.group(1)))
+    aus = subprocess.run(["ss", "-tulnH"], capture_output=True, text=True).stdout
+    for zeile in aus.splitlines():
+        teile = zeile.split()
+        if len(teile) >= 5:
+            m = re.search(r":(\d+)$", teile[4])
+            if m:
+                p.add(int(m.group(1)))
+    return p
+
+
+def freie_gb(pfad="/") -> int:
+    s = os.statvfs(pfad)
+    return (s.f_bavail * s.f_frsize) // (1024 ** 3)
+
+
+def freier_ram_gb() -> int:
+    for z in Path("/proc/meminfo").read_text().splitlines():
+        if z.startswith("MemAvailable:"):
+            return int(z.split()[1]) // (1024 * 1024)
+    return 0
+
+
+def passwort(laenge=14) -> str:
+    # Ohne Zeichen, die in YAML, Shell oder Spielkonsolen Aerger machen, und
+    # ohne die Verwechslungspaare 0/O und 1/l/I - diese Passwoerter werden
+    # abgetippt, teils von Mitspielern am Telefon.
+    z = "".join(c for c in string.ascii_letters + string.digits if c not in "0O1lI")
+    return "".join(secrets.choice(z) for _ in range(laenge))
+
+
+def yaml_wert(w: str) -> str:
+    return '"' + str(w).replace('\\', '\\\\').replace('"', '\\"') + '"'
+
+
+def zugang_eintragen(stack: str, name: str, pw: str, admin: str, art: str):
+    """Passwoerter in die Zugangsdaten-Liste des Panels schreiben.
+
+    Bewusst hier und nicht erst beim Anzeigen: Bei den meisten Spielen steht das
+    Passwort spaeter in einer Konfigurationsdatei, deren Format das Panel nicht
+    kennt. Wer es dort auslesen wollte, braeuchte 40 Sonderfaelle. Beim Anlegen
+    ist der Wert dagegen bekannt - also wird er festgehalten."""
+    try:
+        liste = json.loads(ZUGAENGE.read_text()) if ZUGAENGE.exists() else []
+    except Exception:
+        liste = []
+    liste = [e for e in liste if e.get("server") != stack]
+    if art != "keins":
+        liste.append({"server": stack, "feld": "Beitrittspasswort", "wert": pw})
+        liste.append({"server": stack, "feld": "Adminpasswort", "wert": admin})
+    ZUGAENGE.write_text(json.dumps(liste, indent=1, ensure_ascii=False) + "\n")
+    try:
+        shutil.chown(ZUGAENGE, "panel", "panel")
+        ZUGAENGE.chmod(0o660)
+    except Exception:
+        pass
+
+
+def zugang_entfernen(stack: str):
+    if not ZUGAENGE.exists():
+        return
+    try:
+        liste = [e for e in json.loads(ZUGAENGE.read_text()) if e.get("server") != stack]
+    except Exception:
+        return
+    ZUGAENGE.write_text(json.dumps(liste, indent=1, ensure_ascii=False) + "\n")
+
+
+def compose_bauen(g: dict, pw: str, admin: str) -> str:
+    s = g["schluessel"]
+    z = [f'# {g["name"]}-Server, angelegt vom Panel-Katalog.',
+         f'# Quelle: /etc/spiele-katalog.json (Schluessel "{s}").',
+         '# Von Hand geaenderte Werte ueberlebt eine Neuinstallation NICHT.',
+         'services:', f'  {s}:',
+         f'    image: {g["image"]}',
+         f'    container_name: {s}', f'    hostname: {s}',
+         '    restart: unless-stopped', '    stop_grace_period: 90s',
+         f'    mem_limit: {g["mem_gb"]}g', f'    memswap_limit: {g["mem_gb"]}g']
+    if g["ports"]:
+        z.append('    ports:')
+        z += [f'      - "{p}"' for p in g["ports"]]
+    z.append('    volumes:')
+    z += [f'      - {v}' for v in g["volumes"]]
+    # Platzhalter des Katalogs fuellen. {PASSWORT} und {ADMIN} koennen in jedem
+    # Wert stehen - bei Soulmask etwa mitten in GAME_PARAMS.
+    umg = {k: str(v).replace("{PASSWORT}", pw).replace("{ADMIN}", admin)
+           for k, v in g["env"].items()}
+    z.append('    environment:')
+    z += [f'      {k}: {yaml_wert(v)}' for k, v in umg.items()]
+    return "\n".join(z) + "\n"
+
+
+def ausschluss_setzen(s: str, muster: list):
+    """Borg-Ausschluesse als markierten Block anhaengen - so laesst er sich beim
+    Deinstallieren wieder sauber entfernen, ohne fremde Zeilen zu treffen."""
+    text = AUSSCHLUSS.read_text()
+    text = ausschluss_entfernen_text(text, s)
+    if muster:
+        block = [f"# >>> panel:{s} (automatisch, nicht von Hand aendern)"]
+        block += [f"sh:/srv/games/{s}/{m}" for m in muster]
+        block.append(f"# <<< panel:{s}")
+        text = text.rstrip("\n") + "\n" + "\n".join(block) + "\n"
+    AUSSCHLUSS.write_text(text)
+
+
+def ausschluss_entfernen_text(text: str, s: str) -> str:
+    return re.sub(rf"^# >>> panel:{re.escape(s)}\b.*?^# <<< panel:{re.escape(s)}\n",
+                  "", text, flags=re.S | re.M)
+
+
+def bild_holen(g: dict):
+    if not g.get("appid"):
+        return
+    url = f"https://cdn.cloudflare.steamstatic.com/steam/apps/{g['appid']}/header.jpg"
+    ziel = BILDER / f'{g["schluessel"]}.jpg'
+    try:
+        with urllib.request.urlopen(url, timeout=20) as r:
+            daten = r.read()
+        if len(daten) > 2000:
+            ziel.write_bytes(daten)
+            shutil.chown(ziel, "panel", "panel")
+            ziel.chmod(0o644)
+    except Exception:
+        pass          # ohne Bild ist die Kachel blass, aber alles funktioniert
+
+
+def installieren(sch: str):
+    kat = katalog()
+    g = kat.get(sch) or fehler(f"'{sch}' steht nicht im Katalog")
+    if sch in installiert():
+        fehler(f"{sch} ist bereits installiert")
+
+    frei = freie_gb()
+    if frei - g["platte_gb"] < RESERVE_GB:
+        fehler(f"zu wenig Platte: {g['name']} braucht rund {g['platte_gb']} GB, "
+               f"frei sind {frei} GB, {RESERVE_GB} GB sollen frei bleiben")
+
+    belegt = belegte_ports()
+    # Portangaben haben zwei Formen: "8080:8080/tcp" und - bei nur lokal
+    # gebundenen Verwaltungszugaengen - "127.0.0.1:8080:8080/tcp". Der Host-Port
+    # ist in beiden Faellen das VORLETZTE Feld, nicht das erste.
+    kollision = [p for p in g["ports"] if int(p.split(":")[-2]) in belegt]
+    if kollision:
+        fehler("Port bereits belegt: " + ", ".join(kollision))
+
+    pw, admin = passwort(), passwort()
+
+    verz = STACKS / sch
+    # 0750 root:panel - die Weboberflaeche muss das Verzeichnis betreten koennen,
+    # um panel.json zu lesen (Adresse, Einrichtungsstand). Die compose.yaml darin
+    # bleibt 0600 und damit fuer sie unlesbar; dort stehen die Passwoerter im Klartext.
+    verz.mkdir()
+    # chmod NACH mkdir: der mode-Parameter wird von der umask beschnitten, und
+    # panel-aktion setzt umask 077 - aus 0750 wurde so 0700, und die App kam
+    # nicht mehr an panel.json. Beim Test aufgefallen.
+    verz.chmod(0o750)
+    try:
+        shutil.chown(verz, "root", "panel")
+    except Exception:
+        pass
+    for v in g["volumes"]:
+        p = Path(v.split(":")[0])
+        ziel = v.split(":")[1]
+        p.mkdir(parents=True, exist_ok=True)
+        os.chown(p, PUID, PGID)
+        # Die Bilder von ich777 erwarten unter /serverdata zwei Unterordner und
+        # legen sie NICHT selbst an: In der Unraid-Vorlage sind es zwei eigene
+        # Einhaengepunkte. Fehlen sie, laeuft der Container in eine Neustart-
+        # schleife ("SteamCMD not found!"), ohne je etwas herunterzuladen.
+        if ziel.rstrip("/") == "/serverdata":
+            for unter in ("steamcmd", "serverfiles"):
+                u = p / unter
+                u.mkdir(exist_ok=True)
+                os.chown(u, PUID, PGID)
+
+    datei = verz / "compose.yaml"
+    datei.write_text(compose_bauen(g, pw, admin))
+    datei.chmod(0o600)
+
+    (verz / "panel.json").write_text(json.dumps({
+        "katalog": True, "schluessel": sch, "name": g["name"],
+        "adresse_port": g["adresse_port"], "hinweis": g["hinweis"],
+        "passwort_art": g["passwort"]["art"], "passwort": pw, "admin_passwort": admin,
+        "spieler": g.get("spieler", 4), "mem_gb": g["mem_gb"],
+        "angelegt": int(__import__("time").time()),
+        "einrichtung_offen": g["passwort"]["art"] != "env",
+        "einrichtung_stand": ("über die Umgebung gesetzt" if g["passwort"]["art"] == "env"
+                              else "wartet auf den ersten Start des Servers"),
+    }, indent=1) + "\n")
+    # panel.json enthaelt die Passwoerter - deshalb 0640 und Gruppe panel,
+    # nicht world-readable.
+    try:
+        shutil.chown(verz / "panel.json", "root", "panel")
+    except Exception:
+        pass
+    (verz / "panel.json").chmod(0o640)
+    zugang_eintragen(sch, g["name"], pw, admin, g["passwort"]["art"])
+    ausschluss_setzen(sch, g.get("ausschluss", []))
+    bild_holen(g)
+
+    # Starten nur, wenn der Arbeitsspeicher es hergibt. Sonst waere der erste
+    # Eindruck ein Container, den der OOM-Killer abraeumt - siehe StarRupture.
+    ram = freier_ram_gb()
+    if ram >= g["mem_gb"] + 2:
+        r = subprocess.run(["docker", "compose", "up", "-d"], cwd=verz,
+                           capture_output=True, text=True)
+        start = "gestartet" if r.returncode == 0 else f"NICHT gestartet ({r.stderr.strip()[:120]})"
+    else:
+        start = f"angelegt, aber NICHT gestartet - nur {ram} GB frei, {g['name']} braucht {g['mem_gb']} GB"
+
+    print(f"ok\t{g['name']}\t{start}\t{pw}\t{admin}")
+
+
+def deinstallieren(s: str):
+    verz = STACKS / s
+    marke = verz / "panel.json"
+    if not marke.exists():
+        fehler(f"{s} wurde nicht ueber den Katalog installiert und laesst sich "
+               f"hier nicht entfernen - das schuetzt die von Hand gebauten Server.")
+
+    # 1. Letzte Sicherung. Schlaegt sie fehl, wird NICHTS geloescht.
+    r = subprocess.run(["/usr/local/bin/spiele-sicherung", "--nur", s],
+                       capture_output=True, text=True, timeout=1800)
+    if r.returncode != 0:
+        fehler("letzte Sicherung fehlgeschlagen - es wurde nichts geloescht: "
+               + (r.stderr.strip()[:200] or "unbekannter Grund"))
+
+    # 2. Container und Netzwerk weg (Images bleiben - die kosten nur Platte und
+    #    werden bei einer Neuinstallation wiederverwendet).
+    subprocess.run(["docker", "compose", "down"], cwd=verz, capture_output=True)
+
+    # 3. Daten und Konfiguration entfernen
+    for v in [Path(x.split(":")[0]) for x in datenpfade(s)]:
+        if str(v).startswith("/srv/games/") and v.exists():
+            shutil.rmtree(v, ignore_errors=True)
+    shutil.rmtree(verz, ignore_errors=True)
+    AUSSCHLUSS.write_text(ausschluss_entfernen_text(AUSSCHLUSS.read_text(), s))
+    (BILDER / f"{s}.jpg").unlink(missing_ok=True)
+    zugang_entfernen(s)
+    print(f"ok\t{s} entfernt. Die Sicherungen im Borg-Repository bleiben erhalten.")
+
+
+def datenpfade(s: str) -> list:
+    f = STACKS / s / "compose.yaml"
+    if not f.exists():
+        return [f"/srv/games/{s}:x"]
+    return re.findall(r"^\s*-\s*(/srv/games/[^:]+:)", f.read_text(), re.M) or [f"/srv/games/{s}:x"]
+
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        fehler("keine Aktion")
+    a = sys.argv[1]
+    if a == "katalog":
+        kat, da = katalog(), installiert()
+        for s, g in kat.items():
+            print(f"{s}\t{g['name']}\t{g['kurz']}\t{g['mem_gb']}\t{g['platte_gb']}\t"
+                  f"{'installiert' if s in da else 'frei'}\t{g['passwort']['art']}\t{g['hinweis']}")
+    elif a == "installieren" and len(sys.argv) == 3:
+        installieren(sys.argv[2])
+    elif a == "deinstallieren" and len(sys.argv) == 3:
+        deinstallieren(sys.argv[2])
+    else:
+        fehler("unbekannte Aktion")

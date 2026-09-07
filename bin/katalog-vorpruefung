@@ -1,0 +1,85 @@
+#!/usr/bin/env python3
+"""katalog-vorpruefung — prueft jeden Katalogeintrag OHNE etwas herunterzuladen.
+
+Das ersetzt den echten Durchlauf nicht (ein Trockenlauf laesst genau die
+riskanten Schritte aus), fischt aber die billigen Fehler vorher heraus:
+Tippfehler im Katalog, nicht existierende Image-Tags, Portkollisionen,
+ungueltiges YAML, fehlende Pflichtfelder.
+"""
+import json, re, subprocess, sys, tempfile, os
+from pathlib import Path
+sys.path.insert(0, "/usr/local/bin")
+
+KAT = json.loads(Path("/etc/spiele-katalog.json").read_text())["spiele"]
+# compose_bauen aus spiel-verwalten wiederverwenden, damit hier exakt dasselbe
+# geprueft wird, was die Installation spaeter schreibt - nicht ein Nachbau.
+import importlib.util
+spec = importlib.util.spec_from_loader("sv", loader=None)
+sv = type(sys)("sv")
+quelle = Path("/usr/local/bin/spiel-verwalten").read_text().split('if __name__ ==')[0]
+exec(compile(quelle, "spiel-verwalten", "exec"), sv.__dict__)
+
+belegt = sv.belegte_ports()
+schon_da = sv.installiert()
+# Ein installiertes Spiel belegt seine eigenen Ports - das ist richtig so und
+# darf nicht als Fehler erscheinen. Ohne diese Ausnahme meldete die Pruefung
+# ausgerechnet die beiden laufenden Server (Necesse, TeamSpeak) als kaputt.
+gesehen_ports, gesehen_schluessel = {}, {}
+zeilen = []
+
+for g in KAT:
+    s = g["schluessel"]
+    fehler, warnung = [], []
+
+    # --- Pflichtfelder und Form
+    for f in ("name", "image", "mem_gb", "platte_gb", "ports", "volumes", "env", "passwort"):
+        if f not in g:
+            fehler.append(f"Feld {f} fehlt")
+    if not re.fullmatch(r"[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?", s):
+        fehler.append("Schluessel unzulaessig")
+    if s in gesehen_schluessel:
+        fehler.append("Schluessel doppelt")
+    gesehen_schluessel[s] = True
+    if "{PASSWORT}" in json.dumps(g["env"]) and g["passwort"]["art"] == "datei":
+        warnung.append("Platzhalter, aber Passwortart 'datei'")
+
+    # --- Ports: gegen das System und gegen die anderen Katalogeintraege
+    for p in g["ports"]:
+        try:
+            hp = int(p.split(":")[-2])
+        except Exception:
+            fehler.append(f"Portangabe unlesbar: {p}"); continue
+        if hp in belegt and s not in schon_da:
+            fehler.append(f"Port {hp} ist auf dem Server belegt")
+        if hp in gesehen_ports and gesehen_ports[hp] != s:
+            warnung.append(f"Port {hp} teilt sich mit {gesehen_ports[hp]}")
+        gesehen_ports[hp] = s
+
+    # --- compose.yaml erzeugen und von Docker selbst pruefen lassen
+    try:
+        text = sv.compose_bauen(g, "TESTPASSWORT1", "TESTADMIN1")
+        with tempfile.TemporaryDirectory() as d:
+            Path(d, "compose.yaml").write_text(text)
+            r = subprocess.run(["docker", "compose", "config", "-q"], cwd=d,
+                               capture_output=True, text=True, timeout=60)
+            if r.returncode != 0:
+                fehler.append("compose ungueltig: " + r.stderr.strip().splitlines()[0][:80])
+    except Exception as e:
+        fehler.append(f"compose_bauen: {type(e).__name__} {e}"[:90])
+
+    # --- Existiert das Image? manifest inspect laedt NICHTS herunter.
+    r = subprocess.run(["docker", "manifest", "inspect", g["image"]],
+                       capture_output=True, text=True, timeout=90)
+    if r.returncode != 0:
+        fehler.append("Image nicht gefunden: " + g["image"])
+
+    stand = ("FEHLER" if fehler else "installiert" if s in schon_da
+             else "Hinweis" if warnung else "ok")
+    zeilen.append((s, g["name"], stand, "; ".join(fehler + warnung)))
+    print(f"  {g['name'][:26]:<26} {stand:<8} {'; '.join(fehler + warnung)[:70]}", flush=True)
+
+print()
+print(f"  {sum(1 for z in zeilen if z[2]=='ok')} ohne Befund, "
+      f"{sum(1 for z in zeilen if z[2]=='Hinweis')} mit Hinweis, "
+      f"{sum(1 for z in zeilen if z[2]=='FEHLER')} mit Fehler (von {len(zeilen)})")
+Path("/var/log/katalog-vorpruefung.json").write_text(json.dumps(zeilen, indent=1, ensure_ascii=False))

@@ -1,0 +1,71 @@
+# Spieleserver-Panel. Caddy holt und erneuert das Zertifikat selbst.
+#
+# NUR HTTP/1.1: Das Webterminal braucht einen echten WebSocket-Upgrade.
+# Ueber HTTP/2 gab Caddy darauf 404 zurueck (gemessen 2026-09-06), der Browser
+# meldete "websocket connection closed with code: 1006"; ueber HTTP/1.1 kommt
+# sauber "101 Switching Protocols". Fuer ein Panel mit zwei Nutzern ist der
+# Verzicht auf h2/h3 belanglos.
+{
+	servers {
+		protocols h1
+	}
+}
+
+@@PANEL_DOMAIN@@ {
+	encode zstd gzip
+
+	# --- Webterminal -----------------------------------------------------
+	# ttyd selbst hat KEINE eigene Anmeldung. Vor jedem Aufruf fragt Caddy
+	# deshalb beim Panel nach (/auth-check): nur eine gueltige ADMIN-Sitzung
+	# bekommt 204 zurueck, alles andere 401. So haengt das Terminal an
+	# derselben Anmeldung wie der Rest der Oberflaeche.
+	handle /terminal* {
+		forward_auth 127.0.0.1:8099 {
+			uri /auth-check
+			copy_headers Cookie
+			# Die Upgrade-Kopfzeilen duerfen NICHT in die Auth-Anfrage:
+			# uvicorn sieht sonst einen WebSocket-Versuch auf einer normalen
+			# HTTP-Route und antwortet 403 — der Terminal-Handshake scheiterte
+			# dadurch, obwohl die Sitzung gueltig war (gemessen 2026-09-06).
+			header_up -Upgrade
+			header_up -Connection
+			header_up -Sec-Websocket-Key
+			header_up -Sec-Websocket-Version
+			header_up -Sec-Websocket-Protocol
+			header_up -Sec-Websocket-Extensions
+		}
+		# Eigene, notwendigerweise lockerere Kopfzeilen: ein Terminal braucht
+		# JavaScript und WebSockets. Die strenge CSP des uebrigen Panels
+		# ("default-src 'none'") wuerde ttyd komplett blockieren.
+		header {
+			Strict-Transport-Security "max-age=31536000; includeSubDomains"
+			X-Content-Type-Options "nosniff"
+			X-Frame-Options "DENY"
+			Referrer-Policy "no-referrer"
+			Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' wss://@@PANEL_DOMAIN@@; base-uri 'none'; frame-ancestors 'none'"
+			Cache-Control "no-store"
+			-Server
+		}
+		reverse_proxy 127.0.0.1:7681
+	}
+
+	# --- Panel -----------------------------------------------------------
+	handle {
+		header {
+			Strict-Transport-Security "max-age=31536000; includeSubDomains"
+			X-Content-Type-Options "nosniff"
+			X-Frame-Options "DENY"
+			Referrer-Policy "no-referrer"
+			# ACHTUNG: CSP-Schluesselwoerter MUESSEN einfach gequotet sein.
+			# Ohne die Anfuehrungszeichen liest der Browser 'self' und 'none'
+			# als HOSTNAMEN — am 2026-09-06 blockierte form-action dadurch das
+			# Login-Formular, und im Protokoll kam nicht einmal ein POST an.
+			Content-Security-Policy "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
+			# Nichts zwischenspeichern: die Seite zeigt Zugangsdaten, und ein
+			# gecachter Stand haelt auch alte Sicherheitskopfzeilen am Leben.
+			Cache-Control "no-store, no-cache, must-revalidate"
+			-Server
+		}
+		reverse_proxy 127.0.0.1:8099
+	}
+}

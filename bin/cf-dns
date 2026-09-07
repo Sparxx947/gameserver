@@ -1,0 +1,164 @@
+#!/usr/bin/env python3
+"""cf-dns — legt die DNS-Namen der Spielserver bei Cloudflare an und entfernt sie.
+
+Jedes Spiel bekommt <name>.@@DNS_ZONE@@ als CNAME auf @@DNS_ZIEL@@ (das ist der
+A-Eintrag mit @@SERVER_IPV4@@). So haengt nur EIN Eintrag an der IP-Adresse - zieht
+der Server um, ist genau einer zu aendern.
+
+Zwei Dinge, die hier leicht schiefgehen:
+
+1. NIE per dig oder Namensaufloesung pruefen, ob ein Eintrag existiert. In dieser
+   Zone steht ein Wildcard *.@@DNS_ZONE@@ - der beantwortet JEDEN erfundenen Namen
+   und zeigt dabei auf den falschen Server (@@FREMD_IPV4@@ statt @@SERVER_IPV4@@).
+   Eine Pruefung per dig meldet deshalb immer "vorhanden". Gefragt wird die API.
+
+2. Spielserver duerfen NICHT proxied sein. Cloudflares Proxy kann nur HTTP und
+   HTTPS; ein Spielport dahinter ist von aussen tot. Deshalb ueberall
+   proxied=false, und beim Anlegen wird gegengeprueft.
+
+Der Token steht in /etc/cloudflare-gameserver.conf (CF_TOKEN=...) und darf nur
+DNS in der Zone @@DNS_ZONE@@ bearbeiten.
+
+  cf-dns setzen <name>      CNAME <name>.@@DNS_ZONE@@ -> @@DNS_ZIEL@@
+  cf-dns entfernen <name>
+  cf-dns liste
+  cf-dns pruefen            meldet Eintraege, die faelschlich proxied sind
+"""
+import json, re, sys, urllib.request, urllib.error
+from pathlib import Path
+
+KONF = Path("/etc/cloudflare-gameserver.conf")
+ZONE = "@@DNS_ZONE@@"
+ZIEL = "@@DNS_ZIEL@@"
+API = "https://api.cloudflare.com/client/v4"
+
+
+def fehler(*t):
+    print("FEHLER:", *t, file=sys.stderr)
+    sys.exit(1)
+
+
+def token() -> str:
+    if not KONF.exists():
+        fehler(f"{KONF} fehlt - dort muss CF_TOKEN=... stehen")
+    for z in KONF.read_text().splitlines():
+        m = re.match(r"\s*(?:export\s+)?CF_TOKEN\s*=\s*[\"']?([^\"'\s#]+)", z)
+        if m:
+            return m.group(1)
+    fehler("kein CF_TOKEN in der Konfigurationsdatei")
+
+
+def ruf(weg, methode="GET", daten=None):
+    """Cloudflare ausschliesslich ueber IPv4 ansprechen - ueber IPv6 antwortet die
+    API mit "Invalid API Token", obwohl der Token stimmt. Python nimmt sonst je
+    nach Auflösung IPv6, deshalb wird der Host fest auf eine IPv4 aufgeloest."""
+    import socket
+    urlteil = API + weg
+    k = {"Authorization": f"Bearer {token()}", "Content-Type": "application/json"}
+    leib = json.dumps(daten).encode() if daten is not None else None
+    a = urllib.request.Request(urlteil, data=leib, headers=k, method=methode)
+    alt = socket.getaddrinfo
+    socket.getaddrinfo = lambda *args, **kw: [x for x in alt(*args, **kw) if x[0] == socket.AF_INET]
+    try:
+        with urllib.request.urlopen(a, timeout=30) as r:
+            return json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        try:
+            return json.loads(e.read())
+        except Exception:
+            fehler(f"HTTP {e.code}")
+    finally:
+        socket.getaddrinfo = alt
+
+
+def zone_id() -> str:
+    d = ruf(f"/zones?name={ZONE}")
+    if not d.get("success") or not d.get("result"):
+        fehler("Zone nicht erreichbar oder Token ohne Recht:",
+               [m.get("message") for m in d.get("errors", [])])
+    return d["result"][0]["id"]
+
+
+def eintrag(zid, name):
+    """Existiert der Eintrag WIRKLICH? Ueber die API, nicht ueber DNS - das
+    Wildcard in dieser Zone wuerde jede Namensabfrage bejahen."""
+    d = ruf(f"/zones/{zid}/dns_records?name={name}.{ZONE}")
+    for r in d.get("result", []):
+        if r["name"] == f"{name}.{ZONE}" and r["type"] in ("CNAME", "A"):
+            return r
+    return None
+
+
+def pruefe_name(n):
+    if not re.fullmatch(r"[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?", n or ""):
+        fehler("unzulaessiger Name")
+
+
+def setzen(name):
+    pruefe_name(name)
+    zid = zone_id()
+    da = eintrag(zid, name)
+    nutz = {"type": "CNAME", "name": f"{name}.{ZONE}", "content": ZIEL,
+            "ttl": 300, "proxied": False}
+    if da:
+        if da["type"] == "CNAME" and da["content"] == ZIEL and not da.get("proxied"):
+            print(f"ok\t{name}.{ZONE} steht bereits richtig")
+            return
+        d = ruf(f"/zones/{zid}/dns_records/{da['id']}", "PUT", nutz)
+        tat = "geaendert"
+    else:
+        d = ruf(f"/zones/{zid}/dns_records", "POST", nutz)
+        tat = "angelegt"
+    if not d.get("success"):
+        fehler([m.get("message") for m in d.get("errors", [])])
+    # Gegenprobe: wirklich da, wirklich nicht proxied?
+    n = eintrag(zid, name)
+    if not n or n.get("proxied") or n["content"] != ZIEL:
+        fehler(f"{name}.{ZONE} sieht nach dem Schreiben falsch aus: {n}")
+    print(f"ok\t{name}.{ZONE} {tat} -> {ZIEL} (dns-only)")
+
+
+def entfernen(name):
+    pruefe_name(name)
+    zid = zone_id()
+    da = eintrag(zid, name)
+    if not da:
+        print(f"ok\t{name}.{ZONE} gab es nicht")
+        return
+    if da["content"] != ZIEL:
+        fehler(f"{name}.{ZONE} zeigt auf {da['content']}, nicht auf {ZIEL} - "
+               f"das ist kein Spielserver-Eintrag, hier wird nichts geloescht")
+    d = ruf(f"/zones/{zid}/dns_records/{da['id']}", "DELETE")
+    if not d.get("success"):
+        fehler([m.get("message") for m in d.get("errors", [])])
+    print(f"ok\t{name}.{ZONE} entfernt")
+
+
+def liste(nur_pruefen=False):
+    zid = zone_id()
+    d = ruf(f"/zones/{zid}/dns_records?per_page=200")
+    schlecht = 0
+    for r in sorted(d.get("result", []), key=lambda x: x["name"]):
+        if r["type"] == "CNAME" and r["content"] == ZIEL:
+            p = "PROXY (falsch!)" if r.get("proxied") else "dns-only"
+            if r.get("proxied"):
+                schlecht += 1
+            if not nur_pruefen or r.get("proxied"):
+                print(f"  {r['name']:<40} -> {r['content']:<20} {p}")
+    if nur_pruefen:
+        print(f"  {schlecht} Eintrag/Eintraege faelschlich proxied")
+        sys.exit(1 if schlecht else 0)
+
+
+if __name__ == "__main__":
+    a = sys.argv[1:] or ["liste"]
+    if a[0] == "setzen" and len(a) == 2:
+        setzen(a[1])
+    elif a[0] == "entfernen" and len(a) == 2:
+        entfernen(a[1])
+    elif a[0] == "liste":
+        liste()
+    elif a[0] == "pruefen":
+        liste(nur_pruefen=True)
+    else:
+        fehler("Aufruf: cf-dns setzen|entfernen <name> | liste | pruefen")

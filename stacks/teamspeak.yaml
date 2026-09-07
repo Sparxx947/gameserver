@@ -1,0 +1,26 @@
+# TeamSpeak-3-Server, angelegt 2026-09-06.
+#
+# Liegt unter /srv/dienste, NICHT unter /srv/games: gameserver-check-backup
+# verlangt fuer jedes Verzeichnis unter /srv/games Spielstand-Dateien und wuerde
+# hier sonst dauerhaft Alarm schlagen.
+#
+# ServerQuery (10011) ist bewusst NUR auf 127.0.0.1 veroeffentlicht. Das ist der
+# Administrationszugang mit Passwort und ein beliebtes Bruteforce-Ziel; von
+# aussen hat er nichts zu suchen. Zugriff bei Bedarf per SSH-Tunnel:
+#   ssh -L 10011:127.0.0.1:10011 gameserver
+services:
+  teamspeak:
+    image: teamspeak:latest
+    container_name: teamspeak
+    hostname: teamspeak
+    restart: unless-stopped
+    stop_grace_period: 30s
+    mem_limit: 1g
+    ports:
+      - "9987:9987/udp"        # Sprache
+      - "30033:30033"          # Dateiuebertragung
+      - "127.0.0.1:10011:10011"  # ServerQuery, nur lokal
+    volumes:
+      - /srv/dienste/teamspeak:/var/ts3server/
+    environment:
+      TS3SERVER_LICENSE: accept

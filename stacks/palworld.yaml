@@ -1,0 +1,43 @@
+# Palworld-Server, angelegt 2026-09-06 fuer den Umzug von Nitrado.
+#
+# mem_limit ist hier KEINE Kosmetik: Palworlds Serverprozess leckt Speicher
+# seit 2024 (auch nach 1.0), linear mit der Laufzeit. Ohne Grenze wuerde der
+# OOM-Killer irgendwann zuschlagen - moeglicherweise beim Enshrouded-Server,
+# nicht beim Verursacher. Mit Grenze trifft es nur diesen Container, und
+# restart: unless-stopped faengt ihn selbst wieder auf.
+# Zusaetzlich laeuft palworld-neustart.timer alle 12 Stunden.
+services:
+  palworld:
+    image: thijsvanloef/palworld-server-docker:latest
+    container_name: palworld
+    hostname: palworld
+    restart: unless-stopped
+    stop_grace_period: 30s
+    mem_limit: 12g
+    memswap_limit: 12g
+    ports:
+      - "8211:8211/udp"
+      - "27015:27015/udp"
+    volumes:
+      - /srv/games/palworld:/palworld/
+    environment:
+      TZ: "Europe/Berlin"
+      PUID: 4711
+      PGID: 4711
+      PORT: 8211
+      PLAYERS: 4
+      SERVER_NAME: "@@WELT_NAME@@"
+      # Die beiden Passwoerter werden nach dem Umzug aus der Nitrado-
+      # Konfiguration uebernommen, falls dort welche gesetzt sind.
+      SERVER_PASSWORD: "@@PASSWORT@@"
+      ADMIN_PASSWORD: "@@ADMIN_PASSWORT@@"
+      RCON_ENABLED: "true"
+      RCON_PORT: 25575
+      BACKUP_ENABLED: "true"
+      BACKUP_CRON_EXPRESSION: "0 */6 * * *"
+      DELETE_OLD_BACKUPS: "true"
+      OLD_BACKUP_DAYS: 14
+      AUTO_UPDATE_ENABLED: "false"
+      COMMUNITY: "true"
+      # Einstellungen kommen 1:1 von Nitrado, der Container darf sie nicht neu bauen
+      DISABLE_GENERATE_SETTINGS: "true"

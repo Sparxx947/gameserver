@@ -1,0 +1,32 @@
+[Unit]
+Description=Spieleserver-Panel (Weboberflaeche)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=panel
+Group=panel
+WorkingDirectory=/opt/panel
+ExecStart=/opt/panel/venv/bin/uvicorn app:app --host 127.0.0.1 --port 8099 --proxy-headers --forwarded-allow-ips 127.0.0.1
+Restart=on-failure
+RestartSec=5
+# Haerten, aber nur mit Optionen, die NoNewPrivileges NICHT implizieren.
+# ProtectKernelTunables und ProtectControlGroups tun das laut systemd-Doku, und
+# mit gesetztem no-new-privileges kann sudo nicht mehr nach root wechseln
+# ("The \"no new privileges\" flag is set"). Die App zeigte davon nichts, die
+# Uebersicht blieb einfach leer — gefunden am 2026-09-06.
+# NoNewPrivileges MUSS aus bleiben, sonst kann sudo nicht nach root wechseln.
+# Achtung: LockPersonality, ProtectKernelTunables und ProtectControlGroups
+# setzen es IMPLIZIT — sie duerfen hier nicht stehen (gemessen 2026-09-06).
+NoNewPrivileges=no
+PrivateTmp=yes
+# "full" statt "strict": strict macht das GANZE Dateisystem schreibgeschuetzt,
+# und dann kann borg seinen Cache nicht anlegen — die Archivliste blieb leer.
+ProtectSystem=full
+# Kein ProtectHome: panel-aktion liest /root/.borg-passphrase. Der Schutz kommt
+# hier aus den Dateirechten (0600 root), nicht aus dem Namensraum — der Nutzer
+# "panel" kaeme ohnehin nicht heran.
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,239 @@
+#!/usr/bin/env python3
+"""spiel-einrichtung — setzt Beitrittspasswort, Adminpasswort und Spielerzahl.
+
+Warum es diesen Schritt ueberhaupt gibt: Nur eine Handvoll Spielserver nimmt das
+Passwort aus einer Umgebungsvariablen entgegen (Valheim, Abiotic Factor,
+Soulmask). Die grosse Mehrheit legt beim ERSTEN Start eine Konfigurationsdatei
+an und liest es von dort. Zum Zeitpunkt der Installation gibt es diese Datei
+also noch gar nicht - man muss warten, bis der Server sie geschrieben hat.
+
+Der Lauf ist deshalb wiederholend (Timer, alle zwei Minuten) und arbeitet alle
+Stacks ab, deren panel.json "einrichtung_offen": true traegt.
+
+Vorgehen je Spiel: im Datenverzeichnis nach Konfigurationsdateien suchen
+(.ini/.json/.cfg/.xml/.properties), darin nach Feldern, deren NAME auf Passwort
+oder Spielerzahl passt, und diese setzen. Bewusst ueber Namensmuster statt ueber
+eine Liste fester Feldnamen: Die haette ich fuer 40 Spiele raten muessen, und
+ein falsch geratener Name faellt nicht auf - der Server stuende ohne Passwort im
+Netz. Dieser Weg meldet stattdessen ehrlich, was er NICHT gefunden hat.
+
+  spiel-einrichtung            alle offenen Einrichtungen abarbeiten
+  spiel-einrichtung <stack>    nur diesen, auch wenn er nicht offen ist
+"""
+import json, re, subprocess, sys, time
+from pathlib import Path
+
+STACKS = Path("/opt/stacks")
+ENDLOS_NACH_H = 6          # danach aufgeben und im Panel melden
+MAX_TIEFE = 6
+MAX_DATEIEN = 4000
+
+PW_MUSTER    = re.compile(r"^(?!.*(?:admin|rcon|steam|api|web|db|sql|mysql|token))"
+                          r".*(?:password|passwort|passwd|\bpsw\b|serverpass)", re.I)
+# RCON bewusst NICHT: manche Container setzen ihr RCON-Passwort selbst und
+# sprechen den Server darueber an - ein fremder Wert bricht ihnen die Steuerung.
+ADMIN_MUSTER = re.compile(r"^(?!.*rcon)(?:.*(?:admin|owner).*(?:password|passwort|passwd|psw)|"
+                          r".*(?:password|passwd|psw).*admin)", re.I)
+SPIELER_MUSTER = re.compile(r"^(?!.*(?:reserved|min))"
+                            r".*(?:maxplayer|max_player|maxclients|max_clients|maxconnect|"
+                            r"playerlimit|serverplayers|slots|maxplayercount|player_count)", re.I)
+UEBERSPRINGEN = re.compile(r"(steamapps|steamcmd|/logs?/|/Content/|/Binaries/|/Engine/|"
+                           r"\.wine|/Saved/Logs|node_modules|/backups?/)", re.I)
+
+
+def meldung(*t):
+    print(*t, flush=True)
+
+
+def dateien(basis: Path):
+    """Konfigurationskandidaten unter basis - flach genug, um schnell zu bleiben."""
+    raus, zaehler = [], 0
+    for p in basis.rglob("*"):
+        zaehler += 1
+        if zaehler > MAX_DATEIEN:
+            break
+        if p.is_symlink() or not p.is_file():
+            continue
+        if UEBERSPRINGEN.search(str(p)):
+            continue
+        if len(p.relative_to(basis).parts) > MAX_TIEFE:
+            continue
+        if p.suffix.lower() in (".ini", ".json", ".cfg", ".xml", ".properties", ".conf"):
+            if p.stat().st_size < 2_000_000:
+                raus.append(p)
+    return raus
+
+
+def setze_ini(text, muster, wert):
+    """Schluessel=Wert (ini, cfg, properties). Nur vorhandene Felder aendern -
+    ein neu erfundenes Feld liest der Server ohnehin nicht."""
+    treffer = []
+    def ersetze(m):
+        if not muster.search(m.group(1).strip()):
+            return m.group(0)
+        treffer.append(m.group(1).strip())
+        # Was hinter dem Wert steht, muss stehen bleiben: Necesses server.cfg ist
+        # eine Liste mit Kommas, andere Dateien tragen Kommentare hinter dem Wert.
+        # Wer einfach bis zum Zeilenende ersetzt, nimmt das Trennzeichen mit -
+        # bei Necesse verloren "slots" und "password" so ihr Komma, waehrend alle
+        # Nachbarzeilen eines hatten. Beim Test aufgefallen.
+        rest = m.group(3)
+        schwanz = ""
+        k = re.search(r"\s*(?://|#|;).*$", rest)
+        if k:
+            schwanz = k.group(0)
+            rest = rest[:k.start()]
+        if rest.rstrip().endswith(","):
+            schwanz = "," + schwanz
+        return f"{m.group(1)}{m.group(2)}{wert}{schwanz}"
+    # [ \t] statt \s: "\s" schliesst den Zeilenumbruch ein. Bei einem leeren Wert
+    # ("ServerPassword=") verschluckte der Ausdruck sonst die FOLGENDE Zeile als
+    # Wert - das Passwort landete eine Zeile tiefer und das Adminfeld wurde nie
+    # gefunden, weil es schon konsumiert war. Beim Test aufgefallen.
+    neu = re.sub(r"^([ \t]*[A-Za-z_][A-Za-z0-9_.\- ]*?)([ \t]*[:=][ \t]*)([^\r\n]*)$",
+                 ersetze, text, flags=re.M)
+    return neu, treffer
+
+
+def setze_json(text, muster, wert, zahl=False):
+    treffer = []
+    try:
+        daten = json.loads(text)
+    except Exception:
+        return text, treffer
+    def geh(o):
+        if isinstance(o, dict):
+            for k, v in list(o.items()):
+                if isinstance(v, (dict, list)):
+                    geh(v)
+                elif muster.search(k):
+                    o[k] = int(wert) if zahl else str(wert)
+                    treffer.append(k)
+        elif isinstance(o, list):
+            for x in o:
+                geh(x)
+    geh(daten)
+    return (json.dumps(daten, indent=2) if treffer else text), treffer
+
+
+def setze_xml(text, muster, wert):
+    """Zwei Formen, beide kommen vor:
+         <serversettings password="x" MaxPlayers="16"/>       (Barotrauma)
+         <property name="ServerPassword" value="x"/>          (7 Days to Die)
+    Wer nur die erste kennt, aendert bei 7DtD nichts und merkt es nicht."""
+    treffer = []
+
+    def prop(m):
+        if muster.search(m.group(1)):
+            treffer.append(m.group(1))
+            return f'name="{m.group(1)}" value="{wert}"'
+        return m.group(0)
+    neu = re.sub(r'name="([^"]+)"(\s+)value="([^"]*)"', prop, text)
+
+    def attr(m):
+        if muster.search(m.group(1)):
+            treffer.append(m.group(1))
+            return f'{m.group(1)}="{wert}"'
+        return m.group(0)
+    neu = re.sub(r'(?<![\w"])([A-Za-z_][A-Za-z0-9_]*)="([^"]*)"', attr, neu)
+    return neu, treffer
+
+
+def setze_cfg(text, muster, wert):
+    """Form "schluessel wert;" ohne Gleichheitszeichen."""
+    treffer = []
+    def ersetze(m):
+        if muster.search(m.group(1)):
+            treffer.append(m.group(1))
+            anf = '"' if m.group(2).startswith('"') else ''
+            return f'{m.group(1)} {anf}{wert}{anf};'
+        return m.group(0)
+    neu = re.sub(r'^([A-Za-z_][A-Za-z0-9_]*)[ \t]+("?[^"\r\n;]*"?)[ \t]*;',
+                 ersetze, text, flags=re.M)
+    return neu, treffer
+
+
+def bearbeite(pfad: Path, muster, wert, zahl=False):
+    try:
+        text = pfad.read_text(errors="replace")
+    except Exception:
+        return []
+    if pfad.suffix.lower() == ".json":
+        neu, treffer = setze_json(text, muster, wert, zahl)
+    elif pfad.suffix.lower() == ".xml":
+        neu, treffer = setze_xml(text, muster, wert)
+    else:
+        neu, treffer = setze_ini(text, muster, wert)
+        # .cfg kennt zusaetzlich die Form ohne Gleichheitszeichen:
+        #   serverPassword "";     (The Forest)
+        # Nur versuchen, wenn die uebliche Form nichts gefunden hat, und nur bei
+        # .cfg - in .ini oder .conf wuerde dieses Muster Fliesstext zerlegen.
+        if not treffer and pfad.suffix.lower() == ".cfg":
+            neu, treffer = setze_cfg(text, muster, wert)
+    if treffer and neu != text:
+        pfad.write_text(neu)
+    return treffer
+
+
+def einrichten(stack: str) -> dict:
+    verz = STACKS / stack
+    marke = verz / "panel.json"
+    if not marke.exists():
+        return {"fehler": "kein panel.json"}
+    p = json.loads(marke.read_text())
+    basis = Path(f"/srv/games/{stack}")
+    if not basis.exists():
+        return {"fehler": "kein Datenverzeichnis"}
+
+    gefunden = {"passwort": [], "admin": [], "spieler": []}
+    for f in dateien(basis):
+        gefunden["admin"]    += [f"{f.name}:{t}" for t in bearbeite(f, ADMIN_MUSTER, p["admin_passwort"])]
+        gefunden["passwort"] += [f"{f.name}:{t}" for t in bearbeite(f, PW_MUSTER, p["passwort"])]
+        gefunden["spieler"]  += [f"{f.name}:{t}" for t in bearbeite(f, SPIELER_MUSTER, p.get("spieler", 4), zahl=True)]
+    return gefunden
+
+
+def lauf(nur=None):
+    for verz in sorted(STACKS.glob("*/panel.json")):
+        stack = verz.parent.name
+        p = json.loads(verz.read_text())
+        if nur and stack != nur:
+            continue
+        if not nur and not p.get("einrichtung_offen"):
+            continue
+
+        alter_h = (time.time() - p.get("angelegt", time.time())) / 3600
+        erg = einrichten(stack)
+        if "fehler" in erg:
+            meldung(f"{stack}: {erg['fehler']}")
+            continue
+
+        # Per Umgebung gesetzte Passwoerter zaehlen als erledigt - dort gibt es
+        # keine Datei zu aendern.
+        per_env = p.get("passwort_art") in ("env", "params", "keins")
+        fertig = per_env or bool(erg["passwort"])
+
+        p["einrichtung_gefunden"] = erg
+        if fertig:
+            p["einrichtung_offen"] = False
+            p["einrichtung_stand"] = ("über die Umgebung gesetzt" if per_env else
+                                      "gesetzt in " + ", ".join(sorted(set(erg["passwort"]))[:4]))
+            if erg["passwort"] or erg["spieler"] or erg["admin"]:
+                neustart(stack)
+        elif alter_h > ENDLOS_NACH_H:
+            p["einrichtung_offen"] = False
+            p["einrichtung_stand"] = ("KEIN Passwortfeld gefunden - der Server läuft ohne "
+                                      "Beitrittspasswort. Bitte von Hand setzen.")
+        else:
+            p["einrichtung_stand"] = "wartet auf die Konfigurationsdatei des Servers"
+        verz.write_text(json.dumps(p, indent=1) + "\n")
+        meldung(f"{stack}: {p['einrichtung_stand']}")
+
+
+def neustart(stack):
+    subprocess.run(["docker", "compose", "stop"], cwd=STACKS / stack, capture_output=True, timeout=180)
+    subprocess.run(["docker", "compose", "up", "-d"], cwd=STACKS / stack, capture_output=True, timeout=180)
+
+
+if __name__ == "__main__":
+    lauf(sys.argv[1] if len(sys.argv) > 1 else None)

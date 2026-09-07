@@ -1,0 +1,10 @@
+[Unit]
+Description=Beitrittspasswort und Spielerzahl frisch installierter Spielserver setzen
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/spiel-einrichtung
+# Bewusst ohne Haertung: der Dienst ruft docker compose und schreibt in
+# /srv/games. NoNewPrivileges & Co. haben hier schon einmal dazu gefuehrt,
+# dass Aufrufe still fehlschlugen (siehe Panel-Dienst).

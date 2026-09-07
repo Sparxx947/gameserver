@@ -1,0 +1,25 @@
+# FOUNDRY-Server, angelegt 2026-09-06.
+# Query-Port bewusst auf 27016 statt 27015: Palworld belegt 27015 schon. Die
+# Ports muessen sich unterscheiden, sonst startet nur einer von beiden.
+services:
+  foundry:
+    image: luxusburg/docker-foundry:latest
+    container_name: foundry
+    hostname: foundry
+    restart: unless-stopped
+    stop_grace_period: 60s
+    mem_limit: 6g
+    memswap_limit: 6g
+    ports:
+      - "3724:3724/udp"
+      - "27016:27016/udp"
+    volumes:
+      - /srv/games/foundry/server:/home/foundry/server_files:rw
+      - /srv/games/foundry/data:/home/foundry/persistent_data:rw
+    environment:
+      SERVER_NAME: "@@WELT_NAME@@"
+      SERVER_PWD: "@@PASSWORT@@"
+      SERVER_PORT: "3724"
+      SERVER_QUERY_PORT: "27016"
+      SERVER_MAX_PLAYERS: "4"
+      PAUSE_SERVER_WHEN_EMPTY: "true"

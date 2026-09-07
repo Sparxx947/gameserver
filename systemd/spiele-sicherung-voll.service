@@ -1,0 +1,8 @@
+[Unit]
+Description=Taegliche Vollsicherung (auch gestoppte Spiele, Konfiguration, /etc)
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/spiele-sicherung --alle

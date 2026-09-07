@@ -1,0 +1,24 @@
+[Unit]
+Description=Webterminal (ttyd) fuer das Panel
+After=network.target
+
+[Service]
+Type=exec
+# Laeuft als normaler Benutzer, NICHT als root. Fuer privilegierte Befehle
+# gibt es sudo — das verlangt dann noch einmal das Passwort und ist damit eine
+# zweite Huerde, falls jemand eine offene Sitzung uebernimmt.
+User=@@ADMIN_USER@@
+Group=@@ADMIN_USER@@
+WorkingDirectory=/home/@@ADMIN_USER@@
+# Nur auf 127.0.0.1: erreichbar ausschliesslich ueber Caddy, und Caddy fragt
+# vorher beim Panel nach, ob eine Admin-Sitzung vorliegt (forward_auth).
+# --writable ist noetig, sonst ist das Terminal nur zum Zusehen.
+ExecStart=/usr/local/bin/ttyd --port 7681 --interface 127.0.0.1 --writable \
+    --base-path /terminal --client-option fontSize=14 \
+    --client-option "theme={\"background\":\"#14161a\"}" \
+    /bin/bash -l
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

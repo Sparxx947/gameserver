@@ -1,0 +1,18 @@
+# Standortdaten und Geheimnisse — niemals einchecken.
+# *Site-specific values and secrets — never commit.*
+konfiguration.env
+*.local
+*.secret
+/gerendert/
+
+# Erzeugte Panel-Daten
+panel/konfig.json
+panel/daten/
+
+# Bilder aus Steam (Urheberrecht Dritter, werden zur Laufzeit geladen)
+# *Steam artwork (third-party copyright, fetched at runtime).*
+panel/bilder/katalog/
+panel/bilder/*.jpg
+
+__pycache__/
+*.pyc

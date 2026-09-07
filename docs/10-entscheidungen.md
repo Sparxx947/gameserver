@@ -1,0 +1,284 @@
+# 10 — Entscheidungen
+
+Warum es so ist und nicht anders. Jeder Eintrag nennt die Alternative, die
+naheliegend gewesen wäre, und den Grund, der dagegen sprach — meist ein
+konkreter Fehlschlag.
+
+> *Why things are the way they are. Each entry names the obvious alternative and
+> the reason against it — usually a concrete failure.*
+
+---
+
+## E1 — Die Oberfläche bekommt keinen Docker-Socket
+
+**Naheliegend:** `panel` in die Gruppe `docker`, fertig.
+**Dagegen:** Socket-Zugriff ist gleichbedeutend mit root
+(`docker run -v /:/host`). Ein internet-erreichbarer Webdienst mit root wäre der
+gesamte Sicherheitsentwurf zunichte.
+**Stattdessen:** eine sudo-Brücke mit 14 fest verdrahteten Zweigen, jeder
+Parameter gegen Positivlisten.
+**Kosten:** Jede neue Fähigkeit der Oberfläche braucht eine Erweiterung in
+`panel-aktion`. Das ist der Punkt.
+
+> *Obvious: put `panel` in the `docker` group. Against: socket access equals
+> root, which would void the entire design. Instead: a sudo bridge with 14
+> hard-wired branches. Cost: every new panel capability needs a change in the
+> bridge — which is the point.*
+
+---
+
+## E2 — Die Oberfläche übergibt einen Schlüssel, keine Definition
+
+**Naheliegend:** ein Formular für Image, Ports, Volumes.
+**Dagegen:** Wer diese Felder setzt, kann `/:/host` mounten. Das ist E1 durch die
+Hintertür.
+**Stattdessen:** ein Katalog in `/etc`, den die Oberfläche nur lesen kann; sie
+übergibt einen Schlüssel.
+**Kosten:** Ein neues Spiel erfordert einen Katalogeintrag statt eines
+Formulars. Dafür gibt es `katalog-vorpruefung`.
+
+---
+
+## E3 — Bind-Mounts statt Docker-Volumes
+
+**Naheliegend:** benannte Volumes, wie in den meisten Compose-Beispielen.
+**Dagegen:** Ein Volume liegt unter `/var/lib/docker/volumes/<hash>/_data`. Borg
+müsste diesen Pfad kennen — er ändert sich beim Neuanlegen — oder ein
+Hilfscontainer müsste kopieren.
+**Stattdessen:** `/srv/games/<name>` als Bind-Mount. Benennbar, ohne Docker
+lesbar, überlebt `docker system prune`.
+**Kosten:** Rechte muss man selbst setzen. Daher die feste UID/GID 4711.
+
+---
+
+## E4 — Feste UID 4711 für alle Spieldaten
+
+**Naheliegend:** jedem Container seine eigene UID geben.
+**Dagegen:** Nach einem Neuaufbau stimmen die Nummern nicht mehr überein, und die
+Spielstände gehören niemandem. Ein Server, der seine Welt nicht schreiben kann,
+verliert den Fortschritt der Sitzung — ohne Fehlermeldung.
+**Stattdessen:** ein Systembenutzer `spiele` mit fest vergebener UID/GID.
+
+---
+
+## E5 — Ein Borg-Archiv je Spiel, nicht eines für alles
+
+**Naheliegend:** ein Archiv `gameserver-<zeit>` mit allem darin.
+**Dagegen:** Um ein einzelnes Spiel zurückzuholen, müsste man das Gesamtarchiv
+durchsuchen. Und `prune` würde für den gemeinsamen Topf rechnen: das häufig
+gesicherte Spiel verdrängt das seltene.
+**Stattdessen:** Präfix je Spiel, `prune --glob-archives "<spiel>-*"`.
+**Kosten:** mehr Archive in der Liste. Dafür holt man ein Spiel gezielt zurück.
+
+---
+
+## E6 — Der Viertelstundenlauf lässt gestoppte Spiele aus
+
+**Naheliegend:** immer alles sichern, ist am einfachsten.
+**Dagegen:** Ein gestopptes Spiel ändert sich nicht. Die „Sohn"-Stufe
+(`--keep-within 2d`) wäre binnen zwei Tagen mit Kopien desselben Standes
+gefüllt — die Aufbewahrung verwässert, ohne einen Stand mehr zu bewahren.
+**Stattdessen:** nur laufende Container; die tägliche Vollsicherung nimmt den
+Rest mit.
+
+---
+
+## E7 — Die Passwort-Einrichtung rät keine Feldnamen
+
+**Naheliegend:** je Spiel Pfad und Feldname in den Katalog schreiben.
+**Dagegen:** 36 von 41 Spielen legen ihre Konfiguration erst beim ersten Start
+an, oft nach minutenlangem Download. Die Feldnamen sind nirgends zuverlässig
+dokumentiert; sie aus Foren abzuschreiben hätte in den meisten Fällen still
+danebengelegen.
+**Stattdessen:** Mustersuche über `.ini`, `.json`, `.xml` und `.cfg`, mit
+negativen Ausschlüssen (nicht `rcon`, nicht `steam`, nicht `db`).
+**Und entscheidend:** Nach sechs Stunden **gibt der Schritt auf und meldet es**.
+Ein Server ohne Beitrittspasswort darf nicht unauffällig sein.
+
+> *Obvious: record path and field name per game. Against: 36 of 41 games write
+> their config only on first start, and the field names are not reliably
+> documented — copying them from forums would have silently missed most of the
+> time. Instead: pattern matching with negative exclusions. Crucially, after six
+> hours the step gives up and says so: a server without a join password must not
+> be quiet about it.*
+
+---
+
+## E8 — Spielports stehen nicht in ufw
+
+**Naheliegend:** für jeden Spielport eine ufw-Regel, der Ordnung halber.
+**Dagegen:** Sie hätte keine Wirkung. Docker trägt seine Veröffentlichungen als
+DNAT-Regeln ein, die **vor** den ufw-Ketten greifen. Eine Regel, die nichts tut,
+ist schlimmer als keine — sie täuscht Sicherheit vor und wird beim nächsten
+Nachdenken für die wirksame Stelle gehalten.
+**Stattdessen:** ufw regelt, was nicht über Docker läuft (22, 80, 443, Tailnet).
+Wer einen Spielport schließen will, ändert die compose-Datei.
+
+---
+
+## E9 — Verwaltungsports auf `127.0.0.1`
+
+**Anlass:** Necesse veröffentlichte seine Webkonsole auf `0.0.0.0:8080`. Das fiel
+nur auf, weil jemand hinsah.
+**Regel seither:** RCON, Webkonsolen, ServerQuery, Telnet und API-Ports bekommen
+im Katalog die dreiteilige Form `127.0.0.1:port:port`. Betrifft acht Spiele.
+**Offen:** Eine Prüfung, die meldet, wenn ein Container einen unerwarteten Port
+auf `0.0.0.0` legt, gibt es noch nicht.
+
+---
+
+## E10 — Portkollisionen werden gegen die Realität geprüft, nicht gegen den Katalog
+
+**Naheliegend:** beim Anlegen des Katalogs alle Ports global eindeutig machen.
+**Dagegen:** Das erzwang Ersatzports ab 30000 für fast jedes Spiel, obwohl nie
+zwei gleichzeitig laufen.
+**Schlimmer noch:** Ein Lauf, der Kollisionen automatisch auflöste, wollte
+**TeamSpeak von 9987 auf 30115 verschieben** — ein laufender Server findet seine
+eigenen Ports als belegt vor. Jeder Client hätte den Server verloren.
+**Stattdessen:** Der Katalog darf Ports doppelt vergeben; `spiel-verwalten` prüft
+gegen die **tatsächlich gebundenen** Ports und lehnt bei echter Kollision ab.
+**Wer das je automatisiert: installierte Spiele ausnehmen.**
+
+> *Obvious: make every port globally unique in the catalogue. Against: that
+> forced replacement ports on nearly every game for no benefit — and worse, an
+> automated resolution run tried to move TeamSpeak from 9987 to 30115, because a
+> running server sees its own ports as taken. Instead the catalogue may reuse
+> ports and the installer checks reality. Anyone automating this must exclude
+> installed games.*
+
+---
+
+## E11 — Caddy fährt nur HTTP/1.1
+
+**Anlass:** Über HTTP/2 antwortete Caddy auf den WebSocket-Upgrade des Terminals
+mit `404`; im Browser stand `websocket connection closed with code: 1006`. Über
+HTTP/1.1 kommt sauber `101 Switching Protocols`.
+**Kosten:** kein h2, kein h3. Bei einem Panel mit zwei Benutzern belanglos.
+
+---
+
+## E12 — Zwei getrennte Kopfzeilensätze
+
+**Naheliegend:** eine Richtlinie für die ganze Domain.
+**Dagegen:** Das Panel fährt `default-src 'none'` — das blockiert `ttyd`
+vollständig, denn ein Terminal braucht JavaScript und WebSockets. Umgekehrt darf
+das Panel die Lockerungen des Terminals nicht bekommen: Es zeigt Zugangsdaten.
+**Stattdessen:** zwei `handle`-Blöcke mit eigenen Kopfzeilen.
+
+---
+
+## E13 — Der Panel-Dienst ist absichtlich schwach gehärtet
+
+**Naheliegend:** die volle systemd-Härtung, wie sie überall empfohlen wird.
+**Dagegen — vier gemessene Fehlschläge:**
+
+| Option | Wirkung |
+|---|---|
+| `NoNewPrivileges=yes` | `sudo` kann nicht mehr nach root — die Übersicht blieb leer |
+| `LockPersonality`, `ProtectKernelTunables`, `ProtectControlGroups` | setzen `NoNewPrivileges` **implizit** |
+| `ProtectSystem=strict` | Borg kann seinen Cache nicht anlegen — Archivliste leer |
+| `ProtectHome` | `panel-aktion` käme nicht an die Borg-Passphrase |
+
+**Die eigentliche Lehre:** Alle vier äußerten sich als *funktionierende
+Oberfläche mit leeren Listen*, nie als Fehlermeldung. Härtung, die man nicht
+prüft, härtet nicht — sie bricht leise.
+**Stattdessen:** `NoNewPrivileges=no`, `PrivateTmp=yes`, `ProtectSystem=full`.
+Der Schutz kommt aus Dateirechten und der engen Brücke.
+
+> *Obvious: full systemd hardening as universally recommended. Against: four
+> measured failures, each presenting as a working UI with empty lists rather than
+> an error. Unverified hardening does not harden — it breaks quietly.*
+
+---
+
+## E14 — Das TOTP-Geheimnis sieht niemand
+
+**Naheliegend:** beim Anlegen eines Kontos den QR-Code zeigen, damit der
+Administrator ihn weitergeben kann.
+**Dagegen:** Dann wandert der zweite Faktor durch einen Chat, eine Mail oder ein
+Terminalprotokoll — und ist keiner mehr.
+**Stattdessen:** Das Geheimnis entsteht beim Anlegen, wird aber nirgends
+angezeigt. Der neue Benutzer bekommt es bei seiner ersten Anmeldung selbst.
+**Gleiches gilt bei der Einrichtung:** Stufe 30 gibt das Startpasswort aus, das
+TOTP-Geheimnis nicht.
+
+---
+
+## E15 — Die Rolle kommt aus der Datei, nicht aus dem Cookie
+
+**Naheliegend:** die Rolle mit in die signierte Sitzung packen, spart einen
+Dateizugriff.
+**Dagegen:** Ein herabgestufter oder gelöschter Benutzer behielte seine Rechte
+bis zum Ablauf des Cookies — acht Stunden.
+**Kosten:** ein Lesevorgang je Anfrage. Bei zwei Benutzern nicht messbar.
+
+---
+
+## E16 — `/srv/dienste` getrennt von `/srv/games`
+
+**Anlass:** Die Prüfung der Sicherungen verlangt für jedes Verzeichnis unter
+`/srv/games` Spielstand-Dateien. TeamSpeak hat keine und hätte dauerhaft Alarm
+ausgelöst — ein Daueralarm, den man nach zwei Wochen nicht mehr liest.
+
+---
+
+## E17 — Ein CNAME je Spiel auf einen A-Eintrag
+
+**Naheliegend:** je Spiel ein A-Eintrag auf die IP.
+**Dagegen:** Beim Umzug wären alle zu ändern, und man vergisst einen.
+**Stattdessen:** `gs.<zone>` trägt die IP, alle Spiele sind CNAMEs darauf. Ein
+Eintrag beim Umzug.
+**Und:** `cf-dns` fragt nie die Namensauflösung, sondern immer die API — ein
+Wildcard in der Zone beantwortet jeden erfundenen Namen und machte jede Prüfung
+per `dig` wertlos.
+
+---
+
+## E18 — Sicherung über Tailscale, nicht über einen offenen Port
+
+**Naheliegend:** SSH des Sicherungsservers ins Internet stellen.
+**Dagegen:** Ein weiterer öffentlich erreichbarer Dienst, den man pflegen und
+überwachen muss — für einen Zweck, der ihn nicht braucht.
+**Nebeneffekt:** Das Tailnet ist zugleich der Notzugang, wenn eine ufw-Regel oder
+ein fail2ban-Bann den SSH-Zugang aussperrt.
+**Kosten:** Ist das Tailnet unten, scheitert die Sicherung. Das meldet der Timer.
+
+---
+
+## E19 — Passwörter ohne Sonderzeichen und ohne `0/O`, `1/l/I`
+
+**Naheliegend:** maximale Entropie.
+**Dagegen:** Diese Passwörter werden vorgelesen und abgetippt. Und manche Spiele
+filtern Sonderzeichen still weg — dann steht in der Datei etwas anderes als in
+der Anzeige, und niemand kommt auf den Server.
+**Stattdessen:** 14 Zeichen aus einem Alphabet von 57 Zeichen ohne
+Verwechslungsgefahr — nachgerechnet **81,7 Bit**. Für ein Beitrittspasswort, das
+zudem hinter einem Spielserver ohne Anmeldeversuchsgrenze steht, mehr als genug;
+die Borg-Passphrase bekommt mit 32 Zeichen 186,7 Bit.
+
+> *Obvious: maximum entropy. Against: these passwords are read aloud and typed by
+> hand, and some games silently strip punctuation — leaving the file holding
+> something other than what is displayed, and nobody gets in. Instead: 14
+> characters from a 57-character look-alike-free alphabet, a measured 81.7 bits.
+> The Borg passphrase gets 32 characters, or 186.7 bits.*
+
+---
+
+## E20 — Der Bausatz parametrisiert, statt umzubauen
+
+**Naheliegend:** Die Skripte auf eine zentrale `/etc/gameserver.conf` umstellen,
+damit das Repositorium sauber wird.
+**Dagegen:** Dann wiche das Repositorium vom laufenden System ab — und es
+beschriebe eine Maschine, die es so nicht gibt. Eine Dokumentation, die eine
+Fiktion beschreibt, ist schlimmer als keine.
+**Stattdessen:** Die Dateien stehen **1:1 wie auf dem Server** im Repositorium;
+ersetzt sind nur die standortbezogenen Werte, durch `@@PLATZHALTER@@`, die beim
+Einbau aus `konfiguration.env` gefüllt werden. Bleibt einer stehen, bricht die
+Einrichtung ab.
+
+> *Obvious: refactor the scripts onto a central config file so the repository
+> looks tidy. Against: the repository would then differ from the running system
+> and describe a machine that does not exist — documentation of a fiction is
+> worse than none. Instead the files are byte-for-byte as deployed, with only
+> site-specific values replaced by placeholders filled from
+> `konfiguration.env`; a left-over placeholder aborts the install.*

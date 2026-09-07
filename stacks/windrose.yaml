@@ -1,0 +1,30 @@
+# Windrose-Server, angelegt 2026-09-06.
+# Der Dedicated Server ist laut Hersteller Windows-only ("Currently Windows-only,
+# unfortunately") — dieses Image faehrt ihn unter Wine, wie schon der
+# Enshrouded-Container desselben Autors. Kein Herstellersupport dafuer.
+#
+# Port 7780 statt 7777: Satisfactory belegt 7777 bereits. Windrose nutzt laut
+# Doku ohnehin NAT punch-through, der feste Port zaehlt nur fuer direkte Beitritte.
+services:
+  windrose:
+    image: mornedhels/windrose-server:latest
+    container_name: windrose
+    hostname: windrose
+    restart: unless-stopped
+    stop_grace_period: 90s
+    mem_limit: 8g
+    memswap_limit: 8g
+    ports:
+      - "7780:7777/tcp"
+      - "7780:7777/udp"
+    volumes:
+      - /srv/games/windrose:/opt/windrose
+    environment:
+      SERVER_NAME: "@@WELT_NAME@@"
+      SERVER_PASSWORD: "@@PASSWORT@@"
+      SERVER_MAX_PLAYER_COUNT: 4
+      SERVER_USER_SELECTED_REGION: "EU"
+      BACKUP_CRON: "*/30 * * * *"
+      BACKUP_MAX_COUNT: 8
+      PUID: 4711
+      PGID: 4711

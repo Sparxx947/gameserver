@@ -1,0 +1,72 @@
+#!/bin/bash
+# spiele-sicherung — sichert Spielstaende nach borgserver (Unraid, ueber Tailnet).
+#
+# Angelegt 2026-09-06, umgebaut am selben Tag auf:
+#   * ein ARCHIV JE SPIEL  ->  einzelne Spiele lassen sich gezielt zurueckholen
+#   * Grossvater-Vater-Sohn ueber borg prune
+#   * alle 15 Minuten, aber NUR fuer Spiele, deren Container laeuft
+#
+# Ein gestopptes Spiel aendert sich nicht — es jedes Viertelstuendchen erneut zu
+# sichern erzeugte nur Archive ohne neuen Inhalt und verwaesserte die
+# Aufbewahrung: Die "Sohn"-Stufe waere binnen zwei Tagen mit Kopien desselben
+# Standes gefuellt.
+#
+#   spiele-sicherung [--alle] [--nur <name>]
+#     --alle       auch gestoppte Spiele sichern (fuer den taeglichen Lauf)
+#     --nur <name> nur dieses eine Spiel/den Dienst
+set -o pipefail
+export BORG_PASSPHRASE=$(cat /root/.borg-passphrase)
+export BORG_RSH="ssh -o BatchMode=yes -o ConnectTimeout=15"
+REPO="@@BORG_REPO@@"
+ZEIT=$(date +%Y%m%d-%H%M%S)
+
+ALLE=0; NUR=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --alle) ALLE=1; shift ;;
+    --nur) NUR="$2"; shift 2 ;;
+    *) echo "Unbekannt: $1" >&2; exit 1 ;;
+  esac
+done
+
+# Grossvater-Vater-Sohn:
+#   Sohn      alle 15 min, aufgehoben fuer 2 Tage   (--keep-within 2d)
+#   Vater     ein Stand je Tag, 14 Tage             (--keep-daily 14)
+#   Grossvater ein Stand je Woche, 8 Wochen         (--keep-weekly 8)
+#              ein Stand je Monat, 12 Monate        (--keep-monthly 12)
+prune_regeln=(--keep-within 2d --keep-daily 14 --keep-weekly 8 --keep-monthly 12)
+
+fehler=0
+sichere() {   # sichere <name> <pfad>
+  local name="$1" pfad="$2"
+  borg create --compression zstd,6 --exclude-from /etc/borg-ausschluss.txt \
+       "$REPO::${name}-${ZEIT}" "$pfad" 2>&1 | grep -vE "^$" 
+  local rc=${PIPESTATUS[0]}
+  if [ $rc -ne 0 ]; then
+    echo "FEHLER: borg create fuer $name endete mit $rc" >&2; fehler=1; return
+  fi
+  # prune NUR innerhalb dieses Praefixes, sonst wuerde ein Spiel die Staende
+  # eines anderen wegraeumen. Borg 1.2 nennt das --glob-archives.
+  borg prune --glob-archives "${name}-*" "${prune_regeln[@]}" "$REPO" >/dev/null 2>&1 \
+    || { echo "FEHLER: prune fuer $name" >&2; fehler=1; }
+}
+
+laeuft() { docker ps --format "{{.Names}}" | grep -qx "$1"; }
+
+for d in /srv/games/*/ /srv/dienste/*/; do
+  [ -d "$d" ] || continue
+  name=$(basename "$d")
+  [ -n "$NUR" ] && [ "$NUR" != "$name" ] && continue
+  if [ "$ALLE" -eq 0 ] && [ -z "$NUR" ] && ! laeuft "$name"; then continue; fi
+  sichere "$name" "${d%/}"
+done
+
+# Konfiguration (compose-Dateien mit Passwoertern, /etc) — nur im vollen Lauf.
+if [ "$ALLE" -eq 1 ] && [ -z "$NUR" ]; then
+  sichere "config" "/opt/stacks"
+  borg create --compression zstd,6 "$REPO::etc-${ZEIT}" /etc >/dev/null 2>&1 \
+    && borg prune --glob-archives "etc-*" "${prune_regeln[@]}" "$REPO" >/dev/null 2>&1
+fi
+
+borg compact "$REPO" >/dev/null 2>&1
+[ $fehler -eq 0 ] && echo "Sicherung abgeschlossen: $ZEIT" || { echo "Sicherung MIT FEHLERN: $ZEIT" >&2; exit 1; }

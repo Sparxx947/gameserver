@@ -1,0 +1,1509 @@
+{
+ "_hinweis": "Katalog installierbarer Spiele. Erzeugt 2026-09-06 aus den Vorlagen von ich777 (github.com/ich777/docker-templates) plus drei Spezial-Images. Steam-App-IDs und Ports stammen aus den Vorlagen bzw. den Image-Manifesten, nicht aus Schaetzungen.",
+ "_ports": "Host-Ports sind gegen die am 2026-09-06 belegten geprueft. Sie sind untereinander NICHT durchgaengig eindeutig: 8766/udp (dontstarvetogether, sonsoftheforest, theforest, wurmunlimited), 26900+26901/udp (7daystodie, creativerse), 8777/udp (astroneer, soulmask) und 27020/udp (avorion, wurmunlimited) sind mehrfach vergeben. Das ist unschaedlich, solange die betroffenen Spiele nicht gleichzeitig laufen; spiel-verwalten prueft vor jeder Installation gegen die TATSAECHLICH belegten Ports und lehnt bei echter Kollision mit \"Port bereits belegt\" ab.",
+ "spiele": [
+  {
+   "schluessel": "7daystodie",
+   "name": "7DaysToDie",
+   "kurz": "Zombie-Survival mit Tower Defense und Basisbau",
+   "appid": 251570,
+   "image": "ghcr.io/ich777/steamcmd:7dtd",
+   "mem_gb": 8,
+   "platte_gb": 20,
+   "ports": [
+    "26900:26900/tcp",
+    "26900:26900/udp",
+    "26901:26901/udp",
+    "26902:26902/udp",
+    "26903:26903/udp",
+    "127.0.0.1:8081:8080/tcp",
+    "8082:8082/tcp",
+    "30013:27015/udp"
+   ],
+   "volumes": [
+    "/srv/games/7daystodie:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "294420",
+    "GAME_PARAMS": "-logfile 7DaysToDie_Data/output_log.txt $@",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 26900,
+   "spieler": 4,
+   "hinweis": "Verwaltungszugang liegt lokal auf 8081 statt 8080 (Necesse hat 8080). Verwaltungszugang (TCP2 - Web base control) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30013. This Docker will download and install SteamCMD. It will also install 7 Days to Die and run it. ATTENTION: First Startup can take very long since it downloads the gameserver files! Update Notice: Simply restart the container if a n… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "abioticfactor",
+   "name": "AbioticFactor",
+   "kurz": "Koop-Survival im Forschungsbunker, bis 6 Spieler",
+   "appid": 427410,
+   "image": "ghcr.io/ich777/steamcmd:abioticfactor",
+   "mem_gb": 6,
+   "platte_gb": 12,
+   "ports": [
+    "30000:7777/udp",
+    "30001:27015/udp"
+   ],
+   "volumes": [
+    "/srv/games/abioticfactor:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "2857200",
+    "GAME_PARAMS": "-log",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770",
+    "SERVER_NAME": "@@WELT_NAME@@",
+    "GAME_PORT": "30000",
+    "QUERY_PORT": "30001",
+    "SERVER_PWD": "{PASSWORT}"
+   },
+   "passwort": {
+    "art": "env",
+    "feld": "SERVER_PWD"
+   },
+   "adresse_port": 30000,
+   "spieler": 4,
+   "hinweis": "Abweichender Port (Standard war belegt): 7777->30000, 27015->30001. This Docker will download and install SteamCMD. It will also install Abiotic Factor and run it. ATTENTION: First Startup can take very long since it downloads the gameserver files! Update Notice: Simply restart the container if a …",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "americantrucksimulator",
+   "name": "AmericanTruckSimulator",
+   "kurz": "Convoy-Modus in den USA",
+   "appid": 270880,
+   "image": "ghcr.io/ich777/steamcmd:ats",
+   "mem_gb": 3,
+   "platte_gb": 6,
+   "ports": [
+    "30041:27015/udp",
+    "30042:27016/udp"
+   ],
+   "volumes": [
+    "/srv/games/americantrucksimulator:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "2239530",
+    "GAME_PARAMS": "",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30041,
+   "spieler": 4,
+   "hinweis": "Abweichender Port (Standard war belegt): 27015->30041, 27016->30042. This Docker will download and install SteamCMD. It will also install American Truck Simulator and run it. **Server Credentials:** The default name from the server is: **Docker Server** and the password is: **Docker** **ATTENTION:*… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "astroneer",
+   "name": "Astroneer",
+   "kurz": "Freundliche Planeten-Erkundung, Koop bis 8",
+   "appid": 361420,
+   "image": "ghcr.io/ich777/steamcmd:astroneer",
+   "mem_gb": 3,
+   "platte_gb": 4,
+   "ports": [
+    "8777:8777/udp"
+   ],
+   "volumes": [
+    "/srv/games/astroneer:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "728470",
+    "GAME_PARAMS": "",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 8777,
+   "spieler": 4,
+   "hinweis": "This Docker will download and install SteamCMD. It will also install Astroneer and run it. **Notice:** This is a highly experimental server and you maybe have to restart the container after you left the server it in order to be ab… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "avorion",
+   "name": "Avorion",
+   "kurz": "Raumschiffe aus Bloecken bauen, Koop-Kampagne",
+   "appid": 445220,
+   "image": "ghcr.io/ich777/steamcmd:avorion",
+   "mem_gb": 6,
+   "platte_gb": 12,
+   "ports": [
+    "27000:27000/tcp",
+    "27000:27000/udp",
+    "27003:27003/udp",
+    "27020:27020/udp",
+    "27021:27021/udp"
+   ],
+   "volumes": [
+    "/srv/games/avorion:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "565060",
+    "GAME_PARAMS": "",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 27000,
+   "spieler": 4,
+   "hinweis": "This Docker will download and install SteamCMD. It will also install Avorion and run it. ATTENTION: First Startup can take very long since it downloads the gameserver files! Update Notice: Simply restart the container if a newer v… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "barotrauma",
+   "name": "Barotrauma",
+   "kurz": "U-Boot-Koop auf Europa, bis 16 Spieler",
+   "appid": 602960,
+   "image": "ghcr.io/ich777/steamcmd:barotrauma",
+   "mem_gb": 4,
+   "platte_gb": 8,
+   "ports": [
+    "30006:27015/udp",
+    "30007:27016/udp"
+   ],
+   "volumes": [
+    "/srv/games/barotrauma:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "1026340",
+    "GAME_PARAMS": "",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30006,
+   "spieler": 4,
+   "hinweis": "Abweichender Port (Standard war belegt): 27015->30006, 27016->30007. This Docker will download and install SteamCMD. It will also install Barotrauma and run it. ATTENTION: First Startup can take very long since it downloads the gameserver files! Update Notice: Simply restart the container if a newe… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "citadelforgedwithfire",
+   "name": "Citadel ForgedWithFire",
+   "kurz": "Magie-Survival mit Burgenbau",
+   "appid": 487120,
+   "image": "ghcr.io/ich777/steamcmd:citadelfwf",
+   "mem_gb": 8,
+   "platte_gb": 20,
+   "ports": [
+    "30027:7777/udp",
+    "30028:27015/udp"
+   ],
+   "volumes": [
+    "/srv/games/citadelforgedwithfire:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "489650",
+    "GAME_PARAMS": "",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30027,
+   "spieler": 4,
+   "hinweis": "Abweichender Port (Standard war belegt): 7777->30027, 27015->30028. This Docker will download and install SteamCMD. It will also install Citadel - Forged with Fire and run it. ATTENTION: First Startup can take very long since it downloads the gameserver files! Update Notice: Simply restart the con… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "colonysurvival",
+   "name": "ColonySurvival",
+   "kurz": "Kolonie aufbauen und gegen Zombies verteidigen",
+   "appid": 366090,
+   "image": "ghcr.io/ich777/steamcmd:colonysurvival",
+   "mem_gb": 4,
+   "platte_gb": 6,
+   "ports": [
+    "30022:27016/udp"
+   ],
+   "volumes": [
+    "/srv/games/colonysurvival:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "748090",
+    "GAME_PARAMS": "+server.gameport 27016",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30022,
+   "spieler": 4,
+   "hinweis": "Abweichender Port (Standard war belegt): 27016->30022. This Docker will download and install SteamCMD. It will also install Colony Survival and run it. CONSOLE: To connect to the console open up a terminal and type in: 'docker exec -u steam -ti NAMEOFYOURCONTAINER screen -xS ColonySur… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "conanexiles",
+   "name": "ConanExiles",
+   "kurz": "Survival in der Wueste, Basisbau und Sklaven",
+   "appid": 440900,
+   "image": "ghcr.io/ich777/steamcmd:conanexiles",
+   "mem_gb": 10,
+   "platte_gb": 40,
+   "ports": [
+    "30010:7777/tcp",
+    "30011:7777/udp",
+    "7778:7778/udp",
+    "30012:27015/udp"
+   ],
+   "volumes": [
+    "/srv/games/conanexiles:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "443030",
+    "GAME_PARAMS": "",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30010,
+   "spieler": 4,
+   "hinweis": "Abweichender Port (Standard war belegt): 7777->30010, 7777->30011, 27015->30012. This Docker will download and install SteamCMD. It will also install Conan Exiles and run it. Servername: 'Docker ConanExiles' Password: 'Docker' rconPassword: 'adminDocker' ATTENTION: First Startup can take very long since it dow… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "corekeeper",
+   "name": "CoreKeeper",
+   "kurz": "Unterirdisches Sandbox-Survival, Koop bis 8",
+   "appid": 1621690,
+   "image": "ghcr.io/ich777/steamcmd:corekeeper",
+   "mem_gb": 4,
+   "platte_gb": 6,
+   "ports": [],
+   "volumes": [
+    "/srv/games/corekeeper:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "1963720",
+    "GAME_PARAMS": "",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770",
+    "WORLD_NAME": "@@WELT_NAME@@",
+    "WORLD_INDEX": "0"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 0,
+   "spieler": 4,
+   "hinweis": "This Docker will download and install SteamCMD. It will also install CoreKeeper and run it. **GameID:** Your GameID will be displayed in the log after the server successfully started. **Port Forwarding:** You don't have to forward… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "craftopia",
+   "name": "Craftopia",
+   "kurz": "Sandbox-Mischung aus Survival, Farmen und Automatisierung",
+   "appid": 1307550,
+   "image": "ghcr.io/ich777/steamcmd:craftopia",
+   "mem_gb": 6,
+   "platte_gb": 12,
+   "ports": [
+    "8787:8787/tcp",
+    "8787:8787/udp"
+   ],
+   "volumes": [
+    "/srv/games/craftopia:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "1670340",
+    "GAME_PARAMS": "",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 8787,
+   "spieler": 4,
+   "hinweis": "This Docker will download and install SteamCMD. It will also install Craftopia and run it. Servername: 'Craftopia Docker' Password: '54321' ATTENTION: First Startup can take very long since it downloads the gameserver files! Updat… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "creativerse",
+   "name": "Creativerse",
+   "kurz": "Bloecke-Sandbox, freundlich und einsteigerfreundlich",
+   "appid": 280790,
+   "image": "ghcr.io/ich777/steamcmd:creativerse",
+   "mem_gb": 4,
+   "platte_gb": 8,
+   "ports": [
+    "26900:26900/udp",
+    "26901:26901/udp",
+    "127.0.0.1:26902:26902/tcp"
+   ],
+   "volumes": [
+    "/srv/games/creativerse:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "1098260",
+    "GAME_PARAMS": "-worldId=unraid_world",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 26900,
+   "spieler": 4,
+   "hinweis": "Verwaltungszugang (TCP - WebAdmin) ist nur lokal erreichbar, nicht aus dem Internet. This Docker will download and install SteamCMD. It will also install Creativerse and run it. **ATTENTION:** First Startup can take very long since it downloads the gameserver files and the world template! **Update Notice:** Simply… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "dontstarvetogether",
+   "name": "DontStarveTogether",
+   "kurz": "Kantiges Koop-Survival, sehr genuegsam",
+   "appid": 322330,
+   "image": "ghcr.io/ich777/steamcmd:dontstarve",
+   "mem_gb": 2,
+   "platte_gb": 2,
+   "ports": [
+    "10890:10890/udp",
+    "30014:27016/udp",
+    "8766:8766/udp"
+   ],
+   "volumes": [
+    "/srv/games/dontstarvetogether:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "343050",
+    "GAME_PARAMS": "",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 10890,
+   "spieler": 4,
+   "hinweis": "Abweichender Port (Standard war belegt): 27016->30014. This Docker will download and install SteamCMD. It will also install Don't Starve Together and run it. ATTENTION: After the first complete startup (you can see it in the log) copy your 'cluster_token.txt' in the 'token/Cluster_1' … Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "eco",
+   "name": "ECO",
+   "kurz": "Aufbau mit Wirtschaft und Oekologie, Lehrspiel-Charakter",
+   "appid": 382310,
+   "image": "ghcr.io/ich777/steamcmd:eco",
+   "mem_gb": 6,
+   "platte_gb": 10,
+   "ports": [
+    "3000:3000/udp",
+    "3001:3001/tcp"
+   ],
+   "volumes": [
+    "/srv/games/eco:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "739590",
+    "GAME_PARAMS": "",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 3000,
+   "spieler": 4,
+   "hinweis": "This Docker will download and install SteamCMD. It will also install ECO and run it. ATTENTION: First Startup can take very long since it downloads the gameserver files! PASSWORD: The initial password is 'Docker'. Update Notice: S… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "eurotrucksimulator2",
+   "name": "EuroTruckSimulator2",
+   "kurz": "Convoy-Modus: gemeinsam Fracht fahren",
+   "appid": 227300,
+   "image": "ghcr.io/ich777/steamcmd:ets2",
+   "mem_gb": 3,
+   "platte_gb": 6,
+   "ports": [
+    "30039:27015/udp",
+    "30040:27016/udp"
+   ],
+   "volumes": [
+    "/srv/games/eurotrucksimulator2:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "1948160",
+    "GAME_PARAMS": "",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30039,
+   "spieler": 4,
+   "hinweis": "Abweichender Port (Standard war belegt): 27015->30039, 27016->30040. This Docker will download and install SteamCMD. It will also install Euro Truck Simulator 2 and run it. **Server Credentials:** The default name from the server is: **Docker Server** and the password is: **Docker** **ATTENTION:** … Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "factorio",
+   "name": "Factorio",
+   "kurz": "Fabrikaufbau und Automatisierung - passt zu Satisfactory und FOUNDRY",
+   "image": "factoriotools/factorio:stable",
+   "mem_gb": 3,
+   "platte_gb": 3,
+   "ports": [
+    "34197:34197/udp"
+   ],
+   "volumes": [
+    "/srv/games/factorio:/factorio"
+   ],
+   "env": {
+    "PUID": "4711",
+    "PGID": "4711",
+    "UPDATE_MODS_ON_START": "false",
+    "DLC_SPACE_AGE": "true"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "config/server-settings.json",
+    "feld": "game_password"
+   },
+   "adresse_port": 34197,
+   "ausschluss": [],
+   "hinweis": "Sehr genuegsam. Passwort in config/server-settings.json, die der erste Start anlegt.",
+   "spieler": 4,
+   "appid": 427520
+  },
+  {
+   "schluessel": "frozenflame",
+   "name": "FrozenFlame",
+   "kurz": "Fantasy-Survival mit Drachen und Basisbau",
+   "appid": 715400,
+   "image": "ghcr.io/ich777/steamcmd:frozenflame",
+   "mem_gb": 6,
+   "platte_gb": 15,
+   "ports": [
+    "30016:7777/tcp",
+    "30017:7777/udp",
+    "127.0.0.1:30018:27015/tcp",
+    "30019:27015/udp",
+    "30020:25575/tcp"
+   ],
+   "volumes": [
+    "/srv/games/frozenflame:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "1348640",
+    "GAME_PARAMS": "-MetaGameServerName=\"FrozenFlame Docker\" -RconPassword=\"adminDocker\"",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30016,
+   "spieler": 4,
+   "hinweis": "Verwaltungszugang (TCP 2 - RCON) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 7777->30016, 7777->30017, 27015->30018, 27015->30019, 25575->30020. This Docker will download and install SteamCMD. It will also install FrozenFlame and run it. **ATTENTION:** First Startup can take very long since it downloads the gameserver files! **Update Notice:** Simply restart the container … Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "hurtworld",
+   "name": "Hurtworld",
+   "kurz": "Survival-Sandbox mit Fahrzeugen",
+   "appid": 393420,
+   "image": "ghcr.io/ich777/steamcmd:hurtworld",
+   "mem_gb": 4,
+   "platte_gb": 10,
+   "ports": [
+    "12871:12871/udp",
+    "12881:12881/udp"
+   ],
+   "volumes": [
+    "/srv/games/hurtworld:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "405100",
+    "GAME_PARAMS": ";autosaveenabled 1;addadmin 76561197963117432",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770",
+    "GAME_PORT": "12871",
+    "QUERY_PORT": "12881",
+    "SRV_MAXPLAYERS": "4"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 12871,
+   "spieler": 4,
+   "hinweis": "This Docker will download and install SteamCMD. It will also install Hurtworld and run it. ATTENTION: First Startup can take very long since it downloads the gameserver files! Update Notice: Simply restart the container if a newer… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "icarus",
+   "name": "Icarus",
+   "kurz": "Sitzungsbasiertes Survival auf einem Fremdplaneten",
+   "appid": 1149460,
+   "image": "ghcr.io/ich777/steamcmd:icarus",
+   "mem_gb": 8,
+   "platte_gb": 25,
+   "ports": [
+    "17777:17777/udp",
+    "30009:27015/udp"
+   ],
+   "volumes": [
+    "/srv/games/icarus:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "2089300",
+    "GAME_PARAMS": "-SteamServerName=\"Icarus Docker\" -Port=17777 -QueryPort=27015",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 17777,
+   "spieler": 4,
+   "hinweis": "Abweichender Port (Standard war belegt): 27015->30009. This Docker will download and install SteamCMD. It will also install Icarus and run it. Initial server configuration: **Servername:** Icarus Docker **Password:** Docker **AdminPassword:** adminDocker **ATTENTION:** First startup c… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "lastoasis",
+   "name": "LastOasis",
+   "kurz": "Nomaden-Survival mit Wanderbasen",
+   "appid": 903950,
+   "image": "ghcr.io/ich777/steamcmd:lastoasis",
+   "mem_gb": 6,
+   "platte_gb": 15,
+   "ports": [
+    "5555:5555/udp",
+    "30026:27015/udp"
+   ],
+   "volumes": [
+    "/srv/games/lastoasis:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "920720",
+    "GAME_PARAMS": "-port=5555 -QueryPort=27015 -NoLiveServer -EnableCheats",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 5555,
+   "spieler": 4,
+   "hinweis": "Abweichender Port (Standard war belegt): 27015->30026. This Docker will download and install SteamCMD. It will also install Last Oasis and run it. **Customer &amp; Provider Key:** You have to first create your own Provider Key here: https://myrealm.lastoasis.gg and fill in the generat… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "lifeisfeudalyourown",
+   "name": "LifeIsFeudal YourOwn",
+   "kurz": "Mittelalter-Survival mit Terraforming",
+   "appid": 290080,
+   "image": "ghcr.io/ich777/steamcmd:lifyo",
+   "mem_gb": 6,
+   "platte_gb": 12,
+   "ports": [
+    "28000:28000/tcp",
+    "28001:28001/tcp",
+    "28002:28002/tcp",
+    "28003:28003/tcp",
+    "28000:28000/udp",
+    "28001:28001/udp",
+    "28002:28002/udp",
+    "28003:28003/udp"
+   ],
+   "volumes": [
+    "/srv/games/lifeisfeudalyourown:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "320850",
+    "GAME_PARAMS": "",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 28000,
+   "spieler": 4,
+   "hinweis": "This Docker will download and install SteamCMD. It will also install Life is Feudal: Your Own and run it. Initial server configuration: **Servername:** LiF Docker **Password:** Docker **Admin Password:** adminDocker **ATTENTION:**… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "lotrreturntomoria",
+   "name": "LOTR ReturnToMoria",
+   "kurz": "Zwergen-Koop in Moria: graben, bauen, ueberleben",
+   "appid": 2933080,
+   "image": "ghcr.io/ich777/steamcmd:lotr-returntomoria",
+   "mem_gb": 8,
+   "platte_gb": 20,
+   "ports": [
+    "30021:7777/udp"
+   ],
+   "volumes": [
+    "/srv/games/lotrreturntomoria:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "3349480",
+    "GAME_PARAMS": "",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30021,
+   "spieler": 4,
+   "hinweis": "Abweichender Port (Standard war belegt): 7777->30021. This Docker will download and install SteamCMD. It will also install LOTR:Return to Moria and run it. Initial server configuration: **Servername:** Docker Return to Moria **Password:** Docker **Configuration:** You'll find the con… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "memoriesofmars",
+   "name": "Memories of Mars",
+   "kurz": "Survival auf dem Mars, Basisbau",
+   "appid": 715380,
+   "image": "ghcr.io/ich777/steamcmd:memoriesofmars",
+   "mem_gb": 6,
+   "platte_gb": 15,
+   "ports": [
+    "30029:7777/tcp",
+    "30030:7777/udp",
+    "15000:15000/tcp",
+    "15000:15000/udp"
+   ],
+   "volumes": [
+    "/srv/games/memoriesofmars:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "897590",
+    "GAME_PARAMS": "",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30029,
+   "spieler": 4,
+   "hinweis": "Abweichender Port (Standard war belegt): 7777->30029, 7777->30030. This Docker will download and install SteamCMD. It will also install Memories of Mars and run it. ATTENTION: First Startup can take very long since it downloads the gameserver files! ONLINE PLAY: Please be sure to set the variable… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "minecraft",
+   "name": "Minecraft (Java)",
+   "kurz": "Klassiker, laeuft mit sehr wenig Ressourcen",
+   "image": "itzg/minecraft-server:latest",
+   "mem_gb": 4,
+   "platte_gb": 4,
+   "ports": [
+    "25565:25565/tcp"
+   ],
+   "volumes": [
+    "/srv/games/minecraft:/data"
+   ],
+   "env": {
+    "EULA": "TRUE",
+    "TYPE": "VANILLA",
+    "MEMORY": "3G",
+    "UID": "4711",
+    "GID": "4711",
+    "TZ": "Europe/Berlin",
+    "MOTD": "@@WELT_NAME@@",
+    "ENABLE_WHITELIST": "true",
+    "ENFORCE_WHITELIST": "true"
+   },
+   "passwort": {
+    "art": "keins"
+   },
+   "adresse_port": 25565,
+   "ausschluss": [],
+   "hinweis": "ACHTUNG: Die Installation setzt EULA=TRUE - das ist die Zustimmung zu Mojangs Nutzungsbedingungen. Minecraft kennt kein Serverpasswort; stattdessen ist die Weissliste an: Mitspieler mit \"whitelist add <Name>\" freischalten.",
+   "spieler": 4,
+   "appid": 0
+  },
+  {
+   "schluessel": "necesse",
+   "name": "Necesse",
+   "kurz": "Pixel-Sandbox mit Basisbau und Bossen",
+   "appid": 1169040,
+   "image": "ghcr.io/ich777/steamcmd:necesse",
+   "mem_gb": 3,
+   "platte_gb": 3,
+   "ports": [
+    "14159:14159/udp",
+    "127.0.0.1:8080:8080/tcp"
+   ],
+   "volumes": [
+    "/srv/games/necesse:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "1169370",
+    "GAME_PARAMS": "",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770",
+    "WORLD_NAME": "@@WELT_NAME@@"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 14159,
+   "spieler": 4,
+   "hinweis": "Verwaltungszugang (TCP - WebConsole) ist nur lokal erreichbar, nicht aus dem Internet. This Docker will download and install SteamCMD. It will also install Necesse and run it. ATTENTION: First Startup can take very long since it downloads the gameserver files! Update Notice: Simply restart the container if a newer v… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "projectzomboid",
+   "name": "ProjectZomboid",
+   "kurz": "Isometrisches Zombie-Survival, lange Runden",
+   "appid": 108600,
+   "image": "ghcr.io/ich777/steamcmd:projectzomboid",
+   "mem_gb": 4,
+   "platte_gb": 6,
+   "ports": [
+    "16261:16261/udp",
+    "16262:16262/udp",
+    "127.0.0.1:30005:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/projectzomboid:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "380870",
+    "GAME_PARAMS": "",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770",
+    "ADMIN_PWD": "{ADMIN}"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 16261,
+   "spieler": 4,
+   "hinweis": "Verwaltungszugang (TCP - RCON Port) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30005. This Docker will download and install SteamCMD. It will also install Project Zomboid and run it. Servername: 'Docker ProjectZomboid' Password: 'Docker' AdminPassword: 'adminDocker' ATTENTION: First Startup can take very long since… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "rust",
+   "name": "RUST",
+   "kurz": "Hartes PvP-Survival, grosse Karten",
+   "appid": 252490,
+   "image": "ghcr.io/ich777/steamcmd:rust",
+   "mem_gb": 10,
+   "platte_gb": 25,
+   "ports": [
+    "28015:28015/udp",
+    "28016:28016/udp",
+    "127.0.0.1:28017:28017/tcp",
+    "28018:28018/tcp"
+   ],
+   "volumes": [
+    "/srv/games/rust:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "258550",
+    "GAME_PARAMS": "+server.maxplayers 10",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770",
+    "SERVER_NAME": "@@WELT_NAME@@",
+    "GAME_PORT": "28015",
+    "QUERY_PORT": "28016"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 28015,
+   "spieler": 4,
+   "hinweis": "Verwaltungszugang (TCP1 - RCON Port) ist nur lokal erreichbar, nicht aus dem Internet. This Docker will download and install SteamCMD. It will also install RUST and run it. ATTENTION: First Startup can take very long since it downloads the gameserver files! Update Notice: Simply restart the container if a newer vers… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "sonsoftheforest",
+   "name": "SonsOfTheForest",
+   "kurz": "Survival-Horror auf der Insel, Koop bis 8",
+   "appid": 1326470,
+   "image": "ghcr.io/ich777/steamcmd:sonsoftheforest",
+   "mem_gb": 8,
+   "platte_gb": 16,
+   "ports": [
+    "8766:8766/udp",
+    "30002:27016/udp",
+    "9700:9700/udp"
+   ],
+   "volumes": [
+    "/srv/games/sonsoftheforest:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "2465200",
+    "GAME_PARAMS": "",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 8766,
+   "spieler": 4,
+   "hinweis": "Abweichender Port (Standard war belegt): 27016->30002. This Docker will download and install SteamCMD. It will also install Sons Of The Forest and run it. **SERVERNAME:** 'Sons Of The Forest Docker Server' **SERVERPASSWORD:** 'Docker' (you can change this in your SERVERFOLDER/userdata… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "soulmask",
+   "name": "Soulmask",
+   "kurz": "Survival mit Stammes-NPCs, grosse Karte",
+   "appid": 2646460,
+   "image": "ghcr.io/ich777/steamcmd:soulmask",
+   "mem_gb": 10,
+   "platte_gb": 25,
+   "ports": [
+    "8777:8777/udp",
+    "30008:27015/udp"
+   ],
+   "volumes": [
+    "/srv/games/soulmask:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "3017300",
+    "GAME_PARAMS": "-SteamServerName=\"@@WELT_NAME@@\" -MaxPlayers=4 -pve -PSW=\"{PASSWORT}\" -adminpsw=\"{ADMIN}\" -Port=8777",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "env",
+    "feld": "GAME_PARAMS"
+   },
+   "adresse_port": 8777,
+   "spieler": 4,
+   "hinweis": "Abweichender Port (Standard war belegt): 27015->30008. This Docker will download and install SteamCMD. It will also install Soulmask and run it. Defaults: Servername: 'Soulmask Docker' Password: 'Docker' Admin Password: 'adminDocker' (You can change that in the GAME_PARAMS variable) A… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "starbound",
+   "name": "Starbound",
+   "kurz": "2D-Weltraum-Sandbox mit Basisbau",
+   "appid": 211820,
+   "image": "ghcr.io/ich777/steamcmd:starbound",
+   "mem_gb": 3,
+   "platte_gb": 4,
+   "ports": [
+    "21025:21025/tcp",
+    "21025:21025/udp",
+    "127.0.0.1:21026:21026/tcp"
+   ],
+   "volumes": [
+    "/srv/games/starbound:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "533830",
+    "GAME_PARAMS": "",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 21025,
+   "spieler": 4,
+   "hinweis": "Verwaltungszugang (TCP - RCON Port) ist nur lokal erreichbar, nicht aus dem Internet. This Docker will download and install SteamCMD. It will also install Starbound (Valid Steam useraccount with the game purchased and Steam Guard disabled required) and run it. ATTENTION: For this Docker you have to specify a valid … Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "subsistence",
+   "name": "Subsistence",
+   "kurz": "Wildnis-Survival mit Basisbau, klein und ruhig",
+   "appid": 418030,
+   "image": "ghcr.io/ich777/steamcmd:subsistence",
+   "mem_gb": 4,
+   "platte_gb": 8,
+   "ports": [
+    "30024:7777/udp",
+    "30025:27015/udp"
+   ],
+   "volumes": [
+    "/srv/games/subsistence:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "1362640",
+    "GAME_PARAMS": "",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30024,
+   "spieler": 4,
+   "hinweis": "Abweichender Port (Standard war belegt): 7777->30024, 27015->30025. This Docker will download and install SteamCMD. It will also install Subsistence and run it. **ATTENTION:** First startup can take very long since it downloads the gameserver files and also installs dotnet45! **First Start Notice:… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "survivethenights",
+   "name": "SurviveTheNights",
+   "kurz": "Zombie-Survival mit Haeuserbefestigung",
+   "appid": 541300,
+   "image": "ghcr.io/ich777/steamcmd:stn",
+   "mem_gb": 6,
+   "platte_gb": 12,
+   "ports": [
+    "7950:7950/udp",
+    "7951:7951/udp"
+   ],
+   "volumes": [
+    "/srv/games/survivethenights:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "1502300",
+    "GAME_PARAMS": "",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 7950,
+   "spieler": 4,
+   "hinweis": "This Docker will download and install SteamCMD. It will also install Survive The Nights and run it. ATTENTION: First Startup can take very long since it downloads the gameserver files! INITIAL SERVER PASSWORD: Docker Update Notice… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "teamspeak",
+   "name": "TeamSpeak 3",
+   "kurz": "Sprachserver für alle Spielrunden",
+   "appid": 0,
+   "image": "teamspeak:latest",
+   "mem_gb": 1,
+   "platte_gb": 1,
+   "ports": [
+    "9987:9987/udp",
+    "30033:30033/tcp",
+    "127.0.0.1:10011:10011/tcp"
+   ],
+   "volumes": [
+    "/srv/dienste/teamspeak:/var/ts3server/"
+   ],
+   "env": {
+    "TS3SERVER_LICENSE": "accept"
+   },
+   "passwort": {
+    "art": "keins"
+   },
+   "adresse_port": 9987,
+   "spieler": 4,
+   "hinweis": "Das Serverpasswort setzt man im TeamSpeak-Client selbst (Serververwaltung → Server bearbeiten). Beim allerersten Start steht der Admin-Token im Containerprotokoll. Die Installation nimmt die TeamSpeak-Lizenzbedingungen an (TS3SERVER_LICENSE=accept).",
+   "ausschluss": []
+  },
+  {
+   "schluessel": "terratechworlds",
+   "name": "TerraTech Worlds",
+   "kurz": "Fahrzeuge bauen und Ressourcen abbauen",
+   "appid": 2313330,
+   "image": "ghcr.io/ich777/steamcmd:terratechworlds",
+   "mem_gb": 6,
+   "platte_gb": 15,
+   "ports": [
+    "30023:7777/udp"
+   ],
+   "volumes": [
+    "/srv/games/terratechworlds:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "2533070",
+    "GAME_PARAMS": "",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30023,
+   "spieler": 4,
+   "hinweis": "Abweichender Port (Standard war belegt): 7777->30023. This Docker will download and install SteamCMD. It will also install TerraTech Worlds and run it. ATTENTION: First Startup can take very long since it downloads the gameserver files! Update Notice: Simply restart the container if … Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "theforest",
+   "name": "TheForest",
+   "kurz": "Der Vorgaenger - Survival-Horror im Wald",
+   "appid": 1326470,
+   "image": "ghcr.io/ich777/steamcmd:theforest",
+   "mem_gb": 4,
+   "platte_gb": 8,
+   "ports": [
+    "8766:8766/udp",
+    "30003:27015/udp",
+    "30004:27016/udp"
+   ],
+   "volumes": [
+    "/srv/games/theforest:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "556450",
+    "GAME_PARAMS": "",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 8766,
+   "spieler": 4,
+   "hinweis": "Abweichender Port (Standard war belegt): 27015->30003, 27016->30004. This Docker will download and install SteamCMD. It will also install The Forest and run it. SERVERNAME: 'The Forest Docker' SERVERPASSWORD: 'Docker' ADMINPASSWORD: 'adminDocker' (you can change this in your SERVERFOLDER/config/con… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "thefront",
+   "name": "TheFront",
+   "kurz": "Survival mit Basisbau und Fahrzeugen",
+   "appid": 2285150,
+   "image": "ghcr.io/ich777/steamcmd:thefront",
+   "mem_gb": 8,
+   "platte_gb": 20,
+   "ports": [
+    "15636:15636/udp",
+    "30015:15637/udp",
+    "15638:15638/udp"
+   ],
+   "volumes": [
+    "/srv/games/thefront:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "2334200",
+    "GAME_PARAMS": "MaxPlayers=60",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 15636,
+   "spieler": 4,
+   "hinweis": "Abweichender Port (Standard war belegt): 15637->30015. This Docker will download and install SteamCMD. It will also install The Front and run it. Initial server configuration: **Servername:** The Front Docker **Password:** Docker Your configuration file is located at: .../TheFrontMana… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "unturned",
+   "name": "Unturned",
+   "kurz": "Kantiges Zombie-Survival, laeuft auf allem",
+   "appid": 304930,
+   "image": "ghcr.io/ich777/steamcmd:unturned",
+   "mem_gb": 3,
+   "platte_gb": 4,
+   "ports": [
+    "30032:27015/tcp",
+    "30034:27015/udp",
+    "30035:27016/tcp",
+    "30036:27016/udp",
+    "30037:27017/tcp",
+    "30038:27017/udp"
+   ],
+   "volumes": [
+    "/srv/games/unturned:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "1110390",
+    "GAME_PARAMS": "-pei -normal -nosync -pve",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770",
+    "GAME_PORT": "30032"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30032,
+   "spieler": 4,
+   "hinweis": "Abweichender Port (Standard war belegt): 27015->30032, 27015->30034, 27016->30035, 27016->30036, 27017->30037, 27017->30038. This Docker will download and install SteamCMD. It will also install Unturned and run it (if you want to install Rocket Mod set the Variable 'Install Rocket Mod' to 'true' without quotes). ATTENTION: First Startup can take very lo… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "vrising",
+   "name": "V Rising",
+   "kurz": "Vampir-Survival mit Schlossbau",
+   "appid": 1604030,
+   "image": "ghcr.io/ich777/steamcmd:vrising",
+   "mem_gb": 6,
+   "platte_gb": 12,
+   "ports": [
+    "9876:9876/udp",
+    "9877:9877/udp"
+   ],
+   "volumes": [
+    "/srv/games/vrising:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "1829350",
+    "GAME_PARAMS": "",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770",
+    "SERVER_NAME": "@@WELT_NAME@@",
+    "WORLD_NAME": "@@WELT_NAME@@"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 9876,
+   "spieler": 4,
+   "hinweis": "This Docker will download and install SteamCMD. It will also install V Rising and run it. **Save Files:** The save files are located in: .../vrising/save-data/Saves **Config Files:** The config files are located in: .../vrising/sa… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "valheim",
+   "name": "Valheim",
+   "kurz": "Wikinger-Survival mit Basisbau, Koop bis 10 Spieler",
+   "appid": 892970,
+   "image": "ghcr.io/ich777/steamcmd:valheim",
+   "mem_gb": 4,
+   "platte_gb": 6,
+   "ports": [
+    "2456:2456/udp",
+    "2457:2457/udp",
+    "2458:2458/udp"
+   ],
+   "volumes": [
+    "/srv/games/valheim:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "896660",
+    "GAME_PARAMS": "",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770",
+    "WORLD_NAME": "@@WELT_NAME@@",
+    "GAME_PORT": "2456",
+    "SRV_PWD": "{PASSWORT}"
+   },
+   "passwort": {
+    "art": "env",
+    "feld": "SRV_PWD"
+   },
+   "adresse_port": 2456,
+   "spieler": 4,
+   "hinweis": "This Docker will download and install SteamCMD. It will also install Valheim and run it. ATTENTION: First Startup can take very long since it downloads the gameserver files! SERVER BROWSER: It could take really long that the serve…",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  },
+  {
+   "schluessel": "vintagestory",
+   "name": "Vintage Story",
+   "kurz": "Bedaechtiges Survival-Crafting, technisch wie ein besseres Minecraft",
+   "image": "devidian/vintagestory:latest",
+   "mem_gb": 4,
+   "platte_gb": 4,
+   "ports": [
+    "42420:42420/tcp"
+   ],
+   "volumes": [
+    "/srv/games/vintagestory/data:/data",
+    "/srv/games/vintagestory/server:/server"
+   ],
+   "env": {
+    "VS_VERSION": "stable",
+    "UID": "4711",
+    "GID": "4711"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "data/serverconfig.json",
+    "feld": "Password"
+   },
+   "adresse_port": 42420,
+   "ausschluss": [
+    "server"
+   ],
+   "hinweis": "Passwort in data/serverconfig.json nach dem ersten Start.",
+   "spieler": 4,
+   "appid": 0
+  },
+  {
+   "schluessel": "wurmunlimited",
+   "name": "WurmUnlimited",
+   "kurz": "Tiefes Mittelalter-Sandbox-MMO, sehr eigen",
+   "appid": 366220,
+   "image": "ghcr.io/ich777/steamcmd:wurmunlimited",
+   "mem_gb": 6,
+   "platte_gb": 12,
+   "ports": [
+    "8766:8766/udp",
+    "27020:27020/udp",
+    "8766:8766/tcp",
+    "30031:3724/tcp"
+   ],
+   "volumes": [
+    "/srv/games/wurmunlimited:/serverdata"
+   ],
+   "env": {
+    "GAME_ID": "402370",
+    "GAME_PARAMS": "",
+    "UID": "4711",
+    "GID": "4711",
+    "UMASK": "000",
+    "DATA_PERM": "770",
+    "GAME_PORT": "30031"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 8766,
+   "spieler": 4,
+   "hinweis": "Abweichender Port (Standard war belegt): 3724->30031. This Docker will download and install SteamCMD. It will also install Wurm Unlimited with or without the Server-ModLauncher and run it. (You can also copy over the 'Creative' or 'Adventure' folder if you want to create a Server wit… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "ausschluss": [
+    "steamcmd",
+    "serverfiles/steamapps"
+   ]
+  }
+ ]
+}

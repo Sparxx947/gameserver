@@ -1,0 +1,998 @@
+"""Spieleserver-Panel — Weboberflaeche fuer den gameserver.
+
+Sicherheitsentwurf:
+  * Laeuft als unprivilegierter Nutzer "panel" und spricht NIE direkt mit Docker
+    oder Borg, sondern nur ueber sudo /usr/local/bin/panel-aktion. Wer Zugriff
+    auf docker.sock hat, ist faktisch root — den gibt es hier nicht.
+  * panel-aktion prueft jeden Parameter gegen Positivlisten. Insbesondere die
+    Konfiguration: bearbeitet werden duerfen einzelne FELDER, nie die
+    compose.yaml als Ganzes — wer dort ein Volume "/:/host" eintragen kann,
+    ist root auf der Maschine.
+  * Anmeldung mit Passwort (Argon2id) UND TOTP. Sitzungscookie signiert,
+    HttpOnly/Secure/SameSite=strict, 8 h. CSRF-Token bei jedem Schreibzugriff.
+  * Zwei Rollen: "admin" darf alles, "bedienen" darf nur starten, anhalten und
+    neu starten — keine Passwoerter, keine Wiederherstellung, keine
+    Benutzerverwaltung, keine Konfigurationsaenderung.
+"""
+import hmac, json, os, secrets, subprocess, time
+from urllib.parse import quote
+from pathlib import Path
+
+import pyotp
+import qrcode
+import qrcode.image.svg
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError, InvalidHashError
+from fastapi import FastAPI, Form, Request
+from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, Response
+from itsdangerous import BadSignature, URLSafeTimedSerializer
+
+# Eigenes Datenverzeichnis: /opt/panel selbst gehoert root, damit die App
+# ihren eigenen Code NICHT ueberschreiben kann. Schreibbar ist nur "daten".
+NUTZERDATEI = Path("/opt/panel/daten/nutzer.json")
+# Selbst gepflegte Zugangsdaten. Noetig, weil manche Server ihre Passwoerter nur
+# GEHASHT oder VERSCHLUESSELT ablegen und sie sich nicht auslesen lassen:
+# Satisfactory (Hash+Salt in der binaeren .sav), TeamSpeak (Hash in SQLite),
+# StarRupture (RSA-verschluesselt). Diese Eintraege koennen veralten — deshalb
+# werden sie in der Anzeige deutlich von den automatisch gelesenen getrennt.
+EIGENE = Path("/opt/panel/daten/zugangsdaten.json")
+ALTKONFIG = Path("/opt/panel/konfig.json")
+BILDER = Path("/opt/panel/bilder")
+AKTION = ["/usr/bin/sudo", "-n", "/usr/local/bin/panel-aktion"]
+SITZUNG_MAXALTER = 8 * 3600
+SPERRE_AB, SPERRE_DAUER = 5, 15 * 60
+
+# Beitrittsadressen. Bewusst hier gepflegt und nicht aus der compose-Datei
+# geraten: der DNS-Name steht dort nicht, und die veroeffentlichten Ports
+# weichen teils vom Spielstandard ab (7777 hat Satisfactory, deshalb liegt
+# StarRupture auf 7779 und Windrose auf 7780).
+ADRESSEN = {
+    "enshrouded":   ("enshrouded.@@DNS_ZONE@@", 15637, "Direktbeitritt, Passwort je Rolle"),
+    "palworld":     ("palworld.@@DNS_ZONE@@", 8211, "über die Community-Liste als „@@WELT_NAME@@“"),
+    "satisfactory": ("satisfactory.@@DNS_ZONE@@", 7777, "Server im Spiel hinzufügen"),
+    "foundry":      ("foundry.@@DNS_ZONE@@", 3724, "Direktbeitritt"),
+    "starrupture":  ("starrupture.@@DNS_ZONE@@", 7779, "Direktbeitritt"),
+    "windrose":     ("windrose.@@DNS_ZONE@@", 7780, "Direktbeitritt"),
+    "teamspeak":    ("ts.@@DNS_ZONE@@", 9987, "Standardport, im Client genügt der Name"),
+}
+
+KATALOG = Path("/etc/spiele-katalog.json")
+KATALOGBILDER = Path("/opt/panel/bilder/katalog")
+
+
+def katalog() -> list[dict]:
+    """Der Katalog ist eine reine Lesequelle - geschrieben wird er nie von hier.
+    Faellt er aus, bleibt der Rest der Oberflaeche benutzbar."""
+    try:
+        return json.loads(KATALOG.read_text())["spiele"]
+    except Exception:
+        return []
+
+
+def stackinfo(name: str) -> dict:
+    """Angaben zu einem ueber den Katalog installierten Server. Die von Hand
+    gebauten Stacks haben keine panel.json - fuer sie greift ADRESSEN."""
+    try:
+        return json.loads((Path("/opt/stacks") / name / "panel.json").read_text())
+    except Exception:
+        return {}
+
+
+def adresse_von(name: str) -> tuple:
+    if name in ADRESSEN:
+        return ADRESSEN[name]
+    p = stackinfo(name)
+    if p:
+        port = p.get("adresse_port", 0)
+        return (f"{name}.@@DNS_ZONE@@", port, p.get("hinweis", "")[:150])
+    return ("", 0, "")
+
+
+hasher = PasswordHasher()
+app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+fehlversuche: dict[str, list[float]] = {}
+
+
+def laden() -> dict:
+    if NUTZERDATEI.exists():
+        return json.loads(NUTZERDATEI.read_text())
+    # Einmalige Uebernahme der alten Einzelnutzer-Konfiguration.
+    alt = json.loads(ALTKONFIG.read_text())
+    daten = {"secret": alt["secret"], "nutzer": {alt["nutzer"]: {
+        "passwort_hash": alt["passwort_hash"], "totp": alt["totp"], "rolle": "admin"}}}
+    speichern(daten)
+    return daten
+
+
+def speichern(daten: dict) -> None:
+    tmp = NUTZERDATEI.with_suffix(".tmp")
+    tmp.write_text(json.dumps(daten, indent=2))
+    os.chmod(tmp, 0o600)
+    tmp.replace(NUTZERDATEI)
+
+
+daten = laden()
+signierer = URLSafeTimedSerializer(daten["secret"], salt="panel-sitzung")
+# Eigener Salt und eigene, KURZE Lebensdauer fuer die MFA-Einrichtung: ein
+# Einrichtungs-Token darf niemals als Sitzungscookie durchgehen.
+einrichtung = URLSafeTimedSerializer(daten["secret"], salt="panel-mfa-einrichtung")
+EINRICHTUNG_MAXALTER = 10 * 60
+
+
+def eigene_laden() -> list[dict]:
+    if not EIGENE.exists():
+        return []
+    try:
+        return json.loads(EIGENE.read_text())
+    except json.JSONDecodeError:
+        return []
+
+
+def eigene_speichern(liste: list[dict]) -> None:
+    tmp = EIGENE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(liste, indent=2))
+    os.chmod(tmp, 0o600)
+    tmp.replace(EIGENE)
+
+
+def aktion(*args: str, timeout: int = 900) -> tuple[int, str]:
+    try:
+        p = subprocess.run(AKTION + list(args), capture_output=True, text=True, timeout=timeout)
+        return p.returncode, (p.stdout or p.stderr).strip()
+    except subprocess.TimeoutExpired:
+        return 1, "Zeitüberschreitung"
+
+
+def angemeldet(request: Request) -> dict | None:
+    keks = request.cookies.get("sitzung")
+    if not keks:
+        return None
+    try:
+        s = signierer.loads(keks, max_age=SITZUNG_MAXALTER)
+    except BadSignature:
+        return None
+    # Rolle immer frisch aus der Datei — sonst behielte ein abgemeldeter oder
+    # herabgestufter Nutzer seine Rechte bis zum Ablauf des Cookies.
+    n = laden()["nutzer"].get(s.get("nutzer"))
+    if not n:
+        return None
+    s["rolle"] = n["rolle"]
+    return s
+
+
+def ist_admin(s: dict | None) -> bool:
+    return bool(s and s.get("rolle") == "admin")
+
+
+def pruefe(request: Request, csrf: str) -> dict | None:
+    s = angemeldet(request)
+    if not s or not hmac.compare_digest(csrf, s["csrf"]):
+        return None
+    return s
+
+
+def gesperrt(ip: str) -> int:
+    jetzt = time.time()
+    versuche = [t for t in fehlversuche.get(ip, []) if jetzt - t < SPERRE_DAUER]
+    fehlversuche[ip] = versuche
+    return int(SPERRE_DAUER - (jetzt - versuche[0])) if len(versuche) >= SPERRE_AB else 0
+
+
+KOPF = """<!doctype html><html lang=de><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1"><title>Spieleserver</title><link rel=icon href="/favicon.svg" type="image/svg+xml"><link rel="alternate icon" href="/favicon.ico" sizes="48x48 32x32 16x16"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<style>
+:root{color-scheme:dark;--bg:#14161a;--k:#1d2026;--r:#2b303a;--t:#e6e8ec;--d:#9aa1ad;--a:#5b9dd9;--g:#4caf7d;--x:#d9534f;--y:#d9a441}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--t);font:15px/1.5 system-ui,sans-serif}
+.w{max-width:1000px;margin:0 auto;padding:22px 16px}h1{font-size:20px;margin:0 0 16px}
+/* Kopfleiste: bleibt beim Scrollen oben, zeigt durch Hervorhebung, auf welcher
+   Seite man ist. backdrop-filter faellt in aelteren Browsern still weg — die
+   Leiste hat deshalb eine eigene Hintergrundfarbe und ist nicht darauf angewiesen. */
+.hd{position:sticky;top:0;z-index:10;background:rgba(20,22,26,.92);
+  backdrop-filter:blur(8px);border-bottom:1px solid var(--r)}
+.hdi{max-width:1000px;margin:0 auto;padding:0 16px;height:56px;
+  display:flex;align-items:center;gap:20px}
+.marke{font-weight:700;letter-spacing:.02em;display:flex;align-items:center;gap:8px;flex:none}
+.marke .logo{width:24px;height:24px;flex:none;display:block}
+nav{display:flex;gap:4px;flex:1;min-width:0;overflow:auto}
+.nv{padding:7px 12px;border-radius:7px;color:var(--d);text-decoration:none;font-size:14px;white-space:nowrap}
+.nv:hover{background:var(--k);color:var(--t)}
+.nv.hier{background:var(--k);color:var(--t);box-shadow:inset 0 -2px 0 var(--a)}
+.usr{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--d);flex:none}
+.usr b{color:var(--t)}
+.rolle{font-size:11px;background:var(--r);padding:2px 7px;border-radius:99px}
+@media(max-width:640px){.marke span{display:none}.usr b{display:none}}
+.d{color:var(--d);font-size:13px;margin-bottom:20px}
+.g{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.c{background:var(--k);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
+.c img{width:100%;height:110px;object-fit:cover;display:block}
+.ph{width:100%;height:110px;background:linear-gradient(135deg,#232833,#2f3644);display:flex;align-items:center;justify-content:center;color:var(--d);font-size:26px;font-weight:700;letter-spacing:.08em}
+.cb{padding:12px 14px;display:flex;flex-direction:column;gap:8px;flex:1}
+.n{font-weight:600}.z{font-size:12px;color:var(--d)}
+.s{display:inline-block;padding:2px 8px;border-radius:99px;font-size:12px}
+.on{background:rgba(76,175,125,.15);color:var(--g)}.off{background:rgba(154,161,173,.15);color:var(--d)}
+/* Zwei bewusste Reihen: oben die Steuerung (farbig), darunter die Verweise.
+   Vier Knoepfe passen bei Kartenbreite nie in eine Zeile — ein ungeplanter
+   Umbruch sieht aus wie ein Fehler, zwei geordnete Reihen nicht. */
+.akt{display:flex;gap:6px;margin-top:auto;flex-wrap:wrap}
+.akt form.steuer{display:flex;gap:6px;width:100%}
+.akt form.steuer button{flex:1}
+.akt .verweise{display:flex;gap:6px;width:100%}
+.akt .verweise .b{flex:1}
+/* Knoepfe und Links muessen GLEICH aussehen. Buttons erben die Schrift des
+   Dokuments nicht von selbst (deshalb font:inherit) und bringen eigene
+   Innenabstaende und Zeilenhoehen mit — daher feste Hoehe und inline-flex,
+   sonst sitzen <button> und <a> unterschiedlich hoch und verschieden gross. */
+button,.b{font:inherit;font-size:12.5px;line-height:1;height:30px;padding:0 10px;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:var(--r);color:var(--t);border:0;border-radius:6px;cursor:pointer;
+  text-decoration:none;white-space:nowrap;vertical-align:middle}
+button:hover,.b:hover{background:#39404d}
+/* Auslastungsbalken */
+.bal{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--d)}
+.bal .lab{width:58px;flex:none}
+.bal .sp{width:64px;flex:none;text-align:right;font-variant-numeric:tabular-nums}
+/* BEIDE brauchen display:block. Die Balken sind <span>-Elemente, und bei
+   inline-Elementen wirken width und height nicht — die Fuellung blieb dadurch
+   unsichtbar, man sah nur die leere Spur. Aufgefallen 2026-09-06 im Betrieb,
+   auf dem Screenshot war es mir durchgegangen. */
+.tr{display:block;flex:1;height:7px;background:#12141a;border-radius:99px;overflow:hidden}
+.fi{display:block;height:100%;min-width:2px;border-radius:99px;background:var(--g);
+  transition:width .3s}
+.fi.mid{background:var(--y)}.fi.hot{background:var(--x)}
+.sys{background:var(--k);border-radius:10px;padding:16px;margin-bottom:18px;
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:20px}
+.kz .t{font-size:11px;color:var(--d);text-transform:uppercase;letter-spacing:.06em}
+.kz .v{font-size:19px;font-variant-numeric:tabular-nums;margin:2px 0 6px}
+.kz .tr{width:100%}
+/* Knoepfe sollen in EINE Zeile passen: etwas schmaler, und die Reihe darf
+   umbrechen, ohne dass die Karten dadurch unterschiedlich hoch werden. */
+.akt{min-height:32px}
+.last{min-height:44px}
+.p{background:var(--a);color:#08121c}.x{background:var(--x);color:#fff}.y{background:var(--y);color:#1a1200}
+form{display:inline}input,select{background:var(--k);border:1px solid var(--r);color:var(--t);padding:8px 10px;border-radius:6px;font-size:14px}
+input[type=text],input[type=password]{width:100%}
+label{display:block;margin:12px 0 4px;font-size:13px;color:var(--d)}
+table{width:100%;border-collapse:collapse;background:var(--k);border-radius:8px;overflow:hidden}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--r);font-size:14px}
+th{color:var(--d);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+tr:last-child td{border-bottom:0}
+.card{background:var(--k);border-radius:8px;padding:20px;max-width:340px;margin:60px auto}
+.f{color:var(--x);font-size:13px;margin-top:12px}
+code{background:var(--bg);padding:2px 6px;border-radius:4px;font-size:13px}
+.m{color:var(--d);font-size:12px;margin-top:24px}
+.warn{background:rgba(217,164,65,.12);border-left:3px solid var(--y);padding:10px 14px;border-radius:6px;margin:14px 0;font-size:13px}
+</style></head><body>"""
+FUSS = "</div></body></html>"
+RUMPF = "<div class=w>"
+
+
+def nach_bytes(text: str) -> float:
+    """'1.367GiB' -> Bytes. Docker liefert je nach Groesse B/KiB/MiB/GiB."""
+    text = text.strip()
+    for endung, faktor in (("GiB", 1073741824), ("MiB", 1048576), ("KiB", 1024), ("B", 1)):
+        if text.endswith(endung):
+            try:
+                return float(text[:-len(endung)]) * faktor
+            except ValueError:
+                return 0.0
+    return 0.0
+
+
+def balken(beschriftung: str, anteil: float, text: str) -> str:
+    """Ein Balken mit Farbschwelle. Ueber 85 % rot, ueber 60 % gelb — so faellt
+    ein Server, der an seine Grenze stoesst, sofort ins Auge, statt in einer
+    Zahlenkolonne unterzugehen."""
+    anteil = max(0.0, min(100.0, anteil))
+    klasse = "hot" if anteil >= 85 else ("mid" if anteil >= 60 else "")
+    return (f'<div class=bal><span class=lab>{beschriftung}</span>'
+            f'<span class=tr><span class="fi {klasse}" style="width:{anteil:.0f}%"></span></span>'
+            f'<span class=sp>{text}</span></div>')
+
+
+def kennzahl(titel: str, wert: str, anteil: float) -> str:
+    """Grosse Zahl mit Balken darunter — lesbarer als Beschriftung, Balken und
+    Wert nebeneinander in einer Zeile."""
+    anteil = max(0.0, min(100.0, anteil))
+    klasse = "hot" if anteil >= 85 else ("mid" if anteil >= 60 else "")
+    return (f'<div class=kz><div class=t>{titel}</div><div class=v>{wert}</div>'
+            f'<span class=tr><span class="fi {klasse}" style="width:{anteil:.0f}%"></span></span></div>')
+
+
+# Logo als Inline-SVG: Die CSP des Panels erlaubt Bilder nur von "self"
+# und keine data:-URIs. Inline gezeichnet braucht es weder eine zweite
+# Anfrage noch eine Ausnahme - und bleibt in jeder Groesse scharf.
+LOGO = ('<svg class=logo viewBox="0 0 32 32" aria-hidden=true><rect x=1 y=1 width=30 height=30 rx=8 fill="#5b9dd9"/><g fill="#e6e8ec"><rect x=4.5 y=10.5 width=23 height=11 rx=4.6/><path d="M6.5 19.5 4.8 25.5h4.8L11 20.4z"/><path d="M25.5 19.5l1.7 6h-4.8L21 20.4z"/></g><g fill="#5b9dd9"><rect x=8 y=15 width=6.2 height=2.2 rx=0.9/><rect x=9.8 y=13.2 width=2.6 height=5.8 rx=0.9/><circle cx=21.4 cy=14.6 r=1.7/><circle cx=24.2 cy=17.4 r=1.7/></g></svg>')
+
+
+def kopfleiste(s: dict, hier: str = "") -> str:
+    """Kopfleiste mit Navigation. "hier" markiert die aktuelle Seite — ohne diese
+    Rueckmeldung weiss man auf Unterseiten nicht, wo man steht."""
+    punkte = [("/", "Übersicht", "start")]
+    if ist_admin(s):
+        punkte += [("/spiele", "Spiele", "spiele"),
+                   ("/passwoerter", "Zugangsdaten", "pw"), ("/nutzer", "Benutzer", "nutzer"),
+                   ("/terminal/", "Terminal", "term"), ("/neustart-fragen", "Neustart", "reboot")]
+    nav = "".join(f'<a class="nv{" hier" if k == hier else ""}" href="{u}">{t}</a>'
+                  for u, t, k in punkte)
+    return (f'<div class=hd><div class=hdi>'
+            f'<div class=marke>{LOGO}<span>Spieleserver</span></div>'
+            f'<nav>{nav}</nav>'
+            f'<div class=usr><b>{s["nutzer"]}</b><span class=rolle>{s["rolle"]}</span>'
+            f'<a class=b href=/abmelden>abmelden</a></div>'
+            f'</div></div>')
+
+
+@app.get("/bild/{stack}")
+def bild(request: Request, stack: str):
+    if not angemeldet(request):
+        return RedirectResponse("/login", 303)
+    if not stack.isalnum():
+        return RedirectResponse("/", 303)
+    p = BILDER / f"{stack}.jpg"
+    return FileResponse(p) if p.is_file() else RedirectResponse("/", 303)
+
+
+@app.get("/", response_class=HTMLResponse)
+def uebersicht(request: Request):
+    s = angemeldet(request)
+    if not s:
+        return RedirectResponse("/login", 303)
+    rc, aus = aktion("status", timeout=60)
+    karten, systemleiste, kerne = [], "", 6
+    for z in aus.splitlines():
+        if z.startswith("SYSTEM\t"):
+            t = z.split("\t")
+            if len(t) >= 8:
+                mben, mges, load, kerne = int(t[1]), int(t[2]), float(t[3]), int(t[4])
+                pben, pges, swap = int(t[5]), int(t[6]), t[7]
+                sben, sges = (int(x) for x in swap.split("/"))
+                systemleiste = ("<div class=sys>"
+                    + kennzahl("Arbeitsspeicher", f"{mben/1024:.1f} <span class=t>von {mges/1024:.0f} GB</span>",
+                               100 * mben / mges)
+                    + kennzahl("CPU-Last", f"{load:.2f} <span class=t>von {kerne} Kernen</span>",
+                               100 * load / kerne)
+                    + kennzahl("Platte", f"{pben/1024:.0f} <span class=t>von {pges/1024:.0f} GB</span>",
+                               100 * pben / pges)
+                    + kennzahl("Auslagerung", f"{sben} <span class=t>von {sges} MB</span>",
+                               100 * sben / sges if sges else 0)
+                    + "</div>")
+            continue
+        t = z.split("\t")
+        if len(t) < 4:
+            continue
+        name, zustand, cpu, mem = t[0], t[1], t[2], t[3]
+        an = zustand == "laeuft"
+        bild_html = (f'<img src="/bild/{name}" alt="">' if (BILDER / f"{name}.jpg").is_file()
+                     else f'<div class=ph>{name[:2].upper()}</div>')
+        knoepfe = []
+        if an:
+            knoepfe.append(f'<button class=y name=was value=restart>neu starten</button>')
+            knoepfe.append(f'<button class=x name=was value=stop>anhalten</button>')
+        else:
+            knoepfe.append(f'<button class=p name=was value=start>starten</button>')
+        verweise = f'<a class=b href="/archive/{name}">Sicherungen</a>'
+        if ist_admin(s):
+            verweise += f'<a class=b href="/konfig/{name}">Einstellungen</a>'
+        aktionen = (f'<form method=post action=/aktion class=steuer>'
+                    f'<input type=hidden name=csrf value="{s["csrf"]}">'
+                    f'<input type=hidden name=stack value="{name}">{"".join(knoepfe)}</form>'
+                    f'<div class=verweise>{verweise}</div>')
+        host, port, hinweis = adresse_von(name)
+        adresse = (f'<div class=z><code>{host}{":" + str(port) if port else ""}</code><br>{hinweis}</div>'
+                   if host else "")
+        # Wenn ein frisch installierter Server sein Passwort noch nicht gesetzt
+        # bekommen hat, muss das sichtbar sein - sonst steht er ungeschuetzt im
+        # Netz, ohne dass es jemand merkt.
+        pi = stackinfo(name)
+        if pi.get("einrichtung_offen"):
+            adresse += ('<div class=warn>Einrichtung läuft: '
+                        + pi.get("einrichtung_stand", "") + '</div>')
+        elif pi and "KEIN Passwortfeld" in pi.get("einrichtung_stand", ""):
+            adresse += ('<div class=warn>Ohne Beitrittspasswort! '
+                        + pi.get("einrichtung_stand", "") + '</div>')
+        if an:
+            benutzt, grenze = (nach_bytes(x) for x in (mem.split("/") + ["0"])[:2])
+            cpu_wert = float(cpu.rstrip("%") or 0)
+            last = ('<div class=last>'
+                    + balken("Speicher", 100 * benutzt / grenze if grenze else 0,
+                             f"{benutzt/1073741824:.1f}/{grenze/1073741824:.0f} GB")
+                    + balken("CPU", cpu_wert / kerne, f"{cpu_wert:.0f}%")
+                    + '</div>')
+        else:
+            # Platzhalter gleicher Hoehe, damit gestoppte Server das Raster
+            # nicht zerreissen.
+            last = '<div class="last z" style="display:flex;align-items:center">nicht aktiv</div>'
+        karten.append(f"""<div class=c>{bild_html}<div class=cb>
+<div class=n>{name} <span class="s {'on' if an else 'off'}">{'läuft' if an else 'gestoppt'}</span></div>
+{adresse}
+{last}
+<div class=akt>{aktionen}</div></div></div>""")
+    return HTMLResponse(KOPF + kopfleiste(s, "start") + RUMPF + f"{systemleiste}<div class=g>{''.join(karten)}</div>"
+        "<div class=m>Sicherungen laufen alle 15 Minuten für jeden laufenden Server "
+        "(Großvater-Vater-Sohn: 2 Tage alle 15 min, 14 Tage täglich, 8 Wochen, 12 Monate).</div>" + FUSS)
+
+
+@app.get("/favicon.ico")
+def favicon_ico():
+    return FileResponse(BILDER / "favicon.ico", media_type="image/x-icon",
+                        headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/favicon.svg")
+def favicon_svg():
+    return FileResponse(BILDER / "favicon.svg", media_type="image/svg+xml",
+                        headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/apple-touch-icon.png")
+def apple_icon():
+    return FileResponse(BILDER / "apple-touch-icon.png", media_type="image/png",
+                        headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/katalogbild/{schluessel}")
+def katalogbild(request: Request, schluessel: str):
+    if not angemeldet(request):
+        return RedirectResponse("/login", 303)
+    if not schluessel.isalnum():
+        return RedirectResponse("/spiele", 303)
+    p = KATALOGBILDER / f"{schluessel}.jpg"
+    return FileResponse(p) if p.is_file() else RedirectResponse("/spiele", 303)
+
+
+@app.get("/spiele", response_class=HTMLResponse)
+def spiele(request: Request, meldung: str = ""):
+    s = angemeldet(request)
+    if not s:
+        return RedirectResponse("/login", 303)
+    if not ist_admin(s):
+        return RedirectResponse("/", 303)
+
+    rc, aus = aktion("status", timeout=60)
+    da = {z.split("\t")[0] for z in aus.splitlines() if z and not z.startswith("SYSTEM\t")}
+    frei_gb = 0
+    for z in aus.splitlines():
+        if z.startswith("SYSTEM\t"):
+            t = z.split("\t")
+            if len(t) >= 8:
+                frei_gb = (int(t[6]) - int(t[5])) // 1024
+
+    karten = []
+    for g in katalog():
+        k = g["schluessel"]
+        installiert = k in da
+        bild = (f'<img src="/katalogbild/{k}" alt="">' if (KATALOGBILDER / f"{k}.jpg").is_file()
+                else f'<div class=ph>{g["name"][:2].upper()}</div>')
+        passt = frei_gb - g["platte_gb"] >= 10
+        if installiert:
+            knopf = (f'<form method=get action="/deinstallieren-fragen/{k}">'
+                     f'<button class=x>entfernen</button></form>')
+            stand = '<span class="s on">installiert</span>'
+        elif not passt:
+            knopf = '<button class=b disabled>zu wenig Platz</button>'
+            stand = '<span class="s off">' + f'braucht {g["platte_gb"]} GB, frei {frei_gb} GB</span>'
+        else:
+            knopf = (f'<form method=post action=/installieren>'
+                     f'<input type=hidden name=csrf value="{s["csrf"]}">'
+                     f'<input type=hidden name=schluessel value="{k}">'
+                     f'<button class=p>installieren</button></form>')
+            stand = '<span class="s off">nicht installiert</span>'
+        pw = ("Beitrittspasswort wird beim Anlegen gesetzt" if g["passwort"]["art"] == "env"
+              else "kein Passwort möglich" if g["passwort"]["art"] == "keins"
+              else "Passwort wird nach dem ersten Start gesetzt")
+        karten.append(f"""<div class=c>{bild}<div class=cb>
+<div class=n>{g["name"]} {stand}</div>
+<div class=z>{g["kurz"]}</div>
+<div class=z><b>{g["mem_gb"]} GB</b> Arbeitsspeicher · <b>{g["platte_gb"]} GB</b> Platte · max. {g.get("spieler",4)} Spieler<br>{pw}</div>
+<div class=akt>{knopf}</div></div></div>""")
+
+    hinweis = f'<div class=m>{meldung}</div>' if meldung else ""
+    return HTMLResponse(KOPF + kopfleiste(s, "spiele") + RUMPF + hinweis
+        + f'<div class=m>{len(katalog())} Spiele im Katalog, {len(da)} Server angelegt. '
+          f'Frei auf der Platte: {frei_gb} GB. Die Installation legt Beitritts- und '
+          f'Adminpasswort an (unter „Zugangsdaten“ zu sehen) und begrenzt auf 4 Spieler. '
+          f'Der erste Start lädt das Spiel herunter — je nach Titel dauert das 5 bis 30 Minuten.</div>'
+        + f'<div class=g>{"".join(karten)}</div>' + FUSS)
+
+
+@app.post("/installieren")
+def installieren(request: Request, csrf: str = Form(""), schluessel: str = Form("")):
+    s = pruefe(request, csrf)
+    if not s or not ist_admin(s):
+        return RedirectResponse("/login", 303)
+    rc, aus = aktion("installieren", schluessel, timeout=900)
+    if rc != 0:
+        return RedirectResponse(f"/spiele?meldung={quote(aus.strip()[:300])}", 303)
+    t = aus.strip().split("\t")
+    name = t[1] if len(t) > 1 else schluessel
+    stand = t[2] if len(t) > 2 else ""
+    return RedirectResponse(
+        f"/spiele?meldung={quote(f'{name} angelegt und {stand}. Passwörter stehen unter Zugangsdaten.')}", 303)
+
+
+@app.get("/deinstallieren-fragen/{stack}", response_class=HTMLResponse)
+def deinstallieren_fragen(request: Request, stack: str):
+    s = angemeldet(request)
+    if not s or not ist_admin(s):
+        return RedirectResponse("/login", 303)
+    p = stackinfo(stack)
+    if not p:
+        return HTMLResponse(KOPF + kopfleiste(s) + RUMPF
+            + '<div class=m>Dieser Server wurde nicht über den Katalog installiert und '
+              'lässt sich hier nicht entfernen. Das schützt die von Hand gebauten Server '
+              '(Enshrouded, Palworld und die anderen) vor einem Fehlklick.</div>'
+            + '<div class=m><a class=b href=/spiele>zurück</a></div>' + FUSS)
+    return HTMLResponse(KOPF + kopfleiste(s) + RUMPF + f"""
+<div class=m><b>{p.get("name", stack)} wirklich entfernen?</b><br><br>
+Es wird zuerst eine letzte Sicherung angelegt. Schlägt die fehl, bricht der Vorgang ab
+und es wird nichts gelöscht. Danach verschwinden Container, Spielstände auf der Platte,
+Konfiguration, DNS-Name und die Zugangsdaten dieses Servers.<br><br>
+<b>Die Sicherungen im Borg-Repository bleiben erhalten</b> — der Stand lässt sich also
+später zurückholen, aber nicht über diese Oberfläche.</div>
+<div class=m><form method=post action=/deinstallieren>
+<input type=hidden name=csrf value="{s["csrf"]}">
+<input type=hidden name=stack value="{stack}">
+<button class=x>ja, entfernen</button></form>
+<a class=b href=/spiele>abbrechen</a></div>""" + FUSS)
+
+
+@app.post("/deinstallieren")
+def deinstallieren(request: Request, csrf: str = Form(""), stack: str = Form("")):
+    s = pruefe(request, csrf)
+    if not s or not ist_admin(s):
+        return RedirectResponse("/login", 303)
+    rc, aus = aktion("deinstallieren", stack, timeout=1800)
+    return RedirectResponse(f"/spiele?meldung={quote(aus.strip()[:300])}", 303)
+
+
+@app.get("/login", response_class=HTMLResponse)
+def login_form(request: Request, fehler: str = ""):
+    # Das Logo auch hier: Die Anmeldung ist die erste Seite, die man sieht -
+    # ohne Kopfleiste stuende sonst nur ein nacktes Formular da.
+    return HTMLResponse(KOPF + RUMPF + f"""<div class=card>
+<div style="text-align:center;margin-bottom:6px">{LOGO.replace('class=logo', 'class=logo style="width:56px;height:56px;display:inline-block"')}</div>
+<h1 style="text-align:center">Spieleserver</h1>
+<form method=post action=/login>
+<label>Benutzer</label><input type=text name=nutzer autocomplete=username autofocus>
+<label>Passwort</label><input type=password name=passwort autocomplete=current-password>
+<label>Einmalcode (6 Ziffern)</label><input type=text name=code inputmode=numeric autocomplete=one-time-code>
+<div style=margin-top:16px><button class=p style=width:100%>Anmelden</button></div>
+{f'<div class=f>{fehler}</div>' if fehler else ''}
+</form></div>""" + FUSS)
+
+
+@app.post("/login")
+def login(request: Request, nutzer: str = Form(""), passwort: str = Form(""), code: str = Form("")):
+    ip = request.client.host if request.client else "?"
+    if (rest := gesperrt(ip)):
+        return login_form(request, f"Zu viele Fehlversuche. Erneut in {rest // 60 + 1} Minuten.")
+    n = laden()["nutzer"].get(nutzer)
+    passwort_ok = False
+    if n:
+        try:
+            hasher.verify(n["passwort_hash"], passwort)
+            passwort_ok = True
+        except (VerifyMismatchError, InvalidHashError):
+            passwort_ok = False
+    # Erste Anmeldung: Passwort stimmt, aber der zweite Faktor ist noch nicht
+    # eingerichtet. Dann NICHT anmelden, sondern zur Einrichtung schicken — mit
+    # einem kurzlebigen, eigens signierten Token, das keine Sitzung ist.
+    if passwort_ok and not n.get("totp_bestaetigt"):
+        fehlversuche.pop(ip, None)
+        marke = einrichtung.dumps({"nutzer": nutzer})
+        a = RedirectResponse("/einrichten", 303)
+        a.set_cookie("einrichtung", marke, httponly=True, secure=True,
+                     samesite="strict", max_age=EINRICHTUNG_MAXALTER)
+        return a
+    ok = False
+    if passwort_ok:
+        ok = pyotp.TOTP(n["totp"]).verify(code, valid_window=1)
+    if not ok:
+        fehlversuche.setdefault(ip, []).append(time.time())
+        return login_form(request, "Anmeldung fehlgeschlagen.")
+    fehlversuche.pop(ip, None)
+    antwort = RedirectResponse("/", 303)
+    antwort.set_cookie("sitzung", signierer.dumps({"nutzer": nutzer, "csrf": secrets.token_urlsafe(24)}),
+                       httponly=True, secure=True, samesite="strict", max_age=SITZUNG_MAXALTER)
+    return antwort
+
+
+def einrichtungs_nutzer(request: Request) -> str | None:
+    keks = request.cookies.get("einrichtung")
+    if not keks:
+        return None
+    try:
+        name = einrichtung.loads(keks, max_age=EINRICHTUNG_MAXALTER)["nutzer"]
+    except BadSignature:
+        return None
+    n = laden()["nutzer"].get(name)
+    # Nach der Bestaetigung ist dieser Weg zu — sonst koennte jemand mit einem
+    # alten Token jederzeit den QR-Code eines fremden Kontos nachladen.
+    return name if n and not n.get("totp_bestaetigt") else None
+
+
+@app.get("/qr")
+def qr(request: Request):
+    """Liefert den QR-Code als SVG. Nur waehrend der Einrichtung erreichbar."""
+    name = einrichtungs_nutzer(request)
+    if not name:
+        return RedirectResponse("/login", 303)
+    n = laden()["nutzer"][name]
+    uri = pyotp.TOTP(n["totp"]).provisioning_uri(name=name, issuer_name="Spieleserver @@WELT_NAME@@")
+    bild = qrcode.make(uri, image_factory=qrcode.image.svg.SvgPathImage, box_size=11, border=2)
+    from io import BytesIO
+    puffer = BytesIO()
+    bild.save(puffer)
+    return Response(puffer.getvalue(), media_type="image/svg+xml",
+                    headers={"Cache-Control": "no-store"})
+
+
+@app.get("/einrichten", response_class=HTMLResponse)
+def einrichten_form(request: Request, fehler: str = ""):
+    name = einrichtungs_nutzer(request)
+    if not name:
+        return RedirectResponse("/login", 303)
+    geheim = laden()["nutzer"][name]["totp"]
+    return HTMLResponse(KOPF + RUMPF + f"""<div class=card style=max-width:420px>
+<h1>Zwei-Faktor einrichten</h1>
+<p style=font-size:14px;color:var(--d)>Hallo <b>{name}</b>. Damit die Anmeldung
+sicher ist, brauchst du eine Authenticator-App — etwa <b>Microsoft Authenticator</b>,
+Google Authenticator, Aegis oder 2FAS.
+Scanne den Code und gib danach die sechs Ziffern ein, die die App anzeigt.</p>
+<div style="background:#fff;padding:10px;border-radius:10px;display:flex;justify-content:center;margin:14px 0">
+<img src="/qr" alt="QR-Code" style="width:210px;height:210px"></div>
+<p style=font-size:12px;color:var(--d)>Geht das Scannen nicht, trage dieses Geheimnis
+von Hand ein:<br><code style=word-break:break-all>{geheim}</code></p>
+<form method=post action=/einrichten>
+<label>Code aus der App</label>
+<input type=text name=code inputmode=numeric autocomplete=one-time-code autofocus>
+<div style=margin-top:14px><button class=p style=width:100%>Bestätigen und anmelden</button></div>
+{f'<div class=f>{fehler}</div>' if fehler else ''}
+</form>
+<p style=font-size:12px;color:var(--d);margin-top:14px>Der Code wird nur dieses eine Mal
+angezeigt. Verlierst du das Gerät, muss ein Administrator den zweiten Faktor zurücksetzen.</p>
+</div>""" + FUSS)
+
+
+@app.post("/einrichten")
+def einrichten(request: Request, code: str = Form("")):
+    name = einrichtungs_nutzer(request)
+    if not name:
+        return RedirectResponse("/login", 303)
+    ip = request.client.host if request.client else "?"
+    if (rest := gesperrt(ip)):
+        return einrichten_form(request, f"Zu viele Fehlversuche. Erneut in {rest // 60 + 1} Minuten.")
+    d = laden()
+    if not pyotp.TOTP(d["nutzer"][name]["totp"]).verify(code, valid_window=1):
+        fehlversuche.setdefault(ip, []).append(time.time())
+        return einrichten_form(request, "Code stimmt nicht. Uhrzeit des Geräts prüfen.")
+    fehlversuche.pop(ip, None)
+    d["nutzer"][name]["totp_bestaetigt"] = True
+    speichern(d)
+    a = RedirectResponse("/", 303)
+    a.set_cookie("sitzung", signierer.dumps({"nutzer": name, "csrf": secrets.token_urlsafe(24)}),
+                 httponly=True, secure=True, samesite="strict", max_age=SITZUNG_MAXALTER)
+    a.delete_cookie("einrichtung")
+    return a
+
+
+@app.get("/abmelden")
+def abmelden():
+    a = RedirectResponse("/login", 303)
+    a.delete_cookie("sitzung")
+    return a
+
+
+@app.post("/aktion")
+def steuern(request: Request, csrf: str = Form(""), stack: str = Form(""), was: str = Form("")):
+    if not pruefe(request, csrf):
+        return RedirectResponse("/login", 303)
+    if was in ("start", "stop", "restart"):
+        aktion(was, stack, timeout=180)
+    return RedirectResponse("/", 303)
+
+
+@app.get("/archive/{stack}", response_class=HTMLResponse)
+def archive(request: Request, stack: str):
+    s = angemeldet(request)
+    if not s:
+        return RedirectResponse("/login", 303)
+    rc, aus = aktion("archive", stack, timeout=180)
+    if rc != 0:
+        return HTMLResponse(KOPF + kopfleiste(s) + RUMPF + f"<h1>{stack}</h1><div class=f>{aus}</div><a class=b href=/>zurück</a>" + FUSS)
+    zeilen = []
+    for z in reversed(aus.splitlines()):
+        if "\t" not in z:
+            continue
+        name, zeit = z.split("\t", 1)
+        knopf = (f'<a class=b href="/restore-fragen/{stack}/{name}">zurückspielen</a>'
+                 if ist_admin(s) else '<span class=z>nur Admin</span>')
+        zeilen.append(f"<tr><td><code>{name}</code></td><td>{zeit}</td><td style=text-align:right>{knopf}</td></tr>")
+    return HTMLResponse(KOPF + kopfleiste(s) + RUMPF + f"<h1>Sicherungen: {stack}</h1>"
+        f"<div class=d><a class=b href=/>zurück zur Übersicht</a></div>"
+        f"<table><tr><th>Archiv</th><th>Zeitpunkt</th><th></th></tr>"
+        f"{''.join(zeilen) or '<tr><td colspan=3>noch keine</td></tr>'}</table>" + FUSS)
+
+
+@app.get("/restore-fragen/{stack}/{archiv}", response_class=HTMLResponse)
+def restore_fragen(request: Request, stack: str, archiv: str):
+    """Serverseitige Rueckfrage — ohne JavaScript, damit sie nicht an der
+    Content-Security-Policy scheitert und dabei unbemerkt ausfaellt."""
+    s = angemeldet(request)
+    if not ist_admin(s):
+        return RedirectResponse("/", 303)
+    return HTMLResponse(KOPF + kopfleiste(s) + RUMPF + f"""<h1>Wirklich zurückspielen?</h1>
+<div class=d>{stack} &larr; <code>{archiv}</code></div>
+<div class=warn>Der Server wird angehalten, der <b>aktuelle Stand als Kopie gesichert</b>
+und danach der gewählte Stand eingespielt. Anschließend startet er wieder — aber
+nur, wenn er vorher lief.</div>
+<form method=post action=/restore><input type=hidden name=csrf value="{s['csrf']}">
+<input type=hidden name=stack value="{stack}"><input type=hidden name=archiv value="{archiv}">
+<button class=x>Ja, diesen Stand einspielen</button></form>
+<a class=b href="/archive/{stack}">Abbrechen</a>""" + FUSS)
+
+
+@app.post("/restore", response_class=HTMLResponse)
+def restore(request: Request, csrf: str = Form(""), stack: str = Form(""), archiv: str = Form("")):
+    s = pruefe(request, csrf)
+    if not ist_admin(s):
+        return RedirectResponse("/", 303)
+    rc, aus = aktion("restore", stack, archiv, timeout=1800)
+    return HTMLResponse(KOPF + kopfleiste(s) + RUMPF + f"<h1>{'Zurückgespielt' if rc == 0 else 'Fehlgeschlagen'}</h1>"
+        f"<div class=d>{stack} &larr; <code>{archiv}</code></div>"
+        f"<pre style=\"background:var(--k);padding:12px;border-radius:8px;white-space:pre-wrap\">{aus}</pre>"
+        f"<a class=b href=/>zur Übersicht</a>" + FUSS)
+
+
+@app.get("/konfig/{stack}", response_class=HTMLResponse)
+def konfig(request: Request, stack: str, meldung: str = ""):
+    s = angemeldet(request)
+    if not ist_admin(s):
+        return RedirectResponse("/", 303)
+    rc, aus = aktion("konfig-lesen", stack, timeout=60)
+    zeilen = []
+    for z in aus.splitlines():
+        if "\t" not in z:
+            continue
+        feld, wert = z.split("\t", 1)
+        beschriftung = feld.replace("ini:", "").replace("_", " ")
+        hinweis = " <span class=z>(wirksam)</span>" if feld.startswith("ini:") else ""
+        zeilen.append(f"""<tr><td>{beschriftung}{hinweis}</td><td>
+<form method=post action=/konfig-setzen>
+<input type=hidden name=csrf value="{s['csrf']}"><input type=hidden name=stack value="{stack}">
+<input type=hidden name=feld value="{feld}">
+<input type=text name=wert value="{wert}" style="width:220px">
+<button class=p>speichern</button></form></td></tr>""")
+    return HTMLResponse(KOPF + kopfleiste(s) + RUMPF + f"<h1>Einstellungen: {stack}</h1>"
+        f"{f'<div class=warn>{meldung}</div>' if meldung else ''}"
+        f"<table><tr><th>Feld</th><th>Wert</th></tr>{''.join(zeilen)}</table>"
+        "<div class=warn>Änderungen wirken erst nach einem <b>Neustart</b> des Servers.</div>"
+        f"<a class=b href=/>zurück</a>"
+        "<div class=m>Bearbeitbar sind nur einzelne Felder aus einer festen Liste — nie die "
+        "compose-Datei als Ganzes. Bei Palworld sind die mit „wirksam“ markierten Werte "
+        "maßgeblich: der Container erzeugt seine Einstellungsdatei nicht mehr selbst.</div>" + FUSS)
+
+
+@app.post("/konfig-setzen")
+def konfig_setzen(request: Request, csrf: str = Form(""), stack: str = Form(""),
+                  feld: str = Form(""), wert: str = Form("")):
+    s = pruefe(request, csrf)
+    if not ist_admin(s):
+        return RedirectResponse("/", 303)
+    rc, aus = aktion("konfig-setzen", stack, feld, wert, timeout=60)
+    m = "Gespeichert. Wirkt nach einem Neustart des Servers." if rc == 0 else f"Nicht gespeichert: {aus}"
+    return RedirectResponse(f"/konfig/{stack}?meldung={m}", 303)
+
+
+@app.get("/neustart-fragen", response_class=HTMLResponse)
+def neustart_fragen(request: Request):
+    s = angemeldet(request)
+    if not ist_admin(s):
+        return RedirectResponse("/", 303)
+    rc, laufende = aktion("laufende-vorher", timeout=60)
+    return HTMLResponse(KOPF + kopfleiste(s, "reboot") + RUMPF + f"""<h1>Server neu starten?</h1>
+<div class=warn>Das startet die <b>ganze Maschine</b> neu, nicht einen einzelnen Spielserver.
+Alle Verbindungen brechen ab, auch diese Oberfläche ist ein bis zwei Minuten weg.</div>
+<p style=font-size:14px>Vorher werden alle laufenden Container <b>sauber angehalten</b>,
+damit die Spiele ihre Stände schreiben. Läuft gerade eine Sicherung, wird der Neustart
+abgebrochen — ein unterbrochener Borg-Lauf hinterlässt eine Sperre, die man von Hand lösen muss.</p>
+<p style=font-size:14px>Läuft gerade: <b>{laufende.strip() or "nichts"}</b><br>
+<span class=z>Nach dem Neustart kommen nur die Server von selbst wieder hoch, die auf
+„unless-stopped" stehen. StarRupture bleibt bewusst aus.</span></p>
+<form method=post action=/neustart><input type=hidden name=csrf value="{s['csrf']}">
+<button class=x>Ja, Maschine neu starten</button></form> <a class=b href=/>Abbrechen</a>""" + FUSS)
+
+
+@app.post("/neustart", response_class=HTMLResponse)
+def neustart(request: Request, csrf: str = Form("")):
+    s = pruefe(request, csrf)
+    if not ist_admin(s):
+        return RedirectResponse("/", 303)
+    rc, aus = aktion("neustart", timeout=120)
+    if rc != 0:
+        return HTMLResponse(KOPF + kopfleiste(s) + RUMPF +
+            f"<h1>Neustart abgebrochen</h1><div class=warn>{aus}</div><a class=b href=/>zurück</a>" + FUSS)
+    return HTMLResponse(KOPF + RUMPF + """<div class=card><h1>Server startet neu</h1>
+<p style=font-size:14px;color:var(--d)>Die Maschine fährt gerade herunter. Diese Seite
+ist in ein bis zwei Minuten wieder erreichbar — einfach neu laden.</p>
+<a class=b href=/>erneut versuchen</a></div>""" + FUSS)
+
+
+@app.get("/auth-check")
+def auth_check(request: Request):
+    """Wird von Caddy vor JEDEM Terminalaufruf gefragt (forward_auth).
+    Nur eine gueltige ADMIN-Sitzung kommt durch. So haengt das Terminal an
+    derselben Anmeldung wie der Rest — ttyd selbst hat keine eigene Pruefung."""
+    s = angemeldet(request)
+    if ist_admin(s):
+        return Response(status_code=204)
+    return Response(status_code=401)
+
+
+@app.get("/passwoerter", response_class=HTMLResponse)
+def passwoerter(request: Request):
+    s = angemeldet(request)
+    if not ist_admin(s):
+        return RedirectResponse("/", 303)
+    rc, aus = aktion("passwoerter", timeout=60)
+    auto = [f"<tr><td>{t[0]}</td><td>{t[1]}</td><td><code>{t[2]}</code></td></tr>"
+            for t in (z.split("\t") for z in aus.splitlines()) if len(t) >= 3]
+
+    eigene = eigene_laden()
+    zeilen_eigen = []
+    for i, e in enumerate(eigene):
+        zeilen_eigen.append(f"""<tr><td>{e['server']}</td><td>{e['feld']}</td>
+<td><code>{e['wert']}</code></td><td style=text-align:right>
+<form method=post action=/zugang-loeschen><input type=hidden name=csrf value="{s['csrf']}">
+<input type=hidden name=nr value="{i}"><button class=x>löschen</button></form></td></tr>""")
+
+    # Welche Server liefern gar nichts automatisch?
+    genannt = {z.split("\t")[0].split(" ")[0] for z in aus.splitlines() if "\t" in z}
+    genannt |= {e["server"] for e in eigene}
+    rc2, alle = aktion("status", timeout=60)
+    stacks = [z.split("\t")[0] for z in alle.splitlines()
+              if "\t" in z and not z.startswith("SYSTEM")]
+    fehlend = [n for n in stacks if n not in genannt]
+    hinweis = ""
+    if fehlend:
+        hinweis = ("<div class=warn>Ohne Eintrag: <b>" + ", ".join(fehlend) + "</b>. "
+                   "Diese Server legen ihre Passwörter nur gehasht oder verschlüsselt ab — "
+                   "sie lassen sich nicht auslesen. Unten von Hand eintragen.</div>")
+
+    auswahl = "".join(f'<option value="{n}">{n}</option>' for n in stacks)
+    return HTMLResponse(KOPF + kopfleiste(s, "pw") + RUMPF + f"""<h1>Zugangsdaten der Server</h1>
+<h2 style=font-size:15px;margin:18px 0 8px>Aus der Serverkonfiguration gelesen</h2>
+<div class=z style=margin-bottom:8px>Diese Werte kommen direkt von der Maschine und sind
+damit immer aktuell.</div>
+<table><tr><th>Server</th><th>Feld</th><th>Wert</th></tr>{''.join(auto)}</table>
+{hinweis}
+<h2 style=font-size:15px;margin:26px 0 8px>Von Hand hinterlegt</h2>
+<div class=z style=margin-bottom:8px>Selbst eingetragen — <b>kann veralten</b>, wenn das
+Passwort später im Spiel geändert wird. Der Server bestätigt diese Werte nicht.</div>
+<table><tr><th>Server</th><th>Feld</th><th>Wert</th><th></th></tr>
+{''.join(zeilen_eigen) or '<tr><td colspan=4>noch nichts hinterlegt</td></tr>'}</table>
+<form method=post action=/zugang-anlegen style="display:flex;gap:8px;align-items:flex-end;margin-top:14px;flex-wrap:wrap">
+<input type=hidden name=csrf value="{s['csrf']}">
+<div><label>Server</label><select name=server>{auswahl}</select></div>
+<div><label>Feld</label><input type=text name=feld placeholder="z. B. ClientPassword" style=width:190px></div>
+<div><label>Wert</label><input type=text name=wert style=width:190px></div>
+<button class=p>hinzufügen</button></form>""" + FUSS)
+
+
+@app.post("/zugang-anlegen")
+def zugang_anlegen(request: Request, csrf: str = Form(""), server: str = Form(""),
+                   feld: str = Form(""), wert: str = Form("")):
+    s = pruefe(request, csrf)
+    if not ist_admin(s):
+        return RedirectResponse("/", 303)
+    feld, wert, server = feld.strip(), wert.strip(), server.strip()
+    if feld and wert and server and len(feld) <= 40 and len(wert) <= 120:
+        eigene = eigene_laden()
+        eigene.append({"server": server, "feld": feld, "wert": wert})
+        eigene_speichern(eigene)
+    return RedirectResponse("/passwoerter", 303)
+
+
+@app.post("/zugang-loeschen")
+def zugang_loeschen(request: Request, csrf: str = Form(""), nr: str = Form("")):
+    s = pruefe(request, csrf)
+    if not ist_admin(s):
+        return RedirectResponse("/", 303)
+    eigene = eigene_laden()
+    if nr.isdigit() and 0 <= int(nr) < len(eigene):
+        del eigene[int(nr)]
+        eigene_speichern(eigene)
+    return RedirectResponse("/passwoerter", 303)
+
+
+@app.get("/nutzer", response_class=HTMLResponse)
+def nutzer_liste(request: Request, neu: str = ""):
+    s = angemeldet(request)
+    if not ist_admin(s):
+        return RedirectResponse("/", 303)
+    d = laden()
+    zeilen = []
+    for name, n in sorted(d["nutzer"].items()):
+        fertig = n.get("totp_bestaetigt")
+        mfa = ('<span class="s on">eingerichtet</span>' if fertig
+               else '<span class="s off">wartet auf erste Anmeldung</span>')
+        knoepfe = ""
+        if fertig:
+            knoepfe += (f'<form method=post action=/mfa-zuruecksetzen>'
+                        f'<input type=hidden name=csrf value="{s["csrf"]}">'
+                        f'<input type=hidden name=name value="{name}">'
+                        f'<button class=y>2FA zurücksetzen</button></form> ')
+        knoepfe += ("<span class=z>(eigenes Konto)</span>" if name == s["nutzer"] else
+                    f'<form method=post action=/nutzer-loeschen><input type=hidden name=csrf value="{s["csrf"]}">'
+                    f'<input type=hidden name=name value="{name}"><button class=x>löschen</button></form>')
+        zeilen.append(f"<tr><td><b>{name}</b></td><td>{n['rolle']}</td><td>{mfa}</td>"
+                      f"<td style=text-align:right>{knoepfe}</td></tr>")
+    frisch = ""
+    if neu:
+        frisch = (f"<div class=warn><b>{neu}</b> angelegt. Gib Name und Passwort weiter — "
+                  "den QR-Code für die Authenticator-App bekommt der Benutzer bei seiner "
+                  "<b>ersten Anmeldung</b> selbst angezeigt. Du siehst das Geheimnis nie.</div>")
+    return HTMLResponse(KOPF + kopfleiste(s, "nutzer") + RUMPF + f"<h1>Benutzer</h1>{frisch}"
+        f"<table><tr><th>Name</th><th>Rolle</th><th>Zwei-Faktor</th><th></th></tr>{''.join(zeilen)}</table>"
+        f"""<h1 style=margin-top:28px;font-size:16px>Neuen Benutzer anlegen</h1>
+<form method=post action=/nutzer-anlegen>
+<input type=hidden name=csrf value="{s['csrf']}">
+<label>Name</label><input type=text name=name style=max-width:220px>
+<label>Passwort</label><input type=text name=passwort style=max-width:220px>
+<label>Rolle</label><select name=rolle>
+<option value=bedienen>bedienen (starten/anhalten/neu starten)</option>
+<option value=admin>admin (alles)</option></select>
+<div style=margin-top:14px><button class=p>anlegen</button></div></form>
+<div class=m>„bedienen“ darf Server starten, anhalten und neu starten sowie Sicherungen
+einsehen — aber keine Passwörter sehen, nichts zurückspielen, keine Einstellungen ändern
+und keine Benutzer verwalten.</div>""" + FUSS)
+
+
+@app.post("/nutzer-anlegen")
+def nutzer_anlegen(request: Request, csrf: str = Form(""), name: str = Form(""),
+                   passwort: str = Form(""), rolle: str = Form("bedienen")):
+    s = pruefe(request, csrf)
+    if not ist_admin(s):
+        return RedirectResponse("/", 303)
+    d = laden()
+    name = name.strip()
+    if (not name.isalnum() or len(name) > 20 or name in d["nutzer"]
+            or len(passwort) < 10 or rolle not in ("admin", "bedienen")):
+        return RedirectResponse("/nutzer", 303)
+    # Das TOTP-Geheimnis wird erzeugt, aber NICHT angezeigt: der Benutzer
+    # bekommt es bei seiner ersten Anmeldung selbst als QR-Code. So muss es
+    # niemand weitergeben, und der Administrator sieht es nie.
+    d["nutzer"][name] = {"passwort_hash": hasher.hash(passwort), "totp": pyotp.random_base32(),
+                         "rolle": rolle, "totp_bestaetigt": False}
+    speichern(d)
+    return RedirectResponse(f"/nutzer?neu={name}", 303)
+
+
+@app.post("/mfa-zuruecksetzen")
+def mfa_zuruecksetzen(request: Request, csrf: str = Form(""), name: str = Form("")):
+    """Neues Geheimnis, Bestaetigung zurueck auf offen — fuer den Fall, dass
+    jemand sein Geraet verliert. Danach richtet er bei der naechsten Anmeldung
+    neu ein."""
+    s = pruefe(request, csrf)
+    if not ist_admin(s):
+        return RedirectResponse("/", 303)
+    d = laden()
+    if name in d["nutzer"]:
+        d["nutzer"][name]["totp"] = pyotp.random_base32()
+        d["nutzer"][name]["totp_bestaetigt"] = False
+        speichern(d)
+    return RedirectResponse("/nutzer", 303)
+
+
+@app.post("/nutzer-loeschen")
+def nutzer_loeschen(request: Request, csrf: str = Form(""), name: str = Form("")):
+    s = pruefe(request, csrf)
+    if not ist_admin(s):
+        return RedirectResponse("/", 303)
+    d = laden()
+    # Das eigene Konto bleibt tabu — sonst sperrt man sich mit einem Klick aus,
+    # und ohne Admin kaeme niemand mehr an die Benutzerverwaltung.
+    if name in d["nutzer"] and name != s["nutzer"]:
+        del d["nutzer"][name]
+        speichern(d)
+    return RedirectResponse("/nutzer", 303)

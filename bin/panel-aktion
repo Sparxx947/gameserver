@@ -1,0 +1,282 @@
+#!/bin/bash
+# panel-aktion — die EINZIGE Bruecke zwischen der Weboberflaeche und dem System.
+#
+# Die Web-App laeuft als unprivilegierter Nutzer "panel" und darf per sudo
+# ausschliesslich dieses Skript aufrufen. Sie bekommt bewusst KEINEN Zugriff auf
+# /var/run/docker.sock: wer den hat, ist faktisch root auf der Maschine.
+#
+# Jede Aktion ist hier fest verdrahtet, jeder Parameter wird gegen eine
+# Positivliste geprueft. Es gibt kein eval, keine Shell-Expansion von Eingaben
+# und keinen Pfad, ueber den die App eigene Befehle einschleusen koennte.
+#
+#   panel-aktion status
+#   panel-aktion start|stop <stack>
+#   panel-aktion archive <stack>
+#   panel-aktion restore <stack> <archivname>
+#   panel-aktion passwoerter
+#   panel-aktion katalog
+#   panel-aktion installieren <schluessel>
+#   panel-aktion deinstallieren <stack>
+#   panel-aktion dns <setzen|entfernen> <name>
+set -uo pipefail
+umask 077
+
+REPO="@@BORG_REPO@@"
+DIENSTE="teamspeak"
+# Nur diese Felder darf die Oberflaeche aendern. Die compose.yaml als Ganzes
+# freizugeben waere eine Rechteausweitung: wer dort ein Volume "/:/host"
+# eintragen kann, ist root auf der Maschine.
+ERLAUBTE_FELDER="SERVER_NAME SERVER_PASSWORD ADMIN_PASSWORD SERVER_PWD SERVER_SLOT_COUNT PLAYERS MAXPLAYERS SERVER_MAX_PLAYERS SERVER_MAX_PLAYER_COUNT SERVER_ROLE_0_PASSWORD SERVER_ROLE_1_PASSWORD"
+
+fehler() { echo "FEHLER: $*" >&2; exit 1; }
+
+# --- Positivliste: welche Stacks gibt es? ------------------------------------
+stacks() { for d in /opt/stacks/*/; do basename "$d"; done; }
+pruefe_stack() {
+    [[ "$1" =~ ^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$ ]] || fehler "unzulaessiger Name"
+    # KEINE Pipeline mit "grep -q": grep beendet sich beim ersten Treffer, die
+    # schreibende Seite bekommt SIGPIPE (141), und wegen "set -o pipefail" gilt
+    # die Pipeline dann als fehlgeschlagen — jeder gueltige Stack waere
+    # abgewiesen worden. Here-String statt Pipe.
+    local liste; liste=$(stacks)
+    grep -qx "$1" <<<"$liste" || fehler "unbekannter Stack"
+}
+# Archivnamen erzeugt ausschliesslich spiele-sicherung: <stack>-JJJJMMTT-HHMMSS
+pruefe_archiv() {
+    [[ "$2" =~ ^[a-z0-9-]{1,40}-[0-9]{8}-[0-9]{6}$ ]] || fehler "unzulaessiger Archivname"
+    [[ "$2" == "$1-"* ]] || fehler "Archiv gehoert nicht zu diesem Stack"
+}
+
+case "${1:-}" in
+  status)
+    # EIN docker-stats-Aufruf fuer alle Container, nicht einer je Container:
+    # ein Aufruf kostet ~1,9 s, egal wie viele Container er abfragt. Einzeln
+    # gerufen brauchte diese Aktion 13,2 s, gesammelt 2,0 s (gemessen 2026-09-06).
+    # Systemzeile zuerst: Gesamtbild der Maschine, damit die Oberflaeche nicht
+    # nur Einzelwerte zeigt, sondern auch, wieviel davon noch frei ist.
+    read -r _ mges mben _ < <(free -m | grep -i "^Mem")
+    load=$(awk "{print \$1}" /proc/loadavg)
+    kerne=$(nproc)
+    read -r pges pben pproz < <(df -m / | tail -1 | awk "{print \$2, \$3, \$5}")
+    swap=$(free -m | awk "/^Swap/ {print \$3 \"/\" \$2}")
+    printf "SYSTEM\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "$mben" "$mges" "$load" "$kerne" "$pben" "$pges" "$swap"
+    laufende=$(docker ps --format "{{.Names}}")
+    werte=$(docker stats --no-stream --format "{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}" 2>/dev/null)
+    for s in $(stacks); do
+      if grep -qx "$s" <<<"$laufende"; then
+        z=$(grep -P "^$s\t" <<<"$werte" | head -1)
+        printf "%s\tlaeuft\t%s\t%s\n" "$s" "$(cut -f2 <<<"$z")" "$(cut -f3 <<<"$z")"
+      else
+        printf "%s\tgestoppt\t-\t-\n" "$s"
+      fi
+    done
+    ;;
+  start|stop|restart)
+    s="${2:-}"; pruefe_stack "$s"
+    cd "/opt/stacks/$s" || fehler "Stack-Verzeichnis fehlt"
+    case "$1" in
+      start) docker compose up -d >/dev/null 2>&1 || fehler "Start fehlgeschlagen" ;;
+      stop)  docker compose stop  >/dev/null 2>&1 || fehler "Stopp fehlgeschlagen" ;;
+      # Neustart ueber compose, nicht "docker restart": so wird eine geaenderte
+      # compose.yaml mit uebernommen. "up -d" erzeugt den Container neu, wenn
+      # sich etwas geaendert hat, und startet ihn sonst einfach wieder.
+      restart) docker compose stop >/dev/null 2>&1
+               docker compose up -d >/dev/null 2>&1 || fehler "Neustart fehlgeschlagen" ;;
+    esac
+    echo "ok"
+    ;;
+  archive)
+    s="${2:-}"; pruefe_stack "$s"
+    export BORG_PASSPHRASE=$(cat /root/.borg-passphrase)
+    export BORG_RSH="ssh -o BatchMode=yes -o ConnectTimeout=15"
+    timeout 120 borg list --glob-archives "$s-*" --format "{archive}{TAB}{time}{NL}" "$REPO" 2>/dev/null \
+      || fehler "Repository nicht erreichbar"
+    ;;
+  restore)
+    s="${2:-}"; a="${3:-}"; pruefe_stack "$s"; pruefe_archiv "$s" "$a"
+    export BORG_PASSPHRASE=$(cat /root/.borg-passphrase)
+    export BORG_RSH="ssh -o BatchMode=yes -o ConnectTimeout=15"
+    # Basisverzeichnis bestimmen (Spiel oder Dienst)
+    if   [ -d "/srv/games/$s" ];   then basis="/srv/games/$s"
+    elif [ -d "/srv/dienste/$s" ]; then basis="/srv/dienste/$s"
+    else fehler "kein Datenverzeichnis fuer $s"; fi
+    lief=0
+    docker ps --format "{{.Names}}" | grep -qx "$s" && lief=1
+    # 1. Container stoppen — ein laufender Server schreibt beim Beenden zurueck
+    #    und wuerde das Zurueckgespielte sofort ueberschreiben.
+    [ $lief -eq 1 ] && { cd "/opt/stacks/$s" && docker compose stop >/dev/null 2>&1; }
+    # 2. Ist-Stand sichern, bevor irgendetwas ueberschrieben wird
+    sich="${basis}.vor-restore-$(date +%Y%m%d-%H%M%S)"
+    cp -a "$basis" "$sich" || fehler "Ist-Stand liess sich nicht sichern - abgebrochen"
+    # 3. Zurueckspielen (borg legt den Pfad relativ ab)
+    tmp=$(mktemp -d); trap "rm -rf $tmp" EXIT
+    ( cd "$tmp" && timeout 900 borg extract "$REPO::$a" ) || fehler "Extrahieren fehlgeschlagen"
+    quelle="$tmp${basis}"
+    [ -d "$quelle" ] || fehler "Archiv enthaelt $basis nicht"
+    rm -rf "${basis:?}"/* && cp -a "$quelle/." "$basis/" || fehler "Kopieren fehlgeschlagen"
+    chown -R 4711:4711 "$basis" 2>/dev/null
+    # 4. Nur wieder starten, wenn er vorher lief
+    [ $lief -eq 1 ] && { cd "/opt/stacks/$s" && docker compose up -d >/dev/null 2>&1; }
+    echo "ok\tIst-Stand gesichert unter $sich"
+    ;;
+  konfig-lesen)
+    # Gibt NUR die Felder aus, die ueber die Oberflaeche geaendert werden duerfen.
+    s="${2:-}"; pruefe_stack "$s"
+    f="/opt/stacks/$s/compose.yaml"
+    [ -f "$f" ] || fehler "keine compose.yaml"
+    # compose kennt ZWEI Schreibweisen fuer environment, und beide kommen hier
+    # vor: "- KEY=wert" (Liste, z.B. Enshrouded) und "KEY: wert" (Map, z.B.
+    # Palworld). Wer nur eine sucht, findet bei der Haelfte der Spiele nichts.
+    for k in $ERLAUBTE_FELDER; do
+      w=$(grep -oE "^[[:space:]]*-[[:space:]]*$k=.*$" "$f" | head -1 | sed -E "s/^[^=]*=//; s/^\"//; s/\"$//")
+      [ -z "$w" ] && w=$(grep -oE "^[[:space:]]*$k: ?\"?[^\"]*\"?" "$f" | head -1 | sed -E "s/^[[:space:]]*$k: ?//; s/^\"//; s/\"$//")
+      [ -n "$w" ] && printf "%s\t%s\n" "$k" "$w"
+    done
+    w=$(grep -oE "^[[:space:]]*mem_limit: ?[0-9]+g" "$f" | head -1 | grep -oE "[0-9]+g")
+    [ -n "$w" ] && printf "mem_limit\t%s\n" "$w"
+    # Palworld fuehrt die WIRKSAMEN Werte in seiner eigenen Datei, weil der
+    # Container die Einstellungen nicht mehr selbst erzeugt. Ohne diesen Zweig
+    # wuerde die Oberflaeche Werte anzeigen und aendern, die nichts bewirken.
+    p=/srv/games/palworld/Pal/Saved/Config/LinuxServer/PalWorldSettings.ini
+    if [ "$s" = "palworld" ] && [ -f "$p" ]; then
+      for k in ServerName ServerPassword AdminPassword; do
+        printf "ini:%s\t%s\n" "$k" "$(grep -oE "$k=\"[^\"]*\"" "$p" | head -1 | sed -E "s/^$k=\"//; s/\"$//")"
+      done
+      printf "ini:ServerPlayerMaxNum\t%s\n" "$(grep -oE "ServerPlayerMaxNum=[0-9]+" "$p" | head -1 | grep -oE "[0-9]+")"
+    fi
+    ;;
+  konfig-setzen)
+    s="${2:-}"; k="${3:-}"; w="${4:-}"
+    pruefe_stack "$s"
+    # Wert streng begrenzen: keine Anfuehrungszeichen, keine Zeilenumbrueche,
+    # keine Steuerzeichen — sonst liesse sich die YAML-Struktur aufbrechen.
+    [[ "$w" =~ ^[A-Za-z0-9ÄÖÜäöüß._!?+-]{1,40}$ ]] || fehler "unzulaessiger Wert"
+    if [[ "$k" == ini:* ]]; then
+      [ "$s" = "palworld" ] || fehler "ini-Felder gibt es nur bei palworld"
+      feld="${k#ini:}"
+      case "$feld" in ServerName|ServerPassword|AdminPassword|ServerPlayerMaxNum) ;; *) fehler "Feld nicht erlaubt" ;; esac
+      p=/srv/games/palworld/Pal/Saved/Config/LinuxServer/PalWorldSettings.ini
+      [ -f "$p" ] || fehler "PalWorldSettings.ini fehlt"
+      cp "$p" "$p.vor-panel-$(date +%Y%m%d-%H%M%S)"
+      if [ "$feld" = "ServerPlayerMaxNum" ]; then
+        [[ "$w" =~ ^[0-9]{1,2}$ ]] || fehler "Spielerzahl muss eine Zahl sein"
+        sed -i "s/ServerPlayerMaxNum=[0-9]*/ServerPlayerMaxNum=$w/" "$p"
+      else
+        sed -i "s/$feld=\"[^\"]*\"/$feld=\"$w\"/" "$p"
+      fi
+      chown 4711:4711 "$p"
+      grep -c "\\\"" "$p" | grep -qx 0 || fehler "Backslashes in der Datei - zurueckgesetzt"
+      echo "ok"; exit 0
+    fi
+    grep -qx "$k" <<<"$(printf "%s\n" $ERLAUBTE_FELDER mem_limit)" || fehler "Feld nicht erlaubt"
+    f="/opt/stacks/$s/compose.yaml"
+    cp "$f" "$f.vor-panel-$(date +%Y%m%d-%H%M%S)"
+    if [ "$k" = "mem_limit" ]; then
+      [[ "$w" =~ ^[0-9]{1,2}g$ ]] || fehler "Speichergrenze muss wie 8g aussehen"
+      sed -i -E "s/^([[:space:]]*)mem_limit: ?[0-9]+g/\1mem_limit: $w/; s/^([[:space:]]*)memswap_limit: ?[0-9]+g/\1memswap_limit: $w/" "$f"
+    else
+      if grep -qE "^[[:space:]]*-[[:space:]]*$k=" "$f"; then
+        sed -i -E "s|^([[:space:]]*-[[:space:]]*)$k=.*$|\1$k=$w|" "$f"
+      else
+        sed -i -E "s|^([[:space:]]*)$k: ?\"?[^\"]*\"?$|\1$k: \"$w\"|" "$f"
+      fi
+    fi
+    echo "ok"
+    ;;
+  neustart)
+    # Neustart der ganzen Maschine. Vorher pruefen, ob gerade eine Sicherung
+    # laeuft — ein abgebrochener borg-Lauf hinterlaesst einen Lock, den man von
+    # Hand loesen muss.
+    if pgrep -f "[b]org (create|prune|compact)" >/dev/null 2>&1; then
+      fehler "Es laeuft gerade eine Sicherung. Neustart abgebrochen."
+    fi
+    # Container sauber anhalten, damit die Spiele ihre Staende schreiben.
+    for d in /opt/stacks/*/; do
+      n=$(basename "$d")
+      docker ps --format "{{.Names}}" | grep -qx "$n" && ( cd "$d" && docker compose stop >/dev/null 2>&1 )
+    done
+    logger -t panel "Neustart ueber die Weboberflaeche ausgeloest"
+    systemctl reboot
+    echo "ok"
+    ;;
+  laufende-vorher)
+    # Welche Server laufen gerade? Fuer die Rueckfrage vor dem Neustart.
+    docker ps --format "{{.Names}}" | sort | tr "\n" " "
+    ;;
+  passwoerter)
+    # Liest die Zugangsdaten aus den compose-Dateien. Bewusst eine eigene
+    # Aktion: So taucht nichts davon in der Uebersicht auf, sondern nur, wenn
+    # es ausdruecklich angefordert wird.
+    for s in $(stacks); do
+      f="/opt/stacks/$s/compose.yaml"
+      [ -f "$f" ] || continue
+      grep -hoE "(SERVER_PASSWORD|ADMIN_PASSWORD|SERVER_PWD|SERVER_ROLE_[0-9]+_PASSWORD)[:=] ?\"?[^\"]+\"?" "$f" \
+        | sed -E "s/^/$s\t/; s/[:=] ?\"?/\t/; s/\"$//"
+    done
+    # Palworld/Enshrouded fuehren die wirksamen Werte teils in ihrer eigenen
+    # Konfiguration — diese hier zusaetzlich, damit die Anzeige nicht luegt.
+    p=/srv/games/palworld/Pal/Saved/Config/LinuxServer/PalWorldSettings.ini
+    [ -f "$p" ] && grep -oE "(Server|Admin)Password=\"[^\"]*\"" "$p" | sed -E "s/^/palworld (wirksam)\t/; s/=\"/\t/; s/\"$//"
+    # Ueber den Katalog installierte Server fuehren ihre Passwoerter in
+    # panel.json - dort stehen sie auch dann, wenn das Spiel sie in einer
+    # Konfigurationsdatei fuehrt, deren Format wir nicht lesen.
+    for d in /opt/stacks/*/panel.json; do
+      [ -f "$d" ] || continue
+      python3 - "$d" <<"PY"
+import json, sys, os
+p = json.load(open(sys.argv[1]))
+n = os.path.basename(os.path.dirname(sys.argv[1]))
+if p.get("passwort_art") != "keins":
+    for feld, schl in (("Beitrittspasswort", "passwort"), ("Adminpasswort", "admin_passwort")):
+        if p.get(schl):
+            print(f"{n}\t{feld}\t{p[schl]}")
+PY
+    done
+    ;;
+  katalog)
+    # Welche Spiele lassen sich installieren, was ist schon da?
+    /usr/local/bin/spiel-verwalten katalog
+    ;;
+  installieren)
+    s="${2:-}"
+    # Schluessel wird von spiel-verwalten gegen den Katalog geprueft; hier nur
+    # die Form, damit gar nichts Unerwartetes weitergereicht wird.
+    [[ "$s" =~ ^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$ ]] || fehler "unzulaessiger Name"
+    /usr/local/bin/spiel-verwalten installieren "$s" || exit 1
+    # DNS-Namen anlegen, wenn der Cloudflare-Zugang eingerichtet ist. Ein
+    # fehlender Zugang ist kein Grund, die Installation als gescheitert zu
+    # melden - das Spiel laeuft auch ueber die IP-Adresse.
+    if [ -f /etc/cloudflare-gameserver.conf ]; then
+      /usr/local/bin/cf-dns setzen "$s" >/dev/null 2>&1 || true
+    fi
+    ;;
+  deinstallieren)
+    s="${2:-}"; pruefe_stack "$s"
+    [ -f "/opt/stacks/$s/panel.json" ] || fehler "Dieser Server wurde nicht ueber den Katalog installiert und laesst sich hier nicht entfernen."
+    if [ -f /etc/cloudflare-gameserver.conf ]; then
+      /usr/local/bin/cf-dns entfernen "$s" >/dev/null 2>&1 || true
+    fi
+    /usr/local/bin/spiel-verwalten deinstallieren "$s"
+    ;;
+  einrichtung)
+    # Stand der Passwort-Einrichtung je Stack (fuer die Anzeige).
+    for d in /opt/stacks/*/panel.json; do
+      [ -f "$d" ] || continue
+      n=$(basename "$(dirname "$d")")
+      printf "%s\t%s\t%s\n" "$n" \
+        "$(python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('einrichtung_offen',False))" "$d")" \
+        "$(python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('einrichtung_stand',''))" "$d")"
+    done
+    ;;
+  dns)
+    was="${2:-}"; n="${3:-}"
+    case "$was" in setzen|entfernen|liste|pruefen) ;; *) fehler "unbekannte DNS-Aktion" ;; esac
+    if [ "$was" = "liste" ] || [ "$was" = "pruefen" ]; then
+      /usr/local/bin/cf-dns "$was"
+    else
+      pruefe_stack "$n"
+      /usr/local/bin/cf-dns "$was" "$n"
+    fi
+    ;;
+  *) fehler "unbekannte Aktion" ;;
+esac
