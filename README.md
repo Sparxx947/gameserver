@@ -89,8 +89,10 @@ werkzeuge/abgleich.sh gameserver
 ```
 
 Setzt die Platzhalter aus `konfiguration.env` ein und vergleicht das Ergebnis
-Datei für Datei mit der laufenden Maschine. Exit 0 = deckungsgleich, 1 =
-Abweichungen (mit Diff), 2 = nicht erreichbar. Ändert nichts.
+mit der laufenden Maschine — 27 Prüfpunkte: 22 Dateien byte-genau, dazu die
+Python-Umgebung des Panels gegen `requirements.txt`, die ttyd-Version gegen die
+in Stufe 40 festgeschriebene und die drei selbst erzeugten Symbole. Exit 0 =
+deckungsgleich, 1 = Abweichungen (mit Diff), 2 = nicht erreichbar. Ändert nichts.
 
 Eine Dokumentation, die vom System abweicht, ist schlimmer als keine — man
 handelt danach. Dieses Werkzeug findet die Abweichung, statt darauf zu hoffen,

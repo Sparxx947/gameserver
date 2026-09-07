@@ -77,6 +77,53 @@ for p in "${PAARE[@]}"; do
   fi
 done
 
+# --- Was kein einfacher Dateivergleich ist -----------------------------------
+# Drei Dinge gehoeren zur Reproduktion, liegen auf dem Server aber nicht als
+# Datei gleichen Inhalts vor. Sie fehlten hier zunaechst — aufgefallen ist das
+# erst, als ein Dependabot-PR requirements.txt aenderte und ich den Abgleich von
+# Hand nachziehen musste. Eine Pruefung, die einen Bereich gar nicht ansieht,
+# meldet ihn als in Ordnung.
+# *Three things belong to the reproduction but do not exist as identical files on
+#  the server. They were missing here at first, and it only showed when a
+#  Dependabot PR changed requirements.txt and the comparison had to be done by
+#  hand. A check that never looks at an area reports it as fine.*
+echo
+echo "-- Weiteres --"
+
+# 1. Python-Umgebung des Panels
+if ! diff -q <(ssh "$ZIEL" '/opt/panel/venv/bin/pip list --format=freeze' 2>/dev/null) \
+              "$REPO/panel/requirements.txt" >/dev/null 2>&1; then
+  echo "  ABWEICHUNG            panel/requirements.txt <-> venv auf dem Server"
+  diff -u "$REPO/panel/requirements.txt" \
+          <(ssh "$ZIEL" '/opt/panel/venv/bin/pip list --format=freeze') \
+    | sed -n '3,23p' | sed 's/^/      /'
+  anders=$((anders+1))
+else
+  gleich=$((gleich+1))
+fi
+
+# 2. ttyd — die Version ist in Stufe 40 festgeschrieben, das Binary kommt aber
+#    von GitHub und nicht aus diesem Repositorium.
+SOLL=$(grep -oE 'TTYD_VERSION="[0-9.]+"' "$REPO/install/40-caddy-ttyd.sh" | grep -oE '[0-9.]+')
+IST=$(ssh "$ZIEL" '/usr/local/bin/ttyd --version 2>/dev/null' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)
+if [ "$SOLL" != "$IST" ]; then
+  echo "  ABWEICHUNG            ttyd: Repo verlangt $SOLL, Server hat ${IST:-nichts}"
+  anders=$((anders+1))
+else
+  gleich=$((gleich+1))
+fi
+
+# 3. Die selbst erzeugten Symbole (die Spielbilder kommen aus Steam und gehoeren
+#    bewusst nicht ins Repositorium).
+for bild in favicon.svg favicon.ico apple-touch-icon.png; do
+  if ! ssh "$ZIEL" "cat /opt/panel/bilder/$bild" 2>/dev/null | cmp -s - "$REPO/panel/bilder/$bild"; then
+    echo "  ABWEICHUNG            panel/bilder/$bild"
+    anders=$((anders+1))
+  else
+    gleich=$((gleich+1))
+  fi
+done
+
 echo
 printf 'deckungsgleich: %d   abweichend: %d   fehlend: %d\n' "$gleich" "$anders" "$fehlt"
 [ $((anders + fehlt)) -eq 0 ] || exit 1
