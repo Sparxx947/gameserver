@@ -372,10 +372,20 @@ def uebersicht(request: Request):
             knoepfe.append(f'<button class=x name=was value=stop>anhalten</button>')
         else:
             knoepfe.append(f'<button class=p name=was value=start>starten</button>')
+        pi = stackinfo(name)
         verweise = f'<a class=b href="/archive/{name}">Sicherungen</a>'
         if ist_admin(s):
             verweise += f'<a class=b href="/konfig/{name}">Einstellungen</a>'
-            verweise += f'<a class=b href="/dateien/{name}">Konfigdateien</a>'
+            # Die Zahl kommt aus konfigzahlen.json (von spiel-einrichtung alle
+            # zwei Minuten gepflegt). Ein eigener Aufruf je Server waere hier zu
+            # teuer, und panel.json scheidet aus: die von Hand gebauten Stacks
+            # haben gar keine.
+            # *From konfigzahlen.json, refreshed every two minutes; a per-server
+            #  call would be too expensive and panel.json does not exist for the
+            #  hand-built stacks.*
+            anz = konfigzahlen().get(name)
+            zusatz = f" ({anz})" if isinstance(anz, int) and anz else ""
+            verweise += f'<a class=b href="/dateien/{name}">Konfigdateien{zusatz}</a>'
         aktionen = (f'<form method=post action=/aktion class=steuer>'
                     f'<input type=hidden name=csrf value="{s["csrf"]}">'
                     f'<input type=hidden name=stack value="{name}">{"".join(knoepfe)}</form>'
@@ -386,7 +396,6 @@ def uebersicht(request: Request):
         # Wenn ein frisch installierter Server sein Passwort noch nicht gesetzt
         # bekommen hat, muss das sichtbar sein - sonst steht er ungeschuetzt im
         # Netz, ohne dass es jemand merkt.
-        pi = stackinfo(name)
         if pi.get("einrichtung_offen"):
             adresse += ('<div class=warn>Einrichtung läuft: '
                         + pi.get("einrichtung_stand", "") + '</div>')
@@ -954,6 +963,18 @@ def konf_ersetzen(text: str, endung: str, neue: dict) -> str:
     return "".join(zeilen)
 
 
+KONFIGZAHLEN = Path("/opt/panel/daten/konfigzahlen.json")
+
+
+def konfigzahlen() -> dict:
+    """Anzahl der Konfigurationsdateien je Server, gepflegt von spiel-einrichtung.
+    Faellt sie aus, fehlt nur eine Zahl in der Anzeige."""
+    try:
+        return json.loads(KONFIGZAHLEN.read_text())
+    except Exception:
+        return {}
+
+
 def konf_dateien(stack: str) -> list:
     rc, aus = aktion("konfig-dateien", stack, timeout=60)
     if rc != 0:
@@ -969,8 +990,27 @@ def dateien(request: Request, stack: str, meldung: str = ""):
         return RedirectResponse("/", 303)
     liste = konf_dateien(stack)
     if not liste:
-        zeilen = ('<tr><td colspan=3 class=z>Keine Konfigurationsdatei gefunden. '
-                  'Viele Server legen sie erst beim ersten Start an.</td></tr>')
+        # Eine leere Liste hat zwei sehr verschiedene Ursachen: der Server laedt
+        # noch herunter und hat seine Konfiguration schlicht noch nicht
+        # geschrieben - oder es gibt dauerhaft keine. Ohne diese Unterscheidung
+        # sieht ein frisch installiertes Spiel wie ein Fehler aus, und man sucht
+        # eine Stunde nach etwas, das einfach noch nicht existiert.
+        # *An empty list has two very different causes: the server is still
+        #  downloading, or there genuinely is no config file. Without telling
+        #  them apart, a fresh install looks like a fault.*
+        pi = stackinfo(stack)
+        if pi.get("einrichtung_offen"):
+            hinweis = ('Der Server ist frisch installiert und hat seine Konfiguration '
+                       'noch nicht angelegt. Stand: <b>'
+                       + esc(pi.get("einrichtung_stand", "wartet")) + '</b><br>'
+                       'Die meisten Server laden erst mehrere Gigabyte herunter; '
+                       'danach erscheinen die Dateien hier von selbst.')
+        else:
+            hinweis = ('Keine Konfigurationsdatei gefunden. Dieser Server führt seine '
+                       'Einstellungen möglicherweise woanders — in einem Spielstand, '
+                       'einer Datenbank oder ausschließlich über die '
+                       '<b>Umgebungsvariablen</b>.')
+        zeilen = f'<tr><td colspan=3 class=z>{hinweis}</td></tr>'
     else:
         zeilen = "".join(
             f'<tr><td><code>{esc(p)}</code></td><td class=z>{g} B</td>'

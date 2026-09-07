@@ -196,6 +196,34 @@ Deshalb darf das eine frei bearbeitet werden und das andere nicht.
 > config is read by an unprivileged process inside the container, so the worst
 > case is a server that will not start.*
 
+**Bei einem frisch installierten Server ist die Liste zunächst leer.** Das ist
+kein Fehler: Die meisten Server laden erst mehrere Gigabyte herunter und
+schreiben ihre Konfiguration beim ersten Start. Die Seite unterscheidet die
+beiden Fälle und sagt, welcher vorliegt — sonst sieht eine frische Installation
+aus wie ein Defekt, und man sucht nach etwas, das noch nicht existiert.
+
+Auf der Übersicht steht die **Anzahl** neben dem Knopf, gepflegt vom
+Einrichtungs-Timer alle zwei Minuten. Gemessen: das Zählen kostet 27 bis 88 ms
+je Server, zusammen eine halbe Sekunde.
+
+Nachgemessen an Astroneer (frisch installiert, ich777-Bauart wie 37 der 41
+Katalogspiele):
+
+| Zeitpunkt | Umgebungsvariablen | Konfigurationsdateien |
+|---|---|---|
+| direkt nach dem Klick | 1 frei, 5 gesperrt | **0** — lädt noch |
+| nach 60 s, 4,1 GB geladen | 1 frei, 5 gesperrt | **2**, mit 19 Einstellungen |
+
+Die Felder entstehen dabei **allein aus der Datei** — im Katalog ist dafür
+nichts hinterlegt.
+
+> *A freshly installed server shows an empty list at first, and that is not a
+> fault: most download gigabytes before writing any configuration. The page tells
+> the two cases apart, and the overview carries the count. Measured on Astroneer:
+> nothing at install time, two files with 19 settings a minute later — and the
+> fields come from the file alone, with nothing in the catalogue describing
+> them.*
+
 **Was der Editor nicht verhindern kann:** Viele Spielserver schreiben ihre
 Konfiguration beim Start **selbst neu**. Bei Minecraft nachgemessen: geänderte
 Werte überleben, eigene Kommentare und unbekannte Zeilen verschwinden. Wo es
