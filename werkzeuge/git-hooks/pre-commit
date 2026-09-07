@@ -1,0 +1,32 @@
+#!/bin/bash
+# Laesst keinen Commit durch, der das Repositorium unvollstaendig oder unsicher
+# macht. Aktivieren:
+#
+#   ln -sf ../../werkzeuge/git-hooks/pre-commit .git/hooks/pre-commit
+#
+# ACHTUNG, NICHT "git config core.hooksPath werkzeuge/git-hooks" nehmen: das
+# ersetzt das GANZE Hook-Verzeichnis und schaltet damit alle schon vorhandenen
+# Haken ab — hier waere das der commit-msg-Hook in .git/hooks gewesen. Ein
+# Schutz, der einen anderen Schutz abraeumt, ist keiner.
+# *Do NOT use core.hooksPath: it replaces the entire hooks directory and
+#  disables every hook already there. A guard that removes another guard is not
+#  a guard.*
+#
+# Notausgang, falls die Pruefung selbst im Weg steht:
+#
+#   GAMESERVER_KEIN_GATE=1 git commit ...
+#
+# *Blocks commits that leave the repository incomplete or unsafe. Enable with the
+#  git config line above; bypass with GAMESERVER_KEIN_GATE=1 if the check itself
+#  is what is broken.*
+[ "${GAMESERVER_KEIN_GATE:-0}" = "1" ] && exit 0
+
+REPO=$(git rev-parse --show-toplevel)
+"$REPO/werkzeuge/vollstaendigkeit.sh" || {
+  echo
+  echo "Commit abgewiesen: das Repositorium waere unvollstaendig."
+  echo "Regel  : jede von install/ referenzierte Datei muss vorhanden UND von git"
+  echo "         verfolgt sein; keine Geheimnisse; jeder Platzhalter erklaert."
+  echo "Vorbei : GAMESERVER_KEIN_GATE=1 git commit ..."
+  exit 1
+}

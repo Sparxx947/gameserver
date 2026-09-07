@@ -1,0 +1,15 @@
+# Angelegt 2026-09-06, analog zu srv.@@DNS_ZONE@@.
+# Bewusst OHNE die Mail-/FTP-Jails (Dovecot, Postfix, pure-ftpd) — die Dienste
+# gibt es hier nicht — und ohne die AbuseIPDB-Meldeaktion, die einen API-
+# Schluessel braucht.
+[DEFAULT]
+ignoreip = 127.0.0.1/8 ::1 @@ADMIN_NETZ@@ 100.64.0.0/10
+findtime = 3600
+maxretry = 3
+banaction = ufw
+banaction_allports = ufw
+bantime  = 48h
+
+[sshd]
+backend = systemd
+enabled = true

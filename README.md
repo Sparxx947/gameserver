@@ -103,6 +103,44 @@ dass jemand sie bemerkt.
 > none, because people act on it — this finds the drift instead of hoping someone
 > notices.*
 
+### Ist das Repositorium vollständig?
+
+```bash
+werkzeuge/vollstaendigkeit.sh
+```
+
+Prüft in einem Lauf: Ist jede von `install/` angefasste Datei vorhanden **und von
+git verfolgt**? Sind alle Skripte syntaktisch heil? Steckt irgendwo ein
+Geheimnis? Ist jeder `@@PLATZHALTER@@` in `konfiguration.env.beispiel` erklärt?
+
+Anlass war ein echter Fund: Die `.gitignore`-Regel `*.local` schluckte
+`etc/fail2ban/jail.local` — eine Datei, die Stufe 10 zwingend braucht. Der Push
+war grün, die Dateiliste sah vollständig aus, und aufgefallen wäre es erst bei
+der nächsten Neueinrichtung.
+
+Als Bremse vor jedem Commit:
+
+```bash
+ln -sf ../../werkzeuge/git-hooks/pre-commit .git/hooks/pre-commit
+```
+
+Bewusst als Symlink und **nicht** über `git config core.hooksPath`: Das ersetzt
+das gesamte Hook-Verzeichnis und schaltet alle bereits vorhandenen Haken ab. Ein
+Schutz, der einen anderen Schutz abräumt, ist keiner.
+
+Notausgang: `GAMESERVER_KEIN_GATE=1 git commit …`
+
+> *Is the repository complete? `werkzeuge/vollstaendigkeit.sh` checks in one run
+> whether every file `install/` touches exists **and is tracked by git**, whether
+> all scripts parse, whether any secret slipped in, and whether every
+> `@@PLACEHOLDER@@` is documented. It exists because of a real find: a
+> `.gitignore` rule of `*.local` swallowed `etc/fail2ban/jail.local`, which stage
+> 10 requires — the push was green and it would only have surfaced at the next
+> fresh install. Wire it in as a pre-commit gate with the symlink above —
+> deliberately not via `core.hooksPath`, which replaces the whole hooks directory
+> and would disable any hook already present; bypass with
+> `GAMESERVER_KEIN_GATE=1`.*
+
 > *Repository layout: tools, `/etc` files, systemd units, the panel itself,
 > compose templates for the seven hand-maintained servers, staged installation
 > scripts, and this documentation.*

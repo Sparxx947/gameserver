@@ -1,9 +1,16 @@
 # Standortdaten und Geheimnisse — niemals einchecken.
 # *Site-specific values and secrets — never commit.*
 konfiguration.env
-*.local
 *.secret
 /gerendert/
+# ACHTUNG: hier stand einmal "*.local". Das schloss etc/fail2ban/jail.local mit
+# aus - eine Datei, die install/10-basis.sh zwingend braucht. Der Push war
+# gruen, der Fehler faellt erst bei der naechsten Neueinrichtung auf. Muster,
+# die auf Endungen zielen, hier bitte gegen "git status --ignored" gegenpruefen.
+# *This once read "*.local", which silently excluded etc/fail2ban/jail.local - a
+#  file install/10-basis.sh requires. The push looked fine; the failure would
+#  only surface on the next fresh install. Check extension patterns against
+#  "git status --ignored".*
 
 # Erzeugte Panel-Daten
 panel/konfig.json
