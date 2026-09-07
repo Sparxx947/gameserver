@@ -148,11 +148,20 @@ Repositorium. Eine Kopie gehört an einen zweiten Ort außerhalb dieses Servers 
 geht die Maschine verloren, ist ein verschlüsseltes Repositorium ohne sie
 wertlos.
 
+**Mit `BORG_REPO=aus`** entfällt all das: kein `borg`, keine Passphrase, kein
+Probelauf, die Timer bleiben abgeschaltet. Eingesetzt werden trotzdem die
+Ausschlussliste — `spiel-verwalten` braucht sie bei jeder Installation und
+Deinstallation — und die systemd-Einheiten, damit das Einschalten später eine
+Zeile in `konfiguration.env` und ein erneuter Lauf dieser Stufe ist. Einzelheiten
+in `docs/05-sicherung.md`.
+
 > *Stage 50: Borg, passphrase, exclusion list, both schedules — and a real test
 > run whose result is inspected. If it fails, the stage aborts: an unverified
 > backup is a guess. The passphrase is the only key to the repository; keep a
 > copy off this machine, or an encrypted repository becomes worthless when the
-> host is lost.*
+> host is lost. With `BORG_REPO=aus` none of this happens and the timers stay
+> off; the exclusion list and the units are still installed, so switching on
+> later is one line plus a re-run of this stage.*
 
 ### 60 — Die handgepflegten Server
 

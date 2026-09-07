@@ -344,3 +344,52 @@ nicht einig, wird **nichts** geschrieben und der alte Eintrag bleibt stehen.
 > (carrier NAT and Tailscale both live there, and the measurement would be
 > worthless either way), and why nothing at all is written when two sources fail
 > to agree.*
+## E22 — Die Sicherung lässt sich abschalten, aber nicht heimlich
+
+**Naheliegend:** Die Sicherung als Pflicht behandeln. Wer den Server aufbaut,
+soll eben ein Sicherungsziel haben.
+
+**Dagegen:** Das trifft die Wirklichkeit nicht. Beim ersten Aufbau gibt es das
+Ziel oft noch nicht, und Stufe 50 bricht dann ab — mitten in einer Einrichtung,
+die sonst durchliefe. Wer weiterkommen will, kommentiert die Stufe aus oder
+trägt ein Repository ein, das es nicht gibt. Beides ist schlechter als ein
+Schalter, weil danach niemand mehr sagen kann, was der Zustand der Maschine ist.
+
+**Stattdessen:** `BORG_REPO=aus`. Kein `borg`, keine Passphrase, keine Timer,
+keine Archivwege in der Oberfläche, keine letzte Sicherung beim Löschen.
+
+**Der Schalter ist der Wert selbst, keine zweite Variable.** Ein zusätzliches
+`SICHERUNG=ja/nein` neben `BORG_REPO` könnte sich widersprechen — „Sicherung an,
+aber wohin?" — und man müsste entscheiden, welche der beiden recht hat. Ein Wert
+kann das nicht.
+
+**Und das Wichtigste:** Der gefährliche Zustand ist nicht „abgeschaltet", sondern
+„abgeschaltet, und keiner weiß es". Ein Backup, auf das man sich verlässt, ohne
+dass es existiert, ist schlimmer als eines, von dem man weiß, dass es fehlt —
+derselbe Gedanke wie bei einer Dokumentation, die vom System abweicht. Deshalb:
+Warnkasten auf der Übersicht, ausdrücklicher Hinweis auf der Löschbestätigung
+*vor* dem Klick, und `abgleich.sh` prüft, ob die Timer **laufen** — eingesetzte,
+aber abgeschaltete Einheiten sähen im reinen Dateivergleich tadellos aus.
+
+**Was bewusst bleibt:** Die Ausschlussliste. `spiel-verwalten` liest und schreibt
+sie bei jeder Installation und Deinstallation; fehlte sie, bräche die
+Deinstallation mitten im Ablauf ab und ließe Reste stehen — genau der Abbruch,
+der schon einmal aus einem anderen Grund passiert ist (siehe `panel.service`,
+`ProtectSystem`).
+
+> *Obvious: treat backups as mandatory. Against: that does not match reality —
+> on a first build the target often does not exist yet, stage 50 aborts, and
+> people either comment the stage out or enter a repository that is not there.
+> Both are worse than a switch, because afterwards nobody can say what state the
+> machine is in. Instead: `BORG_REPO=aus`. The switch is the value itself rather
+> than a second variable, because two variables can contradict each other and one
+> cannot. Most importantly, the dangerous state is not "off" but "off and nobody
+> knows": a backup people rely on without it existing is worse than one they know
+> is missing — the same reasoning as documentation that drifts from the system.
+> Hence a warning box on the overview, an explicit note on the delete
+> confirmation before the click, and `abgleich.sh` checking that the timers
+> actually run, since installed-but-disabled units would look perfect in a pure
+> file comparison. The exclusion list deliberately stays: `spiel-verwalten` reads
+> and writes it on every install and uninstall, and its absence would abort an
+> uninstall mid-way, leaving remnants behind — exactly the abort that has already
+> happened once for a different reason.*

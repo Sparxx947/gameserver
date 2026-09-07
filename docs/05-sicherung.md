@@ -8,6 +8,50 @@ Minuten für laufende Server, täglich vollständig.
 
 ---
 
+## Sicherung abschalten
+
+`BORG_REPO=aus` in `konfiguration.env` schaltet die Sicherung **vollständig** ab:
+kein `borg`, keine Passphrase, keine Timer, keine Archivliste in der
+Oberfläche — und beim Löschen eines Spielservers auch **keine letzte
+Sicherung**. Gedacht für den Zustand, in dem es noch kein Sicherungsziel gibt.
+
+Der Schalter ist der **Wert** von `BORG_REPO` und keine zweite Variable. Zwei
+Variablen können sich widersprechen („Sicherung an, aber wohin?"), eine nicht.
+
+Was dabei bewusst **nicht** verschwindet:
+
+* `/etc/borg-ausschluss.txt` wird weiterhin eingesetzt und gepflegt.
+  `spiel-verwalten` liest und schreibt sie bei jeder Installation und
+  Deinstallation; fehlte sie, bräche die Deinstallation mitten im Ablauf ab.
+* Die systemd-Einheiten liegen weiterhin auf der Maschine, nur abgeschaltet.
+  Einschalten ist dann eine Zeile in `konfiguration.env` plus
+  `install/50-sicherung.sh`.
+
+Und was dabei **sichtbar** wird: Die Übersicht trägt einen Warnkasten, und die
+Löschbestätigung eines Spielservers sagt ausdrücklich, dass der Stand danach weg
+ist. Der gefährliche Zustand ist nicht „abgeschaltet", sondern „abgeschaltet, und
+keiner weiß es" — dann verlässt man sich auf ein Netz, das nicht da ist.
+
+`werkzeuge/abgleich.sh` prüft nicht nur die Dateien, sondern ob die Timer
+**laufen**: eingesetzte, aber abgeschaltete Einheiten sehen im Dateivergleich
+tadellos aus, während nichts gesichert wird.
+
+> *`BORG_REPO=aus` disables backups entirely: no borg, no passphrase, no timers,
+> no archive list in the panel, and no final backup when a game server is
+> deleted. The switch is the value of `BORG_REPO` rather than a second variable,
+> because two variables can contradict each other and one cannot. Two things
+> deliberately stay: the exclusion list, which `spiel-verwalten` reads and writes
+> on every install and uninstall and whose absence would abort an uninstall
+> mid-way; and the systemd units, merely disabled, so switching on later is one
+> line plus a re-run of stage 50. Two things become visible: a warning box on the
+> overview and an explicit note on the delete confirmation. The dangerous state
+> is not "off" but "off and nobody knows", because then people rely on a safety
+> net that is not there. `abgleich.sh` checks that the timers actually run, not
+> just that the files match — installed but disabled units look perfect in a file
+> comparison while nothing is backed up.*
+
+---
+
 ## Was gesichert wird — und was nicht
 
 Gesichert werden **Spielstände, Serverkonfiguration und die compose-Dateien**.

@@ -15,9 +15,28 @@
 #     --alle       auch gestoppte Spiele sichern (fuer den taeglichen Lauf)
 #     --nur <name> nur dieses eine Spiel/den Dienst
 set -o pipefail
+REPO="@@BORG_REPO@@"
+
+# Abgeschaltete Sicherung (BORG_REPO=aus). Die Pruefung steht VOR dem Lesen der
+# Passphrase: die Datei gibt es dann gar nicht, und ein "cat: kein Zugriff"
+# waere eine irrefuehrende Fehlermeldung fuer einen gewollten Zustand.
+#
+# Rueckgabe 0, nicht 1: spiel-verwalten ruft dieses Skript vor dem Loeschen
+# eines Servers und bricht bei einem Fehlschlag ab. Ein Rueckgabewert 1 wuerde
+# also das Deinstallieren unmoeglich machen, obwohl gar nichts kaputt ist. Dass
+# es hier keine letzte Sicherung gibt, sagt stattdessen die Bestaetigungsseite —
+# vor dem Klick, nicht danach.
+# *Checked before reading the passphrase, which does not exist in this mode.
+#  Returns 0 on purpose: spiel-verwalten aborts an uninstall when this fails,
+#  and nothing is broken here. The missing safety net is stated on the
+#  confirmation page instead — before the click, not after.*
+if [ "$REPO" = "aus" ]; then
+  echo "Sicherung ist abgeschaltet (BORG_REPO=aus) - es wird nichts gesichert." >&2
+  exit 0
+fi
+
 export BORG_PASSPHRASE=$(cat /root/.borg-passphrase)
 export BORG_RSH="ssh -o BatchMode=yes -o ConnectTimeout=15"
-REPO="@@BORG_REPO@@"
 ZEIT=$(date +%Y%m%d-%H%M%S)
 
 ALLE=0; NUR=""

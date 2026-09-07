@@ -33,7 +33,7 @@ Datei.
 | Webterminal | `ttyd` auf `127.0.0.1:7681`, vorgeschaltete Prüfung der Panel-Sitzung durch Caddy |
 | HTTPS | Caddy, Zertifikat automatisch, nur HTTP/1.1 |
 | Rechteübergang | genau ein `sudo`-Eintrag: `panel` darf `panel-aktion` aufrufen, sonst nichts |
-| Sicherung | Borg über Tailscale, alle 15 min inkrementell, täglich vollständig |
+| Sicherung | Borg über Tailscale, alle 15 min inkrementell, täglich vollständig — mit `BORG_REPO=aus` abschaltbar |
 | DNS | Cloudflare, ein CNAME je Spiel auf einen einzigen A-Eintrag |
 | Firewall | ufw (alles zu) + fail2ban; Spielports macht Docker selbst auf |
 
@@ -216,7 +216,7 @@ Zeit gekostet haben.
 * Debian 12 (bookworm) mit root-Zugang
 * Eine öffentliche IPv4 und ein DNS-Name, der darauf zeigt (für das Zertifikat)
 * Für die Sicherung: ein erreichbares Borg-Ziel, empfohlen über ein privates
-  Netz wie Tailscale
+  Netz wie Tailscale — oder `BORG_REPO=aus`, dann wird nicht gesichert
 * Für DNS: ein Cloudflare-Token mit `Zone / DNS / Bearbeiten`, begrenzt auf die
   eigene Zone
 
