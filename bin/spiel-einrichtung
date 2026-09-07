@@ -34,9 +34,20 @@ PW_MUSTER    = re.compile(r"^(?!.*(?:admin|rcon|steam|api|web|db|sql|mysql|token
 # sprechen den Server darueber an - ein fremder Wert bricht ihnen die Steuerung.
 ADMIN_MUSTER = re.compile(r"^(?!.*rcon)(?:.*(?:admin|owner).*(?:password|passwort|passwd|psw)|"
                           r".*(?:password|passwd|psw).*admin)", re.I)
+# Trennzeichen sind BELIEBIG: Minecraft schreibt "max-players", andere
+# "max_players", "maxPlayers" oder "MaxPlayerCount". Die erste Fassung kannte nur
+# Unterstrich und Zusammenschreibung - "max-players" fiel durch, die Spielerzahl
+# blieb auf 20 stehen, und weil der Erfolg damals allein am Passwort haengte,
+# meldete der Lauf trotzdem "fertig" (gemessen 2026-09-07).
+# *Separators are arbitrary: Minecraft writes "max-players", others "max_players"
+#  or "MaxPlayerCount". The first version knew only underscore and concatenation,
+#  so "max-players" slipped through and the player limit silently stayed at 20 -
+#  while the run still reported success, because success depended on the password
+#  alone.*
 SPIELER_MUSTER = re.compile(r"^(?!.*(?:reserved|min))"
-                            r".*(?:maxplayer|max_player|maxclients|max_clients|maxconnect|"
-                            r"playerlimit|serverplayers|slots|maxplayercount|player_count)", re.I)
+                            r".*(?:max[-_. ]?player|max[-_. ]?client|max[-_. ]?connect|"
+                            r"max[-_. ]?user|player[-_. ]?limit|server[-_. ]?player|"
+                            r"slots|player[-_. ]?count)", re.I)
 UEBERSPRINGEN = re.compile(r"(steamapps|steamcmd|/logs?/|/Content/|/Binaries/|/Engine/|"
                            r"\.wine|/Saved/Logs|node_modules|/backups?/)", re.I)
 
@@ -213,11 +224,30 @@ def lauf(nur=None):
         per_env = p.get("passwort_art") in ("env", "params", "keins")
         fertig = per_env or bool(erg["passwort"])
 
+        # Die Spielerzahl wird SEPARAT bewertet. Vorher haing der gemeldete
+        # Erfolg allein am Passwort: Minecraft bekam "ueber die Umgebung
+        # gesetzt", waehrend max-players unangetastet auf 20 stand. Eine
+        # Teilaufgabe, die niemand bilanziert, faellt lautlos aus.
+        # *The player limit is judged separately. Previously success depended on
+        #  the password alone: Minecraft reported "set via the environment" while
+        #  max-players sat untouched at 20. A subtask nobody accounts for fails
+        #  silently.*
+        spieler_offen = not erg["spieler"]
+
         p["einrichtung_gefunden"] = erg
         if fertig:
             p["einrichtung_offen"] = False
-            p["einrichtung_stand"] = ("über die Umgebung gesetzt" if per_env else
-                                      "gesetzt in " + ", ".join(sorted(set(erg["passwort"]))[:4]))
+            stand = ("über die Umgebung gesetzt" if per_env else
+                     "gesetzt in " + ", ".join(sorted(set(erg["passwort"]))[:4]))
+            # Die Spielerzahl haengt hinten an, damit sie in derselben Zeile
+            # sichtbar wird, die das Panel ohnehin anzeigt. Wortlaut mit "NICHT",
+            # weil app.py genau darauf die Warnung aufhaengt.
+            # *Appended to the same line the panel already displays; the wording
+            #  carries "NICHT" because app.py keys its warning off it.*
+            if spieler_offen and p.get("spieler"):
+                stand += (f"; Spielerzahl NICHT gesetzt (Soll {p['spieler']}) - "
+                          "kein passendes Feld gefunden, bitte von Hand setzen")
+            p["einrichtung_stand"] = stand
             if erg["passwort"] or erg["spieler"] or erg["admin"]:
                 neustart(stack)
         elif alter_h > ENDLOS_NACH_H:

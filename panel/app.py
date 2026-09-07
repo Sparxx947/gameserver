@@ -390,6 +390,15 @@ def uebersicht(request: Request):
         elif pi and "KEIN Passwortfeld" in pi.get("einrichtung_stand", ""):
             adresse += ('<div class=warn>Ohne Beitrittspasswort! '
                         + pi.get("einrichtung_stand", "") + '</div>')
+        # Eigene Bedingung fuer die Spielerzahl: sie kann fehlschlagen, waehrend
+        # das Passwort steht. Frueher fiel das unter den Tisch, weil nur der
+        # Passwort-Fall geprueft wurde - Minecraft lief mit 20 Plaetzen statt 4.
+        # *Own branch: the player limit can fail while the password succeeded.
+        #  This used to go unnoticed, and Minecraft ran with 20 slots instead
+        #  of 4.*
+        elif pi and "Spielerzahl NICHT" in pi.get("einrichtung_stand", ""):
+            adresse += ('<div class=warn>Spielerzahl nicht gesetzt: '
+                        + pi.get("einrichtung_stand", "") + '</div>')
         if an:
             benutzt, grenze = (nach_bytes(x) for x in (mem.split("/") + ["0"])[:2])
             cpu_wert = float(cpu.rstrip("%") or 0)

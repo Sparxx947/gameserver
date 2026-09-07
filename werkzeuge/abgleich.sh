@@ -67,6 +67,24 @@ for p in "${PAARE[@]}"; do
   if ! ssh "$ZIEL" "test -f '$fern'" 2>/dev/null; then
     printf '  FEHLT auf dem Server  %s\n' "$fern"; fehlt=$((fehlt+1)); continue
   fi
+  # Die Ausschlussliste traegt zur Laufzeit angehaengte Bloecke je installiertem
+  # Spiel ("# >>> panel:<name> ... # <<< panel:<name>"). Sie beschreiben den
+  # Bestand DIESER Maschine, nicht den Bauplan — beim Vergleich also ausblenden,
+  # sonst schlaegt der Abgleich nach jeder Installation an und man gewoehnt sich
+  # daran, ihn zu uebergehen.
+  # *The exclusion list gains runtime blocks per installed game. They describe
+  #  this machine's inventory, not the blueprint — filtered out here, otherwise
+  #  the comparison fires after every install and people learn to ignore it.*
+  entblocken() { sed '/^# >>> panel:/,/^# <<< panel:/d'; }
+  if [ "$fern" = "/etc/borg-ausschluss.txt" ]; then
+    lv=$(rendern "$lokal" | entblocken); fv=$(ssh "$ZIEL" "cat '$fern'" | entblocken)
+    if [ "$lv" = "$fv" ]; then gleich=$((gleich+1)); else
+      echo "  ABWEICHUNG            $fern"
+      diff -u <(printf '%s\n' "$lv") <(printf '%s\n' "$fv") | sed -n '3,23p' | sed 's/^/      /'
+      anders=$((anders+1))
+    fi
+    continue
+  fi
   if diff -q <(rendern "$lokal") <(ssh "$ZIEL" "cat '$fern'") >/dev/null 2>&1; then
     gleich=$((gleich+1))
   else
