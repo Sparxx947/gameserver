@@ -43,7 +43,7 @@ while read -r f; do
   git ls-files --error-unmatch "$f" >/dev/null 2>&1 \
     || { echo "  NICHT VERFOLGT: $f  ($(git check-ignore -v "$f" 2>/dev/null || echo 'nicht eingecheckt'))"; fehler=1; }
 done < <(find bin etc install panel/app.py panel/requirements.txt panel/bilder \
-              stacks systemd werkzeuge konfiguration.env.beispiel README.md docs \
+              stacks systemd werkzeuge konfiguration.env.beispiel README.md docs VERSION \
               -type f 2>/dev/null | grep -vE '/katalog/|\.jpg$|__pycache__|\.pyc$')
 
 # --- 3. Skripte muessen syntaktisch heil sein -------------------------------
@@ -60,6 +60,32 @@ python3 -c "import ast;ast.parse(open('panel/app.py').read())" 2>/dev/null \
   || { echo "  SYNTAXFEHLER: panel/app.py"; fehler=1; }
 python3 -c "import json;json.load(open('etc/spiele-katalog.json'))" 2>/dev/null \
   || { echo "  UNGUELTIGES JSON: etc/spiele-katalog.json"; fehler=1; }
+
+# --- 3b. Jedes Werkzeug aus bin/ muss auch eingebaut werden -----------------
+# Warum es das gibt: bin/konfig-datei stand im Repositorium, wurde von
+# panel-aktion aufgerufen und von abgleich.sh verglichen — aber von KEINER
+# Einrichtungsstufe nach /usr/local/bin gelegt. Auf einer frisch aufgebauten
+# Maschine waere der Konfigdatei-Editor tot gewesen ("exec: not found"), und auf
+# der laufenden fiel es nicht auf, weil die Datei einmal von Hand ausgerollt
+# worden war. Genau die Sorte Luecke, die erst bei der Neueinrichtung auffaellt.
+#
+# *Why this exists: bin/konfig-datei sat in the repository, was called by
+#  panel-aktion and compared by abgleich.sh — but installed by no stage. On a
+#  freshly built machine the config-file editor would simply not exist, while on
+#  the running one it went unnoticed because the file had once been rolled out by
+#  hand. Exactly the kind of gap that surfaces only during a fresh install.*
+echo "== Wird jedes Werkzeug aus bin/ auch eingebaut? =="
+eingebaut=$(grep -rhoE 'for w in [a-z0-9 -]+; do|einsetzen "\$REPO/bin/[a-z-]+"' install/*.sh \
+            | sed -E 's/for w in //; s/; do//; s|einsetzen "\$REPO/bin/||; s/"//' \
+            | tr ' ' '\n' | sort -u)
+for f in bin/*; do
+  n=$(basename "$f")
+  # Here-String, keine Pipe: "grep -q" beendet sich beim ersten Treffer, die
+  # schreibende Seite bekaeme SIGPIPE und mit pipefail gaelte die Pipeline als
+  # gescheitert.
+  grep -qx "$n" <<<"$eingebaut" \
+    || { echo "  NICHT EINGEBAUT: bin/$n wird von keiner Stufe nach /usr/local/bin gelegt"; fehler=1; }
+done
 
 # --- 4. Kein Geheimnis, keine Standortdaten ---------------------------------
 # Die Ausnahmen sind eng gehalten und einzeln begruendet — eine breite

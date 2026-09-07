@@ -25,6 +25,110 @@ for v in "${VARIABLEN[@]}"; do
   [ -n "${!v}" ] || fehler "konfiguration.env: \$$v ist leer"
 done
 
+# SERVER_IPV4 traegt zwei zulaessige Bedeutungen: eine feste oeffentliche
+# Adresse, oder das Wort "dynamic" fuer eine wechselnde. Alles andere ist ein
+# Tippfehler oder ein Missverstaendnis - insbesondere ein DDNS-Name. Der wurde
+# hier bis dahin klaglos angenommen und wirkte nirgends: die Adresse traegt
+# allein der A-Eintrag DNS_ZIEL bei Cloudflare. Ein Wert, der still nichts tut,
+# ist schlimmer als ein Fehler, weil man ihn fuer erledigt haelt.
+# *SERVER_IPV4 accepts a fixed public address or the word "dynamic". Anything
+#  else - a DDNS hostname in particular - used to be accepted silently and did
+#  nothing at all, because only the DNS_ZIEL A record carries the address. A
+#  value that quietly does nothing is worse than an error: it looks handled.*
+ist_ipv4() {
+  local ip="$1" o a b c d
+  [[ "$ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || return 1
+  IFS=. read -r a b c d <<<"$ip"
+  for o in "$a" "$b" "$c" "$d"; do [ "$o" -le 255 ] || return 1; done
+  return 0
+}
+if [ "$SERVER_IPV4" = "dynamic" ]; then
+  IP_DYNAMISCH=ja
+elif ist_ipv4 "$SERVER_IPV4"; then
+  IP_DYNAMISCH=nein
+else
+  fehler "konfiguration.env: SERVER_IPV4=\"$SERVER_IPV4\" ist weder eine IPv4" \
+         "noch das Wort \"dynamic\". Ein DNS-Name gehoert hier nicht hin - bei" \
+         "wechselnder Adresse \"dynamic\" eintragen, dann pflegt der Server den" \
+         "A-Eintrag $DNS_ZIEL selbst (siehe docs/06-netz-dns-firewall.md)."
+fi
+# BORG_REPO=aus schaltet die Sicherung vollstaendig ab: kein borg, keine
+# Passphrase, keine Timer, keine Archivliste in der Oberflaeche.
+#
+# Der Schalter ist bewusst der WERT von BORG_REPO und keine zweite Variable.
+# Zwei Variablen koennen sich widersprechen ("Sicherung an, aber wohin?"), eine
+# nicht. Und der gefaehrliche Zustand ist nicht "abgeschaltet", sondern
+# "abgeschaltet, und keiner weiss es": deshalb sagt es die Oberflaeche auf jeder
+# Seite, und deshalb sagt es die Loeschbestaetigung eines Spielservers.
+# *BORG_REPO=aus disables backups entirely. Deliberately the VALUE of BORG_REPO
+#  rather than a second variable: two variables can contradict each other, one
+#  cannot. The dangerous state is not "off" but "off and nobody knows", so the
+#  panel says so on every page and the uninstall confirmation says so too.*
+if [ "$BORG_REPO" = "aus" ]; then SICHERUNG_AN=nein; else SICHERUNG_AN=ja; fi
+
+# --- Version ----------------------------------------------------------------
+# Bis hierher liess sich die Frage "welcher Stand laeuft da eigentlich?" nur
+# ueber einen Dateivergleich beantworten. Das sagt zwar genau, WAS abweicht,
+# aber nicht, WELCHE Fassung dort ausgerollt wurde - und beim Nachsehen in einem
+# Fehlerfall ist genau das die erste Frage.
+#
+# Der Stempel nennt die Fassung, den Commit und ob seither einzelne Dateien von
+# Hand nachgerollt wurden. Er wird ERZEUGT und nicht kopiert, steht deshalb
+# nicht in der Dateiliste von abgleich.sh, sondern hat dort eine eigene
+# Pruefung - wie die ttyd-Version.
+#
+# *Until now "which state is actually running?" could only be answered by
+#  comparing files: that says exactly WHAT differs but not WHICH release was
+#  deployed, and in an incident that is the first question. The stamp names the
+#  release, the commit, and whether single files have been rolled out by hand
+#  since. It is generated rather than copied, so it has its own check.*
+VERSIONSDATEI=/etc/gameserver-version
+
+version_stempeln() {   # version_stempeln [sauber|geaendert]
+  local stand="${1:-sauber}" v c
+  # Nur die erste Zeile, ohne Leerraum: eine VERSION-Datei mit einer zweiten
+  # Zeile wuerde den Stempel sonst zerlegen und aus "VERSION=1.0.0" zwei
+  # Zeilen machen, von denen die zweite kein Schluessel=Wert mehr ist.
+  # *First line only: a stray second line would break the stamp's key=value
+  #  format.*
+  v=$(head -1 "$REPO/VERSION" 2>/dev/null | tr -d '[:space:]') || v=""
+  [ -n "$v" ] || v=unbekannt
+  # git steht NICHT in den Grundpaketen von Stufe 10 - es ist auf der Maschine
+  # also nicht garantiert. Fehlt es, wird das benannt statt geraten.
+  # *git is not among the base packages, so it may be absent; say so instead of
+  #  guessing.*
+  if c=$(git -C "$REPO" rev-parse --short HEAD 2>/dev/null); then
+    git -C "$REPO" diff --quiet HEAD 2>/dev/null || stand=geaendert
+  else
+    c=unbekannt
+  fi
+  printf 'VERSION=%s\nCOMMIT=%s\nSTAND=%s\nDATUM=%s\n' \
+         "$v" "$c" "$stand" "$(date -Is)" > "$VERSIONSDATEI"
+  chmod 0644 "$VERSIONSDATEI"
+}
+
+# Wird von einsetzen() gerufen: sobald eine Stufe einzeln laeuft, stimmt der
+# Stempel nicht mehr genau. einrichten.sh schreibt ihn nach ALLEN Stufen neu und
+# setzt ihn damit wieder auf "sauber" - die Markierung bleibt also nur stehen,
+# wenn wirklich einzeln nachgearbeitet wurde.
+# *Called by einsetzen(): a single stage run makes the stamp inexact.
+#  einrichten.sh rewrites it after all stages, so the mark survives only when
+#  something really was done piecemeal.*
+version_markieren() {
+  [ -f "$VERSIONSDATEI" ] || return 0
+  # Kein "sed -i": das braucht auf BSD ein Argument und scheitert dort still.
+  # Der Stempel wird auf der Maschine geschrieben, also mit GNU sed - aber ein
+  # Aufruf, der bei der kleinsten Abweichung wortlos nichts tut, ist genau die
+  # Sorte Fehler, die man erst bemerkt, wenn man sich auf die Auskunft verlaesst.
+  # Ueber eine Zwischendatei ersetzen: portabel und atomar.
+  # *No "sed -i": on BSD it needs an argument and fails silently. A call that
+  #  quietly does nothing is exactly the kind of fault one notices only when
+  #  relying on its answer. Via a temporary file: portable and atomic.*
+  local tmp="$VERSIONSDATEI.neu"
+  sed 's/^STAND=.*/STAND=geaendert/' "$VERSIONSDATEI" > "$tmp" \
+    && chmod 0644 "$tmp" && mv "$tmp" "$VERSIONSDATEI"
+}
+
 # einsetzen <quelle> <ziel> [modus] [eigentuemer]
 #
 # Kopiert eine Repo-Datei nach <ziel> und ersetzt dabei jeden @@PLATZHALTER@@.
@@ -43,6 +147,7 @@ einsetzen() {
   fi
   rendern "$quelle" > "$ziel"
   chmod "$modus" "$ziel"; chown "$eigner" "$ziel"
+  version_markieren
   log "$ziel"
 }
 

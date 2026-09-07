@@ -88,11 +88,32 @@ cf-dns setzen <name>        CNAME <name>.<zone> -> <ziel>, dns-only
 cf-dns entfernen <name>
 cf-dns liste
 cf-dns pruefen              meldet Einträge, die fälschlich proxied sind
+cf-dns ziel-zeigen          misst die eigene IPv4, vergleicht mit dem A-Eintrag
+cf-dns ziel-setzen          trägt die gemessene IPv4 als A-Eintrag ein
 ```
 
 Fragt **nur die API**, nie die Namensauflösung — ein Wildcard in der Zone würde
 jede Existenzprüfung per `dig` wertlos machen. Löscht nur Einträge, die
 tatsächlich auf `DNS_ZIEL` zeigen. Erzwingt IPv4.
+
+`ziel-zeigen` ändert nichts und gibt **1** zurück, sobald der A-Eintrag von der
+gemessenen Adresse abweicht — so lässt es sich als Prüfung verwenden.
+`ziel-setzen` ist der Schreibweg und wird von `dns-ziel.timer` gerufen; ohne
+`SERVER_IPV4=dynamic` läuft dieser Timer nicht.
+
+Die Adresse kommt **nicht aus einer einzelnen Quelle**: drei unabhängige
+Auskunftsstellen werden befragt, und erst wenn zwei dieselbe Antwort geben, wird
+geschrieben. Eine Adresse aus `100.64.0.0/10` wird verworfen — sie bedeutet
+entweder Provider-NAT (dann gibt es gar keine eigene öffentliche IPv4) oder die
+Anfrage lief durch Tailscale.
+
+> *`ziel-zeigen` changes nothing and returns 1 as soon as the A record differs
+> from the measured address, so it doubles as a check. `ziel-setzen` is the
+> writing path, called by `dns-ziel.timer`, which only runs with
+> `SERVER_IPV4=dynamic`. The address never comes from a single source: three
+> independent services are asked and two must agree before anything is written.
+> An address from `100.64.0.0/10` is rejected — it means either carrier NAT (no
+> public IPv4 of one's own) or that the request went through Tailscale.*
 
 ### `katalog-vorpruefung`
 
@@ -264,6 +285,130 @@ Fehler, nicht das Vergessen.
 > replacing atomically; aborts on a left-over placeholder or unknown target. It
 > exists because two files were scp'd across untouched in a single day.*
 
+### Die Fassung
+
+`VERSION` im Wurzelverzeichnis nennt die Fassung dieses Bausatzes. Beim
+Einrichten entsteht daraus `/etc/gameserver-version` auf der Maschine:
+
+```
+VERSION=1.0.0
+COMMIT=d18d650
+STAND=sauber
+DATUM=2026-09-07T18:42:11+02:00
+```
+
+`abgleich.sh` vergleicht die Fassung und meldet eine **Abweichung**, wenn sie
+nicht stimmt oder der Stempel ganz fehlt.
+
+`STAND` sagt, ob seit der letzten vollen Einrichtung einzelne Dateien mit
+`ausrollen.sh` nachgezogen wurden. Das zählt **bewusst nicht** als Abweichung:
+einzeln nachzurollen ist der vorgesehene Arbeitsweg, und es jedes Mal als
+Abweichung zu melden hieße, eine Meldung zu erzeugen, die man sich abgewöhnt zu
+lesen. Was tatsächlich abweicht, findet der Dateivergleich ohnehin genau.
+
+Wann die Zahl steigt:
+
+| Stelle | wann |
+|---|---|
+| erste (`1.x.x`) | eine der vier nicht verhandelbaren Grenzen ändert sich, oder eine bestehende Einrichtung lässt sich nicht mehr ohne Handarbeit weiterbetreiben |
+| zweite (`x.1.x`) | neue Fähigkeit, neue Einrichtungsstufe, neue Variable in `konfiguration.env` |
+| dritte (`x.x.1`) | Fehlerbehebung, Dokumentation, nichts, wofür man etwas tun muss |
+
+Zur Fassung gehört ein Git-Tag auf `main`, nach dem Merge:
+
+```bash
+git tag -a v1.0.0 -m "Fassung 1.0.0" && git push origin v1.0.0
+```
+
+> *`VERSION` names the release of this kit; installing turns it into
+> `/etc/gameserver-version`, holding the release, the commit, whether single
+> files have been rolled out by hand since, and when. `abgleich.sh` reports a
+> deviation when the release differs or the stamp is missing. `STAND` is
+> deliberately not a deviation: rolling out single files is the intended
+> workflow, and flagging it every time would train people to ignore the message,
+> while actual drift is found precisely by the file comparison. The first digit
+> moves when one of the four non-negotiables changes or an existing installation
+> can no longer be carried forward without manual work; the second for new
+> capabilities, stages or configuration variables; the third for fixes and
+> documentation. Each release gets a git tag on `main` after the merge.*
+### `rueckbau.sh <ssh-ziel> [Stufen] [--wirklich]`
+
+Das Gegenstück zu `install/einrichten.sh`: entfernt von einer Maschine wieder,
+was dieses Repositorium dort einbaut.
+
+```
+werkzeuge/rueckbau.sh gameserver                        # zeigt nur den Plan
+werkzeuge/rueckbau.sh gameserver --wirklich             # Dienste und Programme
+werkzeuge/rueckbau.sh gameserver --mit-spielstaenden \
+                                 --mit-benutzern \
+                                 --mit-dns --wirklich   # alles
+```
+
+**Ohne `--wirklich` ändert es nichts**, sondern zeigt jeden Schritt mit dem
+Befehl, der ausgeführt würde. Mit `--wirklich` fragt es nach dem **Namen des
+Ziels** — nicht nach „ja": ein „ja" tippt man auch dann, wenn man versehentlich
+die falsche Maschine erwischt hat. Ohne Terminal bricht es ab, statt
+unbeaufsichtigt loszulaufen.
+
+Die Liste der systemd-Einheiten und der Werkzeuge entsteht **aus dem
+Repositorium selbst** (`systemd/` und `bin/`). Genau diese beiden Listen waren
+in der früheren Anleitung falsch: sie löschte keine einzige Unit-Datei, und in
+der Werkzeugliste fehlten zwei Einträge.
+
+Was ausdrücklich **stehen bleibt**: das Borg-Repository und
+`/root/.borg-passphrase` (der einzige Schlüssel dazu — wer sie löscht, macht
+jedes vorhandene Archiv wertlos), die ufw-Regeln und `sshd_config.d` (ein
+Zurücksetzen könnte den SSH-Zugang kappen), die Pakete, und `ADMIN_USER` — das
+ist der Zugang, über den gerade gearbeitet wird.
+
+Nach dem Lauf eine **Gegenprobe** samt **Kontrollwert**: nachgesehen wird, was
+noch da ist, und gleichzeitig, dass Docker, `ADMIN_USER` und die Passphrase
+*noch* da sind. Ohne den Kontrollwert wäre „nichts mehr gefunden" nicht von „die
+Maschine antwortet gar nicht mehr" zu unterscheiden.
+
+**Geprüft wird ein Rückbau nur so:** zurückbauen, `install/einrichten.sh` erneut
+laufen lassen, `abgleich.sh` muss grün sein. Auf einer Maschine, die man verlieren
+darf — auf keiner anderen.
+
+> *The counterpart to the installer. Without `--wirklich` it only prints the plan
+> and changes nothing; with it, it asks for the target's name rather than for
+> "yes", because people type "yes" even when they grabbed the wrong machine, and
+> it refuses to run without a terminal. The unit and tool lists are derived from
+> the repository itself — exactly the two lists the old written instructions had
+> wrong. The Borg repository and its passphrase, the firewall rules, the packages
+> and `ADMIN_USER` are deliberately left alone. Afterwards it verifies what
+> remains and measures a control value alongside, so "found nothing" cannot be
+> confused with "the machine stopped answering". The only real test of a teardown
+> is: tear down, run the installer again, and `abgleich.sh` must be green — on a
+> machine you can afford to lose.*
+### `aufraeumen.sh <ssh-ziel> [Stufen] [--wirklich]`
+
+Räumt alte `.vor-<datum>`-Kopien weg. Ohne `--wirklich` wird nur gezeigt, was
+entfernt würde, mitsamt der Menge, die das freimacht.
+
+```
+--behalte N            je Datei die N jüngsten Kopien behalten (Vorgabe: 3)
+--aelter-als T         nur löschen, was älter als T Tage ist (Vorgabe: 14)
+--mit-restore-kopien   auch die vollen Verzeichniskopien vor einem Restore
+```
+
+Gesucht wird nur in `/etc`, `/usr/local/bin`, `/opt/panel`, `/opt/stacks`,
+`/srv/games` und `/srv/dienste` — ein `find` über `/` wäre langsam und griffe
+Kopien an, die diese Einrichtung nie angelegt hat.
+
+Entschieden wird nach dem **Zeitstempel im Dateinamen**, nicht nach der `mtime`;
+Begründung in `docs/08-betrieb-und-stoerungen.md`. Nach dem Lauf eine Gegenprobe
+(sind die Kandidaten wirklich weg?) und ein Kontrollwert (steht je Datei noch
+mindestens eine Kopie?) — ohne den zweiten Teil fiele eine zu gierige Auswahl
+nicht auf.
+
+> *Removes old `.vor-<date>` copies, showing the plan and the space it frees
+> unless `--wirklich` is given. It keeps the newest N per file and deletes only
+> what is older than T days, searching known areas only. Decisions use the
+> timestamp in the filename, not `mtime`. Afterwards it verifies the candidates
+> are gone and measures a control value — that at least one copy still stands per
+> file — because otherwise an over-greedy selection would go unnoticed.*
+
 ### `vollstaendigkeit.sh`
 
 Prüft, ob das Repositorium alles enthält, was die Einrichtung anfasst: existiert
@@ -288,10 +433,11 @@ Notausgang `GAMESERVER_KEIN_GATE=1`.
 |---|---|---|
 | `panel.service` | dauerhaft | Weboberfläche, `User=panel`, uvicorn auf `127.0.0.1:8099` |
 | `ttyd.service` | dauerhaft | Webterminal, `User=<admin>`, `127.0.0.1:7681` |
-| `spiele-sicherung.timer` | `*:0/15`, ±60 s | Sicherung laufender Spiele |
-| `spiele-sicherung-voll.timer` | täglich 04:00, ±300 s | Vollsicherung |
+| `spiele-sicherung.timer` | `*:0/15`, ±60 s | Sicherung laufender Spiele (aus bei `BORG_REPO=aus`) |
+| `spiele-sicherung-voll.timer` | täglich 04:00, ±300 s | Vollsicherung (aus bei `BORG_REPO=aus`) |
 | `spiel-einrichtung.timer` | alle 2 min, ab 3 min nach dem Start | Passwörter frischer Server setzen |
 | `palworld-neustart.timer` | 05:30 und 17:30 | gegen das Speicherleck |
+| `dns-ziel.timer` | alle 5 min, ab 2 min nach dem Start, ±30 s | öffentliche IPv4 messen und den A-Eintrag nachziehen (nur bei `SERVER_IPV4=dynamic`) |
 
 `Persistent=true` bei allen Sicherungs- und Einrichtungs-Timern: Verpasste Läufe
 werden nachgeholt. **`Persistent=false` bei `palworld-neustart`**, mit Absicht —
@@ -364,15 +510,15 @@ Alle in `konfiguration.env`, alle Pflicht:
 | Variable | Beispiel | Wo sie landet |
 |---|---|---|
 | `DNS_ZONE` | `beispiel.de` | `cf-dns`, `app.py`, Beitrittsadressen |
-| `DNS_ZIEL` | `gs.beispiel.de` | `cf-dns` (CNAME-Ziel) |
-| `PANEL_DOMAIN` | `panel.beispiel.de` | `Caddyfile` |
-| `SERVER_IPV4` | `203.0.113.10` | `cf-dns` (Kommentar/Prüfung) |
+| `DNS_ZIEL` | `gs.beispiel.de` | `cf-dns` (CNAME-Ziel, A-Eintrag) |
+| `PANEL_DOMAIN` | `panel.beispiel.de` | `Caddyfile`, `cf-dns` |
+| `SERVER_IPV4` | `203.0.113.10` **oder** `dynamic` | schaltet `dns-ziel.timer` ein oder aus |
 | `WELT_NAME` | `meinserver` | Server- und Weltnamen in den Spielen |
 | `ADMIN_USER` | `admin` | `ttyd.service`, Benutzeranlage |
 | `ADMIN_NETZ` | `203.0.113.0/30` | `fail2ban` |
 | `ADMIN_IP` | `203.0.113.1` | `ufw`-Regel auf Port 22 |
-| `BORG_REPO` | `ssh://borg@…/…` | `spiele-sicherung`, `panel-aktion` |
-| `BORG_TAILSCALE_IP` | `100.100.100.100` | Dokumentation, Prüfungen |
+| `BORG_REPO` | `ssh://borg@…/…` **oder** `aus` | `spiele-sicherung`, `panel-aktion`, `spiel-verwalten`, `app.py`; `aus` schaltet die Sicherung ab |
+| `BORG_TAILSCALE_IP` | `100.100.100.100` | Dokumentation, Prüfungen (bei `BORG_REPO=aus` ebenfalls `aus`) |
 | `FREMD_IPV4` | `198.51.100.10` | Kommentar in `cf-dns` (Wildcard-Ziel) |
 
 Bleibt beim Einbau ein `@@PLATZHALTER@@` stehen, bricht die Einrichtung ab.

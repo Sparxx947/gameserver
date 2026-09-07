@@ -148,11 +148,20 @@ Repositorium. Eine Kopie gehört an einen zweiten Ort außerhalb dieses Servers 
 geht die Maschine verloren, ist ein verschlüsseltes Repositorium ohne sie
 wertlos.
 
+**Mit `BORG_REPO=aus`** entfällt all das: kein `borg`, keine Passphrase, kein
+Probelauf, die Timer bleiben abgeschaltet. Eingesetzt werden trotzdem die
+Ausschlussliste — `spiel-verwalten` braucht sie bei jeder Installation und
+Deinstallation — und die systemd-Einheiten, damit das Einschalten später eine
+Zeile in `konfiguration.env` und ein erneuter Lauf dieser Stufe ist. Einzelheiten
+in `docs/05-sicherung.md`.
+
 > *Stage 50: Borg, passphrase, exclusion list, both schedules — and a real test
 > run whose result is inspected. If it fails, the stage aborts: an unverified
 > backup is a guess. The passphrase is the only key to the repository; keep a
 > copy off this machine, or an encrypted repository becomes worthless when the
-> host is lost.*
+> host is lost. With `BORG_REPO=aus` none of this happens and the timers stay
+> off; the exclusion list and the units are still installed, so switching on
+> later is one line plus a re-run of this stage.*
 
 ### 60 — Die handgepflegten Server
 
@@ -182,20 +191,36 @@ Legt für jeden vorhandenen Stack einen CNAME auf `DNS_ZIEL` an und prüft
 anschließend, dass kein Eintrag `proxied` ist: Cloudflares Proxy kann nur HTTP
 und HTTPS, ein Spielport dahinter ist von außen tot.
 
-Der A-Eintrag `DNS_ZIEL` selbst wird **nicht** automatisch angelegt. Er ist der
-einzige Ort mit der IP-Adresse und gehört in die Hand eines Menschen.
+Setzt außerdem `dns-ziel.service` und `dns-ziel.timer` ein. Ob der Timer läuft,
+entscheidet `SERVER_IPV4`:
+
+* **feste IPv4** — der Timer bleibt aus, und der A-Eintrag `DNS_ZIEL` wird
+  **nicht** automatisch angelegt. Er ist dann der einzige Ort mit der Adresse und
+  gehört in die Hand eines Menschen.
+* **`dynamic`** — die Stufe misst die öffentliche IPv4 einmal sofort, legt den
+  A-Eintrag an oder zieht ihn nach und schaltet den Timer ein. Ab da geschieht
+  das alle fünf Minuten. Begründung in `docs/10-entscheidungen.md`, E21.
+
+Der Timer liegt in beiden Fällen auf der Maschine; ein Wechsel ist eine Zeile in
+`konfiguration.env` und ein erneuter Lauf dieser Stufe.
 
 > *Stage 70: needs a scoped Cloudflare token (Zone / DNS / Edit, own zone only —
 > never the global key). Creates one CNAME per stack pointing at `DNS_ZIEL` and
 > verifies nothing is proxied: Cloudflare's proxy only speaks HTTP(S), so a game
-> port behind it is dead. The `DNS_ZIEL` A record is deliberately not automated
-> — it is the single place holding the IP.*
+> port behind it is dead. It also installs `dns-ziel.service` and its timer.
+> With a fixed `SERVER_IPV4` the timer stays off and the `DNS_ZIEL` A record is
+> deliberately not automated — it is the single place holding the IP. With
+> `SERVER_IPV4=dynamic` the stage measures the public IPv4 once, creates or
+> updates the record and enables the timer, which then repeats every five
+> minutes. The timer is installed either way, so switching is one line in
+> `konfiguration.env` plus a re-run of this stage.*
 
 ---
 
 ## Nach der Installation prüfen
 
 ```bash
+cat /etc/gameserver-version                        # welche Fassung liegt hier
 systemctl is-active panel caddy ttyd docker fail2ban
 systemctl list-timers --no-pager | grep -E 'sicherung|einrichtung'
 curl -sI https://<PANEL_DOMAIN>/ | head -3        # 200 oder 303
@@ -223,20 +248,31 @@ cp /etc/caddy/Caddyfile.vor-20260907-101500 /etc/caddy/Caddyfile
 caddy validate --config /etc/caddy/Caddyfile && systemctl reload caddy
 ```
 
-Vollständig zurückbauen (Achtung, löscht Spielstände):
+Vollständig zurückbauen: **`werkzeuge/rueckbau.sh`**, nicht von Hand.
 
 ```bash
-docker compose -f /opt/stacks/<name>/compose.yaml down
-systemctl disable --now panel ttyd spiele-sicherung.timer \
-                        spiele-sicherung-voll.timer spiel-einrichtung.timer
-rm -rf /opt/panel /opt/stacks /srv/games /srv/dienste
-rm -f /etc/sudoers.d/panel /etc/spiele-katalog.json /etc/borg-ausschluss.txt
-rm -f /usr/local/bin/{cf-dns,katalog-vorpruefung,panel-aktion,spiel-einrichtung,spiel-verwalten,spiele-sicherung,ttyd}
+werkzeuge/rueckbau.sh gameserver                        # zeigt nur den Plan
+werkzeuge/rueckbau.sh gameserver --wirklich             # Dienste und Programme
+werkzeuge/rueckbau.sh gameserver --mit-spielstaenden \
+                                 --mit-benutzern \
+                                 --mit-dns --wirklich   # alles
 ```
 
-Das Borg-Repositorium bleibt dabei unangetastet — die Spielstände sind danach
-noch da.
+Hier stand früher eine abzutippende Befehlsliste. Sie war abgedriftet: sie
+löschte **keine einzige systemd-Einheit**, ließ Caddyfile, fail2ban-Regel,
+Cloudflare-Token und die Systembenutzer stehen, und in der Werkzeugliste fehlten
+zwei Einträge. Wer sie abtippte, hielt die Maschine danach für sauber. Das
+Skript leitet beide Listen aus dem Repositorium ab und kann deshalb nicht mehr
+auseinanderlaufen.
 
-> *Rollback: every stage backs up an existing target to `<file>.vor-<date>`, so
-> reverting is per file. The full teardown is listed above and deletes save
-> games; the Borg repository is untouched, so the saves still exist there.*
+Das Borg-Repositorium und `/root/.borg-passphrase` bleiben unangetastet — die
+Spielstände sind danach noch da, und ohne die Passphrase wären sie es nicht.
+Einzelheiten und die übrigen Ausnahmen in `docs/09-referenz.md`.
+
+> *Full teardown: use `werkzeuge/rueckbau.sh`, not a hand-typed list. What stood
+> here before had drifted — it removed no systemd unit at all, left the
+> Caddyfile, the fail2ban rule, the Cloudflare token and the system users behind,
+> and its tool list was missing two entries, so anyone following it believed the
+> machine was clean afterwards. The script derives both lists from the repository
+> and cannot drift again. The Borg repository and its passphrase are untouched,
+> so the saves survive — and without the passphrase they would not.*

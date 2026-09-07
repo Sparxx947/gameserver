@@ -62,6 +62,8 @@ PAARE=(
   "systemd/spiele-sicherung-voll.timer:/etc/systemd/system/spiele-sicherung-voll.timer"
   "systemd/palworld-neustart.service:/etc/systemd/system/palworld-neustart.service"
   "systemd/palworld-neustart.timer:/etc/systemd/system/palworld-neustart.timer"
+  "systemd/dns-ziel.service:/etc/systemd/system/dns-ziel.service"
+  "systemd/dns-ziel.timer:/etc/systemd/system/dns-ziel.timer"
 )
 
 gleich=0; anders=0; fehlt=0
@@ -99,12 +101,12 @@ for p in "${PAARE[@]}"; do
 done
 
 # --- Was kein einfacher Dateivergleich ist -----------------------------------
-# Drei Dinge gehoeren zur Reproduktion, liegen auf dem Server aber nicht als
+# Mehrere Dinge gehoeren zur Reproduktion, liegen auf dem Server aber nicht als
 # Datei gleichen Inhalts vor. Sie fehlten hier zunaechst — aufgefallen ist das
 # erst, als ein Dependabot-PR requirements.txt aenderte und ich den Abgleich von
 # Hand nachziehen musste. Eine Pruefung, die einen Bereich gar nicht ansieht,
 # meldet ihn als in Ordnung.
-# *Three things belong to the reproduction but do not exist as identical files on
+# *Several things belong to the reproduction but do not exist as identical files on
 #  the server. They were missing here at first, and it only showed when a
 #  Dependabot PR changed requirements.txt and the comparison had to be done by
 #  hand. A check that never looks at an area reports it as fine.*
@@ -171,6 +173,82 @@ else
   echo "  ABWEICHUNG            Katalogbilder: $(ssh "$ZIEL" '/usr/local/bin/katalogbilder-holen --pruefen' 2>/dev/null)"
   anders=$((anders+1))
 fi
+
+# 5. Die ausgerollte Fassung. Erzeugt, nicht kopiert - deshalb keine Zeile in
+#    PAARE, sondern eine eigene Pruefung wie bei ttyd.
+#
+#    STAND=geaendert zaehlt BEWUSST NICHT als Abweichung. Einzelne Dateien mit
+#    ausrollen.sh nachzuziehen ist der vorgesehene Arbeitsweg; das jedes Mal als
+#    Abweichung zu melden hiesse, eine Meldung zu erzeugen, die man sich
+#    abgewoehnt zu lesen. Was tatsaechlich abweicht, findet der Dateivergleich
+#    oben ohnehin genau.
+# *Generated, not copied, so it gets its own check. STAND=geaendert deliberately
+#  does not count as a deviation: rolling out single files is the intended
+#  workflow, and reporting it every time would train people to ignore the
+#  message. Actual drift is found precisely by the file comparison above.*
+SOLL_V=$(cat "$REPO/VERSION" 2>/dev/null || echo unbekannt)
+STEMPEL=$(ssh "$ZIEL" 'cat /etc/gameserver-version 2>/dev/null' || true)
+IST_V=$(grep -m1 '^VERSION=' <<<"$STEMPEL" | cut -d= -f2)
+IST_STAND=$(grep -m1 '^STAND=' <<<"$STEMPEL" | cut -d= -f2)
+IST_COMMIT=$(grep -m1 '^COMMIT=' <<<"$STEMPEL" | cut -d= -f2)
+if [ -z "$STEMPEL" ]; then
+  echo "  ABWEICHUNG            /etc/gameserver-version fehlt — Einrichtung lief vor der Versionierung"
+  anders=$((anders+1))
+elif [ "$SOLL_V" != "$IST_V" ]; then
+  echo "  ABWEICHUNG            Fassung: Repo hat $SOLL_V, Server hat ${IST_V:-nichts}"
+  anders=$((anders+1))
+else
+  gleich=$((gleich+1))
+  printf '  Fassung %s (Commit %s, Stand: %s)\n' "$IST_V" "${IST_COMMIT:-?}" "${IST_STAND:-?}"
+  [ "$IST_STAND" = "geaendert" ] && echo "    seit der letzten vollen Einrichtung wurden einzelne Dateien nachgerollt"
+fi
+
+# 6. Der Zeitgeber fuer den A-Eintrag. Die Datei allein sagt nichts darueber,
+#    ob er auch laeuft — und genau das ist der Unterschied zwischen fester und
+#    wechselnder Adresse. Ein eingesetzter, aber abgeschalteter Zeitgeber sieht
+#    im Dateivergleich tadellos aus und laesst die Adresse trotzdem veralten.
+# *The file alone says nothing about whether the timer runs, and that is exactly
+#  what separates fixed from dynamic mode. An installed but disabled timer looks
+#  perfect in a file comparison while the address goes stale.*
+if [ "$SERVER_IPV4" = "dynamic" ]; then SOLL_ZG=enabled; else SOLL_ZG=disabled; fi
+IST_ZG=$(ssh "$ZIEL" 'systemctl is-enabled dns-ziel.timer 2>/dev/null' || true)
+if [ "$IST_ZG" != "$SOLL_ZG" ]; then
+  echo "  ABWEICHUNG            dns-ziel.timer: SERVER_IPV4=$SERVER_IPV4 verlangt $SOLL_ZG, Server meldet ${IST_ZG:-nichts}"
+  anders=$((anders+1))
+else
+  gleich=$((gleich+1))
+fi
+
+# 7. Bei wechselnder Adresse: stimmt der A-Eintrag noch mit der tatsaechlichen
+#    Adresse ueberein? Gemessen wird auf dem Server, weil nur dort die richtige
+#    Leitung nach draussen liegt — von hier aus misst man die eigene.
+# *In dynamic mode, does the A record still match the real address? Measured on
+#  the server: from here one would measure this machine's address instead.*
+if [ "$SERVER_IPV4" = "dynamic" ]; then
+  if ausgabe=$(ssh "$ZIEL" '/usr/local/bin/cf-dns ziel-zeigen' 2>&1); then
+    gleich=$((gleich+1))
+  else
+    echo "  ABWEICHUNG            A-Eintrag und gemessene Adresse gehen auseinander"
+    sed 's/^/      /' <<<"$ausgabe"
+    anders=$((anders+1))
+  fi
+fi
+
+# 8. Zustand der Sicherungs-Timer. Die Einheiten liegen auch bei abgeschalteter
+#    Sicherung auf der Maschine — der Dateivergleich sieht dann tadellos aus,
+#    waehrend nichts gesichert wird. Was zaehlt, ist ob sie LAUFEN.
+# *The units are installed even with backups off, so the file comparison looks
+#  perfect while nothing is backed up. What counts is whether they run.*
+if [ "$BORG_REPO" = "aus" ]; then SOLL_SI=disabled; else SOLL_SI=enabled; fi
+for u in spiele-sicherung.timer spiele-sicherung-voll.timer; do
+  IST_SI=$(ssh "$ZIEL" "systemctl is-enabled $u 2>/dev/null" || true)
+  if [ "$IST_SI" != "$SOLL_SI" ]; then
+    echo "  ABWEICHUNG            $u: BORG_REPO=$BORG_REPO verlangt $SOLL_SI, Server meldet ${IST_SI:-nichts}"
+    anders=$((anders+1))
+  else
+    gleich=$((gleich+1))
+  fi
+done
 
 echo
 printf 'deckungsgleich: %d   abweichend: %d   fehlend: %d\n' "$gleich" "$anders" "$fehlt"

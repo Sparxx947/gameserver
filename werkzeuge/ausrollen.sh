@@ -67,8 +67,19 @@ for datei in "$@"; do
     [ -f '$pfad' ] && cp -a '$pfad' '$pfad.vor-$(date +%Y%m%d-%H%M%S)'
     cat > '$pfad.neu' && chmod $modus '$pfad.neu' && chown $eigner '$pfad.neu' \
       && mv '$pfad.neu' '$pfad'" \
-    && echo "ausgerollt: $datei -> $pfad" \
+    && { echo "ausgerollt: $datei -> $pfad"; ausgerollt=1; } \
     || { echo "FEHLGESCHLAGEN: $datei"; fehler=1; }
 done
+
+# Wurde etwas von Hand nachgerollt, stimmt der Versionsstempel nicht mehr genau:
+# die Fassung ist noch dieselbe, aber einzelne Dateien sind neuer. Genau das ist
+# spaeter die interessante Auskunft - "Version 1.0.0, aber da wurde noch
+# nachgearbeitet" ist etwas anderes als "Version 1.0.0".
+# *A hand-rolled file leaves the release name correct but individual files
+#  newer. "1.0.0, but touched since" is a different answer from "1.0.0".*
+if [ "${ausgerollt:-0}" -eq 1 ]; then
+  ssh "$ZIEL" "[ -f /etc/gameserver-version ] && sed -i 's/^STAND=.*/STAND=geaendert/' /etc/gameserver-version" \
+    || echo "Hinweis: kein Versionsstempel auf $ZIEL — Einrichtung lief vor der Versionierung."
+fi
 
 exit $fehler

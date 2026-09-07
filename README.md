@@ -33,7 +33,7 @@ Datei.
 | Webterminal | `ttyd` auf `127.0.0.1:7681`, vorgeschaltete Prüfung der Panel-Sitzung durch Caddy |
 | HTTPS | Caddy, Zertifikat automatisch, nur HTTP/1.1 |
 | Rechteübergang | genau ein `sudo`-Eintrag: `panel` darf `panel-aktion` aufrufen, sonst nichts |
-| Sicherung | Borg über Tailscale, alle 15 min inkrementell, täglich vollständig |
+| Sicherung | Borg über Tailscale, alle 15 min inkrementell, täglich vollständig — mit `BORG_REPO=aus` abschaltbar |
 | DNS | Cloudflare, ein CNAME je Spiel auf einen einzigen A-Eintrag |
 | Firewall | ufw (alles zu) + fail2ban; Spielports macht Docker selbst auf |
 
@@ -105,6 +105,59 @@ dass jemand sie bemerkt.
 > unreachable; it changes nothing. Documentation that has drifted is worse than
 > none, because people act on it — this finds the drift instead of hoping someone
 > notices.*
+
+### Welcher Stand läuft da eigentlich?
+
+```bash
+cat /etc/gameserver-version        # auf der Maschine
+werkzeuge/abgleich.sh gameserver   # vergleicht ihn mit diesem Repositorium
+```
+
+`VERSION` nennt die Fassung des Bausatzes; beim Einrichten entsteht daraus ein
+Stempel auf der Maschine mit Fassung, Commit, Datum und der Angabe, ob seither
+einzelne Dateien von Hand nachgerollt wurden.
+
+> *`VERSION` names the release; installing writes a stamp on the machine holding
+> the release, the commit, the date, and whether single files have been rolled
+> out by hand since. `abgleich.sh` compares it.*
+### Wieder abbauen
+
+```bash
+werkzeuge/rueckbau.sh gameserver              # zeigt nur den Plan
+werkzeuge/rueckbau.sh gameserver --wirklich   # führt ihn aus
+```
+
+Das Gegenstück zur Einrichtung. Ohne `--wirklich` ändert es nichts. Spielstände
+und Systembenutzer bleiben stehen, solange man sie nicht ausdrücklich mit
+`--mit-spielstaenden` und `--mit-benutzern` dazunimmt; das Borg-Repositorium und
+seine Passphrase werden **nie** angefasst.
+
+Die Listen der systemd-Einheiten und Werkzeuge entstehen aus dem Repositorium
+selbst. Die frühere Anleitung zum Abtippen war abgedriftet — sie löschte keine
+einzige Unit-Datei — und wer sie befolgte, hielt die Maschine danach für sauber.
+
+> *Teardown is the counterpart to the installer and changes nothing without
+> `--wirklich`. Save games and system users stay unless explicitly included, and
+> the Borg repository and its passphrase are never touched. The unit and tool
+> lists come from the repository itself: the earlier hand-typed instructions had
+> drifted and removed no unit file at all, leaving people believing the machine
+> was clean.*
+### Alte Kopien wegräumen
+
+```bash
+werkzeuge/aufraeumen.sh gameserver              # zeigt nur den Plan
+werkzeuge/aufraeumen.sh gameserver --wirklich
+```
+
+Vor jedem Überschreiben entsteht eine `.vor-<datum>`-Kopie — das ist der
+Rückweg, aber er wächst. Behalten werden je Datei die drei jüngsten, gelöscht
+nur, was älter als 14 Tage ist. Die vollen Verzeichniskopien vor einem
+Zurückspielen (Gigabytes) hängen an `--mit-restore-kopien`.
+
+> *Every overwrite leaves a `.vor-<date>` copy: that is the way back, and it
+> grows. The tool keeps the three newest per file and deletes only what is older
+> than 14 days; the multi-gigabyte pre-restore directory copies need their own
+> flag.*
 
 ### Ist das Repositorium vollständig?
 
@@ -201,7 +254,7 @@ Zeit gekostet haben.
 * Debian 12 (bookworm) mit root-Zugang
 * Eine öffentliche IPv4 und ein DNS-Name, der darauf zeigt (für das Zertifikat)
 * Für die Sicherung: ein erreichbares Borg-Ziel, empfohlen über ein privates
-  Netz wie Tailscale
+  Netz wie Tailscale — oder `BORG_REPO=aus`, dann wird nicht gesichert
 * Für DNS: ein Cloudflare-Token mit `Zone / DNS / Bearbeiten`, begrenzt auf die
   eigene Zone
 

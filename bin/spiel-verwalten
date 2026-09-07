@@ -23,6 +23,12 @@ ZUGAENGE = Path("/opt/panel/daten/zugangsdaten.json")
 STACKS = Path("/opt/stacks")
 SPIELE = Path("/srv/games")
 AUSSCHLUSS = Path("/etc/borg-ausschluss.txt")
+# Die Ausschlussliste wird auch ohne Sicherung gepflegt: sie steht hier und in
+# Stufe 50 unabhaengig vom Schalter, damit die Bloecke je Spiel nicht
+# auseinanderlaufen, wenn die Sicherung spaeter eingeschaltet wird.
+# *The exclusion list is maintained even without backups, so the per-game blocks
+#  do not drift apart if backups are switched on later.*
+SICHERUNG_AN = "@@BORG_REPO@@" != "aus"
 BILDER = Path("/opt/panel/bilder")
 RESERVE_GB = 10          # so viel Platte bleibt auf jeden Fall frei
 PUID = PGID = 4711
@@ -324,11 +330,18 @@ def deinstallieren(s: str):
                f"hier nicht entfernen - das schuetzt die von Hand gebauten Server.")
 
     # 1. Letzte Sicherung. Schlaegt sie fehl, wird NICHTS geloescht.
-    r = subprocess.run(["/usr/local/bin/spiele-sicherung", "--nur", s],
-                       capture_output=True, text=True, timeout=1800)
-    if r.returncode != 0:
-        fehler("letzte Sicherung fehlgeschlagen - es wurde nichts geloescht: "
-               + (r.stderr.strip()[:200] or "unbekannter Grund"))
+    #    Bei abgeschalteter Sicherung entfaellt dieser Schritt - und mit ihm das
+    #    Netz. Dass es keins gibt, steht auf der Bestaetigungsseite, also VOR
+    #    dem Klick. Hier stillschweigend weiterzulaufen und es hinterher zu
+    #    melden waere die falsche Reihenfolge.
+    #    *Without backups this step, and the safety net with it, is gone. The
+    #     confirmation page says so before the click, not after.*
+    if SICHERUNG_AN:
+        r = subprocess.run(["/usr/local/bin/spiele-sicherung", "--nur", s],
+                           capture_output=True, text=True, timeout=1800)
+        if r.returncode != 0:
+            fehler("letzte Sicherung fehlgeschlagen - es wurde nichts geloescht: "
+                   + (r.stderr.strip()[:200] or "unbekannter Grund"))
 
     # 2. Container und Netzwerk weg (Images bleiben - die kosten nur Platte und
     #    werden bei einer Neuinstallation wiederverwendet).
@@ -342,7 +355,10 @@ def deinstallieren(s: str):
     AUSSCHLUSS.write_text(ausschluss_entfernen_text(AUSSCHLUSS.read_text(), s))
     (BILDER / f"{s}.jpg").unlink(missing_ok=True)
     zugang_entfernen(s)
-    print(f"ok\t{s} entfernt. Die Sicherungen im Borg-Repository bleiben erhalten.")
+    if SICHERUNG_AN:
+        print(f"ok\t{s} entfernt. Die Sicherungen im Borg-Repository bleiben erhalten.")
+    else:
+        print(f"ok\t{s} entfernt. Es gab keine Sicherung - der Stand ist weg.")
 
 
 def datenpfade(s: str) -> list:

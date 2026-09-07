@@ -173,7 +173,48 @@ gs.<zone>          A      <SERVER_IPV4>
 
 Zieht der Server um, ist genau **ein** Eintrag zu ändern.
 
-### Zwei Fallen
+### Feste oder wechselnde Adresse
+
+`SERVER_IPV4` in `konfiguration.env` entscheidet, wer den A-Eintrag pflegt:
+
+| Wert | Wer pflegt `DNS_ZIEL` | `dns-ziel.timer` |
+|---|---|---|
+| `203.0.113.10` (eine IPv4) | ein Mensch, von Hand | aus |
+| `dynamic` | der Server selbst, alle 5 Minuten | an |
+
+Bei `dynamic` misst `cf-dns ziel-setzen` die öffentliche IPv4 und schreibt sie
+in den A-Eintrag. Die Spiel-CNAMEs zeigen weiterhin auf diesen einen Namen und
+folgen deshalb von allein — **kein CNAME wird angefasst**. Der A-Eintrag wird
+mit TTL 60 ausgeliefert, damit die Welt nach einem Adresswechsel schnell folgt;
+die CNAMEs behalten ihre 300 Sekunden, weil sie sich nie ändern.
+
+**Das Zertifikat des Panels hängt mit daran.** Caddy erneuert es über ACME, und
+dazu muss `PANEL_DOMAIN` öffentlich auf den Server zeigen. Am einfachsten ist
+ein CNAME auf `DNS_ZIEL` — dann folgt er ohne weiteres Zutun. Steht
+`PANEL_DOMAIN` als eigener A-Eintrag **innerhalb** von `DNS_ZONE`, zieht
+`ziel-setzen` ihn mit nach und lässt dabei ein gesetztes `proxied` in Ruhe: das
+Panel spricht HTTPS und darf hinter dem Cloudflare-Proxy stehen. Liegt der Name
+außerhalb der Zone, bleibt er Handarbeit; `ziel-setzen` sagt das dann auch.
+
+**Ein DNS-Name in `SERVER_IPV4` ergibt nichts** — auch kein DDNS-Name. Aus
+diesem Wert entsteht kein Eintrag; die Adresse trägt allein `DNS_ZIEL`. Bis
+dahin wurde ein Name dort klaglos angenommen und wirkte nirgends. Heute bricht
+`install/lib.sh` mit einer Meldung ab, die auf `dynamic` verweist.
+
+> *`SERVER_IPV4` decides who maintains the A record: a fixed address means a
+> human does it and the timer stays off; `dynamic` means the server measures its
+> own public IPv4 every five minutes and writes the record itself. The game
+> CNAMEs point at that one name and follow along — none of them is touched. The
+> A record is served with TTL 60 so the world follows quickly after a change,
+> while the CNAMEs keep 300 s because they never move. The panel certificate
+> depends on this too: ACME needs `PANEL_DOMAIN` to resolve publicly. A CNAME to
+> `DNS_ZIEL` is simplest; an A record inside the zone is carried along (an
+> existing `proxied` flag is left alone, since the panel speaks HTTPS and may sit
+> behind the proxy); outside the zone it stays manual. A hostname in
+> `SERVER_IPV4` achieves nothing — no record is derived from it — and setup now
+> aborts instead of accepting it silently.*
+
+### Drei Fallen
 
 **1. Nie per `dig` prüfen, ob ein Eintrag existiert.** Steht in der Zone ein
 Wildcard `*.<zone>`, beantwortet er **jeden** erfundenen Namen — und zeigt dabei
@@ -185,12 +226,29 @@ und HTTPS; ein Spielport dahinter ist von außen tot. Deshalb überall
 `proxied: false`, mit Gegenprobe nach dem Schreiben und einem eigenen Befehl
 `cf-dns pruefen`, der falsch gesetzte Einträge meldet.
 
-> *Two traps: never use `dig` to test whether a record exists — a wildcard in the
-> zone answers every made-up name, pointing at the wrong server, so a lookup
-> always reports "present". `cf-dns` asks the API only. And game records must
-> never be proxied: Cloudflare's proxy speaks HTTP(S) only, so a game port behind
-> it is dead from outside. Hence `proxied: false` everywhere, verified after
-> writing, with `cf-dns pruefen` to report stragglers.*
+**3. Die eigene Adresse nie aus einer einzelnen Quelle nehmen.** Sie wird
+ungeprüft in einen Eintrag geschrieben, an dem jeder Spielserver und das
+Zertifikat des Panels hängen. Eine Auskunftsstelle, die ausfällt, umgeleitet
+wird oder Unsinn liefert, nimmt dann alles auf einmal mit. `cf-dns` befragt drei
+unabhängige Stellen und schreibt erst, wenn **zwei dieselbe Antwort geben** —
+derselbe Gedanke wie der Kontrollwert beim Messen. Zwei Antworten werden
+außerdem grundsätzlich verworfen: alles aus `100.64.0.0/10` (Provider-NAT oder
+Tailscale) und jede nicht öffentliche Adresse. Und die Messung läuft
+**erzwungen über IPv4**: über IPv6 antworten diese Stellen mit der IPv6-Adresse,
+die in einem A-Eintrag nichts zu suchen hat.
+
+> *Three traps: never use `dig` to test whether a record exists — a wildcard in
+> the zone answers every made-up name, pointing at the wrong server, so a lookup
+> always reports "present". `cf-dns` asks the API only. Game records must never
+> be proxied: Cloudflare's proxy speaks HTTP(S) only, so a game port behind it is
+> dead from outside. Hence `proxied: false` everywhere, verified after writing,
+> with `cf-dns pruefen` to report stragglers. And one's own address never comes
+> from a single source: it is written unchecked into the record every game server
+> and the panel certificate hang on, so three independent services are asked and
+> two must agree. Anything from `100.64.0.0/10` (carrier NAT or Tailscale) and
+> any non-public address is discarded, and the measurement is forced over IPv4 —
+> over IPv6 these services answer with the IPv6 address, which has no place in an
+> A record.*
 
 ### Der Token
 

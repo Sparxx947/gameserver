@@ -282,3 +282,114 @@ Einrichtung ab.
 > worse than none. Instead the files are byte-for-byte as deployed, with only
 > site-specific values replaced by placeholders filled from
 > `konfiguration.env`; a left-over placeholder aborts the install.*
+
+---
+
+## E21 — Bei wechselnder Adresse pflegt der Server den A-Eintrag selbst
+
+**Naheliegend:** einen DDNS-Namen in `SERVER_IPV4` eintragen, oder `DNS_ZIEL` auf
+einen fremden DDNS-Namen zeigen lassen.
+
+**Dagegen, erstens:** `SERVER_IPV4` ist gar kein Eintragspunkt. Aus dem Wert
+entstand nie ein DNS-Eintrag — er landete ausschließlich in Kommentaren von
+`cf-dns`. Ein Name dort wurde klaglos angenommen und tat nichts. Genau das ist
+die schlimmste Sorte Einstellung: eine, die man für erledigt hält.
+
+**Dagegen, zweitens:** Ein fremder DDNS-Name als `DNS_ZIEL` würde zwar
+funktionieren — die Spiel-CNAMEs zeigen dann eben dorthin —, holt sich aber einen
+zweiten Anbieter in den Pfad jedes Spielservers, und `PANEL_DOMAIN` bliebe
+trotzdem außen vor. Damit hinge das Zertifikat an einem Namen, den niemand
+nachzieht. Nach E17 trägt genau **ein** Eintrag die Adresse; ein zweiter Anbieter
+daneben verdoppelt die Stellen, an denen es schiefgehen kann.
+
+**Stattdessen:** `SERVER_IPV4=dynamic` schaltet `dns-ziel.timer` ein. Der misst
+alle fünf Minuten die öffentliche IPv4 und schreibt sie in den A-Eintrag
+`DNS_ZIEL` — den Eintrag, den es ohnehin schon gibt. Cloudflare bleibt die
+einzige Quelle der Wahrheit, die Spiel-CNAMEs werden nicht angefasst, und
+`PANEL_DOMAIN` folgt als CNAME von allein oder wird als A-Eintrag innerhalb der
+Zone mitgezogen.
+
+**Und:** In diesem Betrieb legt `cf-dns` den A-Eintrag auch an, wenn er fehlt —
+anders als im festen Betrieb, wo er bewusst Handarbeit bleibt. Der Unterschied
+ist nicht Bequemlichkeit, sondern Eigentum: bei `dynamic` gehört der Eintrag dem
+Programm, sonst einem Menschen. Wer beides gleich behandelt, bekommt entweder
+einen Automatismus, der fremde Einträge überschreibt, oder einen dynamischen
+Betrieb, der beim ersten Lauf an einem fehlenden Eintrag scheitert.
+
+**Kosten:** Der Server hängt für die Messung an drei fremden Auskunftsstellen.
+Deshalb entscheidet die Mehrheit und nicht die erste Antwort, und Adressen aus
+`100.64.0.0/10` werden verworfen — dort liegt sowohl Provider-NAT als auch
+Tailscale, und in beiden Fällen wäre die Messung wertlos. Sind sich zwei Stellen
+nicht einig, wird **nichts** geschrieben und der alte Eintrag bleibt stehen.
+
+> *Obvious: put a DDNS hostname in `SERVER_IPV4`, or point `DNS_ZIEL` at a
+> foreign DDNS name. Against, first: `SERVER_IPV4` was never an entry point at
+> all — no record was ever derived from it, the value only ever landed in
+> comments, so a hostname there was accepted silently and did nothing. That is
+> the worst kind of setting: one people believe is handled. Against, second: a
+> foreign DDNS name as `DNS_ZIEL` would work for the games but puts a second
+> provider in the path of every game server, and leaves `PANEL_DOMAIN` — and with
+> it the certificate — behind, pointing at a name nobody updates. Per E17 exactly
+> one record carries the address; a second provider doubles the places where that
+> can break. Instead, `SERVER_IPV4=dynamic` enables `dns-ziel.timer`, which
+> measures the public IPv4 every five minutes and writes it into the A record
+> that already exists. Cloudflare stays the single source of truth, no game CNAME
+> is touched, and the panel name follows as a CNAME or is carried along as an A
+> record inside the zone. In that mode `cf-dns` also creates the record when it
+> is missing, unlike fixed mode where it stays hand-made — the difference is
+> ownership, not convenience: treating both alike yields either an automation
+> that overwrites foreign records or a dynamic mode that fails on its first run.
+> The cost is a dependency on three third-party echo services, which is why a
+> majority decides rather than the first answer, why `100.64.0.0/10` is discarded
+> (carrier NAT and Tailscale both live there, and the measurement would be
+> worthless either way), and why nothing at all is written when two sources fail
+> to agree.*
+## E22 — Die Sicherung lässt sich abschalten, aber nicht heimlich
+
+**Naheliegend:** Die Sicherung als Pflicht behandeln. Wer den Server aufbaut,
+soll eben ein Sicherungsziel haben.
+
+**Dagegen:** Das trifft die Wirklichkeit nicht. Beim ersten Aufbau gibt es das
+Ziel oft noch nicht, und Stufe 50 bricht dann ab — mitten in einer Einrichtung,
+die sonst durchliefe. Wer weiterkommen will, kommentiert die Stufe aus oder
+trägt ein Repository ein, das es nicht gibt. Beides ist schlechter als ein
+Schalter, weil danach niemand mehr sagen kann, was der Zustand der Maschine ist.
+
+**Stattdessen:** `BORG_REPO=aus`. Kein `borg`, keine Passphrase, keine Timer,
+keine Archivwege in der Oberfläche, keine letzte Sicherung beim Löschen.
+
+**Der Schalter ist der Wert selbst, keine zweite Variable.** Ein zusätzliches
+`SICHERUNG=ja/nein` neben `BORG_REPO` könnte sich widersprechen — „Sicherung an,
+aber wohin?" — und man müsste entscheiden, welche der beiden recht hat. Ein Wert
+kann das nicht.
+
+**Und das Wichtigste:** Der gefährliche Zustand ist nicht „abgeschaltet", sondern
+„abgeschaltet, und keiner weiß es". Ein Backup, auf das man sich verlässt, ohne
+dass es existiert, ist schlimmer als eines, von dem man weiß, dass es fehlt —
+derselbe Gedanke wie bei einer Dokumentation, die vom System abweicht. Deshalb:
+Warnkasten auf der Übersicht, ausdrücklicher Hinweis auf der Löschbestätigung
+*vor* dem Klick, und `abgleich.sh` prüft, ob die Timer **laufen** — eingesetzte,
+aber abgeschaltete Einheiten sähen im reinen Dateivergleich tadellos aus.
+
+**Was bewusst bleibt:** Die Ausschlussliste. `spiel-verwalten` liest und schreibt
+sie bei jeder Installation und Deinstallation; fehlte sie, bräche die
+Deinstallation mitten im Ablauf ab und ließe Reste stehen — genau der Abbruch,
+der schon einmal aus einem anderen Grund passiert ist (siehe `panel.service`,
+`ProtectSystem`).
+
+> *Obvious: treat backups as mandatory. Against: that does not match reality —
+> on a first build the target often does not exist yet, stage 50 aborts, and
+> people either comment the stage out or enter a repository that is not there.
+> Both are worse than a switch, because afterwards nobody can say what state the
+> machine is in. Instead: `BORG_REPO=aus`. The switch is the value itself rather
+> than a second variable, because two variables can contradict each other and one
+> cannot. Most importantly, the dangerous state is not "off" but "off and nobody
+> knows": a backup people rely on without it existing is worse than one they know
+> is missing — the same reasoning as documentation that drifts from the system.
+> Hence a warning box on the overview, an explicit note on the delete
+> confirmation before the click, and `abgleich.sh` checking that the timers
+> actually run, since installed-but-disabled units would look perfect in a pure
+> file comparison. The exclusion list deliberately stays: `spiel-verwalten` reads
+> and writes it on every install and uninstall, and its absence would abort an
+> uninstall mid-way, leaving remnants behind — exactly the abort that has already
+> happened once for a different reason.*
