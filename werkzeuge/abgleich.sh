@@ -39,6 +39,7 @@ rendern() {
 PAARE=(
   "bin/cf-dns:/usr/local/bin/cf-dns"
   "bin/katalog-vorpruefung:/usr/local/bin/katalog-vorpruefung"
+  "bin/katalogbilder-holen:/usr/local/bin/katalogbilder-holen"
   "bin/panel-aktion:/usr/local/bin/panel-aktion"
   "bin/spiel-einrichtung:/usr/local/bin/spiel-einrichtung"
   "bin/spiel-verwalten:/usr/local/bin/spiel-verwalten"
@@ -131,8 +132,11 @@ else
   gleich=$((gleich+1))
 fi
 
-# 3. Die selbst erzeugten Symbole (die Spielbilder kommen aus Steam und gehoeren
-#    bewusst nicht ins Repositorium).
+# 3. Die selbst erzeugten Symbole und Titelbilder. Die Steam-Header unter
+#    bilder/katalog werden bewusst NICHT verglichen: sie sind Werke Dritter,
+#    liegen nicht im Repositorium und werden zur Laufzeit geholt.
+# *The self-made icons and artwork. Steam headers under bilder/katalog are
+#  deliberately not compared: third-party works, fetched at runtime.*
 for bild in favicon.svg favicon.ico apple-touch-icon.png; do
   if ! ssh "$ZIEL" "cat /opt/panel/bilder/$bild" 2>/dev/null | cmp -s - "$REPO/panel/bilder/$bild"; then
     echo "  ABWEICHUNG            panel/bilder/$bild"
@@ -141,6 +145,30 @@ for bild in favicon.svg favicon.ico apple-touch-icon.png; do
     gleich=$((gleich+1))
   fi
 done
+for bild in "$REPO"/panel/bilder/eigene/*.jpg; do
+  [ -e "$bild" ] || continue
+  name=$(basename "$bild")
+  if ! ssh "$ZIEL" "cat /opt/panel/bilder/eigene/$name" 2>/dev/null | cmp -s - "$bild"; then
+    echo "  ABWEICHUNG            panel/bilder/eigene/$name"
+    anders=$((anders+1))
+  else
+    gleich=$((gleich+1))
+  fi
+done
+
+# 4. Vollstaendigkeit der Katalogbilder. Nicht Datei fuer Datei - die Bilder
+#    kommen von Steam und stehen nicht im Repositorium. Geprueft wird nur, ob
+#    zu JEDEM Katalogeintrag eines vorliegt: genau das fehlte, und es fiel erst
+#    auf, als bei Minecraft die Kachel leer blieb.
+# *Not file by file - the images are not in the repository. Only whether every
+#  catalogue entry has one: exactly that was missing, and it surfaced only when
+#  Minecraft's tile stayed blank.*
+if ssh "$ZIEL" "/usr/local/bin/katalogbilder-holen --pruefen" 2>/dev/null | grep -q "0 fehlen"; then
+  gleich=$((gleich+1))
+else
+  echo "  ABWEICHUNG            Katalogbilder: $(ssh "$ZIEL" '/usr/local/bin/katalogbilder-holen --pruefen' 2>/dev/null)"
+  anders=$((anders+1))
+fi
 
 echo
 printf 'deckungsgleich: %d   abweichend: %d   fehlend: %d\n' "$gleich" "$anders" "$fehlt"

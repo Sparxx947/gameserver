@@ -14,7 +14,13 @@ install -d -m 0755 -o panel -g panel /opt/panel/daten /opt/panel/bilder /opt/pan
 einsetzen "$REPO/panel/app.py" /opt/panel/app.py 0644 root:root
 cp "$REPO"/panel/bilder/favicon.svg "$REPO"/panel/bilder/favicon.ico \
    "$REPO"/panel/bilder/apple-touch-icon.png /opt/panel/bilder/
-chown panel:panel /opt/panel/bilder/*
+# Selbst gezeichnete Titelbilder fuer Spiele ohne Steam-Eintrag (appid 0).
+# spiel-verwalten greift darauf zurueck, wenn Steam nichts liefert.
+# *Self-drawn artwork for games with no Steam entry; the installer falls back
+#  to these.*
+install -d -m 0755 -o panel -g panel /opt/panel/bilder/eigene
+cp "$REPO"/panel/bilder/eigene/*.jpg /opt/panel/bilder/eigene/ 2>/dev/null || true
+chown -R panel:panel /opt/panel/bilder
 
 log "Python-Umgebung"
 [ -d /opt/panel/venv ] || python3 -m venv /opt/panel/venv
@@ -22,7 +28,7 @@ log "Python-Umgebung"
 /opt/panel/venv/bin/pip install -q -r "$REPO/panel/requirements.txt"
 
 log "Werkzeuge nach /usr/local/bin"
-for w in cf-dns katalog-vorpruefung panel-aktion spiel-einrichtung spiel-verwalten; do
+for w in cf-dns katalog-vorpruefung katalogbilder-holen panel-aktion spiel-einrichtung spiel-verwalten; do
   einsetzen "$REPO/bin/$w" "/usr/local/bin/$w" 0755 root:root
 done
 einsetzen "$REPO/etc/spiele-katalog.json" /etc/spiele-katalog.json 0644 root:root
@@ -110,5 +116,15 @@ if [ ! -s /opt/panel/daten/zugangsdaten.json ]; then
   chown panel:panel /opt/panel/daten/zugangsdaten.json
   chmod 0600 /opt/panel/daten/zugangsdaten.json
 fi
+
+# Titelbilder der Katalogseite. Ohne diesen Aufruf blieb das Verzeichnis nach
+# einem Neuaufbau leer - die Bilder waren nur deshalb da, weil sie einmal von
+# Hand geholt worden waren. Der Aufruf darf fehlschlagen (kein Netz, Steam
+# nicht erreichbar): die Kacheln sind dann blass, alles andere funktioniert.
+# *Without this the directory stayed empty after a rebuild; the images were
+#  there only because someone had fetched them by hand once. Allowed to fail:
+#  the tiles go pale, nothing else breaks.*
+log "Titelbilder der Katalogseite"
+/usr/local/bin/katalogbilder-holen || warn "Titelbilder unvollstaendig - spaeter mit katalogbilder-holen nachziehen"
 
 log "Stufe 30 fertig."

@@ -161,20 +161,45 @@ def ausschluss_entfernen_text(text: str, s: str) -> str:
                   "", text, flags=re.S | re.M)
 
 
+# Selbst gezeichnete Titelbilder fuer Spiele ohne Steam-Eintrag. Erzeugt mit
+# werkzeuge/titelbild.py, liegen im Repositorium (Steam-Header liegen dort
+# bewusst NICHT - Werke Dritter).
+EIGENE_BILDER = BILDER / "eigene"
+
+
 def bild_holen(g: dict):
-    if not g.get("appid"):
-        return
-    url = f"https://cdn.cloudflare.steamstatic.com/steam/apps/{g['appid']}/header.jpg"
+    """Titelbild besorgen: von Steam, sonst aus dem mitgelieferten Vorrat.
+
+    "appid": 0 heisst "gibt es auf Steam nicht" - Minecraft (Java), Vintage Story
+    und TeamSpeak. Frueher stieg diese Funktion dann sofort aus, und die Kachel
+    blieb leer, ohne dass irgendetwas darauf hinwies; gemeldet am 2026-09-07 fuer
+    Minecraft, Vintage Story waere als naechstes drangewesen.
+
+    *An appid of 0 means "not on Steam". This used to return immediately, leaving
+     the card blank with nothing indicating why.*
+    """
     ziel = BILDER / f'{g["schluessel"]}.jpg'
-    try:
-        with urllib.request.urlopen(url, timeout=20) as r:
-            daten = r.read()
-        if len(daten) > 2000:
-            ziel.write_bytes(daten)
-            shutil.chown(ziel, "panel", "panel")
-            ziel.chmod(0o644)
-    except Exception:
-        pass          # ohne Bild ist die Kachel blass, aber alles funktioniert
+
+    def ablegen(daten: bytes):
+        ziel.write_bytes(daten)
+        shutil.chown(ziel, "panel", "panel")
+        ziel.chmod(0o644)
+
+    if g.get("appid"):
+        url = f"https://cdn.cloudflare.steamstatic.com/steam/apps/{g['appid']}/header.jpg"
+        try:
+            with urllib.request.urlopen(url, timeout=20) as r:
+                daten = r.read()
+            if len(daten) > 2000:
+                ablegen(daten)
+                return
+        except Exception:
+            pass      # weiter zum Vorrat - lieber ein eigenes Bild als keins
+
+    eigen = EIGENE_BILDER / f'{g["schluessel"]}.jpg'
+    if eigen.is_file():
+        ablegen(eigen.read_bytes())
+    # Bleibt beides aus, ist die Kachel blass - alles andere funktioniert.
 
 
 def installieren(sch: str):
