@@ -230,6 +230,52 @@ Alle Container stehen auf `restart: unless-stopped` und kommen von allein zurüc
 
 ---
 
+## Alte Kopien wegräumen
+
+Jede Einrichtungsstufe, jedes `ausrollen.sh` und jede Änderung über die
+Oberfläche legt vor dem Überschreiben eine Kopie an. Das ist der Rückweg — aber
+er wächst. Drei Sorten sammeln sich an:
+
+| Muster | Woher | Größe |
+|---|---|---|
+| `<datei>.vor-<datum>` | Einrichtungsstufen, `ausrollen.sh` | klein |
+| `<datei>.vor-panel-<datum>` | Oberfläche (Konfigdateien, compose-Felder) | klein, aber viele |
+| `<verz>.vor-restore-<datum>` | vor jedem Zurückspielen | **Gigabytes** |
+
+```bash
+werkzeuge/aufraeumen.sh gameserver                          # zeigt nur den Plan
+werkzeuge/aufraeumen.sh gameserver --wirklich               # Dateikopien
+werkzeuge/aufraeumen.sh gameserver --mit-restore-kopien --wirklich
+```
+
+Behalten werden je Datei die **drei jüngsten** Kopien, und gelöscht wird nur,
+was älter als **14 Tage** ist — beides über `--behalte` und `--aelter-als`
+einstellbar. Die Regel „behalte N" schlägt dabei das Alter: eine Datei mit nur
+zwei uralten Kopien behält beide.
+
+**Entschieden wird nach dem Zeitstempel im Namen, nie nach der `mtime`.** Die
+Kopien entstehen mit `cp -a` und `shutil.copy2`; beide übernehmen die `mtime`
+der Quelldatei. Eine gestern angelegte Kopie einer ein Jahr alten Datei sieht in
+der `mtime` ein Jahr alt aus — ein Aufräumen nach `mtime` würde also
+ausgerechnet den frischesten Rückweg zuerst wegwerfen.
+
+Der Lauf ist **bewusst kein Timer**. Diese Kopien sind der Rückweg; sie
+unbeaufsichtigt verschwinden zu lassen ist genau das, was man nicht will. Wer
+Platz braucht, sieht erst nach, wie viel es bringt, und entscheidet dann.
+
+> *Every stage, every rollout and every change through the panel leaves a copy
+> behind. That is the way back, and it grows — the restore copies most of all,
+> since each is a full copy of a game's data directory. The tool keeps the three
+> newest copies per file and deletes only what is older than 14 days, both
+> adjustable; "keep N" beats age, so a file with only two ancient copies keeps
+> both. Decisions are made on the timestamp in the name, never on `mtime`: the
+> copies are created with `cp -a` and `shutil.copy2`, which carry the source's
+> mtime across, so cleaning by mtime would discard the freshest way back first.
+> Deliberately not a timer: letting the way back vanish unattended is exactly
+> what one does not want.*
+
+---
+
 ## Aktualisieren
 
 ```bash

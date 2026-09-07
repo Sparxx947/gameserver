@@ -142,6 +142,22 @@ einzige Unit-Datei — und wer sie befolgte, hielt die Maschine danach für saub
 > lists come from the repository itself: the earlier hand-typed instructions had
 > drifted and removed no unit file at all, leaving people believing the machine
 > was clean.*
+### Alte Kopien wegräumen
+
+```bash
+werkzeuge/aufraeumen.sh gameserver              # zeigt nur den Plan
+werkzeuge/aufraeumen.sh gameserver --wirklich
+```
+
+Vor jedem Überschreiben entsteht eine `.vor-<datum>`-Kopie — das ist der
+Rückweg, aber er wächst. Behalten werden je Datei die drei jüngsten, gelöscht
+nur, was älter als 14 Tage ist. Die vollen Verzeichniskopien vor einem
+Zurückspielen (Gigabytes) hängen an `--mit-restore-kopien`.
+
+> *Every overwrite leaves a `.vor-<date>` copy: that is the way back, and it
+> grows. The tool keeps the three newest per file and deletes only what is older
+> than 14 days; the multi-gigabyte pre-restore directory copies need their own
+> flag.*
 
 ### Ist das Repositorium vollständig?
 

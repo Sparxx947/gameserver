@@ -381,6 +381,33 @@ darf — auf keiner anderen.
 > confused with "the machine stopped answering". The only real test of a teardown
 > is: tear down, run the installer again, and `abgleich.sh` must be green — on a
 > machine you can afford to lose.*
+### `aufraeumen.sh <ssh-ziel> [Stufen] [--wirklich]`
+
+Räumt alte `.vor-<datum>`-Kopien weg. Ohne `--wirklich` wird nur gezeigt, was
+entfernt würde, mitsamt der Menge, die das freimacht.
+
+```
+--behalte N            je Datei die N jüngsten Kopien behalten (Vorgabe: 3)
+--aelter-als T         nur löschen, was älter als T Tage ist (Vorgabe: 14)
+--mit-restore-kopien   auch die vollen Verzeichniskopien vor einem Restore
+```
+
+Gesucht wird nur in `/etc`, `/usr/local/bin`, `/opt/panel`, `/opt/stacks`,
+`/srv/games` und `/srv/dienste` — ein `find` über `/` wäre langsam und griffe
+Kopien an, die diese Einrichtung nie angelegt hat.
+
+Entschieden wird nach dem **Zeitstempel im Dateinamen**, nicht nach der `mtime`;
+Begründung in `docs/08-betrieb-und-stoerungen.md`. Nach dem Lauf eine Gegenprobe
+(sind die Kandidaten wirklich weg?) und ein Kontrollwert (steht je Datei noch
+mindestens eine Kopie?) — ohne den zweiten Teil fiele eine zu gierige Auswahl
+nicht auf.
+
+> *Removes old `.vor-<date>` copies, showing the plan and the space it frees
+> unless `--wirklich` is given. It keeps the newest N per file and deletes only
+> what is older than T days, searching known areas only. Decisions use the
+> timestamp in the filename, not `mtime`. Afterwards it verifies the candidates
+> are gone and measures a control value — that at least one copy still stands per
+> file — because otherwise an over-greedy selection would go unnoticed.*
 
 ### `vollstaendigkeit.sh`
 
