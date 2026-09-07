@@ -1,0 +1,195 @@
+#!/usr/bin/env python3
+"""konfig-datei — Konfigurationsdateien der Spielserver auflisten, lesen, schreiben.
+
+Wird ausschliesslich ueber panel-aktion aufgerufen. Bearbeitet werden die
+Konfigurationsdateien der SPIELE unter /srv/games bzw. /srv/dienste — NIE die
+compose.yaml. Der Unterschied ist der ganze Sicherheitsentwurf:
+
+  compose.yaml  beschreibt den Container. Wer dort ein Volume "/:/host"
+                eintraegt, ist root auf der Maschine. Bleibt feldweise.
+  Spielkonfig   wird vom Spielprozess IM Container gelesen, der als UID 4711
+                ohne Privilegien laeuft. Schlimmster Fall: der Server startet
+                nicht mehr. Darf deshalb frei bearbeitet werden.
+
+*Only ever invoked through panel-aktion. It edits the GAMES' configuration
+ files, never compose.yaml. That distinction is the entire security design: a
+ compose file describes the container and a volume of "/:/host" means root,
+ whereas a game config is read by an unprivileged process inside the container -
+ worst case the server fails to start.*
+
+DIE FALLE, die diesen Code praegt: Unter /srv/games/starrupture/.wine/dosdevices
+liegt ein Symlink "z:" auf "/". Ein Editor, der als root schreibt und Symlinks
+folgt, koennte darueber JEDE Datei des Systems ueberschreiben — nachgemessen am
+2026-09-07: readlink -f auf ".../z:/etc/passwd" ergibt "/etc/passwd". Deshalb
+wird jeder Pfad ZUERST aufgeloest und DANACH geprueft, ob er noch im
+Datenverzeichnis liegt. Eine Pruefung vor dem Aufloesen waere wertlos.
+
+*The trap shaping this code: a "z: -> /" symlink exists under the StarRupture
+ Wine prefix. An editor writing as root and following symlinks could overwrite
+ any file on the system. Every path is therefore resolved FIRST and checked
+ AFTERWARDS - checking before resolving would be worthless.*
+
+  konfig-datei liste <stack>
+  konfig-datei lesen <stack> <relpfad>
+  konfig-datei schreiben <stack> <relpfad>      (Inhalt ueber stdin)
+"""
+import json, os, re, shutil, sys, time
+from pathlib import Path
+
+BASEN = (Path("/srv/games"), Path("/srv/dienste"))
+UID = GID = 4711
+MAX_BYTES = 256 * 1024          # groesser ist keine Konfiguration mehr
+ENDUNGEN = {".ini", ".cfg", ".json", ".properties", ".conf", ".txt", ".yaml", ".yml", ".xml"}
+
+# Rauschen, das zwar wie Konfiguration aussieht, aber keine ist. Ohne diesen
+# Filter stehen bei Palworld fuenf CrashReportClient.ini und bei StarRupture
+# ein Dutzend Lizenztexte in der Liste, und die eine Datei, die zaehlt, geht
+# darin unter.
+# *Noise that looks like configuration but is not: without this filter the real
+#  file drowns among crash-reporter stubs and licence texts.*
+RAUSCHEN = re.compile(
+    r"(^|/)(steamapps|steamcmd|logs?|Content|Binaries|Engine|Plugins|libraries|versions|"
+    r"Licenses|Steam|\.steam|\.wine|drive_c|dosdevices|\.sentry-native|CrashReportClient|"
+    r"ImGui|Crashes|Intermediate|Saved/Logs)(/|$)"
+    r"|(^|/)(Manifest_[^/]*|usercache\.json|\.vanilla-manifest\.json|steam_appid\.txt|"
+    r"[^/]*readme[^/]*\.txt)$"
+    # Eigene Sicherungen: ohne diesen Ausschluss waechst die Dateiliste bei
+    # jeder Aenderung um einen Eintrag, und nach zehn Aenderungen findet
+    # niemand mehr die Datei, um die es geht.
+    # *Own backups: without this the list grows with every edit until the file
+    #  that matters is lost among its own copies.*
+    r"|\.vor-panel-[0-9]{8}-[0-9]{6}$", re.I)
+
+# Unreal legt dutzendweise leere Konfigurationsdateien an (1 Byte). Sie sind
+# keine Einstellung, sondern Platzhalter - bei Palworld waren es 38 von 41
+# Eintraegen, in denen die eine wichtige Datei unterging.
+# *Unreal creates dozens of empty 1-byte config stubs; at Palworld they were 38
+#  of 41 entries, burying the one file that matters.*
+MIN_BYTES = 4
+
+
+def fehler(t):
+    print(f"FEHLER: {t}", file=sys.stderr)
+    sys.exit(1)
+
+
+def basis(stack: str) -> Path:
+    """Datenverzeichnis des Stacks. Der Name wird streng geprueft, damit er
+    nicht selbst zum Pfadbestandteil werden kann."""
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,30}", stack):
+        fehler("unzulaessiger Stackname")
+    for b in BASEN:
+        p = b / stack
+        if p.is_dir():
+            return p.resolve()
+    fehler("kein Datenverzeichnis")
+
+
+def sicherer_pfad(wurzel: Path, rel: str) -> Path:
+    """Loest den Pfad VOLLSTAENDIG auf und prueft DANACH die Zugehoerigkeit.
+
+    Diese Reihenfolge ist der Kern: "../../etc/passwd" und der Symlink "z: -> /"
+    sehen vor dem Aufloesen harmlos aus. Path.resolve() folgt beidem, und erst
+    das Ergebnis laesst sich sinnvoll pruefen.
+    *Resolve fully, then check. Both "../" traversal and the "z: -> /" symlink
+     look harmless before resolution.*
+    """
+    if "\x00" in rel or rel.startswith("/"):
+        fehler("unzulaessiger Pfad")
+    ziel = (wurzel / rel).resolve()
+    if not (ziel == wurzel or wurzel in ziel.parents):
+        fehler("Pfad zeigt aus dem Datenverzeichnis heraus")
+    if ziel.suffix.lower() not in ENDUNGEN:
+        fehler(f"Endung nicht erlaubt: {ziel.suffix or '(keine)'}")
+    if RAUSCHEN.search(str(ziel.relative_to(wurzel))):
+        fehler("diese Datei ist nicht zur Bearbeitung freigegeben")
+    return ziel
+
+
+def kandidaten(wurzel: Path):
+    """Konfigurationsdateien, flach genug um schnell zu bleiben."""
+    raus, gesehen = [], 0
+    for p in wurzel.rglob("*"):
+        gesehen += 1
+        if gesehen > 20000:
+            break
+        if p.is_symlink() or not p.is_file():
+            continue
+        rel = str(p.relative_to(wurzel))
+        if p.suffix.lower() not in ENDUNGEN or RAUSCHEN.search(rel):
+            continue
+        try:
+            groesse = p.stat().st_size
+        except OSError:
+            continue
+        if groesse < MIN_BYTES or groesse > MAX_BYTES:
+            continue
+        raus.append((rel, groesse))
+    return sorted(raus)
+
+
+def main():
+    if len(sys.argv) < 3:
+        fehler("zu wenige Parameter")
+    aktion, stack = sys.argv[1], sys.argv[2]
+    wurzel = basis(stack)
+
+    if aktion == "liste":
+        for rel, groesse in kandidaten(wurzel):
+            print(f"{rel}\t{groesse}")
+        return
+
+    if len(sys.argv) < 4:
+        fehler("Pfad fehlt")
+    ziel = sicherer_pfad(wurzel, sys.argv[3])
+
+    if aktion == "lesen":
+        if not ziel.is_file():
+            fehler("keine Datei")
+        if ziel.stat().st_size > MAX_BYTES:
+            fehler("Datei zu gross")
+        sys.stdout.write(ziel.read_text(encoding="utf-8", errors="replace"))
+        return
+
+    if aktion == "schreiben":
+        if not ziel.is_file():
+            fehler("Datei gibt es nicht - hier werden nur bestehende geaendert")
+        neu = sys.stdin.read()
+        if len(neu.encode()) > MAX_BYTES:
+            fehler("Inhalt zu gross")
+        # JSON vorher pruefen. Eine kaputte JSON-Datei laesst den Server
+        # kommentarlos nicht starten, und der Zusammenhang zur letzten
+        # Aenderung faellt niemandem mehr auf.
+        # *Broken JSON makes the server fail to start silently, and nobody
+        #  connects that to the last edit.*
+        if ziel.suffix.lower() == ".json":
+            try:
+                json.loads(neu)
+            except json.JSONDecodeError as e:
+                fehler(f"kein gueltiges JSON: {e}")
+
+        sicherung = ziel.with_name(f"{ziel.name}.vor-panel-{time.strftime('%Y%m%d-%H%M%S')}")
+        shutil.copy2(ziel, sicherung)
+
+        # Ueber eine temporaere Datei im selben Verzeichnis und os.replace:
+        # ein Abbruch mitten im Schreiben hinterliesse sonst eine halbe
+        # Konfiguration. Rechte und Eigentuemer werden vom Original uebernommen,
+        # NICHT von root - sonst kann der Container seine eigene Datei nicht
+        # mehr schreiben.
+        # *Atomic replace: an interrupted write would leave half a config.
+        #  Ownership is inherited from the original, never root, or the container
+        #  can no longer write its own file.*
+        st = ziel.stat()
+        tmp = ziel.with_name(f".{ziel.name}.neu")
+        tmp.write_text(neu, encoding="utf-8")
+        os.chmod(tmp, st.st_mode & 0o7777)
+        os.chown(tmp, st.st_uid if st.st_uid else UID, st.st_gid if st.st_gid else GID)
+        os.replace(tmp, ziel)
+        print(f"ok\t{ziel.relative_to(wurzel)}\tSicherung: {sicherung.name}")
+        return
+
+    fehler("unbekannte Aktion")
+
+
+if __name__ == "__main__":
+    main()

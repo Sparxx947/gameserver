@@ -78,7 +78,7 @@ systemd/      Dienste und Zeitpläne nach /etc/systemd/system
 panel/        Die Weboberfläche (app.py, Abhängigkeiten, Symbole)
 stacks/       compose-Vorlagen der sieben handgepflegten Server
 install/      Einrichtung in Stufen, jede einzeln aufrufbar
-werkzeuge/    Hilfsmittel — derzeit der Abgleich Repo ↔ Server
+werkzeuge/    Abgleich Repo ↔ Server, Ausrollen, Vollständigkeit, Titelbilder
 docs/         Diese Dokumentation
 ```
 
@@ -89,7 +89,7 @@ werkzeuge/abgleich.sh gameserver
 ```
 
 Setzt die Platzhalter aus `konfiguration.env` ein und vergleicht das Ergebnis
-mit der laufenden Maschine — 31 Prüfpunkte: 23 Dateien byte-genau, dazu die
+mit der laufenden Maschine — 32 Prüfpunkte: 23 Dateien byte-genau, dazu die
 Python-Umgebung des Panels gegen `requirements.txt`, die ttyd-Version gegen die
 in Stufe 40 festgeschriebene, die selbst erzeugten Symbole und Titelbilder sowie
 die Vollständigkeit der Katalogbilder. Exit 0 =

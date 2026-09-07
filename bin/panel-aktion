@@ -17,6 +17,9 @@
 #   panel-aktion katalog
 #   panel-aktion installieren <schluessel>
 #   panel-aktion deinstallieren <stack>
+#   panel-aktion konfig-dateien <stack>
+#   panel-aktion konfig-datei-lesen <stack> <relpfad>
+#   panel-aktion konfig-datei-schreiben <stack> <relpfad>   (Inhalt ueber stdin)
 #   panel-aktion dns <setzen|entfernen> <name>
 set -uo pipefail
 umask 077
@@ -267,6 +270,26 @@ PY
         "$(python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('einrichtung_offen',False))" "$d")" \
         "$(python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('einrichtung_stand',''))" "$d")"
     done
+    ;;
+  konfig-dateien|konfig-datei-lesen|konfig-datei-schreiben)
+    # Konfigurationsdateien der SPIELE (nicht die compose.yaml). Die
+    # Pfadpruefung sitzt vollstaendig in konfig-datei: sie loest jeden Pfad auf
+    # und prueft DANACH die Zugehoerigkeit — das ist die einzige Reihenfolge,
+    # die den Symlink "z: -> /" im Wine-Praefix von StarRupture abfaengt.
+    # Hier wird deshalb nur der Stack geprueft und durchgereicht; die Datei
+    # selbst NICHT vorab gefiltert, sonst gaebe es zwei Wahrheiten darueber,
+    # was erlaubt ist.
+    # *Path validation lives entirely in konfig-datei, which resolves first and
+    #  checks afterwards - the only order that catches the "z: -> /" symlink in
+    #  StarRupture's Wine prefix. Only the stack is checked here; validating the
+    #  file in two places would create two competing truths about what is
+    #  allowed.*
+    s="${2:-}"; pruefe_stack "$s"
+    case "$1" in
+      konfig-dateien)         exec /usr/local/bin/konfig-datei liste "$s" ;;
+      konfig-datei-lesen)     exec /usr/local/bin/konfig-datei lesen "$s" "${3:-}" ;;
+      konfig-datei-schreiben) exec /usr/local/bin/konfig-datei schreiben "$s" "${3:-}" ;;
+    esac
     ;;
   dns)
     was="${2:-}"; n="${3:-}"

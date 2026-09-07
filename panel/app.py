@@ -15,6 +15,8 @@ Sicherheitsentwurf:
     Benutzerverwaltung, keine Konfigurationsaenderung.
 """
 import hmac, json, os, secrets, subprocess, time
+import re
+from html import escape as esc
 from urllib.parse import quote
 from pathlib import Path
 
@@ -373,6 +375,7 @@ def uebersicht(request: Request):
         verweise = f'<a class=b href="/archive/{name}">Sicherungen</a>'
         if ist_admin(s):
             verweise += f'<a class=b href="/konfig/{name}">Einstellungen</a>'
+            verweise += f'<a class=b href="/dateien/{name}">Konfigdateien</a>'
         aktionen = (f'<form method=post action=/aktion class=steuer>'
                     f'<input type=hidden name=csrf value="{s["csrf"]}">'
                     f'<input type=hidden name=stack value="{name}">{"".join(knoepfe)}</form>'
@@ -776,8 +779,12 @@ def konfig(request: Request, stack: str, meldung: str = ""):
         f"{f'<div class=warn>{meldung}</div>' if meldung else ''}"
         f"<table><tr><th>Feld</th><th>Wert</th></tr>{''.join(zeilen)}</table>"
         "<div class=warn>Änderungen wirken erst nach einem <b>Neustart</b> des Servers.</div>"
+        f'<a class=b href="/dateien/{stack}">Konfigdateien des Servers</a> '
         f"<a class=b href=/>zurück</a>"
-        "<div class=m>Bearbeitbar sind nur einzelne Felder aus einer festen Liste — nie die "
+        "<div class=m>Hier stehen die Werte aus der <b>compose-Datei</b> (Container). Die "
+        "Einstellungen des Spiels selbst — Weltname, Schwierigkeit, Regeln — liegen in den "
+        "<b>Konfigdateien</b> nebenan. "
+        "Bearbeitbar sind nur einzelne Felder aus einer festen Liste — nie die "
         "compose-Datei als Ganzes. Bei Palworld sind die mit „wirksam“ markierten Werte "
         "maßgeblich: der Container erzeugt seine Einstellungsdatei nicht mehr selbst.</div>" + FUSS)
 
@@ -791,6 +798,273 @@ def konfig_setzen(request: Request, csrf: str = Form(""), stack: str = Form(""),
     rc, aus = aktion("konfig-setzen", stack, feld, wert, timeout=60)
     m = "Gespeichert. Wirkt nach einem Neustart des Servers." if rc == 0 else f"Nicht gespeichert: {aus}"
     return RedirectResponse(f"/konfig/{stack}?meldung={m}", 303)
+
+
+# ==========================================================================
+#  Konfigurationsdateien der Spiele
+# ==========================================================================
+# WICHTIG, und der Grund warum das hier ueberhaupt erlaubt ist: Bearbeitet
+# werden die Dateien der SPIELE unter /srv/games, nicht die compose.yaml. Eine
+# compose-Datei beschreibt den Container - wer dort ein Volume "/:/host"
+# eintraegt, ist root. Eine Spielkonfiguration liest der Spielprozess IM
+# Container, der als UID 4711 ohne Rechte laeuft; schlimmster Fall ist ein
+# Server, der nicht mehr startet. Die Pfadpruefung sitzt vollstaendig in
+# konfig-datei (aufloesen, DANN pruefen - wegen des Symlinks "z: -> /" im
+# Wine-Praefix von StarRupture).
+# *These are the games' own config files, not compose.yaml. A compose file
+#  describes the container and "/:/host" means root; a game config is read by an
+#  unprivileged process inside the container, so the worst case is a server that
+#  will not start. Path validation lives entirely in konfig-datei.*
+
+SCHLUESSEL_ZEILE = re.compile(r"^([ \t]*)([A-Za-z_][A-Za-z0-9_.\- ]*?)([ \t]*[:=][ \t]*)(.*)$")
+
+
+def konf_parsen(text: str, endung: str) -> list:
+    """Liefert [(schluessel, wert, abschnitt)] fuer die Formularansicht.
+
+    Flaches JSON wird ueber json geparst, alles andere zeilenweise. Verschachtelte
+    Strukturen bekommen KEIN Feld - sie liessen sich ueber ein Formular nicht
+    verlustfrei zurueckschreiben. Fuer sie gibt es den Rohtext.
+    *Nested structures deliberately get no form field: they cannot be written
+     back losslessly. The raw editor covers them.*
+    """
+    if endung == ".json":
+        try:
+            d = json.loads(text)
+        except json.JSONDecodeError:
+            return []
+        if not isinstance(d, dict):
+            return []
+        return [(k, "" if v is None else str(v), "")
+                for k, v in d.items() if not isinstance(v, (dict, list))]
+
+    raus, abschnitt = [], ""
+    for z in text.splitlines():
+        roh = z.strip()
+        if not roh or roh[0] in "#;":
+            continue
+        if roh.startswith("[") and roh.endswith("]"):
+            abschnitt = roh[1:-1]
+            continue
+        m = SCHLUESSEL_ZEILE.match(z)
+        if m:
+            wert = m.group(4)
+            # Kommentar am Zeilenende gehoert nicht in das Eingabefeld.
+            k = re.search(r"\s+(?://|#|;).*$", wert)
+            if k:
+                wert = wert[:k.start()]
+            raus.append((m.group(2).strip(), wert.strip(), abschnitt))
+    return raus
+
+
+def konf_ersetzen(text: str, endung: str, neue: dict) -> str:
+    """Setzt Werte, ERHAELT Kommentare, Reihenfolge und Formatierung.
+
+    Die Datei wird nicht neu geschrieben, sondern zeilenweise angefasst. Ein
+    Neuschreiben aus dem geparsten Zustand wuerde jeden Kommentar vernichten -
+    und in server.properties oder PalWorldSettings.ini steht die halbe
+    Dokumentation in den Kommentaren.
+    *Rewritten line by line rather than regenerated: regenerating would destroy
+     every comment, and half the documentation lives in them.*
+    """
+    if endung == ".json":
+        d = json.loads(text)
+        for k, v in neue.items():
+            if k in d and not isinstance(d[k], (dict, list)):
+                alt = d[k]
+                if isinstance(alt, bool):
+                    d[k] = v.strip().lower() in ("true", "1", "ja", "on")
+                elif isinstance(alt, int):
+                    try:
+                        d[k] = int(v)
+                    except ValueError:
+                        d[k] = alt
+                elif isinstance(alt, float):
+                    try:
+                        d[k] = float(v)
+                    except ValueError:
+                        d[k] = alt
+                else:
+                    d[k] = v
+        return json.dumps(d, indent=1, ensure_ascii=False) + "\n"
+
+    zeilen = text.splitlines(keepends=True)
+    for i, z in enumerate(zeilen):
+        m = SCHLUESSEL_ZEILE.match(z.rstrip("\r\n"))
+        if not m:
+            continue
+        k = m.group(2).strip()
+        if k not in neue:
+            continue
+        rest, schwanz = m.group(4), ""
+        kom = re.search(r"\s+(?://|#|;).*$", rest)
+        if kom:
+            schwanz = kom.group(0)
+        ende = "\r\n" if z.endswith("\r\n") else ("\n" if z.endswith("\n") else "")
+        zeilen[i] = f"{m.group(1)}{m.group(2)}{m.group(3)}{neue[k]}{schwanz}{ende}"
+    return "".join(zeilen)
+
+
+def konf_dateien(stack: str) -> list:
+    rc, aus = aktion("konfig-dateien", stack, timeout=60)
+    if rc != 0:
+        return []
+    return [(z.split("\t")[0], int(z.split("\t")[1]))
+            for z in aus.splitlines() if "\t" in z]
+
+
+@app.get("/dateien/{stack}", response_class=HTMLResponse)
+def dateien(request: Request, stack: str, meldung: str = ""):
+    s = angemeldet(request)
+    if not ist_admin(s):
+        return RedirectResponse("/", 303)
+    liste = konf_dateien(stack)
+    if not liste:
+        zeilen = ('<tr><td colspan=3 class=z>Keine Konfigurationsdatei gefunden. '
+                  'Viele Server legen sie erst beim ersten Start an.</td></tr>')
+    else:
+        zeilen = "".join(
+            f'<tr><td><code>{esc(p)}</code></td><td class=z>{g} B</td>'
+            f'<td><a class=b href="/datei/{esc(stack)}?p={quote(p)}">bearbeiten</a></td></tr>'
+            for p, g in liste)
+    return HTMLResponse(KOPF + kopfleiste(s) + RUMPF
+        + f"<h1>Konfigurationsdateien: {esc(stack)}</h1>"
+        + (f'<div class=warn>{esc(meldung)}</div>' if meldung else "")
+        + f"<table><tr><th>Datei</th><th>Größe</th><th></th></tr>{zeilen}</table>"
+        + '<div class=m>Dies sind die Dateien des <b>Spielservers</b>, nicht die '
+          'compose-Datei. Vor jeder Änderung wird eine Sicherung neben der Datei '
+          'abgelegt (<code>.vor-panel-…</code>). Änderungen wirken erst nach einem '
+          '<b>Neustart</b> des Servers.</div>'
+        + f'<a class=b href="/konfig/{esc(stack)}">Container-Einstellungen</a> '
+          f'<a class=b href="/">zurück</a>' + FUSS)
+
+
+@app.get("/datei/{stack}", response_class=HTMLResponse)
+def datei(request: Request, stack: str, p: str = "", modus: str = "formular", meldung: str = ""):
+    s = angemeldet(request)
+    if not ist_admin(s):
+        return RedirectResponse("/", 303)
+    rc, inhalt = aktion("konfig-datei-lesen", stack, p, timeout=60)
+    if rc != 0:
+        return RedirectResponse(f"/dateien/{stack}?meldung={quote(inhalt.strip()[:200])}", 303)
+
+    endung = ("." + p.rsplit(".", 1)[-1].lower()) if "." in p else ""
+    kopf = (f"<h1>{esc(p)}</h1><div class=z>{esc(stack)}</div>"
+            + (f'<div class=warn>{esc(meldung)}</div>' if meldung else ""))
+    reiter = (f'<a class="b{" p" if modus == "formular" else ""}" '
+              f'href="/datei/{esc(stack)}?p={quote(p)}&modus=formular">Felder</a> '
+              f'<a class="b{" p" if modus == "text" else ""}" '
+              f'href="/datei/{esc(stack)}?p={quote(p)}&modus=text">Rohtext</a>')
+
+    if modus == "text":
+        koerper = (f'<form method=post action=/datei-speichern>'
+                   f'<input type=hidden name=csrf value="{s["csrf"]}">'
+                   f'<input type=hidden name=stack value="{esc(stack)}">'
+                   f'<input type=hidden name=pfad value="{esc(p)}">'
+                   f'<input type=hidden name=modus value="text">'
+                   f'<textarea name=inhalt rows=26 style="width:100%;font-family:monospace;'
+                   f'font-size:13px;background:var(--k);color:var(--t);border:1px solid var(--r);'
+                   f'border-radius:6px;padding:10px">{esc(inhalt)}</textarea>'
+                   f'<div style="margin-top:10px"><button class=p>speichern</button></div></form>')
+    else:
+        felder = konf_parsen(inhalt, endung)
+        if not felder:
+            koerper = ('<div class=warn>Diese Datei lässt sich nicht in Felder zerlegen — '
+                       'sie ist verschachtelt oder hat kein Schlüssel-Wert-Format. '
+                       'Bitte den <b>Rohtext</b> verwenden.</div>')
+        else:
+            zeilen, letzter = [], None
+            for k, w, ab in felder:
+                if ab != letzter:
+                    if ab:
+                        zeilen.append(f'<tr><td colspan=2 class=z style="padding-top:14px">'
+                                      f'<b>[{esc(ab)}]</b></td></tr>')
+                    letzter = ab
+                # true/false wird zur Auswahl - das ist der haeufigste Fall und
+                # der, bei dem sich am leichtesten vertippt (True, yes, 1 ...).
+                # *Booleans become a dropdown: the most common field and the
+                #  easiest to mistype.*
+                if w.strip().lower() in ("true", "false"):
+                    ja = ' selected' if w.strip().lower() == "true" else ''
+                    nein = '' if ja else ' selected'
+                    eingabe = (f'<select name="f:{esc(k)}">'
+                               f'<option value=true{ja}>true</option>'
+                               f'<option value=false{nein}>false</option></select>')
+                else:
+                    eingabe = (f'<input type=text name="f:{esc(k)}" value="{esc(w)}" '
+                               f'style="width:280px">')
+                zeilen.append(f'<tr><td><code>{esc(k)}</code></td><td>{eingabe}</td></tr>')
+            koerper = (f'<form method=post action=/datei-speichern>'
+                       f'<input type=hidden name=csrf value="{s["csrf"]}">'
+                       f'<input type=hidden name=stack value="{esc(stack)}">'
+                       f'<input type=hidden name=pfad value="{esc(p)}">'
+                       f'<input type=hidden name=modus value="formular">'
+                       f'<table><tr><th>Schlüssel</th><th>Wert</th></tr>{"".join(zeilen)}</table>'
+                       f'<div style="margin-top:12px"><button class=p>speichern</button></div></form>')
+
+    return HTMLResponse(KOPF + kopfleiste(s) + RUMPF + kopf
+        + f'<div style="margin:12px 0">{reiter}</div>' + koerper
+        + '<div class=m>Vor dem Speichern wird eine Sicherung neben der Datei abgelegt '
+          '(<code>.vor-panel-…</code>). Änderungen wirken erst nach einem <b>Neustart</b> '
+          'des Servers.<br>'
+          'Viele Spielserver schreiben ihre Konfiguration beim Start <b>selbst neu</b> — '
+          'gemessen bei Minecraft: geänderte Werte bleiben erhalten, eigene Kommentare und '
+          'unbekannte Zeilen verschwinden. Wo es darauf ankommt, den Server vorher anhalten.'
+          '</div>'
+        + f'<a class=b href="/dateien/{esc(stack)}">zurück</a>' + FUSS)
+
+
+@app.post("/datei-speichern")
+async def datei_speichern(request: Request):
+    formular = await request.form()
+    s = pruefe(request, str(formular.get("csrf", "")))
+    if not ist_admin(s):
+        return RedirectResponse("/", 303)
+    stack = str(formular.get("stack", ""))
+    pfad = str(formular.get("pfad", ""))
+    modus = str(formular.get("modus", "formular"))
+    endung = ("." + pfad.rsplit(".", 1)[-1].lower()) if "." in pfad else ""
+
+    if modus == "text":
+        neu = str(formular.get("inhalt", ""))
+    else:
+        # Immer vom AKTUELLEN Dateiinhalt ausgehen, nicht von dem, der beim
+        # Oeffnen des Formulars galt: der Server selbst schreibt seine
+        # Konfiguration mitunter waehrenddessen um. Geaendert wird nur, was im
+        # Formular steht - der Rest der Datei bleibt Zeile fuer Zeile stehen.
+        # *Always start from the file's current content, not the state when the
+        #  form was opened: the server rewrites its own config at times.*
+        rc, jetzt = aktion("konfig-datei-lesen", stack, pfad, timeout=60)
+        if rc != 0:
+            return RedirectResponse(f"/dateien/{stack}?meldung={quote(jetzt.strip()[:200])}", 303)
+        aenderungen = {k[2:]: str(v) for k, v in formular.items() if k.startswith("f:")}
+        # Zeilenumbrueche in einem Wert wuerden die Datei zerlegen.
+        if any("\n" in v or "\r" in v for v in aenderungen.values()):
+            return RedirectResponse(
+                f"/datei/{stack}?p={quote(pfad)}&meldung={quote('Zeilenumbrüche sind in einem Wert nicht erlaubt.')}", 303)
+        try:
+            neu = konf_ersetzen(jetzt, endung, aenderungen)
+        except Exception as e:
+            return RedirectResponse(
+                f"/datei/{stack}?p={quote(pfad)}&meldung={quote(f'Nicht gespeichert: {e}')}", 303)
+
+    rc, aus = subprocess_schreiben(stack, pfad, neu)
+    ziel = f"/datei/{stack}?p={quote(pfad)}&modus={modus}"
+    return RedirectResponse(f"{ziel}&meldung={quote(aus.strip()[:250])}", 303)
+
+
+def subprocess_schreiben(stack: str, pfad: str, inhalt: str) -> tuple:
+    """Schreibt ueber die sudo-Bruecke; der Inhalt geht ueber stdin, NICHT als
+    Parameter - ein Konfigurationstext in einer Kommandozeile waere sowohl in
+    der Prozessliste sichtbar als auch laengenbegrenzt.
+    *Content goes through stdin, never as an argument: it would be visible in the
+     process list and subject to the length limit.*"""
+    try:
+        p = subprocess.run(AKTION + ["konfig-datei-schreiben", stack, pfad],
+                           input=inhalt, capture_output=True, text=True, timeout=60)
+        return p.returncode, (p.stdout or "") + (p.stderr or "")
+    except subprocess.TimeoutExpired:
+        return 1, "Zeitüberschreitung beim Speichern"
 
 
 @app.get("/neustart-fragen", response_class=HTMLResponse)

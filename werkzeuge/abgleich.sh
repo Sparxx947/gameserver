@@ -40,6 +40,7 @@ PAARE=(
   "bin/cf-dns:/usr/local/bin/cf-dns"
   "bin/katalog-vorpruefung:/usr/local/bin/katalog-vorpruefung"
   "bin/katalogbilder-holen:/usr/local/bin/katalogbilder-holen"
+  "bin/konfig-datei:/usr/local/bin/konfig-datei"
   "bin/panel-aktion:/usr/local/bin/panel-aktion"
   "bin/spiel-einrichtung:/usr/local/bin/spiel-einrichtung"
   "bin/spiel-verwalten:/usr/local/bin/spiel-verwalten"

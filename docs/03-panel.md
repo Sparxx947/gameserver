@@ -152,7 +152,60 @@ hat keine Anmeldung; die Absicherung sitzt vollständig davor.
 > again, a second hurdle if a session is hijacked. Caddy checks with the panel
 > before every request; ttyd itself has no authentication at all.*
 
-### Konfiguration `/konfig/<stack>`
+### Konfigurationsdateien `/dateien/<stack>` und `/datei/<stack>`
+
+Hier werden die Konfigurationsdateien **des Spielservers** bearbeitet —
+`server.properties`, `PalWorldSettings.ini`, `enshrouded_server.json` und so
+weiter. Zwei Ansichten derselben Datei:
+
+* **Felder** — die Datei wird zerlegt, jeder Schlüssel bekommt ein Eingabefeld.
+  `true`/`false` wird zur Auswahlliste, weil das der häufigste Wert ist und der,
+  bei dem man sich am leichtesten vertippt (`True`, `yes`, `1` …). Beim
+  Speichern wird die Datei **zeilenweise** geändert: Kommentare, Reihenfolge und
+  Formatierung bleiben erhalten. Ein Neuschreiben aus dem geparsten Zustand
+  würde jeden Kommentar vernichten — und in `server.properties` oder
+  `PalWorldSettings.ini` steht die halbe Dokumentation in den Kommentaren.
+* **Rohtext** — die ganze Datei in einem Textfeld. Für alles, was sich nicht in
+  Felder zerlegen lässt: verschachteltes JSON, XML, ungewöhnliche Formate.
+
+Vor jedem Schreiben entsteht eine Sicherung `<datei>.vor-panel-<zeit>` neben der
+Datei. JSON wird vor dem Speichern auf Gültigkeit geprüft — eine kaputte
+JSON-Datei lässt den Server kommentarlos nicht starten, und den Zusammenhang zur
+letzten Änderung stellt später niemand mehr her.
+
+> *Two views of the same file: a field view that decomposes it (booleans become a
+> dropdown — the most common value and the easiest to mistype) and writes back
+> line by line so comments, order and formatting survive, and a raw editor for
+> anything that cannot be decomposed. A backup is written before every save, and
+> JSON is validated first: broken JSON makes the server fail to start silently.*
+
+**Der Unterschied zu `/konfig/<stack>` ist der ganze Sicherheitsentwurf:**
+
+| | `/konfig/<stack>` | `/dateien/<stack>` |
+|---|---|---|
+| Datei | `compose.yaml` | Konfiguration des Spiels |
+| Was sie beschreibt | den **Container** | die **Spielregeln** |
+| Wer sie liest | Docker, als root | der Spielprozess als UID 4711 |
+| Schlimmster Fall | `/:/host` gemountet = **root auf der Maschine** | der Server startet nicht |
+| Bearbeitbar | 12 Felder aus einer Positivliste | frei |
+
+Deshalb darf das eine frei bearbeitet werden und das andere nicht.
+
+> *The distinction carries the whole security design: a compose file describes
+> the container and a volume of `/:/host` means root on the machine; a game
+> config is read by an unprivileged process inside the container, so the worst
+> case is a server that will not start.*
+
+**Was der Editor nicht verhindern kann:** Viele Spielserver schreiben ihre
+Konfiguration beim Start **selbst neu**. Bei Minecraft nachgemessen: geänderte
+Werte überleben, eigene Kommentare und unbekannte Zeilen verschwinden. Wo es
+darauf ankommt, den Server vorher anhalten.
+
+> *What the editor cannot prevent: many game servers rewrite their configuration
+> on start. Measured on Minecraft: changed values survive, own comments and
+> unknown lines disappear.*
+
+### Container-Einstellungen `/konfig/<stack>`
 
 Änderbar sind **einzelne Felder** aus einer Positivliste (Servername,
 Beitrittspasswort, Adminpasswort, Spielerzahl, Speichergrenze) — nie die
