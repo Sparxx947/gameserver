@@ -44,7 +44,7 @@ while read -r f; do
     || { echo "  NICHT VERFOLGT: $f  ($(git check-ignore -v "$f" 2>/dev/null || echo 'nicht eingecheckt'))"; fehler=1; }
 done < <(find bin etc install panel/app.py panel/requirements.txt panel/bilder \
               stacks systemd werkzeuge konfiguration.env.beispiel README.md docs VERSION \
-              -type f 2>/dev/null | grep -vE '/katalog/|\.jpg$')
+              -type f 2>/dev/null | grep -vE '/katalog/|\.jpg$|__pycache__|\.pyc$')
 
 # --- 3. Skripte muessen syntaktisch heil sein -------------------------------
 echo "== Syntax =="
