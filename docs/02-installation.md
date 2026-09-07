@@ -182,14 +182,29 @@ Legt für jeden vorhandenen Stack einen CNAME auf `DNS_ZIEL` an und prüft
 anschließend, dass kein Eintrag `proxied` ist: Cloudflares Proxy kann nur HTTP
 und HTTPS, ein Spielport dahinter ist von außen tot.
 
-Der A-Eintrag `DNS_ZIEL` selbst wird **nicht** automatisch angelegt. Er ist der
-einzige Ort mit der IP-Adresse und gehört in die Hand eines Menschen.
+Setzt außerdem `dns-ziel.service` und `dns-ziel.timer` ein. Ob der Timer läuft,
+entscheidet `SERVER_IPV4`:
+
+* **feste IPv4** — der Timer bleibt aus, und der A-Eintrag `DNS_ZIEL` wird
+  **nicht** automatisch angelegt. Er ist dann der einzige Ort mit der Adresse und
+  gehört in die Hand eines Menschen.
+* **`dynamic`** — die Stufe misst die öffentliche IPv4 einmal sofort, legt den
+  A-Eintrag an oder zieht ihn nach und schaltet den Timer ein. Ab da geschieht
+  das alle fünf Minuten. Begründung in `docs/10-entscheidungen.md`, E21.
+
+Der Timer liegt in beiden Fällen auf der Maschine; ein Wechsel ist eine Zeile in
+`konfiguration.env` und ein erneuter Lauf dieser Stufe.
 
 > *Stage 70: needs a scoped Cloudflare token (Zone / DNS / Edit, own zone only —
 > never the global key). Creates one CNAME per stack pointing at `DNS_ZIEL` and
 > verifies nothing is proxied: Cloudflare's proxy only speaks HTTP(S), so a game
-> port behind it is dead. The `DNS_ZIEL` A record is deliberately not automated
-> — it is the single place holding the IP.*
+> port behind it is dead. It also installs `dns-ziel.service` and its timer.
+> With a fixed `SERVER_IPV4` the timer stays off and the `DNS_ZIEL` A record is
+> deliberately not automated — it is the single place holding the IP. With
+> `SERVER_IPV4=dynamic` the stage measures the public IPv4 once, creates or
+> updates the record and enables the timer, which then repeats every five
+> minutes. The timer is installed either way, so switching is one line in
+> `konfiguration.env` plus a re-run of this stage.*
 
 ---
 

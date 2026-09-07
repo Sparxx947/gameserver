@@ -1,0 +1,17 @@
+[Unit]
+Description=Oeffentliche IPv4 alle fuenf Minuten pruefen
+
+[Timer]
+# Beim Start frueh, danach alle fuenf Minuten. Fuenf Minuten, weil der A-Eintrag
+# mit TTL 60 ausgeliefert wird: laenger warten hiesse, die kurze TTL zu
+# verschenken; haeufiger fragen hiesse, drei fremde Auskunftsstellen ohne Anlass
+# zu belasten.
+# *Five minutes matches the record's 60 s TTL without hammering three
+#  third-party echo services for no reason.*
+OnBootSec=2min
+OnUnitActiveSec=5min
+# Nicht alle Maschinen zur selben Sekunde auf dieselben Auskunftsstellen.
+RandomizedDelaySec=30
+
+[Install]
+WantedBy=timers.target

@@ -88,11 +88,32 @@ cf-dns setzen <name>        CNAME <name>.<zone> -> <ziel>, dns-only
 cf-dns entfernen <name>
 cf-dns liste
 cf-dns pruefen              meldet Einträge, die fälschlich proxied sind
+cf-dns ziel-zeigen          misst die eigene IPv4, vergleicht mit dem A-Eintrag
+cf-dns ziel-setzen          trägt die gemessene IPv4 als A-Eintrag ein
 ```
 
 Fragt **nur die API**, nie die Namensauflösung — ein Wildcard in der Zone würde
 jede Existenzprüfung per `dig` wertlos machen. Löscht nur Einträge, die
 tatsächlich auf `DNS_ZIEL` zeigen. Erzwingt IPv4.
+
+`ziel-zeigen` ändert nichts und gibt **1** zurück, sobald der A-Eintrag von der
+gemessenen Adresse abweicht — so lässt es sich als Prüfung verwenden.
+`ziel-setzen` ist der Schreibweg und wird von `dns-ziel.timer` gerufen; ohne
+`SERVER_IPV4=dynamic` läuft dieser Timer nicht.
+
+Die Adresse kommt **nicht aus einer einzelnen Quelle**: drei unabhängige
+Auskunftsstellen werden befragt, und erst wenn zwei dieselbe Antwort geben, wird
+geschrieben. Eine Adresse aus `100.64.0.0/10` wird verworfen — sie bedeutet
+entweder Provider-NAT (dann gibt es gar keine eigene öffentliche IPv4) oder die
+Anfrage lief durch Tailscale.
+
+> *`ziel-zeigen` changes nothing and returns 1 as soon as the A record differs
+> from the measured address, so it doubles as a check. `ziel-setzen` is the
+> writing path, called by `dns-ziel.timer`, which only runs with
+> `SERVER_IPV4=dynamic`. The address never comes from a single source: three
+> independent services are asked and two must agree before anything is written.
+> An address from `100.64.0.0/10` is rejected — it means either carrier NAT (no
+> public IPv4 of one's own) or that the request went through Tailscale.*
 
 ### `katalog-vorpruefung`
 
@@ -339,6 +360,7 @@ Notausgang `GAMESERVER_KEIN_GATE=1`.
 | `spiele-sicherung-voll.timer` | täglich 04:00, ±300 s | Vollsicherung |
 | `spiel-einrichtung.timer` | alle 2 min, ab 3 min nach dem Start | Passwörter frischer Server setzen |
 | `palworld-neustart.timer` | 05:30 und 17:30 | gegen das Speicherleck |
+| `dns-ziel.timer` | alle 5 min, ab 2 min nach dem Start, ±30 s | öffentliche IPv4 messen und den A-Eintrag nachziehen (nur bei `SERVER_IPV4=dynamic`) |
 
 `Persistent=true` bei allen Sicherungs- und Einrichtungs-Timern: Verpasste Läufe
 werden nachgeholt. **`Persistent=false` bei `palworld-neustart`**, mit Absicht —
@@ -411,9 +433,9 @@ Alle in `konfiguration.env`, alle Pflicht:
 | Variable | Beispiel | Wo sie landet |
 |---|---|---|
 | `DNS_ZONE` | `beispiel.de` | `cf-dns`, `app.py`, Beitrittsadressen |
-| `DNS_ZIEL` | `gs.beispiel.de` | `cf-dns` (CNAME-Ziel) |
-| `PANEL_DOMAIN` | `panel.beispiel.de` | `Caddyfile` |
-| `SERVER_IPV4` | `203.0.113.10` | `cf-dns` (Kommentar/Prüfung) |
+| `DNS_ZIEL` | `gs.beispiel.de` | `cf-dns` (CNAME-Ziel, A-Eintrag) |
+| `PANEL_DOMAIN` | `panel.beispiel.de` | `Caddyfile`, `cf-dns` |
+| `SERVER_IPV4` | `203.0.113.10` **oder** `dynamic` | schaltet `dns-ziel.timer` ein oder aus |
 | `WELT_NAME` | `meinserver` | Server- und Weltnamen in den Spielen |
 | `ADMIN_USER` | `admin` | `ttyd.service`, Benutzeranlage |
 | `ADMIN_NETZ` | `203.0.113.0/30` | `fail2ban` |
