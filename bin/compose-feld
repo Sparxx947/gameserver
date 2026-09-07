@@ -1,0 +1,198 @@
+#!/usr/bin/env python3
+"""compose-feld — liest und setzt Umgebungsvariablen eines Serverstacks.
+
+Warum es das gibt: Von 69 Umgebungsvariablen der acht Server waren ueber die
+Oberflaeche nur 15 erreichbar — die aus einer fest verdrahteten Positivliste.
+Alles andere (Sicherungsintervall, Textchat, Rollenrechte, Autopause,
+Weltoptionen) ging nur per SSH. Gemessen am 2026-09-07.
+
+*Only 15 of the eight servers' 69 environment variables were reachable from the
+panel; everything else needed SSH.*
+
+WAS HIER NICHT AUFGEWEICHT WIRD: Geaendert werden ausschliesslich Eintraege im
+"environment"-Block. Volumes, Ports, Image, user, privileged und cap_add bleiben
+unantastbar — wer dort schreiben kann, ist root auf der Maschine.
+
+Drei Schranken, absteigend nach Verlaesslichkeit:
+
+  1. Der Name muss aussehen wie eine Umgebungsvariable, und eine Sperrliste
+     haelt die zurueck, die den Server zerlegen wuerden (UID/GID: Dateirechte;
+     GAME_ID: waere ein anderes Spiel; EULA und Lizenzen: rechtliche Zustimmung).
+  2. Der Wert darf keinen Zeilenumbruch enthalten. Ohne diese Regel liesse sich
+     ueber einen Wert neue YAML-Struktur einschleusen, etwa ein Volume "/:/host".
+  3. DER EIGENTLICHE SCHUTZ: Nach dem Schreiben wird "docker compose config"
+     vorher und nachher verglichen. Weichen Volumes, Ports, Image, user,
+     privileged oder cap_add auch nur um ein Zeichen ab, wird die Aenderung
+     zurueckgenommen. Diese Pruefung haengt nicht davon ab, dass 1 und 2
+     lueckenlos sind — sie prueft das Ergebnis, nicht die Eingabe.
+
+*Three barriers, in ascending order of reliability: a name pattern plus a
+ deny-list; a value that may not contain a newline (otherwise YAML structure such
+ as a "/:/host" volume could be injected); and — the real protection — a
+ before/after comparison of "docker compose config". If volumes, ports, image,
+ user, privileged or cap_add differ by a single character, the change is rolled
+ back. That check does not depend on the first two being airtight: it inspects
+ the result, not the input.*
+
+  compose-feld lesen  <stack>
+  compose-feld setzen <stack> <name>        (Wert ueber stdin)
+"""
+import json, re, shutil, subprocess, sys, time
+from pathlib import Path
+
+STACKS = Path("/opt/stacks")
+NAME_MUSTER = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,60}$")
+
+# Diese Variablen zerlegen den Server oder haben rechtliche Bedeutung.
+GESPERRT = {
+    "UID", "GID", "PUID", "PGID",           # Dateirechte der Spielstaende
+    "GAME_ID", "APPID", "STEAM_APPID",      # waere ein anderes Spiel
+    "EULA", "TS3SERVER_LICENSE",            # Zustimmung, kein Schalter
+    "PATH", "LD_PRELOAD", "LD_LIBRARY_PATH", "HOME",
+}
+
+# Diese Teile der erzeugten Konfiguration muessen unveraendert bleiben.
+UNANTASTBAR = ("volumes", "ports", "image", "user", "privileged", "cap_add",
+               "devices", "pid", "network_mode", "security_opt")
+
+
+def fehler(t):
+    print(f"FEHLER: {t}", file=sys.stderr)
+    sys.exit(1)
+
+
+def stackpfad(stack: str) -> Path:
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,30}", stack):
+        fehler("unzulaessiger Stackname")
+    p = STACKS / stack / "compose.yaml"
+    if not p.is_file():
+        fehler("keine compose.yaml")
+    return p
+
+
+def env_block(zeilen: list) -> tuple:
+    """Findet den environment-Block: (erste Zeile, letzte Zeile, Einrueckung).
+
+    Zeilenweise statt ueber einen YAML-Parser, weil ein Parser beim
+    Zurueckschreiben jeden Kommentar vernichten wuerde - und in diesen Dateien
+    steht in den Kommentaren, warum eine Einstellung so ist.
+    *Line-based rather than via a YAML parser: a parser would destroy every
+     comment on write-back, and the comments carry the reasoning.*
+    """
+    start = None
+    for i, z in enumerate(zeilen):
+        if re.match(r"^\s*environment:\s*$", z):
+            start = i
+            tiefe = len(z) - len(z.lstrip())
+            break
+    if start is None:
+        return None, None, 0
+    ende = len(zeilen)
+    for i in range(start + 1, len(zeilen)):
+        z = zeilen[i]
+        if z.strip() and (len(z) - len(z.lstrip())) <= tiefe:
+            ende = i
+            break
+    return start, ende, tiefe
+
+
+def lesen(p: Path):
+    zeilen = p.read_text().splitlines()
+    a, e, _ = env_block(zeilen)
+    if a is None:
+        return []
+    raus = []
+    for z in zeilen[a + 1:e]:
+        m = re.match(r"^\s*-?\s*([A-Za-z][A-Za-z0-9_]*)\s*[:=]\s*(.*)$", z)
+        if not m:
+            continue
+        wert = m.group(2).strip().strip('"').strip("'")
+        raus.append((m.group(1), wert, m.group(1) in GESPERRT))
+    return raus
+
+
+def geruest(p: Path) -> str:
+    """Die von docker erzeugte Endfassung, auf die unantastbaren Teile reduziert."""
+    r = subprocess.run(["docker", "compose", "-f", str(p), "config", "--format", "json"],
+                       capture_output=True, text=True, timeout=60)
+    if r.returncode != 0:
+        return ""
+    try:
+        d = json.loads(r.stdout)
+    except json.JSONDecodeError:
+        return ""
+    kern = {}
+    for name, dienst in (d.get("services") or {}).items():
+        kern[name] = {k: dienst.get(k) for k in UNANTASTBAR}
+    return json.dumps(kern, sort_keys=True)
+
+
+def setzen(p: Path, name: str, wert: str):
+    if not NAME_MUSTER.match(name):
+        fehler("unzulaessiger Variablenname")
+    if name in GESPERRT:
+        fehler(f"{name} ist gesperrt - sie zerlegt den Server oder ist eine Zustimmung")
+    if "\n" in wert or "\r" in wert or any(ord(c) < 32 for c in wert):
+        fehler("der Wert darf keine Zeilenumbrueche oder Steuerzeichen enthalten")
+    if len(wert) > 200:
+        fehler("Wert zu lang")
+
+    vorher = geruest(p)
+    if not vorher:
+        fehler("compose.yaml ist schon jetzt nicht auswertbar - nichts geaendert")
+
+    zeilen = p.read_text().splitlines(keepends=True)
+    a, e, _ = env_block([z.rstrip("\n") for z in zeilen])
+    if a is None:
+        fehler("kein environment-Block")
+
+    getroffen = False
+    for i in range(a + 1, e):
+        roh = zeilen[i].rstrip("\r\n")
+        m = re.match(r"^(\s*)(-\s*)?([A-Za-z][A-Za-z0-9_]*)(\s*[:=]\s*)(.*)$", roh)
+        if not m or m.group(3) != name:
+            continue
+        ende = "\r\n" if zeilen[i].endswith("\r\n") else ("\n" if zeilen[i].endswith("\n") else "")
+        # Schreibweise beibehalten: "- KEY=wert" (Liste) oder "KEY: wert" (Map).
+        # Beide kommen hier vor, und ein Wechsel wuerde die Datei zerlegen.
+        if m.group(2):
+            zeilen[i] = f"{m.group(1)}{m.group(2)}{name}={wert}{ende}"
+        else:
+            zeilen[i] = f'{m.group(1)}{name}: "{wert}"{ende}'
+        getroffen = True
+        break
+    if not getroffen:
+        fehler(f"{name} steht nicht im environment-Block dieses Servers")
+
+    sicherung = p.with_name(f"compose.yaml.vor-panel-{time.strftime('%Y%m%d-%H%M%S')}")
+    shutil.copy2(p, sicherung)
+    p.write_text("".join(zeilen))
+
+    nachher = geruest(p)
+    if not nachher:
+        shutil.copy2(sicherung, p)
+        fehler("compose.yaml waere danach nicht mehr auswertbar - zurueckgenommen")
+    if nachher != vorher:
+        shutil.copy2(sicherung, p)
+        fehler("die Aenderung haette Volumes, Ports oder das Image beruehrt - zurueckgenommen")
+    print(f"ok\t{name}\tSicherung: {sicherung.name}")
+
+
+def main():
+    if len(sys.argv) < 3:
+        fehler("zu wenige Parameter")
+    aktion, stack = sys.argv[1], sys.argv[2]
+    p = stackpfad(stack)
+    if aktion == "lesen":
+        for n, w, gesperrt in lesen(p):
+            print(f"{n}\t{w}\t{'gesperrt' if gesperrt else 'frei'}")
+    elif aktion == "setzen":
+        if len(sys.argv) < 4:
+            fehler("Name fehlt")
+        setzen(p, sys.argv[3], sys.stdin.read().strip("\n"))
+    else:
+        fehler("unbekannte Aktion")
+
+
+if __name__ == "__main__":
+    main()

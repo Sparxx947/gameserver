@@ -207,6 +207,25 @@ darauf ankommt, den Server vorher anhalten.
 
 ### Container-Einstellungen `/konfig/<stack>`
 
+Zeigt **alle Umgebungsvariablen** des Stacks. Bis zum 2026-09-07 standen hier
+nur 12 Felder aus einer festen Liste — von den 69 Variablen der acht Server
+waren 15 erreichbar, alles andere ging nur per SSH.
+
+Einige Variablen erscheinen **fest** und nicht bearbeitbar. Sie werden trotzdem
+angezeigt, damit sichtbar ist, dass es sie gibt:
+
+| Variable | Warum fest |
+|---|---|
+| `UID`, `GID`, `PUID`, `PGID` | Ändern bricht die Rechte an den Spielständen |
+| `GAME_ID`, `APPID` | Das wäre ein anderes Spiel |
+| `EULA`, `TS3SERVER_LICENSE` | Eine Zustimmung, kein Schalter |
+| `PATH`, `LD_PRELOAD`, … | Ausführungsumgebung des Containers |
+
+> *Shows every environment variable of the stack; until 2026-09-07 only 12
+> allow-listed fields appeared, leaving 54 of 69 reachable only over SSH. Some
+> are shown but locked — changing them would break file ownership, install a
+> different game, or amount to accepting a licence.*
+
 Änderbar sind **einzelne Felder** aus einer Positivliste (Servername,
 Beitrittspasswort, Adminpasswort, Spielerzahl, Speichergrenze) — nie die
 compose-Datei als Ganzes. Wer dort ein Volume `/:/host` eintragen könnte, wäre
