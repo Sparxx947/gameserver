@@ -106,6 +106,21 @@ dass jemand sie bemerkt.
 > none, because people act on it — this finds the drift instead of hoping someone
 > notices.*
 
+### Welcher Stand läuft da eigentlich?
+
+```bash
+cat /etc/gameserver-version        # auf der Maschine
+werkzeuge/abgleich.sh gameserver   # vergleicht ihn mit diesem Repositorium
+```
+
+`VERSION` nennt die Fassung des Bausatzes; beim Einrichten entsteht daraus ein
+Stempel auf der Maschine mit Fassung, Commit, Datum und der Angabe, ob seither
+einzelne Dateien von Hand nachgerollt wurden.
+
+> *`VERSION` names the release; installing writes a stamp on the machine holding
+> the release, the commit, the date, and whether single files have been rolled
+> out by hand since. `abgleich.sh` compares it.*
+
 ### Ist das Repositorium vollständig?
 
 ```bash

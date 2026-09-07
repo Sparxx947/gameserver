@@ -264,6 +264,53 @@ Fehler, nicht das Vergessen.
 > replacing atomically; aborts on a left-over placeholder or unknown target. It
 > exists because two files were scp'd across untouched in a single day.*
 
+### Die Fassung
+
+`VERSION` im Wurzelverzeichnis nennt die Fassung dieses Bausatzes. Beim
+Einrichten entsteht daraus `/etc/gameserver-version` auf der Maschine:
+
+```
+VERSION=1.0.0
+COMMIT=d18d650
+STAND=sauber
+DATUM=2026-09-07T18:42:11+02:00
+```
+
+`abgleich.sh` vergleicht die Fassung und meldet eine **Abweichung**, wenn sie
+nicht stimmt oder der Stempel ganz fehlt.
+
+`STAND` sagt, ob seit der letzten vollen Einrichtung einzelne Dateien mit
+`ausrollen.sh` nachgezogen wurden. Das zählt **bewusst nicht** als Abweichung:
+einzeln nachzurollen ist der vorgesehene Arbeitsweg, und es jedes Mal als
+Abweichung zu melden hieße, eine Meldung zu erzeugen, die man sich abgewöhnt zu
+lesen. Was tatsächlich abweicht, findet der Dateivergleich ohnehin genau.
+
+Wann die Zahl steigt:
+
+| Stelle | wann |
+|---|---|
+| erste (`1.x.x`) | eine der vier nicht verhandelbaren Grenzen ändert sich, oder eine bestehende Einrichtung lässt sich nicht mehr ohne Handarbeit weiterbetreiben |
+| zweite (`x.1.x`) | neue Fähigkeit, neue Einrichtungsstufe, neue Variable in `konfiguration.env` |
+| dritte (`x.x.1`) | Fehlerbehebung, Dokumentation, nichts, wofür man etwas tun muss |
+
+Zur Fassung gehört ein Git-Tag auf `main`, nach dem Merge:
+
+```bash
+git tag -a v1.0.0 -m "Fassung 1.0.0" && git push origin v1.0.0
+```
+
+> *`VERSION` names the release of this kit; installing turns it into
+> `/etc/gameserver-version`, holding the release, the commit, whether single
+> files have been rolled out by hand since, and when. `abgleich.sh` reports a
+> deviation when the release differs or the stamp is missing. `STAND` is
+> deliberately not a deviation: rolling out single files is the intended
+> workflow, and flagging it every time would train people to ignore the message,
+> while actual drift is found precisely by the file comparison. The first digit
+> moves when one of the four non-negotiables changes or an existing installation
+> can no longer be carried forward without manual work; the second for new
+> capabilities, stages or configuration variables; the third for fixes and
+> documentation. Each release gets a git tag on `main` after the merge.*
+
 ### `vollstaendigkeit.sh`
 
 Prüft, ob das Repositorium alles enthält, was die Einrichtung anfasst: existiert

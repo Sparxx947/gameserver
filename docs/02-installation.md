@@ -196,6 +196,7 @@ einzige Ort mit der IP-Adresse und gehört in die Hand eines Menschen.
 ## Nach der Installation prüfen
 
 ```bash
+cat /etc/gameserver-version                        # welche Fassung liegt hier
 systemctl is-active panel caddy ttyd docker fail2ban
 systemctl list-timers --no-pager | grep -E 'sicherung|einrichtung'
 curl -sI https://<PANEL_DOMAIN>/ | head -3        # 200 oder 303
