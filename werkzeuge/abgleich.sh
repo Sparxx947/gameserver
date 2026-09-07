@@ -172,6 +172,35 @@ else
   anders=$((anders+1))
 fi
 
+# 5. Die ausgerollte Fassung. Erzeugt, nicht kopiert - deshalb keine Zeile in
+#    PAARE, sondern eine eigene Pruefung wie bei ttyd.
+#
+#    STAND=geaendert zaehlt BEWUSST NICHT als Abweichung. Einzelne Dateien mit
+#    ausrollen.sh nachzuziehen ist der vorgesehene Arbeitsweg; das jedes Mal als
+#    Abweichung zu melden hiesse, eine Meldung zu erzeugen, die man sich
+#    abgewoehnt zu lesen. Was tatsaechlich abweicht, findet der Dateivergleich
+#    oben ohnehin genau.
+# *Generated, not copied, so it gets its own check. STAND=geaendert deliberately
+#  does not count as a deviation: rolling out single files is the intended
+#  workflow, and reporting it every time would train people to ignore the
+#  message. Actual drift is found precisely by the file comparison above.*
+SOLL_V=$(cat "$REPO/VERSION" 2>/dev/null || echo unbekannt)
+STEMPEL=$(ssh "$ZIEL" 'cat /etc/gameserver-version 2>/dev/null' || true)
+IST_V=$(grep -m1 '^VERSION=' <<<"$STEMPEL" | cut -d= -f2)
+IST_STAND=$(grep -m1 '^STAND=' <<<"$STEMPEL" | cut -d= -f2)
+IST_COMMIT=$(grep -m1 '^COMMIT=' <<<"$STEMPEL" | cut -d= -f2)
+if [ -z "$STEMPEL" ]; then
+  echo "  ABWEICHUNG            /etc/gameserver-version fehlt — Einrichtung lief vor der Versionierung"
+  anders=$((anders+1))
+elif [ "$SOLL_V" != "$IST_V" ]; then
+  echo "  ABWEICHUNG            Fassung: Repo hat $SOLL_V, Server hat ${IST_V:-nichts}"
+  anders=$((anders+1))
+else
+  gleich=$((gleich+1))
+  printf '  Fassung %s (Commit %s, Stand: %s)\n' "$IST_V" "${IST_COMMIT:-?}" "${IST_STAND:-?}"
+  [ "$IST_STAND" = "geaendert" ] && echo "    seit der letzten vollen Einrichtung wurden einzelne Dateien nachgerollt"
+fi
+
 echo
 printf 'deckungsgleich: %d   abweichend: %d   fehlend: %d\n' "$gleich" "$anders" "$fehlt"
 [ $((anders + fehlt)) -eq 0 ] || exit 1

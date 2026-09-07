@@ -46,6 +46,12 @@ for s in "${STUFEN[@]}"; do
   bash "$skript" || fehler "Stufe $s ist gescheitert — hier anhalten und die Ursache klaeren."
 done
 
+# Erst nach ALLEN Stufen: vorher haette jede einzelne Stufe den Stempel schon
+# wieder auf "geaendert" gesetzt.
+# *After all stages: any single stage would have marked it "geaendert" again.*
+version_stempeln sauber
+log "Stand: $(tr '\n' ' ' < "$VERSIONSDATEI")"
+
 cat <<TEXT
 
   ====================================================================

@@ -43,7 +43,7 @@ while read -r f; do
   git ls-files --error-unmatch "$f" >/dev/null 2>&1 \
     || { echo "  NICHT VERFOLGT: $f  ($(git check-ignore -v "$f" 2>/dev/null || echo 'nicht eingecheckt'))"; fehler=1; }
 done < <(find bin etc install panel/app.py panel/requirements.txt panel/bilder \
-              stacks systemd werkzeuge konfiguration.env.beispiel README.md docs \
+              stacks systemd werkzeuge konfiguration.env.beispiel README.md docs VERSION \
               -type f 2>/dev/null | grep -vE '/katalog/|\.jpg$')
 
 # --- 3. Skripte muessen syntaktisch heil sein -------------------------------
