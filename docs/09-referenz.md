@@ -110,6 +110,51 @@ liefert 1.6, dessen `--base-path` sich anders verhält.
 
 ---
 
+## Prüfwerkzeuge (`werkzeuge/`)
+
+### `abgleich.sh <ssh-ziel>`
+
+Vergleicht das Repositorium mit einer laufenden Maschine — **27 Prüfpunkte**:
+
+| Was | Wie verglichen |
+|---|---|
+| 22 Dateien (Werkzeuge, `/etc`, Units, `app.py`) | byte-genau, nach Einsetzen der Platzhalter |
+| Python-Umgebung des Panels | `pip list --format=freeze` gegen `panel/requirements.txt` |
+| ttyd | installierte Version gegen `TTYD_VERSION` in Stufe 40 |
+| 3 Symbole | byte-genau |
+
+Die letzten vier Punkte fehlten zunächst. Aufgefallen ist das erst, als ein
+Dependabot-PR `requirements.txt` änderte und der Abgleich von Hand nachgezogen
+werden musste — **eine Prüfung, die einen Bereich gar nicht ansieht, meldet ihn
+als in Ordnung.**
+
+Exit 0 = deckungsgleich, 1 = Abweichungen (mit Diff), 2 = nicht erreichbar.
+Ändert nichts.
+
+> *Compares the repository against a running machine across 27 checks: 22 files
+> byte-for-byte after placeholder substitution, plus the panel's Python
+> environment, the ttyd version, and the three icons. The last four were missing
+> at first and only surfaced when a Dependabot PR changed `requirements.txt` — a
+> check that never looks at an area reports it as fine.*
+
+### `vollstaendigkeit.sh`
+
+Prüft, ob das Repositorium alles enthält, was die Einrichtung anfasst: existiert
+jede von `install/` referenzierte Datei **und wird sie von git verfolgt**, sind
+alle Skripte syntaktisch heil, steckt irgendwo ein Geheimnis, ist jeder
+`@@PLATZHALTER@@` in `konfiguration.env.beispiel` erklärt.
+
+Als Bremse vor jedem Commit:
+`ln -sf ../../werkzeuge/git-hooks/pre-commit .git/hooks/pre-commit`.
+Notausgang `GAMESERVER_KEIN_GATE=1`.
+
+> *Verifies the repository holds everything the installation touches: every file
+> referenced by `install/` exists and is tracked, all scripts parse, no secret is
+> present, every placeholder is documented. Wire it in as a pre-commit hook via
+> the symlink above; bypass with `GAMESERVER_KEIN_GATE=1`.*
+
+---
+
 ## systemd
 
 | Unit | Zeitpunkt | Zweck |
