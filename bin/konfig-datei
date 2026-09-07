@@ -69,7 +69,16 @@ RAUSCHEN = re.compile(
     # niemand mehr die Datei, um die es geht.
     # *Own backups: without this the list grows with every edit until the file
     #  that matters is lost among its own copies.*
-    r"|\.vor-panel-[0-9]{8}-[0-9]{6}$", re.I)
+    r"|\.vor-panel-[0-9]{8}-[0-9]{6}$"
+    # LinuxGSM legt _default.cfg mit dem Hinweis "DO NOT EDIT, ANY CHANGES WILL
+    # BE OVERWRITTEN!" an - sie wird bei jedem Start neu geschrieben. Der
+    # Einrichtungsschritt setzte dort Werte und meldete Erfolg, waehrend die
+    # Aenderung beim naechsten Start verschwand (gemessen 2026-09-07 an
+    # Ricochet). Eigene Einstellungen gehoeren in common.cfg oder
+    # <gameserver>.cfg daneben.
+    # *LinuxGSM regenerates _default.cfg on every start; edits there vanish while
+    #  the setup step reported success. Own settings belong in common.cfg.*
+    r"|(^|/)_default\.cfg$", re.I)
 
 # Unreal legt dutzendweise leere Konfigurationsdateien an (1 Byte). Sie sind
 # keine Einstellung, sondern Platzhalter - bei Palworld waren es 38 von 41
