@@ -331,6 +331,56 @@ git tag -a v1.0.0 -m "Fassung 1.0.0" && git push origin v1.0.0
 > can no longer be carried forward without manual work; the second for new
 > capabilities, stages or configuration variables; the third for fixes and
 > documentation. Each release gets a git tag on `main` after the merge.*
+### `rueckbau.sh <ssh-ziel> [Stufen] [--wirklich]`
+
+Das Gegenstück zu `install/einrichten.sh`: entfernt von einer Maschine wieder,
+was dieses Repositorium dort einbaut.
+
+```
+werkzeuge/rueckbau.sh gameserver                        # zeigt nur den Plan
+werkzeuge/rueckbau.sh gameserver --wirklich             # Dienste und Programme
+werkzeuge/rueckbau.sh gameserver --mit-spielstaenden \
+                                 --mit-benutzern \
+                                 --mit-dns --wirklich   # alles
+```
+
+**Ohne `--wirklich` ändert es nichts**, sondern zeigt jeden Schritt mit dem
+Befehl, der ausgeführt würde. Mit `--wirklich` fragt es nach dem **Namen des
+Ziels** — nicht nach „ja": ein „ja" tippt man auch dann, wenn man versehentlich
+die falsche Maschine erwischt hat. Ohne Terminal bricht es ab, statt
+unbeaufsichtigt loszulaufen.
+
+Die Liste der systemd-Einheiten und der Werkzeuge entsteht **aus dem
+Repositorium selbst** (`systemd/` und `bin/`). Genau diese beiden Listen waren
+in der früheren Anleitung falsch: sie löschte keine einzige Unit-Datei, und in
+der Werkzeugliste fehlten zwei Einträge.
+
+Was ausdrücklich **stehen bleibt**: das Borg-Repository und
+`/root/.borg-passphrase` (der einzige Schlüssel dazu — wer sie löscht, macht
+jedes vorhandene Archiv wertlos), die ufw-Regeln und `sshd_config.d` (ein
+Zurücksetzen könnte den SSH-Zugang kappen), die Pakete, und `ADMIN_USER` — das
+ist der Zugang, über den gerade gearbeitet wird.
+
+Nach dem Lauf eine **Gegenprobe** samt **Kontrollwert**: nachgesehen wird, was
+noch da ist, und gleichzeitig, dass Docker, `ADMIN_USER` und die Passphrase
+*noch* da sind. Ohne den Kontrollwert wäre „nichts mehr gefunden" nicht von „die
+Maschine antwortet gar nicht mehr" zu unterscheiden.
+
+**Geprüft wird ein Rückbau nur so:** zurückbauen, `install/einrichten.sh` erneut
+laufen lassen, `abgleich.sh` muss grün sein. Auf einer Maschine, die man verlieren
+darf — auf keiner anderen.
+
+> *The counterpart to the installer. Without `--wirklich` it only prints the plan
+> and changes nothing; with it, it asks for the target's name rather than for
+> "yes", because people type "yes" even when they grabbed the wrong machine, and
+> it refuses to run without a terminal. The unit and tool lists are derived from
+> the repository itself — exactly the two lists the old written instructions had
+> wrong. The Borg repository and its passphrase, the firewall rules, the packages
+> and `ADMIN_USER` are deliberately left alone. Afterwards it verifies what
+> remains and measures a control value alongside, so "found nothing" cannot be
+> confused with "the machine stopped answering". The only real test of a teardown
+> is: tear down, run the installer again, and `abgleich.sh` must be green — on a
+> machine you can afford to lose.*
 
 ### `vollstaendigkeit.sh`
 

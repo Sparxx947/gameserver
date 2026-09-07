@@ -248,20 +248,31 @@ cp /etc/caddy/Caddyfile.vor-20260907-101500 /etc/caddy/Caddyfile
 caddy validate --config /etc/caddy/Caddyfile && systemctl reload caddy
 ```
 
-Vollständig zurückbauen (Achtung, löscht Spielstände):
+Vollständig zurückbauen: **`werkzeuge/rueckbau.sh`**, nicht von Hand.
 
 ```bash
-docker compose -f /opt/stacks/<name>/compose.yaml down
-systemctl disable --now panel ttyd spiele-sicherung.timer \
-                        spiele-sicherung-voll.timer spiel-einrichtung.timer
-rm -rf /opt/panel /opt/stacks /srv/games /srv/dienste
-rm -f /etc/sudoers.d/panel /etc/spiele-katalog.json /etc/borg-ausschluss.txt
-rm -f /usr/local/bin/{cf-dns,katalog-vorpruefung,panel-aktion,spiel-einrichtung,spiel-verwalten,spiele-sicherung,ttyd}
+werkzeuge/rueckbau.sh gameserver                        # zeigt nur den Plan
+werkzeuge/rueckbau.sh gameserver --wirklich             # Dienste und Programme
+werkzeuge/rueckbau.sh gameserver --mit-spielstaenden \
+                                 --mit-benutzern \
+                                 --mit-dns --wirklich   # alles
 ```
 
-Das Borg-Repositorium bleibt dabei unangetastet — die Spielstände sind danach
-noch da.
+Hier stand früher eine abzutippende Befehlsliste. Sie war abgedriftet: sie
+löschte **keine einzige systemd-Einheit**, ließ Caddyfile, fail2ban-Regel,
+Cloudflare-Token und die Systembenutzer stehen, und in der Werkzeugliste fehlten
+zwei Einträge. Wer sie abtippte, hielt die Maschine danach für sauber. Das
+Skript leitet beide Listen aus dem Repositorium ab und kann deshalb nicht mehr
+auseinanderlaufen.
 
-> *Rollback: every stage backs up an existing target to `<file>.vor-<date>`, so
-> reverting is per file. The full teardown is listed above and deletes save
-> games; the Borg repository is untouched, so the saves still exist there.*
+Das Borg-Repositorium und `/root/.borg-passphrase` bleiben unangetastet — die
+Spielstände sind danach noch da, und ohne die Passphrase wären sie es nicht.
+Einzelheiten und die übrigen Ausnahmen in `docs/09-referenz.md`.
+
+> *Full teardown: use `werkzeuge/rueckbau.sh`, not a hand-typed list. What stood
+> here before had drifted — it removed no systemd unit at all, left the
+> Caddyfile, the fail2ban rule, the Cloudflare token and the system users behind,
+> and its tool list was missing two entries, so anyone following it believed the
+> machine was clean afterwards. The script derives both lists from the repository
+> and cannot drift again. The Borg repository and its passphrase are untouched,
+> so the saves survive — and without the passphrase they would not.*
