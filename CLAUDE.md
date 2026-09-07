@@ -149,7 +149,7 @@ werkzeuge/abgleich.sh gameserver                      # vergleichen
 werkzeuge/ausrollen.sh gameserver bin/panel-aktion    # ausrollen
 ```
 
-32 Prüfpunkte, muss `abweichend: 0` melden. Weicht etwas ab, ist **zuerst zu
+33 Prüfpunkte, muss `abweichend: 0` melden. Weicht etwas ab, ist **zuerst zu
 klären, welche Seite recht hat** — nicht blind in eine Richtung angleichen.
 
 **Voraussetzung:** eine ausgefüllte `konfiguration.env` (Vorlage:

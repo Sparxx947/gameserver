@@ -17,6 +17,8 @@
 #   panel-aktion katalog
 #   panel-aktion installieren <schluessel>
 #   panel-aktion deinstallieren <stack>
+#   panel-aktion compose-lesen <stack>
+#   panel-aktion compose-setzen <stack> <name>              (Wert ueber stdin)
 #   panel-aktion konfig-dateien <stack>
 #   panel-aktion konfig-datei-lesen <stack> <relpfad>
 #   panel-aktion konfig-datei-schreiben <stack> <relpfad>   (Inhalt ueber stdin)
@@ -270,6 +272,22 @@ PY
         "$(python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('einrichtung_offen',False))" "$d")" \
         "$(python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('einrichtung_stand',''))" "$d")"
     done
+    ;;
+  compose-lesen|compose-setzen)
+    # Alle Umgebungsvariablen des Stacks. Die Absicherung sitzt vollstaendig in
+    # compose-feld: Namensmuster, Sperrliste, keine Zeilenumbrueche im Wert und -
+    # als eigentlicher Schutz - ein Vergleich der von docker erzeugten Endfassung
+    # vor und nach der Aenderung. Weichen Volumes, Ports, Image, user, privileged
+    # oder cap_add ab, wird zurueckgerollt. Diese Pruefung sieht das ERGEBNIS an
+    # und haengt nicht davon ab, dass die Eingabepruefungen lueckenlos sind.
+    # *Protection lives entirely in compose-feld, whose real safeguard is a
+    #  before/after comparison of docker's rendered config: it inspects the
+    #  result rather than trusting the input checks.*
+    s="${2:-}"; pruefe_stack "$s"
+    case "$1" in
+      compose-lesen)  exec /usr/local/bin/compose-feld lesen "$s" ;;
+      compose-setzen) exec /usr/local/bin/compose-feld setzen "$s" "${3:-}" ;;
+    esac
     ;;
   konfig-dateien|konfig-datei-lesen|konfig-datei-schreiben)
     # Konfigurationsdateien der SPIELE (nicht die compose.yaml). Die

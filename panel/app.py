@@ -761,19 +761,53 @@ def konfig(request: Request, stack: str, meldung: str = ""):
     s = angemeldet(request)
     if not ist_admin(s):
         return RedirectResponse("/", 303)
-    rc, aus = aktion("konfig-lesen", stack, timeout=60)
     zeilen = []
+
+    # Zuerst ALLE Umgebungsvariablen des Stacks. Bis 2026-09-07 standen hier nur
+    # 12 Felder aus einer festen Liste - von 69 Variablen der acht Server waren
+    # 15 erreichbar, der Rest ging nur per SSH.
+    # *Until 2026-09-07 only 12 allow-listed fields appeared here: 15 of the
+    #  eight servers' 69 variables were reachable, the rest needed SSH.*
+    rc_env, aus_env = aktion("compose-lesen", stack, timeout=60)
+    for z in aus_env.splitlines():
+        teile = z.split("\t")
+        if len(teile) < 3:
+            continue
+        name, wert, zustand = teile[0], teile[1], teile[2]
+        if zustand == "gesperrt":
+            # Gesperrte Variablen werden GEZEIGT, aber nicht bearbeitbar - wer
+            # sie sucht, soll sehen, dass es sie gibt und warum sie fest ist.
+            # *Shown but not editable: anyone looking for them should see that
+            #  they exist and why they are fixed.*
+            zeilen.append(f'<tr><td><code>{esc(name)}</code></td><td>'
+                          f'<input type=text value="{esc(wert)}" disabled style="width:220px">'
+                          f' <span class=z>fest</span></td></tr>')
+        else:
+            zeilen.append(
+                f'<tr><td><code>{esc(name)}</code></td><td>'
+                f'<form method=post action=/konfig-setzen style="display:inline">'
+                f'<input type=hidden name=csrf value="{s["csrf"]}">'
+                f'<input type=hidden name=stack value="{esc(stack)}">'
+                f'<input type=hidden name=feld value="env:{esc(name)}">'
+                f'<input type=text name=wert value="{esc(wert)}" style="width:220px">'
+                f'<button class=p>speichern</button></form></td></tr>')
+
+    # Danach die Sonderfaelle, die NICHT in der Umgebung stehen (Palworld fuehrt
+    # die wirksamen Werte in seiner eigenen Datei) und die Speichergrenze.
+    rc, aus = aktion("konfig-lesen", stack, timeout=60)
     for z in aus.splitlines():
         if "\t" not in z:
             continue
         feld, wert = z.split("\t", 1)
+        if not (feld.startswith("ini:") or feld == "mem_limit"):
+            continue          # steht schon oben als Umgebungsvariable
         beschriftung = feld.replace("ini:", "").replace("_", " ")
         hinweis = " <span class=z>(wirksam)</span>" if feld.startswith("ini:") else ""
-        zeilen.append(f"""<tr><td>{beschriftung}{hinweis}</td><td>
-<form method=post action=/konfig-setzen>
-<input type=hidden name=csrf value="{s['csrf']}"><input type=hidden name=stack value="{stack}">
-<input type=hidden name=feld value="{feld}">
-<input type=text name=wert value="{wert}" style="width:220px">
+        zeilen.append(f"""<tr><td>{esc(beschriftung)}{hinweis}</td><td>
+<form method=post action=/konfig-setzen style="display:inline">
+<input type=hidden name=csrf value="{s['csrf']}"><input type=hidden name=stack value="{esc(stack)}">
+<input type=hidden name=feld value="{esc(feld)}">
+<input type=text name=wert value="{esc(wert)}" style="width:220px">
 <button class=p>speichern</button></form></td></tr>""")
     return HTMLResponse(KOPF + kopfleiste(s) + RUMPF + f"<h1>Einstellungen: {stack}</h1>"
         f"{f'<div class=warn>{meldung}</div>' if meldung else ''}"
@@ -795,9 +829,24 @@ def konfig_setzen(request: Request, csrf: str = Form(""), stack: str = Form(""),
     s = pruefe(request, csrf)
     if not ist_admin(s):
         return RedirectResponse("/", 303)
-    rc, aus = aktion("konfig-setzen", stack, feld, wert, timeout=60)
-    m = "Gespeichert. Wirkt nach einem Neustart des Servers." if rc == 0 else f"Nicht gespeichert: {aus}"
-    return RedirectResponse(f"/konfig/{stack}?meldung={m}", 303)
+    # "env:NAME" geht an compose-feld (alle Umgebungsvariablen), alles andere
+    # an den alten Weg (Palworlds eigene Datei, mem_limit). Der Wert geht ueber
+    # stdin, nicht als Parameter: er kann Leerzeichen und Sonderzeichen
+    # enthalten, und in der Prozessliste hat er nichts zu suchen.
+    # *"env:NAME" goes to compose-feld; the value travels via stdin, never as an
+    #  argument - it may contain spaces and has no business in the process list.*
+    if feld.startswith("env:"):
+        try:
+            p = subprocess.run(AKTION + ["compose-setzen", stack, feld[4:]],
+                               input=wert, capture_output=True, text=True, timeout=60)
+            rc, aus = p.returncode, (p.stdout or "") + (p.stderr or "")
+        except subprocess.TimeoutExpired:
+            rc, aus = 1, "Zeitüberschreitung"
+    else:
+        rc, aus = aktion("konfig-setzen", stack, feld, wert, timeout=60)
+    m = ("Gespeichert. Wirkt nach einem Neustart des Servers."
+         if rc == 0 else f"Nicht gespeichert: {aus.strip()[:200]}")
+    return RedirectResponse(f"/konfig/{stack}?meldung={quote(m)}", 303)
 
 
 # ==========================================================================

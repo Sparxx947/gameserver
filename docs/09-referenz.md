@@ -103,6 +103,45 @@ echte `compose.yaml` und lässt `docker compose config -q` darauf laufen, fragt
 
 Ergebnis vom 2026-09-06: 34 ohne Befund, 5 Hinweis, 0 Fehler, 2 installiert.
 
+### `compose-feld`
+
+```
+compose-feld lesen  <stack>
+compose-feld setzen <stack> <name>          (Wert über stdin)
+```
+
+Liest und setzt die Umgebungsvariablen eines Stacks. Geändert wird
+**ausschließlich** der `environment`-Block; Volumes, Ports, Image, `user`,
+`privileged` und `cap_add` bleiben unantastbar.
+
+Drei Schranken, aufsteigend nach Verlässlichkeit:
+
+1. **Namensmuster und Sperrliste** — `UID`/`GID`/`PUID`/`PGID` (Dateirechte),
+   `GAME_ID`/`APPID` (wäre ein anderes Spiel), `EULA`/`TS3SERVER_LICENSE`
+   (Zustimmung), `PATH`/`LD_*`.
+2. **Kein Zeilenumbruch im Wert** — sonst ließe sich über einen Wert neue
+   YAML-Struktur einschleusen, etwa ein Volume `/:/host`.
+3. **Der eigentliche Schutz: ein Vergleich der von Docker erzeugten Endfassung
+   vor und nach der Änderung.** Weichen Volumes, Ports, Image, `user`,
+   `privileged` oder `cap_add` auch nur um ein Zeichen ab, wird zurückgerollt.
+   Diese Prüfung sieht das **Ergebnis** an und hängt nicht davon ab, dass 1 und
+   2 lückenlos sind.
+
+Nachgewiesen: `geruest()` unterscheidet einen geänderten Port und erkennt ein
+Volume `/:/host`; bei einer erzwungenen Abweichung wird die Datei byte-genau
+zurückgerollt.
+
+**Bekannte Grenze:** StarRupture baut seine compose-Datei über YAML-Anker
+(`x-image: &image`, `<<: *image`). Die zeilenweise Analyse findet dort keinen
+`environment`-Block; die Variablen dieses Stacks erscheinen nicht im Panel.
+
+> *Reads and writes a stack's environment variables — only the `environment`
+> block; volumes, ports and image stay untouchable. Three barriers in ascending
+> reliability: a name pattern plus deny-list, a no-newline rule on the value, and
+> — the real protection — a before/after comparison of docker's rendered config
+> that rolls back on any difference. Known limit: StarRupture's compose file uses
+> YAML anchors, so its variables do not appear.*
+
 ### `konfig-datei`
 
 ```
@@ -184,7 +223,7 @@ liefert 1.6, dessen `--base-path` sich anders verhält.
 
 ### `abgleich.sh <ssh-ziel>`
 
-Vergleicht das Repositorium mit einer laufenden Maschine — **32 Prüfpunkte**:
+Vergleicht das Repositorium mit einer laufenden Maschine — **33 Prüfpunkte**:
 
 | Was | Wie verglichen |
 |---|---|
