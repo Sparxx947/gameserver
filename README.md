@@ -120,6 +120,28 @@ einzelne Dateien von Hand nachgerollt wurden.
 > *`VERSION` names the release; installing writes a stamp on the machine holding
 > the release, the commit, the date, and whether single files have been rolled
 > out by hand since. `abgleich.sh` compares it.*
+### Wieder abbauen
+
+```bash
+werkzeuge/rueckbau.sh gameserver              # zeigt nur den Plan
+werkzeuge/rueckbau.sh gameserver --wirklich   # führt ihn aus
+```
+
+Das Gegenstück zur Einrichtung. Ohne `--wirklich` ändert es nichts. Spielstände
+und Systembenutzer bleiben stehen, solange man sie nicht ausdrücklich mit
+`--mit-spielstaenden` und `--mit-benutzern` dazunimmt; das Borg-Repositorium und
+seine Passphrase werden **nie** angefasst.
+
+Die Listen der systemd-Einheiten und Werkzeuge entstehen aus dem Repositorium
+selbst. Die frühere Anleitung zum Abtippen war abgedriftet — sie löschte keine
+einzige Unit-Datei — und wer sie befolgte, hielt die Maschine danach für sauber.
+
+> *Teardown is the counterpart to the installer and changes nothing without
+> `--wirklich`. Save games and system users stay unless explicitly included, and
+> the Borg repository and its passphrase are never touched. The unit and tool
+> lists come from the repository itself: the earlier hand-typed instructions had
+> drifted and removed no unit file at all, leaving people believing the machine
+> was clean.*
 
 ### Ist das Repositorium vollständig?
 
