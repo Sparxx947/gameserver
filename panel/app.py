@@ -41,6 +41,17 @@ EIGENE = Path("/opt/panel/daten/zugangsdaten.json")
 ALTKONFIG = Path("/opt/panel/konfig.json")
 BILDER = Path("/opt/panel/bilder")
 AKTION = ["/usr/bin/sudo", "-n", "/usr/local/bin/panel-aktion"]
+# BORG_REPO=aus schaltet die Sicherung ab. Die Oberflaeche blendet dann alle
+# Archivwege aus - nicht als Schutz (der sitzt in panel-aktion, wo die Rechte
+# liegen), sondern damit niemand auf Knoepfe klickt, die es fachlich nicht gibt,
+# und damit die Abwesenheit des Netzes SICHTBAR ist. Ein stillschweigend
+# abgeschaltetes Backup ist gefaehrlicher als gar keines: man verlaesst sich
+# darauf.
+# *The panel hides every backup path when backups are off. Not as a guard - that
+#  sits in panel-aktion where the privileges are - but so nobody clicks buttons
+#  for something that does not exist, and so the missing safety net is visible.
+#  A silently disabled backup is more dangerous than none: people rely on it.*
+SICHERUNG_AN = "@@BORG_REPO@@" != "aus"
 SITZUNG_MAXALTER = 8 * 3600
 SPERRE_AB, SPERRE_DAUER = 5, 15 * 60
 
@@ -373,7 +384,8 @@ def uebersicht(request: Request):
         else:
             knoepfe.append(f'<button class=p name=was value=start>starten</button>')
         pi = stackinfo(name)
-        verweise = f'<a class=b href="/archive/{name}">Sicherungen</a>'
+        verweise = (f'<a class=b href="/archive/{name}">Sicherungen</a>'
+                    if SICHERUNG_AN else "")
         if ist_admin(s):
             verweise += f'<a class=b href="/konfig/{name}">Einstellungen</a>'
             # Die Zahl kommt aus konfigzahlen.json (von spiel-einrichtung alle
@@ -429,8 +441,13 @@ def uebersicht(request: Request):
 {last}
 <div class=akt>{aktionen}</div></div></div>""")
     return HTMLResponse(KOPF + kopfleiste(s, "start") + RUMPF + f"{systemleiste}<div class=g>{''.join(karten)}</div>"
-        "<div class=m>Sicherungen laufen alle 15 Minuten für jeden laufenden Server "
-        "(Großvater-Vater-Sohn: 2 Tage alle 15 min, 14 Tage täglich, 8 Wochen, 12 Monate).</div>" + FUSS)
+        + ("<div class=m>Sicherungen laufen alle 15 Minuten für jeden laufenden Server "
+           "(Großvater-Vater-Sohn: 2 Tage alle 15 min, 14 Tage täglich, 8 Wochen, 12 Monate).</div>"
+           if SICHERUNG_AN else
+           "<div class=warn><b>Es werden keine Sicherungen angelegt.</b> Die Sicherung ist "
+           "abgeschaltet (<code>BORG_REPO=aus</code>). Jeder Spielstand liegt nur auf dieser "
+           "einen Platte — geht sie kaputt oder löscht jemand einen Server, ist der Stand weg."
+           "</div>") + FUSS)
 
 
 @app.get("/favicon.ico")
@@ -545,11 +562,12 @@ def deinstallieren_fragen(request: Request, stack: str):
             + '<div class=m><a class=b href=/spiele>zurück</a></div>' + FUSS)
     return HTMLResponse(KOPF + kopfleiste(s) + RUMPF + f"""
 <div class=m><b>{p.get("name", stack)} wirklich entfernen?</b><br><br>
-Es wird zuerst eine letzte Sicherung angelegt. Schlägt die fehl, bricht der Vorgang ab
-und es wird nichts gelöscht. Danach verschwinden Container, Spielstände auf der Platte,
+{"Es wird zuerst eine letzte Sicherung angelegt. Schlägt die fehl, bricht der Vorgang ab und es wird nichts gelöscht. Danach verschwinden" if SICHERUNG_AN else "Es verschwinden"}
+Container, Spielstände auf der Platte,
 Konfiguration, DNS-Name und die Zugangsdaten dieses Servers.<br><br>
-<b>Die Sicherungen im Borg-Repository bleiben erhalten</b> — der Stand lässt sich also
-später zurückholen, aber nicht über diese Oberfläche.</div>
+{"<b>Die Sicherungen im Borg-Repository bleiben erhalten</b> — der Stand lässt sich also später zurückholen, aber nicht über diese Oberfläche."
+ if SICHERUNG_AN else
+ "<b>Es gibt keine Sicherung.</b> Die Sicherung ist abgeschaltet (<code>BORG_REPO=aus</code>), es wird auch keine letzte angelegt: dieser Spielstand ist danach endgültig weg."}</div>
 <div class=m><form method=post action=/deinstallieren>
 <input type=hidden name=csrf value="{s["csrf"]}">
 <input type=hidden name=stack value="{stack}">
@@ -713,11 +731,25 @@ def steuern(request: Request, csrf: str = Form(""), stack: str = Form(""), was: 
     return RedirectResponse("/", 303)
 
 
+def sicherung_aus_seite(s: dict):
+    """Antwort auf einen Archivweg bei abgeschalteter Sicherung. Bewusst eine
+    erklaerende Seite und keine Umleitung auf die Uebersicht: wer hier landet,
+    hat einen alten Lesezeichen- oder Verlaufseintrag und soll den Grund lesen,
+    statt sich zu fragen, warum der Klick nichts tut."""
+    return HTMLResponse(KOPF + kopfleiste(s) + RUMPF
+        + '<h1>Keine Sicherungen</h1>'
+          '<div class=warn>Die Sicherung ist abgeschaltet (<code>BORG_REPO=aus</code>). '
+          'Es gibt keine Archive, und es lässt sich nichts zurückspielen.</div>'
+          '<div class=m><a class=b href=/>zurück zur Übersicht</a></div>' + FUSS)
+
+
 @app.get("/archive/{stack}", response_class=HTMLResponse)
 def archive(request: Request, stack: str):
     s = angemeldet(request)
     if not s:
         return RedirectResponse("/login", 303)
+    if not SICHERUNG_AN:
+        return sicherung_aus_seite(s)
     rc, aus = aktion("archive", stack, timeout=180)
     if rc != 0:
         return HTMLResponse(KOPF + kopfleiste(s) + RUMPF + f"<h1>{stack}</h1><div class=f>{aus}</div><a class=b href=/>zurück</a>" + FUSS)
@@ -742,6 +774,8 @@ def restore_fragen(request: Request, stack: str, archiv: str):
     s = angemeldet(request)
     if not ist_admin(s):
         return RedirectResponse("/", 303)
+    if not SICHERUNG_AN:
+        return sicherung_aus_seite(s)
     return HTMLResponse(KOPF + kopfleiste(s) + RUMPF + f"""<h1>Wirklich zurückspielen?</h1>
 <div class=d>{stack} &larr; <code>{archiv}</code></div>
 <div class=warn>Der Server wird angehalten, der <b>aktuelle Stand als Kopie gesichert</b>
@@ -758,6 +792,8 @@ def restore(request: Request, csrf: str = Form(""), stack: str = Form(""), archi
     s = pruefe(request, csrf)
     if not ist_admin(s):
         return RedirectResponse("/", 303)
+    if not SICHERUNG_AN:
+        return sicherung_aus_seite(s)
     rc, aus = aktion("restore", stack, archiv, timeout=1800)
     return HTMLResponse(KOPF + kopfleiste(s) + RUMPF + f"<h1>{'Zurückgespielt' if rc == 0 else 'Fehlgeschlagen'}</h1>"
         f"<div class=d>{stack} &larr; <code>{archiv}</code></div>"
@@ -1166,8 +1202,7 @@ def neustart_fragen(request: Request):
 <div class=warn>Das startet die <b>ganze Maschine</b> neu, nicht einen einzelnen Spielserver.
 Alle Verbindungen brechen ab, auch diese Oberfläche ist ein bis zwei Minuten weg.</div>
 <p style=font-size:14px>Vorher werden alle laufenden Container <b>sauber angehalten</b>,
-damit die Spiele ihre Stände schreiben. Läuft gerade eine Sicherung, wird der Neustart
-abgebrochen — ein unterbrochener Borg-Lauf hinterlässt eine Sperre, die man von Hand lösen muss.</p>
+damit die Spiele ihre Stände schreiben.{" Läuft gerade eine Sicherung, wird der Neustart abgebrochen — ein unterbrochener Borg-Lauf hinterlässt eine Sperre, die man von Hand lösen muss." if SICHERUNG_AN else ""}</p>
 <p style=font-size:14px>Läuft gerade: <b>{laufende.strip() or "nichts"}</b><br>
 <span class=z>Nach dem Neustart kommen nur die Server von selbst wieder hoch, die auf
 „unless-stopped" stehen. StarRupture bleibt bewusst aus.</span></p>
@@ -1315,8 +1350,8 @@ def nutzer_liste(request: Request, neu: str = ""):
 <option value=bedienen>bedienen (starten/anhalten/neu starten)</option>
 <option value=admin>admin (alles)</option></select>
 <div style=margin-top:14px><button class=p>anlegen</button></div></form>
-<div class=m>„bedienen“ darf Server starten, anhalten und neu starten sowie Sicherungen
-einsehen — aber keine Passwörter sehen, nichts zurückspielen, keine Einstellungen ändern
+<div class=m>„bedienen“ darf Server starten, anhalten und neu starten{" sowie Sicherungen einsehen" if SICHERUNG_AN else ""}
+ — aber keine Passwörter sehen,{" nichts zurückspielen," if SICHERUNG_AN else ""} keine Einstellungen ändern
 und keine Benutzer verwalten.</div>""" + FUSS)
 
 

@@ -52,6 +52,20 @@ else
          "wechselnder Adresse \"dynamic\" eintragen, dann pflegt der Server den" \
          "A-Eintrag $DNS_ZIEL selbst (siehe docs/06-netz-dns-firewall.md)."
 fi
+# BORG_REPO=aus schaltet die Sicherung vollstaendig ab: kein borg, keine
+# Passphrase, keine Timer, keine Archivliste in der Oberflaeche.
+#
+# Der Schalter ist bewusst der WERT von BORG_REPO und keine zweite Variable.
+# Zwei Variablen koennen sich widersprechen ("Sicherung an, aber wohin?"), eine
+# nicht. Und der gefaehrliche Zustand ist nicht "abgeschaltet", sondern
+# "abgeschaltet, und keiner weiss es": deshalb sagt es die Oberflaeche auf jeder
+# Seite, und deshalb sagt es die Loeschbestaetigung eines Spielservers.
+# *BORG_REPO=aus disables backups entirely. Deliberately the VALUE of BORG_REPO
+#  rather than a second variable: two variables can contradict each other, one
+#  cannot. The dangerous state is not "off" but "off and nobody knows", so the
+#  panel says so on every page and the uninstall confirmation says so too.*
+if [ "$BORG_REPO" = "aus" ]; then SICHERUNG_AN=nein; else SICHERUNG_AN=ja; fi
+
 # --- Version ----------------------------------------------------------------
 # Bis hierher liess sich die Frage "welcher Stand laeuft da eigentlich?" nur
 # ueber einen Dateivergleich beantworten. Das sagt zwar genau, WAS abweicht,

@@ -234,6 +234,22 @@ if [ "$SERVER_IPV4" = "dynamic" ]; then
   fi
 fi
 
+# 8. Zustand der Sicherungs-Timer. Die Einheiten liegen auch bei abgeschalteter
+#    Sicherung auf der Maschine — der Dateivergleich sieht dann tadellos aus,
+#    waehrend nichts gesichert wird. Was zaehlt, ist ob sie LAUFEN.
+# *The units are installed even with backups off, so the file comparison looks
+#  perfect while nothing is backed up. What counts is whether they run.*
+if [ "$BORG_REPO" = "aus" ]; then SOLL_SI=disabled; else SOLL_SI=enabled; fi
+for u in spiele-sicherung.timer spiele-sicherung-voll.timer; do
+  IST_SI=$(ssh "$ZIEL" "systemctl is-enabled $u 2>/dev/null" || true)
+  if [ "$IST_SI" != "$SOLL_SI" ]; then
+    echo "  ABWEICHUNG            $u: BORG_REPO=$BORG_REPO verlangt $SOLL_SI, Server meldet ${IST_SI:-nichts}"
+    anders=$((anders+1))
+  else
+    gleich=$((gleich+1))
+  fi
+done
+
 echo
 printf 'deckungsgleich: %d   abweichend: %d   fehlend: %d\n' "$gleich" "$anders" "$fehlt"
 [ $((anders + fehlt)) -eq 0 ] || exit 1

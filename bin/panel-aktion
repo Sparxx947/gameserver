@@ -46,6 +46,17 @@ pruefe_stack() {
     local liste; liste=$(stacks)
     grep -qx "$1" <<<"$liste" || fehler "unbekannter Stack"
 }
+# Ist die Sicherung ueberhaupt eingeschaltet? Die Oberflaeche blendet die
+# Archivwege bei BORG_REPO=aus aus, aber sie ist nicht der Waechter: geprueft
+# wird hier, weil hier die Rechte liegen. Ohne diese Pruefung liefe der Aufruf
+# in ein "cat: /root/.borg-passphrase" und meldete einen Fehler, wo eine
+# Einstellung gemeint war.
+# *The panel hides these paths when backups are off, but the panel is not the
+#  guard: the check belongs where the privileges are. Without it the call would
+#  fail on a missing passphrase and report a fault where a setting was meant.*
+sicherung_an() {
+    [ "$REPO" != "aus" ] || fehler "Die Sicherung ist abgeschaltet (BORG_REPO=aus)."
+}
 # Archivnamen erzeugt ausschliesslich spiele-sicherung: <stack>-JJJJMMTT-HHMMSS
 pruefe_archiv() {
     [[ "$2" =~ ^[a-z0-9-]{1,40}-[0-9]{8}-[0-9]{6}$ ]] || fehler "unzulaessiger Archivname"
@@ -92,6 +103,7 @@ case "${1:-}" in
     ;;
   archive)
     s="${2:-}"; pruefe_stack "$s"
+    sicherung_an
     export BORG_PASSPHRASE=$(cat /root/.borg-passphrase)
     export BORG_RSH="ssh -o BatchMode=yes -o ConnectTimeout=15"
     timeout 120 borg list --glob-archives "$s-*" --format "{archive}{TAB}{time}{NL}" "$REPO" 2>/dev/null \
@@ -99,6 +111,7 @@ case "${1:-}" in
     ;;
   restore)
     s="${2:-}"; a="${3:-}"; pruefe_stack "$s"; pruefe_archiv "$s" "$a"
+    sicherung_an
     export BORG_PASSPHRASE=$(cat /root/.borg-passphrase)
     export BORG_RSH="ssh -o BatchMode=yes -o ConnectTimeout=15"
     # Basisverzeichnis bestimmen (Spiel oder Dienst)

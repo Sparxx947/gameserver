@@ -356,8 +356,8 @@ Notausgang `GAMESERVER_KEIN_GATE=1`.
 |---|---|---|
 | `panel.service` | dauerhaft | Weboberfläche, `User=panel`, uvicorn auf `127.0.0.1:8099` |
 | `ttyd.service` | dauerhaft | Webterminal, `User=<admin>`, `127.0.0.1:7681` |
-| `spiele-sicherung.timer` | `*:0/15`, ±60 s | Sicherung laufender Spiele |
-| `spiele-sicherung-voll.timer` | täglich 04:00, ±300 s | Vollsicherung |
+| `spiele-sicherung.timer` | `*:0/15`, ±60 s | Sicherung laufender Spiele (aus bei `BORG_REPO=aus`) |
+| `spiele-sicherung-voll.timer` | täglich 04:00, ±300 s | Vollsicherung (aus bei `BORG_REPO=aus`) |
 | `spiel-einrichtung.timer` | alle 2 min, ab 3 min nach dem Start | Passwörter frischer Server setzen |
 | `palworld-neustart.timer` | 05:30 und 17:30 | gegen das Speicherleck |
 | `dns-ziel.timer` | alle 5 min, ab 2 min nach dem Start, ±30 s | öffentliche IPv4 messen und den A-Eintrag nachziehen (nur bei `SERVER_IPV4=dynamic`) |
@@ -440,8 +440,8 @@ Alle in `konfiguration.env`, alle Pflicht:
 | `ADMIN_USER` | `admin` | `ttyd.service`, Benutzeranlage |
 | `ADMIN_NETZ` | `203.0.113.0/30` | `fail2ban` |
 | `ADMIN_IP` | `203.0.113.1` | `ufw`-Regel auf Port 22 |
-| `BORG_REPO` | `ssh://borg@…/…` | `spiele-sicherung`, `panel-aktion` |
-| `BORG_TAILSCALE_IP` | `100.100.100.100` | Dokumentation, Prüfungen |
+| `BORG_REPO` | `ssh://borg@…/…` **oder** `aus` | `spiele-sicherung`, `panel-aktion`, `spiel-verwalten`, `app.py`; `aus` schaltet die Sicherung ab |
+| `BORG_TAILSCALE_IP` | `100.100.100.100` | Dokumentation, Prüfungen (bei `BORG_REPO=aus` ebenfalls `aus`) |
 | `FREMD_IPV4` | `198.51.100.10` | Kommentar in `cf-dns` (Wildcard-Ziel) |
 
 Bleibt beim Einbau ein `@@PLATZHALTER@@` stehen, bricht die Einrichtung ab.

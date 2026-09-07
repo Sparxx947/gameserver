@@ -3,11 +3,42 @@
 # *Stage 50 — Borg backup.*
 . "$(dirname "$0")/lib.sh"
 
+# Die Ausschlussliste wird IMMER eingesetzt, auch ohne Sicherung. spiel-verwalten
+# schreibt bei jeder Installation und Deinstallation einen Block hinein und liest
+# sie vorher — fehlt die Datei, bricht die Deinstallation mitten im Ablauf ab und
+# laesst Reste stehen. Genau dieser Abbruch ist hier schon einmal passiert, aus
+# einem anderen Grund (siehe panel.service, ProtectSystem).
+# *The exclusion list is always installed, even without backups: spiel-verwalten
+#  reads and writes it on every install and uninstall, and a missing file aborts
+#  the uninstall mid-way, leaving remnants behind.*
+log "Ausschlussliste"
+einsetzen "$REPO/etc/borg-ausschluss.txt" /etc/borg-ausschluss.txt 0644 root:root
+
+log "Zeitplan einsetzen"
+for u in spiele-sicherung.service spiele-sicherung.timer \
+         spiele-sicherung-voll.service spiele-sicherung-voll.timer; do
+  einsetzen "$REPO/systemd/$u" "/etc/systemd/system/$u"
+done
+systemctl daemon-reload
+
+if [ "$SICHERUNG_AN" = "nein" ]; then
+  # BORG_REPO=aus: kein borg, keine Passphrase, keine Timer. Die Einheiten
+  # liegen trotzdem auf der Maschine, damit das Einschalten spaeter eine Zeile
+  # in konfiguration.env und ein erneuter Lauf dieser Stufe ist.
+  # *BORG_REPO=aus: no borg, no passphrase, no timers. The units are installed
+  #  anyway so switching on later is one line plus a re-run of this stage.*
+  systemctl disable --now spiele-sicherung.timer spiele-sicherung-voll.timer 2>/dev/null || true
+  einsetzen "$REPO/bin/spiele-sicherung" /usr/local/bin/spiele-sicherung 0700 root:root
+  warn "BORG_REPO=aus — es wird NICHTS gesichert."
+  warn "Spielstaende sind dann nur so sicher wie diese eine Platte."
+  log "Stufe 50 fertig (Sicherung abgeschaltet)."
+  exit 0
+fi
+
 apt-get install -y -qq borgbackup
 
-log "Werkzeug und Ausschlussliste"
+log "Werkzeug"
 einsetzen "$REPO/bin/spiele-sicherung" /usr/local/bin/spiele-sicherung 0700 root:root
-einsetzen "$REPO/etc/borg-ausschluss.txt" /etc/borg-ausschluss.txt 0644 root:root
 
 # --- Passphrase -------------------------------------------------------
 # Liegt als Datei, weil die Timer unbeaufsichtigt laufen. Rechte 0600 root:
@@ -34,12 +65,7 @@ else
     || warn "borg init fehlgeschlagen — Schluessel auf dem Sicherungsziel hinterlegt? SSH erreichbar?"
 fi
 
-log "Zeitplan"
-for u in spiele-sicherung.service spiele-sicherung.timer \
-         spiele-sicherung-voll.service spiele-sicherung-voll.timer; do
-  einsetzen "$REPO/systemd/$u" "/etc/systemd/system/$u"
-done
-systemctl daemon-reload
+log "Zeitplan einschalten"
 systemctl enable --now spiele-sicherung.timer spiele-sicherung-voll.timer
 
 # Alarmpfad nachweisen, nicht nur den Gutfall: eine Sicherung, die nie geprueft
