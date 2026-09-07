@@ -62,6 +62,8 @@ PAARE=(
   "systemd/spiele-sicherung-voll.timer:/etc/systemd/system/spiele-sicherung-voll.timer"
   "systemd/palworld-neustart.service:/etc/systemd/system/palworld-neustart.service"
   "systemd/palworld-neustart.timer:/etc/systemd/system/palworld-neustart.timer"
+  "systemd/dns-ziel.service:/etc/systemd/system/dns-ziel.service"
+  "systemd/dns-ziel.timer:/etc/systemd/system/dns-ziel.timer"
 )
 
 gleich=0; anders=0; fehlt=0
@@ -99,12 +101,12 @@ for p in "${PAARE[@]}"; do
 done
 
 # --- Was kein einfacher Dateivergleich ist -----------------------------------
-# Drei Dinge gehoeren zur Reproduktion, liegen auf dem Server aber nicht als
+# Mehrere Dinge gehoeren zur Reproduktion, liegen auf dem Server aber nicht als
 # Datei gleichen Inhalts vor. Sie fehlten hier zunaechst — aufgefallen ist das
 # erst, als ein Dependabot-PR requirements.txt aenderte und ich den Abgleich von
 # Hand nachziehen musste. Eine Pruefung, die einen Bereich gar nicht ansieht,
 # meldet ihn als in Ordnung.
-# *Three things belong to the reproduction but do not exist as identical files on
+# *Several things belong to the reproduction but do not exist as identical files on
 #  the server. They were missing here at first, and it only showed when a
 #  Dependabot PR changed requirements.txt and the comparison had to be done by
 #  hand. A check that never looks at an area reports it as fine.*
@@ -199,6 +201,37 @@ else
   gleich=$((gleich+1))
   printf '  Fassung %s (Commit %s, Stand: %s)\n' "$IST_V" "${IST_COMMIT:-?}" "${IST_STAND:-?}"
   [ "$IST_STAND" = "geaendert" ] && echo "    seit der letzten vollen Einrichtung wurden einzelne Dateien nachgerollt"
+fi
+
+# 6. Der Zeitgeber fuer den A-Eintrag. Die Datei allein sagt nichts darueber,
+#    ob er auch laeuft — und genau das ist der Unterschied zwischen fester und
+#    wechselnder Adresse. Ein eingesetzter, aber abgeschalteter Zeitgeber sieht
+#    im Dateivergleich tadellos aus und laesst die Adresse trotzdem veralten.
+# *The file alone says nothing about whether the timer runs, and that is exactly
+#  what separates fixed from dynamic mode. An installed but disabled timer looks
+#  perfect in a file comparison while the address goes stale.*
+if [ "$SERVER_IPV4" = "dynamic" ]; then SOLL_ZG=enabled; else SOLL_ZG=disabled; fi
+IST_ZG=$(ssh "$ZIEL" 'systemctl is-enabled dns-ziel.timer 2>/dev/null' || true)
+if [ "$IST_ZG" != "$SOLL_ZG" ]; then
+  echo "  ABWEICHUNG            dns-ziel.timer: SERVER_IPV4=$SERVER_IPV4 verlangt $SOLL_ZG, Server meldet ${IST_ZG:-nichts}"
+  anders=$((anders+1))
+else
+  gleich=$((gleich+1))
+fi
+
+# 7. Bei wechselnder Adresse: stimmt der A-Eintrag noch mit der tatsaechlichen
+#    Adresse ueberein? Gemessen wird auf dem Server, weil nur dort die richtige
+#    Leitung nach draussen liegt — von hier aus misst man die eigene.
+# *In dynamic mode, does the A record still match the real address? Measured on
+#  the server: from here one would measure this machine's address instead.*
+if [ "$SERVER_IPV4" = "dynamic" ]; then
+  if ausgabe=$(ssh "$ZIEL" '/usr/local/bin/cf-dns ziel-zeigen' 2>&1); then
+    gleich=$((gleich+1))
+  else
+    echo "  ABWEICHUNG            A-Eintrag und gemessene Adresse gehen auseinander"
+    sed 's/^/      /' <<<"$ausgabe"
+    anders=$((anders+1))
+  fi
 fi
 
 echo

@@ -1,0 +1,22 @@
+[Unit]
+Description=Oeffentliche IPv4 messen und als A-Eintrag @@DNS_ZIEL@@ setzen
+# Ohne Netz misst das Programm nichts und bricht ab. Beim Systemstart ist genau
+# das der haeufige Fall, und genau dann hat sich die Adresse oft geaendert.
+# *Without a network there is nothing to measure, and boot is exactly when the
+#  address has most likely changed.*
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/cf-dns ziel-setzen
+# Bewusst ohne Haertungsoptionen. Der Dienst laeuft als root und ruft KEIN sudo,
+# die Falle aus dem Panel-Dienst (NoNewPrivileges implizit durch LockPersonality
+# & Co.) greift hier also nicht. Aufgenommen wird trotzdem nichts, was nicht
+# nachgemessen ist: gebraucht werden nur /etc/cloudflare-gameserver.conf lesen
+# und ausgehendes HTTPS.
+# *Deliberately unhardened: runs as root, calls no sudo, and needs only to read
+#  the token file and speak outbound HTTPS.*
+
+[Install]
+WantedBy=multi-user.target

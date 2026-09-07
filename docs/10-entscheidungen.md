@@ -282,3 +282,65 @@ Einrichtung ab.
 > worse than none. Instead the files are byte-for-byte as deployed, with only
 > site-specific values replaced by placeholders filled from
 > `konfiguration.env`; a left-over placeholder aborts the install.*
+
+---
+
+## E21 — Bei wechselnder Adresse pflegt der Server den A-Eintrag selbst
+
+**Naheliegend:** einen DDNS-Namen in `SERVER_IPV4` eintragen, oder `DNS_ZIEL` auf
+einen fremden DDNS-Namen zeigen lassen.
+
+**Dagegen, erstens:** `SERVER_IPV4` ist gar kein Eintragspunkt. Aus dem Wert
+entstand nie ein DNS-Eintrag — er landete ausschließlich in Kommentaren von
+`cf-dns`. Ein Name dort wurde klaglos angenommen und tat nichts. Genau das ist
+die schlimmste Sorte Einstellung: eine, die man für erledigt hält.
+
+**Dagegen, zweitens:** Ein fremder DDNS-Name als `DNS_ZIEL` würde zwar
+funktionieren — die Spiel-CNAMEs zeigen dann eben dorthin —, holt sich aber einen
+zweiten Anbieter in den Pfad jedes Spielservers, und `PANEL_DOMAIN` bliebe
+trotzdem außen vor. Damit hinge das Zertifikat an einem Namen, den niemand
+nachzieht. Nach E17 trägt genau **ein** Eintrag die Adresse; ein zweiter Anbieter
+daneben verdoppelt die Stellen, an denen es schiefgehen kann.
+
+**Stattdessen:** `SERVER_IPV4=dynamic` schaltet `dns-ziel.timer` ein. Der misst
+alle fünf Minuten die öffentliche IPv4 und schreibt sie in den A-Eintrag
+`DNS_ZIEL` — den Eintrag, den es ohnehin schon gibt. Cloudflare bleibt die
+einzige Quelle der Wahrheit, die Spiel-CNAMEs werden nicht angefasst, und
+`PANEL_DOMAIN` folgt als CNAME von allein oder wird als A-Eintrag innerhalb der
+Zone mitgezogen.
+
+**Und:** In diesem Betrieb legt `cf-dns` den A-Eintrag auch an, wenn er fehlt —
+anders als im festen Betrieb, wo er bewusst Handarbeit bleibt. Der Unterschied
+ist nicht Bequemlichkeit, sondern Eigentum: bei `dynamic` gehört der Eintrag dem
+Programm, sonst einem Menschen. Wer beides gleich behandelt, bekommt entweder
+einen Automatismus, der fremde Einträge überschreibt, oder einen dynamischen
+Betrieb, der beim ersten Lauf an einem fehlenden Eintrag scheitert.
+
+**Kosten:** Der Server hängt für die Messung an drei fremden Auskunftsstellen.
+Deshalb entscheidet die Mehrheit und nicht die erste Antwort, und Adressen aus
+`100.64.0.0/10` werden verworfen — dort liegt sowohl Provider-NAT als auch
+Tailscale, und in beiden Fällen wäre die Messung wertlos. Sind sich zwei Stellen
+nicht einig, wird **nichts** geschrieben und der alte Eintrag bleibt stehen.
+
+> *Obvious: put a DDNS hostname in `SERVER_IPV4`, or point `DNS_ZIEL` at a
+> foreign DDNS name. Against, first: `SERVER_IPV4` was never an entry point at
+> all — no record was ever derived from it, the value only ever landed in
+> comments, so a hostname there was accepted silently and did nothing. That is
+> the worst kind of setting: one people believe is handled. Against, second: a
+> foreign DDNS name as `DNS_ZIEL` would work for the games but puts a second
+> provider in the path of every game server, and leaves `PANEL_DOMAIN` — and with
+> it the certificate — behind, pointing at a name nobody updates. Per E17 exactly
+> one record carries the address; a second provider doubles the places where that
+> can break. Instead, `SERVER_IPV4=dynamic` enables `dns-ziel.timer`, which
+> measures the public IPv4 every five minutes and writes it into the A record
+> that already exists. Cloudflare stays the single source of truth, no game CNAME
+> is touched, and the panel name follows as a CNAME or is carried along as an A
+> record inside the zone. In that mode `cf-dns` also creates the record when it
+> is missing, unlike fixed mode where it stays hand-made — the difference is
+> ownership, not convenience: treating both alike yields either an automation
+> that overwrites foreign records or a dynamic mode that fails on its first run.
+> The cost is a dependency on three third-party echo services, which is why a
+> majority decides rather than the first answer, why `100.64.0.0/10` is discarded
+> (carrier NAT and Tailscale both live there, and the measurement would be
+> worthless either way), and why nothing at all is written when two sources fail
+> to agree.*

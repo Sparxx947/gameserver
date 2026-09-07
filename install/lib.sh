@@ -25,6 +25,33 @@ for v in "${VARIABLEN[@]}"; do
   [ -n "${!v}" ] || fehler "konfiguration.env: \$$v ist leer"
 done
 
+# SERVER_IPV4 traegt zwei zulaessige Bedeutungen: eine feste oeffentliche
+# Adresse, oder das Wort "dynamic" fuer eine wechselnde. Alles andere ist ein
+# Tippfehler oder ein Missverstaendnis - insbesondere ein DDNS-Name. Der wurde
+# hier bis dahin klaglos angenommen und wirkte nirgends: die Adresse traegt
+# allein der A-Eintrag DNS_ZIEL bei Cloudflare. Ein Wert, der still nichts tut,
+# ist schlimmer als ein Fehler, weil man ihn fuer erledigt haelt.
+# *SERVER_IPV4 accepts a fixed public address or the word "dynamic". Anything
+#  else - a DDNS hostname in particular - used to be accepted silently and did
+#  nothing at all, because only the DNS_ZIEL A record carries the address. A
+#  value that quietly does nothing is worse than an error: it looks handled.*
+ist_ipv4() {
+  local ip="$1" o a b c d
+  [[ "$ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || return 1
+  IFS=. read -r a b c d <<<"$ip"
+  for o in "$a" "$b" "$c" "$d"; do [ "$o" -le 255 ] || return 1; done
+  return 0
+}
+if [ "$SERVER_IPV4" = "dynamic" ]; then
+  IP_DYNAMISCH=ja
+elif ist_ipv4 "$SERVER_IPV4"; then
+  IP_DYNAMISCH=nein
+else
+  fehler "konfiguration.env: SERVER_IPV4=\"$SERVER_IPV4\" ist weder eine IPv4" \
+         "noch das Wort \"dynamic\". Ein DNS-Name gehoert hier nicht hin - bei" \
+         "wechselnder Adresse \"dynamic\" eintragen, dann pflegt der Server den" \
+         "A-Eintrag $DNS_ZIEL selbst (siehe docs/06-netz-dns-firewall.md)."
+fi
 # --- Version ----------------------------------------------------------------
 # Bis hierher liess sich die Frage "welcher Stand laeuft da eigentlich?" nur
 # ueber einen Dateivergleich beantworten. Das sagt zwar genau, WAS abweicht,
