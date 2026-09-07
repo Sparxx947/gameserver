@@ -1,5 +1,5 @@
 {
- "_hinweis": "Katalog installierbarer Spiele. Erzeugt 2026-09-06, erweitert 2026-09-07 mit werkzeuge/katalog-ergaenzen.py aus den Unraid-Vorlagen von ich777 (github.com/ich777/docker-templates). Steam-App-IDs, Ports und Startparameter stammen aus diesen Vorlagen, nicht aus Schaetzungen - im Image steht bei vielen Tags nur GAME_ID=template, und ein Container daraus laedt nichts herunter. AUSNAHME: mem_gb und platte_gb sind Schaetzungen nach Bauart des Spiels; sie steuern nur die Vorabpruefung und die Speichergrenze und lassen sich im Panel aendern.",
+ "_hinweis": "Katalog installierbarer Spiele aus ZWEI Bauarten. ich777 (github.com/ich777/docker-templates) ueber werkzeuge/katalog-ergaenzen.py, LinuxGSM (GameServerManagers) ueber werkzeuge/katalog-lgsm.py. Das Feld \"bauart\" nennt die Herkunft. Ports und Startparameter stammen aus den Vorlagen der jeweiligen Quelle, nicht aus Schaetzungen; mem_gb und platte_gb SIND Schaetzungen und im Panel aenderbar. Doppelte Spiele werden ueber den Namen abgeglichen, NICHT ueber die App-ID: bei GoldSrc teilen sich 13 Spiele die Sammel-ID 90.",
  "_ports": "Host-Ports sind gegen die am 2026-09-07 belegten geprueft, MIT Protokoll: TCP und UDP kollidieren nicht, derselbe Port laesst sich einmal je Protokoll binden. Fuenf Teilungen bleiben untereinander bestehen (8766/udp bei vier Waldspielen, 26900+26901/udp, 8777/udp, 27020/udp) - unschaedlich, solange die betroffenen Spiele nicht gleichzeitig laufen sollen. spiel-verwalten prueft vor jeder Installation gegen die TATSAECHLICH belegten Ports und lehnt bei echter Kollision mit \"Port bereits belegt\" ab.",
  "spiele": [
   {
@@ -42,7 +42,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "abioticfactor",
@@ -81,7 +82,84 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
+  },
+  {
+   "schluessel": "ahl",
+   "name": "Action Half-Life",
+   "kurz": "Action Half-Life (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:ahl",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30300:27015/udp",
+    "30300:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/ahl:/data"
+   ],
+   "env": {
+    "GAMESERVER": "ahlserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30300,
+   "spieler": 4,
+   "hinweis": "Action Half-Life in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/ahlserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "ahl2",
+   "name": "Action: Source",
+   "kurz": "Action: Source (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:ahl2",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30301:27015/udp",
+    "30301:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/ahl2:/data"
+   ],
+   "env": {
+    "GAMESERVER": "ahl2server",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30301,
+   "spieler": 4,
+   "hinweis": "Action: Source in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/ahl2server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
   },
   {
    "schluessel": "alienswarm",
@@ -117,7 +195,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "alienswarmreactivedrop",
@@ -153,7 +232,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "altitude",
@@ -183,7 +263,8 @@
    "adresse_port": 27276,
    "spieler": 4,
    "hinweis": "2D-Luftkampf-Arena, schnelle Runden. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
-   "ausschluss": []
+   "ausschluss": [],
+   "bauart": "ich777"
   },
   {
    "schluessel": "americantrucksimulator",
@@ -219,7 +300,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "americasarmyprovinggrounds",
@@ -256,7 +338,85 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
+  },
+  {
+   "schluessel": "ark",
+   "name": "ARK: Survival Evolved",
+   "kurz": "ARK: Survival Evolved (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:ark",
+   "mem_gb": 8,
+   "platte_gb": 30,
+   "ports": [
+    "30302:7777/udp",
+    "30302:7777/tcp",
+    "30303:27015/udp"
+   ],
+   "volumes": [
+    "/srv/games/ark:/data"
+   ],
+   "env": {
+    "GAMESERVER": "arkserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30302,
+   "spieler": 4,
+   "hinweis": "ARK: Survival Evolved in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/arkserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "arma3",
+   "name": "ARMA 3",
+   "kurz": "ARMA 3 (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:arma3",
+   "mem_gb": 8,
+   "platte_gb": 30,
+   "ports": [
+    "2302:2302/udp",
+    "2302:2302/tcp"
+   ],
+   "volumes": [
+    "/srv/games/arma3:/data"
+   ],
+   "env": {
+    "GAMESERVER": "arma3server",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 2302,
+   "spieler": 4,
+   "hinweis": "ARMA 3 in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/arma3server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
   },
   {
    "schluessel": "assettocorsa",
@@ -295,7 +455,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "astroneer",
@@ -330,7 +491,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "avorion",
@@ -369,7 +531,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "barotrauma",
@@ -405,7 +568,275 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
+  },
+  {
+   "schluessel": "bb",
+   "name": "BrainBread",
+   "kurz": "BrainBread (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:bb",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30304:27015/udp",
+    "30303:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/bb:/data"
+   ],
+   "env": {
+    "GAMESERVER": "bbserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30304,
+   "spieler": 4,
+   "hinweis": "BrainBread in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/bbserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "bb2",
+   "name": "BrainBread 2",
+   "kurz": "BrainBread 2 (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:bb2",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30305:27015/udp",
+    "30304:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/bb2:/data"
+   ],
+   "env": {
+    "GAMESERVER": "bb2server",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30305,
+   "spieler": 4,
+   "hinweis": "BrainBread 2 in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/bb2server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "bd",
+   "name": "Base Defense",
+   "kurz": "Base Defense (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:bd",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30306:27015/udp",
+    "30305:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/bd:/data"
+   ],
+   "env": {
+    "GAMESERVER": "bdserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30306,
+   "spieler": 4,
+   "hinweis": "Base Defense in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/bdserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "bmdm",
+   "name": "Black Mesa: Deathmatch",
+   "kurz": "Black Mesa: Deathmatch (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:bmdm",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30307:27015/udp",
+    "30306:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/bmdm:/data"
+   ],
+   "env": {
+    "GAMESERVER": "bmdmserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30307,
+   "spieler": 4,
+   "hinweis": "Black Mesa: Deathmatch in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/bmdmserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "bs",
+   "name": "Blade Symphony",
+   "kurz": "Blade Symphony (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:bs",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30308:27015/udp",
+    "30307:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/bs:/data"
+   ],
+   "env": {
+    "GAMESERVER": "bsserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30308,
+   "spieler": 4,
+   "hinweis": "Blade Symphony in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/bsserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "btl",
+   "name": "BATTALION: Legacy",
+   "kurz": "BATTALION: Legacy (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:btl",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30309:7777/udp",
+    "30308:7777/tcp",
+    "30310:7780/udp"
+   ],
+   "volumes": [
+    "/srv/games/btl:/data"
+   ],
+   "env": {
+    "GAMESERVER": "btlserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30309,
+   "spieler": 4,
+   "hinweis": "BATTALION: Legacy in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/btlserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "cc",
+   "name": "Codename CURE",
+   "kurz": "Codename CURE (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:cc",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30311:27015/udp",
+    "30309:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/cc:/data"
+   ],
+   "env": {
+    "GAMESERVER": "ccserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30311,
+   "spieler": 4,
+   "hinweis": "Codename CURE in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/ccserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
   },
   {
    "schluessel": "chivalrymedievalwarfare",
@@ -442,7 +873,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "citadelforgedwithfire",
@@ -478,7 +910,198 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
+  },
+  {
+   "schluessel": "cod",
+   "name": "Call of Duty",
+   "kurz": "Call of Duty (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:cod",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "28960:28960/udp",
+    "28960:28960/tcp"
+   ],
+   "volumes": [
+    "/srv/games/cod:/data"
+   ],
+   "env": {
+    "GAMESERVER": "codserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 28960,
+   "spieler": 4,
+   "hinweis": "Call of Duty in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/codserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "cod2",
+   "name": "Call of Duty 2",
+   "kurz": "Call of Duty 2 (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:cod2",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30312:28960/udp",
+    "30310:28960/tcp"
+   ],
+   "volumes": [
+    "/srv/games/cod2:/data"
+   ],
+   "env": {
+    "GAMESERVER": "cod2server",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30312,
+   "spieler": 4,
+   "hinweis": "Call of Duty 2 in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/cod2server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "cod4",
+   "name": "Call of Duty 4",
+   "kurz": "Call of Duty 4 (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:cod4",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30313:28960/udp",
+    "30311:28960/tcp"
+   ],
+   "volumes": [
+    "/srv/games/cod4:/data"
+   ],
+   "env": {
+    "GAMESERVER": "cod4server",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30313,
+   "spieler": 4,
+   "hinweis": "Call of Duty 4 in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/cod4server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "coduo",
+   "name": "Call of Duty: United Offensive",
+   "kurz": "Call of Duty: United Offensive (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:coduo",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30314:28960/udp",
+    "30312:28960/tcp"
+   ],
+   "volumes": [
+    "/srv/games/coduo:/data"
+   ],
+   "env": {
+    "GAMESERVER": "coduoserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30314,
+   "spieler": 4,
+   "hinweis": "Call of Duty: United Offensive in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/coduoserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "codwaw",
+   "name": "Call of Duty: World at War",
+   "kurz": "Call of Duty: World at War (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:codwaw",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30315:28960/udp",
+    "30313:28960/tcp"
+   ],
+   "volumes": [
+    "/srv/games/codwaw:/data"
+   ],
+   "env": {
+    "GAMESERVER": "codwawserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30315,
+   "spieler": 4,
+   "hinweis": "Call of Duty: World at War in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/codwawserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
   },
   {
    "schluessel": "colonysurvival",
@@ -513,7 +1136,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "conanexiles",
@@ -551,7 +1175,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "corekeeper",
@@ -586,7 +1211,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "counterstrike2d",
@@ -616,7 +1242,8 @@
    "adresse_port": 36963,
    "spieler": 4,
    "hinweis": "Counter-Strike als 2D-Draufsicht, sehr genuegsam. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
-   "ausschluss": []
+   "ausschluss": [],
+   "bauart": "ich777"
   },
   {
    "schluessel": "craftopia",
@@ -652,7 +1279,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "creativerse",
@@ -689,7 +1317,198 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
+  },
+  {
+   "schluessel": "cs",
+   "name": "Counter-Strike 1.6",
+   "kurz": "Counter-Strike 1.6 (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:cs",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30316:27015/udp",
+    "30314:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/cs:/data"
+   ],
+   "env": {
+    "GAMESERVER": "csserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30316,
+   "spieler": 4,
+   "hinweis": "Counter-Strike 1.6 in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/csserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "cs2",
+   "name": "Counter-Strike 2",
+   "kurz": "Counter-Strike 2 (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:cs2",
+   "mem_gb": 8,
+   "platte_gb": 30,
+   "ports": [
+    "30317:27015/udp",
+    "30315:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/cs2:/data"
+   ],
+   "env": {
+    "GAMESERVER": "cs2server",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30317,
+   "spieler": 4,
+   "hinweis": "Counter-Strike 2 in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/cs2server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "cscz",
+   "name": "Counter-Strike: Condition Zero",
+   "kurz": "Counter-Strike: Condition Zero (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:cscz",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30318:27015/udp",
+    "30316:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/cscz:/data"
+   ],
+   "env": {
+    "GAMESERVER": "csczserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30318,
+   "spieler": 4,
+   "hinweis": "Counter-Strike: Condition Zero in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/csczserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "csgo",
+   "name": "Counter-Strike: Global Offensive",
+   "kurz": "Counter-Strike: Global Offensive (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:csgo",
+   "mem_gb": 8,
+   "platte_gb": 30,
+   "ports": [
+    "30319:27015/udp",
+    "30317:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/csgo:/data"
+   ],
+   "env": {
+    "GAMESERVER": "csgoserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30319,
+   "spieler": 4,
+   "hinweis": "Counter-Strike: Global Offensive in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/csgoserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "css",
+   "name": "Counter-Strike: Source",
+   "kurz": "Counter-Strike: Source (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:css",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30320:27015/udp",
+    "30318:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/css:/data"
+   ],
+   "env": {
+    "GAMESERVER": "cssserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30320,
+   "spieler": 4,
+   "hinweis": "Counter-Strike: Source in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/cssserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
   },
   {
    "schluessel": "cstrike16",
@@ -725,7 +1544,46 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
+  },
+  {
+   "schluessel": "dab",
+   "name": "Double Action: Boogaloo",
+   "kurz": "Double Action: Boogaloo (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:dab",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30321:27015/udp",
+    "30319:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/dab:/data"
+   ],
+   "env": {
+    "GAMESERVER": "dabserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30321,
+   "spieler": 4,
+   "hinweis": "Double Action: Boogaloo in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/dabserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
   },
   {
    "schluessel": "dayofdefeatsource",
@@ -761,7 +1619,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "dayofinfamy",
@@ -797,7 +1656,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "daysofwar",
@@ -833,7 +1693,46 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
+  },
+  {
+   "schluessel": "dayz",
+   "name": "DayZ",
+   "kurz": "DayZ (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:dayz",
+   "mem_gb": 8,
+   "platte_gb": 30,
+   "ports": [
+    "30322:2302/udp",
+    "30320:2302/tcp"
+   ],
+   "volumes": [
+    "/srv/games/dayz:/data"
+   ],
+   "env": {
+    "GAMESERVER": "dayzserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30322,
+   "spieler": 4,
+   "hinweis": "DayZ in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/dayzserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
   },
   {
    "schluessel": "ddnet",
@@ -864,7 +1763,123 @@
    "adresse_port": 8303,
    "spieler": 4,
    "hinweis": "Koop-Plattformer, Teeworlds-Ableger, sehr genuegsam. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
-   "ausschluss": []
+   "ausschluss": [],
+   "bauart": "ich777"
+  },
+  {
+   "schluessel": "dmc",
+   "name": "Deathmatch Classic",
+   "kurz": "Deathmatch Classic (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:dmc",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30323:27015/udp",
+    "30321:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/dmc:/data"
+   ],
+   "env": {
+    "GAMESERVER": "dmcserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30323,
+   "spieler": 4,
+   "hinweis": "Deathmatch Classic in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/dmcserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "dod",
+   "name": "Day of Defeat",
+   "kurz": "Day of Defeat (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:dod",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30324:27015/udp",
+    "30322:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/dod:/data"
+   ],
+   "env": {
+    "GAMESERVER": "dodserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30324,
+   "spieler": 4,
+   "hinweis": "Day of Defeat in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/dodserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "dodr",
+   "name": "Day of Dragons",
+   "kurz": "Day of Dragons (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:dodr",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30325:7777/udp",
+    "30323:7777/tcp",
+    "30326:27015/udp"
+   ],
+   "volumes": [
+    "/srv/games/dodr:/data"
+   ],
+   "env": {
+    "GAMESERVER": "dodrserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30325,
+   "spieler": 4,
+   "hinweis": "Day of Dragons in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/dodrserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
   },
   {
    "schluessel": "dontstarvetogether",
@@ -901,7 +1916,46 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
+  },
+  {
+   "schluessel": "dys",
+   "name": "Dystopia",
+   "kurz": "Dystopia (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:dys",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30327:27015/udp",
+    "30324:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/dys:/data"
+   ],
+   "env": {
+    "GAMESERVER": "dysserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30327,
+   "spieler": 4,
+   "hinweis": "Dystopia in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/dysserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
   },
   {
    "schluessel": "eco",
@@ -937,7 +1991,46 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
+  },
+  {
+   "schluessel": "em",
+   "name": "Empires Mod",
+   "kurz": "Empires Mod (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:em",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30328:27015/udp",
+    "30325:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/em:/data"
+   ],
+   "env": {
+    "GAMESERVER": "emserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30328,
+   "spieler": 4,
+   "hinweis": "Empires Mod in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/emserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
   },
   {
    "schluessel": "eurotrucksimulator2",
@@ -973,7 +2066,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "factorio",
@@ -1003,7 +2097,8 @@
    "ausschluss": [],
    "hinweis": "Sehr genuegsam. Passwort in config/server-settings.json, die der erste Start anlegt.",
    "spieler": 4,
-   "appid": 427520
+   "appid": 427520,
+   "bauart": "eigenes-image"
   },
   {
    "schluessel": "fistfuloffrags",
@@ -1039,7 +2134,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "fivem",
@@ -1073,7 +2169,8 @@
    "adresse_port": 30110,
    "spieler": 4,
    "hinweis": "Mehrspieler-Framework fuer GTA V, braucht das Spiel. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
-   "ausschluss": []
+   "ausschluss": [],
+   "bauart": "ich777"
   },
   {
    "schluessel": "frozenflame",
@@ -1112,7 +2209,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "garrysmod",
@@ -1148,7 +2246,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "halflife2deathmatch",
@@ -1184,7 +2283,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "halflifedeathmatch",
@@ -1220,7 +2320,85 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
+  },
+  {
+   "schluessel": "hcu",
+   "name": "HYPERCHARGE: Unboxed",
+   "kurz": "HYPERCHARGE: Unboxed (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:hcu",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30329:7777/udp",
+    "30326:7777/tcp",
+    "30330:27015/udp"
+   ],
+   "volumes": [
+    "/srv/games/hcu:/data"
+   ],
+   "env": {
+    "GAMESERVER": "hcuserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30329,
+   "spieler": 4,
+   "hinweis": "HYPERCHARGE: Unboxed in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/hcuserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "hldms",
+   "name": "Half-Life Deathmatch: Source",
+   "kurz": "Half-Life Deathmatch: Source (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:hldms",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30331:27015/udp",
+    "30327:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/hldms:/data"
+   ],
+   "env": {
+    "GAMESERVER": "hldmsserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30331,
+   "spieler": 4,
+   "hinweis": "Half-Life Deathmatch: Source in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/hldmsserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
   },
   {
    "schluessel": "hurtworld",
@@ -1259,7 +2437,47 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
+  },
+  {
+   "schluessel": "hz",
+   "name": "Humanitz",
+   "kurz": "Humanitz (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:hz",
+   "mem_gb": 8,
+   "platte_gb": 30,
+   "ports": [
+    "30332:7777/udp",
+    "30328:7777/tcp",
+    "30333:27015/udp"
+   ],
+   "volumes": [
+    "/srv/games/hz:/data"
+   ],
+   "env": {
+    "GAMESERVER": "hzserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30332,
+   "spieler": 4,
+   "hinweis": "Humanitz in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/hzserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
   },
   {
    "schluessel": "icarus",
@@ -1295,7 +2513,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "insurgency",
@@ -1331,7 +2550,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "insurgencysandstorm",
@@ -1367,7 +2587,122 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
+  },
+  {
+   "schluessel": "ios",
+   "name": "IOSoccer",
+   "kurz": "IOSoccer (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:ios",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30334:27015/udp",
+    "30329:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/ios:/data"
+   ],
+   "env": {
+    "GAMESERVER": "iosserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30334,
+   "spieler": 4,
+   "hinweis": "IOSoccer in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/iosserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "jbep3",
+   "name": "Jabroni Brawl: Episode 3",
+   "kurz": "Jabroni Brawl: Episode 3 (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:jbep3",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30335:27015/udp",
+    "30330:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/jbep3:/data"
+   ],
+   "env": {
+    "GAMESERVER": "jbep3server",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30335,
+   "spieler": 4,
+   "hinweis": "Jabroni Brawl: Episode 3 in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/jbep3server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "jk2",
+   "name": "Jedi Knight II: Jedi Outcast",
+   "kurz": "Jedi Knight II: Jedi Outcast (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:jk2",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30336:27960/udp",
+    "27960:27960/tcp"
+   ],
+   "volumes": [
+    "/srv/games/jk2:/data"
+   ],
+   "env": {
+    "GAMESERVER": "jk2server",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30336,
+   "spieler": 4,
+   "hinweis": "Jedi Knight II: Jedi Outcast in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/jk2server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
   },
   {
    "schluessel": "killingfloor",
@@ -1408,7 +2743,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "killingfloor2",
@@ -1446,7 +2782,46 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
+  },
+  {
+   "schluessel": "l4d2",
+   "name": "Left 4 Dead 2",
+   "kurz": "Left 4 Dead 2 (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:l4d2",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30337:27015/udp",
+    "30331:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/l4d2:/data"
+   ],
+   "env": {
+    "GAMESERVER": "l4d2server",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30337,
+   "spieler": 4,
+   "hinweis": "Left 4 Dead 2 in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/l4d2server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
   },
   {
    "schluessel": "lastoasis",
@@ -1482,7 +2857,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "left4dead",
@@ -1518,7 +2894,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "lifeisfeudalyourown",
@@ -1560,7 +2937,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "lotrreturntomoria",
@@ -1595,7 +2973,46 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
+  },
+  {
+   "schluessel": "mcv",
+   "name": "Military Conflict: Vietnam",
+   "kurz": "Military Conflict: Vietnam (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:mcv",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30338:27015/udp",
+    "30332:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/mcv:/data"
+   ],
+   "env": {
+    "GAMESERVER": "mcvserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30338,
+   "spieler": 4,
+   "hinweis": "Military Conflict: Vietnam in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/mcvserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
   },
   {
    "schluessel": "memoriesofmars",
@@ -1633,7 +3050,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "mindustry",
@@ -1665,7 +3083,8 @@
    "adresse_port": 6567,
    "spieler": 4,
    "hinweis": "Fabrikbau und Tower Defense, Koop, sehr genuegsam. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
-   "ausschluss": []
+   "ausschluss": [],
+   "bauart": "ich777"
   },
   {
    "schluessel": "minecraft",
@@ -1703,7 +3122,46 @@
    ],
    "hinweis": "ACHTUNG: Die Installation setzt EULA=TRUE - das ist die Zustimmung zu Mojangs Nutzungsbedingungen. Minecraft kennt kein Serverpasswort; stattdessen ist die Weissliste an: Mitspieler mit \"whitelist add <Name>\" freischalten. Die Spielerzahl setzt der Einrichtungsschritt in server.properties (max-players).",
    "spieler": 4,
-   "appid": 0
+   "appid": 0,
+   "bauart": "eigenes-image"
+  },
+  {
+   "schluessel": "mohaa",
+   "name": "Medal of Honor: Allied Assault",
+   "kurz": "Medal of Honor: Allied Assault (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:mohaa",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "12203:12203/udp",
+    "12203:12203/tcp"
+   ],
+   "volumes": [
+    "/srv/games/mohaa:/data"
+   ],
+   "env": {
+    "GAMESERVER": "mohaaserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 12203,
+   "spieler": 4,
+   "hinweis": "Medal of Honor: Allied Assault in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/mohaaserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
   },
   {
    "schluessel": "mordhau",
@@ -1740,7 +3198,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "multitheftauto",
@@ -1772,7 +3231,46 @@
    "adresse_port": 22003,
    "spieler": 4,
    "hinweis": "Mehrspieler fuer GTA San Andreas. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
-   "ausschluss": []
+   "ausschluss": [],
+   "bauart": "ich777"
+  },
+  {
+   "schluessel": "nd",
+   "name": "Nuclear Dawn",
+   "kurz": "Nuclear Dawn (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:nd",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30339:27015/udp",
+    "30333:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/nd:/data"
+   ],
+   "env": {
+    "GAMESERVER": "ndserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30339,
+   "spieler": 4,
+   "hinweis": "Nuclear Dawn in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/ndserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
   },
   {
    "schluessel": "necesse",
@@ -1809,7 +3307,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "neotokyo",
@@ -1845,7 +3344,199 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
+  },
+  {
+   "schluessel": "nmrih",
+   "name": "No More Room in Hell",
+   "kurz": "No More Room in Hell (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:nmrih",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30340:27015/udp",
+    "30334:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/nmrih:/data"
+   ],
+   "env": {
+    "GAMESERVER": "nmrihserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30340,
+   "spieler": 4,
+   "hinweis": "No More Room in Hell in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/nmrihserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "ns",
+   "name": "Natural Selection",
+   "kurz": "Natural Selection (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:ns",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30341:27015/udp",
+    "30335:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/ns:/data"
+   ],
+   "env": {
+    "GAMESERVER": "nsserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30341,
+   "spieler": 4,
+   "hinweis": "Natural Selection in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/nsserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "ns2",
+   "name": "Natural Selection 2",
+   "kurz": "Natural Selection 2 (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:ns2",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30342:27015/udp",
+    "30336:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/ns2:/data"
+   ],
+   "env": {
+    "GAMESERVER": "ns2server",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30342,
+   "spieler": 4,
+   "hinweis": "Natural Selection 2 in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/ns2server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "ns2c",
+   "name": "NS2: Combat",
+   "kurz": "NS2: Combat (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:ns2c",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30343:27015/udp",
+    "30337:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/ns2c:/data"
+   ],
+   "env": {
+    "GAMESERVER": "ns2cserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30343,
+   "spieler": 4,
+   "hinweis": "NS2: Combat in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/ns2cserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "ohd",
+   "name": "Operation: Harsh Doorstop",
+   "kurz": "Operation: Harsh Doorstop (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:ohd",
+   "mem_gb": 8,
+   "platte_gb": 30,
+   "ports": [
+    "30344:7777/udp",
+    "30338:7777/tcp",
+    "27005:27005/udp"
+   ],
+   "volumes": [
+    "/srv/games/ohd:/data"
+   ],
+   "env": {
+    "GAMESERVER": "ohdserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30344,
+   "spieler": 4,
+   "hinweis": "Operation: Harsh Doorstop in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/ohdserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
   },
   {
    "schluessel": "openmwtes3mp",
@@ -1876,7 +3567,8 @@
    "adresse_port": 30112,
    "spieler": 4,
    "hinweis": "Morrowind zu mehreren, offene Neuimplementierung. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
-   "ausschluss": []
+   "ausschluss": [],
+   "bauart": "ich777"
   },
   {
    "schluessel": "openrct2",
@@ -1906,7 +3598,8 @@
    "adresse_port": 11753,
    "spieler": 4,
    "hinweis": "Freizeitpark bauen, gemeinsam - RollerCoaster Tycoon 2. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
-   "ausschluss": []
+   "ausschluss": [],
+   "bauart": "ich777"
   },
   {
    "schluessel": "openttd",
@@ -1938,7 +3631,46 @@
    "adresse_port": 3979,
    "spieler": 4,
    "hinweis": "Transportunternehmen aufbauen, Koop, sehr genuegsam. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
-   "ausschluss": []
+   "ausschluss": [],
+   "bauart": "ich777"
+  },
+  {
+   "schluessel": "opfor",
+   "name": "Opposing Force",
+   "kurz": "Opposing Force (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:opfor",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30345:27015/udp",
+    "30339:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/opfor:/data"
+   ],
+   "env": {
+    "GAMESERVER": "opforserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30345,
+   "spieler": 4,
+   "hinweis": "Opposing Force in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/opforserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
   },
   {
    "schluessel": "postscriptum",
@@ -1974,7 +3706,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "projectzomboid",
@@ -2012,7 +3745,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "pvkii",
@@ -2048,7 +3782,160 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
+  },
+  {
+   "schluessel": "pvr",
+   "name": "Pavlov VR",
+   "kurz": "Pavlov VR (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:pvr",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30346:7777/udp",
+    "30340:7777/tcp"
+   ],
+   "volumes": [
+    "/srv/games/pvr:/data"
+   ],
+   "env": {
+    "GAMESERVER": "pvrserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30346,
+   "spieler": 4,
+   "hinweis": "Pavlov VR in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/pvrserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "q2",
+   "name": "Quake 2",
+   "kurz": "Quake 2 (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:q2",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "27910:27910/udp",
+    "27910:27910/tcp"
+   ],
+   "volumes": [
+    "/srv/games/q2:/data"
+   ],
+   "env": {
+    "GAMESERVER": "q2server",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 27910,
+   "spieler": 4,
+   "hinweis": "Quake 2 in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/q2server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "q3",
+   "name": "Quake 3: Arena",
+   "kurz": "Quake 3: Arena (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:q3",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30347:27960/udp",
+    "30341:27960/tcp"
+   ],
+   "volumes": [
+    "/srv/games/q3:/data"
+   ],
+   "env": {
+    "GAMESERVER": "q3server",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30347,
+   "spieler": 4,
+   "hinweis": "Quake 3: Arena in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/q3server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "q4",
+   "name": "Quake 4",
+   "kurz": "Quake 4 (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:q4",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "28004:28004/udp",
+    "28004:28004/tcp"
+   ],
+   "volumes": [
+    "/srv/games/q4:/data"
+   ],
+   "env": {
+    "GAMESERVER": "q4server",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 28004,
+   "spieler": 4,
+   "hinweis": "Quake 4 in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/q4server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
   },
   {
    "schluessel": "quakelive",
@@ -2084,7 +3971,46 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
+  },
+  {
+   "schluessel": "qw",
+   "name": "Quake World",
+   "kurz": "Quake World (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:qw",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "27500:27500/udp",
+    "27500:27500/tcp"
+   ],
+   "volumes": [
+    "/srv/games/qw:/data"
+   ],
+   "env": {
+    "GAMESERVER": "qwserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 27500,
+   "spieler": 4,
+   "hinweis": "Quake World in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/qwserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
   },
   {
    "schluessel": "redm",
@@ -2118,7 +4044,84 @@
    "adresse_port": 30114,
    "spieler": 4,
    "hinweis": "Mehrspieler-Framework fuer Red Dead Redemption 2. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
-   "ausschluss": []
+   "ausschluss": [],
+   "bauart": "ich777"
+  },
+  {
+   "schluessel": "ricochet",
+   "name": "Ricochet",
+   "kurz": "Ricochet (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:ricochet",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30348:27015/udp",
+    "30342:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/ricochet:/data"
+   ],
+   "env": {
+    "GAMESERVER": "ricochetserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30348,
+   "spieler": 4,
+   "hinweis": "Ricochet in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/ricochetserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "rtcw",
+   "name": "Return to Castle Wolfenstein",
+   "kurz": "Return to Castle Wolfenstein (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:rtcw",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30349:27960/udp",
+    "30343:27960/tcp"
+   ],
+   "volumes": [
+    "/srv/games/rtcw:/data"
+   ],
+   "env": {
+    "GAMESERVER": "rtcwserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30349,
+   "spieler": 4,
+   "hinweis": "Return to Castle Wolfenstein in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/rtcwserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
   },
   {
    "schluessel": "rust",
@@ -2159,7 +4162,85 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
+  },
+  {
+   "schluessel": "samp",
+   "name": "San Andreas Multiplayer",
+   "kurz": "San Andreas Multiplayer (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:samp",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30350:7777/udp",
+    "30344:7777/tcp"
+   ],
+   "volumes": [
+    "/srv/games/samp:/data"
+   ],
+   "env": {
+    "GAMESERVER": "sampserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30350,
+   "spieler": 4,
+   "hinweis": "San Andreas Multiplayer in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/sampserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "sbots",
+   "name": "StickyBots",
+   "kurz": "StickyBots (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:sbots",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30351:7777/udp",
+    "30345:7777/tcp",
+    "30352:27015/udp"
+   ],
+   "volumes": [
+    "/srv/games/sbots:/data"
+   ],
+   "env": {
+    "GAMESERVER": "sbotsserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30351,
+   "spieler": 4,
+   "hinweis": "StickyBots in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/sbotsserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
   },
   {
    "schluessel": "scpsecretlaboratory",
@@ -2195,7 +4276,122 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
+  },
+  {
+   "schluessel": "scpslsm",
+   "name": "SCP: Secret Laboratory ServerMod",
+   "kurz": "SCP: Secret Laboratory ServerMod (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:scpslsm",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30353:7777/udp",
+    "30346:7777/tcp"
+   ],
+   "volumes": [
+    "/srv/games/scpslsm:/data"
+   ],
+   "env": {
+    "GAMESERVER": "scpslsmserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30353,
+   "spieler": 4,
+   "hinweis": "SCP: Secret Laboratory ServerMod in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/scpslsmserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "sfc",
+   "name": "SourceForts Classic",
+   "kurz": "SourceForts Classic (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:sfc",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30354:27015/udp",
+    "30347:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/sfc:/data"
+   ],
+   "env": {
+    "GAMESERVER": "sfcserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30354,
+   "spieler": 4,
+   "hinweis": "SourceForts Classic in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/sfcserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "sof2",
+   "name": "Soldier Of Fortune 2: Gold Edition",
+   "kurz": "Soldier Of Fortune 2: Gold Edition (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:sof2",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "20100:20100/udp",
+    "20100:20100/tcp"
+   ],
+   "volumes": [
+    "/srv/games/sof2:/data"
+   ],
+   "env": {
+    "GAMESERVER": "sof2server",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 20100,
+   "spieler": 4,
+   "hinweis": "Soldier Of Fortune 2: Gold Edition in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/sof2server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
   },
   {
    "schluessel": "sonsoftheforest",
@@ -2232,7 +4428,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "soulmask",
@@ -2267,7 +4464,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "squad",
@@ -2308,7 +4506,47 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
+  },
+  {
+   "schluessel": "squad44",
+   "name": "Squad 44",
+   "kurz": "Squad 44 (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:squad44",
+   "mem_gb": 8,
+   "platte_gb": 30,
+   "ports": [
+    "30355:10027/udp",
+    "10027:10027/tcp",
+    "30356:10037/udp"
+   ],
+   "volumes": [
+    "/srv/games/squad44:/data"
+   ],
+   "env": {
+    "GAMESERVER": "squad44server",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30355,
+   "spieler": 4,
+   "hinweis": "Squad 44 in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/squad44server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
   },
   {
    "schluessel": "starbound",
@@ -2345,7 +4583,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "starmade",
@@ -2375,7 +4614,8 @@
    "adresse_port": 4242,
    "spieler": 4,
    "hinweis": "Raumschiffe bauen und fliegen, Sandbox. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
-   "ausschluss": []
+   "ausschluss": [],
+   "bauart": "ich777"
   },
   {
    "schluessel": "subsistence",
@@ -2411,7 +4651,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "survivethenights",
@@ -2447,7 +4688,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "svencoop",
@@ -2483,7 +4725,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "teamfortress2",
@@ -2519,7 +4762,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "teamspeak",
@@ -2546,7 +4790,8 @@
    "adresse_port": 9987,
    "spieler": 4,
    "hinweis": "Das Serverpasswort setzt man im TeamSpeak-Client selbst (Serververwaltung → Server bearbeiten). Beim allerersten Start steht der Admin-Token im Containerprotokoll. Die Installation nimmt die TeamSpeak-Lizenzbedingungen an (TS3SERVER_LICENSE=accept).",
-   "ausschluss": []
+   "ausschluss": [],
+   "bauart": "eigenes-image"
   },
   {
    "schluessel": "teeworlds",
@@ -2577,7 +4822,8 @@
    "adresse_port": 30131,
    "spieler": 4,
    "hinweis": "2D-Arena mit Enterhaken, sehr genuegsam. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
-   "ausschluss": []
+   "ausschluss": [],
+   "bauart": "ich777"
   },
   {
    "schluessel": "terraria",
@@ -2608,7 +4854,8 @@
    "adresse_port": 30122,
    "spieler": 4,
    "hinweis": "2D-Sandbox mit Bossen und Erkundung, Koop. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
-   "ausschluss": []
+   "ausschluss": [],
+   "bauart": "ich777"
   },
   {
    "schluessel": "terrariatshock",
@@ -2639,7 +4886,8 @@
    "adresse_port": 30123,
    "spieler": 4,
    "hinweis": "Terraria mit Server-Plugins und Rechteverwaltung. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
-   "ausschluss": []
+   "ausschluss": [],
+   "bauart": "ich777"
   },
   {
    "schluessel": "terratechworlds",
@@ -2674,7 +4922,84 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
+  },
+  {
+   "schluessel": "tf2c",
+   "name": "Team Fortress 2 Classified",
+   "kurz": "Team Fortress 2 Classified (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:tf2c",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30357:27015/udp",
+    "30348:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/tf2c:/data"
+   ],
+   "env": {
+    "GAMESERVER": "tf2cserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30357,
+   "spieler": 4,
+   "hinweis": "Team Fortress 2 Classified in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/tf2cserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "tfc",
+   "name": "Team Fortress Classic",
+   "kurz": "Team Fortress Classic (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:tfc",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30358:27015/udp",
+    "30349:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/tfc:/data"
+   ],
+   "env": {
+    "GAMESERVER": "tfcserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30358,
+   "spieler": 4,
+   "hinweis": "Team Fortress Classic in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/tfcserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
   },
   {
    "schluessel": "theforest",
@@ -2711,7 +5036,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "thefront",
@@ -2748,7 +5074,123 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
+  },
+  {
+   "schluessel": "ti",
+   "name": "The Isle",
+   "kurz": "The Isle (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:ti",
+   "mem_gb": 8,
+   "platte_gb": 30,
+   "ports": [
+    "30359:7777/udp",
+    "30350:7777/tcp"
+   ],
+   "volumes": [
+    "/srv/games/ti:/data"
+   ],
+   "env": {
+    "GAMESERVER": "tiserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30359,
+   "spieler": 4,
+   "hinweis": "The Isle in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/tiserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "ts",
+   "name": "The Specialists",
+   "kurz": "The Specialists (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:ts",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30360:27015/udp",
+    "30351:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/ts:/data"
+   ],
+   "env": {
+    "GAMESERVER": "tsserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30360,
+   "spieler": 4,
+   "hinweis": "The Specialists in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/tsserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "tu",
+   "name": "Tower Unite",
+   "kurz": "Tower Unite (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:tu",
+   "mem_gb": 8,
+   "platte_gb": 30,
+   "ports": [
+    "30361:7777/udp",
+    "30352:7777/tcp",
+    "30362:27015/udp"
+   ],
+   "volumes": [
+    "/srv/games/tu:/data"
+   ],
+   "env": {
+    "GAMESERVER": "tuserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30361,
+   "spieler": 4,
+   "hinweis": "Tower Unite in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/tuserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
   },
   {
    "schluessel": "unturned",
@@ -2789,7 +5231,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "urbanterror",
@@ -2819,7 +5262,85 @@
    "adresse_port": 30132,
    "spieler": 4,
    "hinweis": "Realistischer Arena-Shooter, frei spielbar. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
-   "ausschluss": []
+   "ausschluss": [],
+   "bauart": "ich777"
+  },
+  {
+   "schluessel": "ut",
+   "name": "Unreal Tournament",
+   "kurz": "Unreal Tournament (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:ut",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30363:7777/udp",
+    "30353:7777/tcp"
+   ],
+   "volumes": [
+    "/srv/games/ut:/data"
+   ],
+   "env": {
+    "GAMESERVER": "utserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30363,
+   "spieler": 4,
+   "hinweis": "Unreal Tournament in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/utserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "ut3",
+   "name": "Unreal Tournament 3",
+   "kurz": "Unreal Tournament 3 (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:ut3",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30364:7777/udp",
+    "30354:7777/tcp",
+    "6500:6500/udp"
+   ],
+   "volumes": [
+    "/srv/games/ut3:/data"
+   ],
+   "env": {
+    "GAMESERVER": "ut3server",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30364,
+   "spieler": 4,
+   "hinweis": "Unreal Tournament 3 in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/ut3server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
   },
   {
    "schluessel": "valheim",
@@ -2858,7 +5379,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "vintagestory",
@@ -2890,7 +5412,8 @@
    ],
    "hinweis": "Passwort in data/serverconfig.json nach dem ersten Start.",
    "spieler": 4,
-   "appid": 0
+   "appid": 0,
+   "bauart": "eigenes-image"
   },
   {
    "schluessel": "vrising",
@@ -2928,7 +5451,84 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
+  },
+  {
+   "schluessel": "vs",
+   "name": "Vampire Slayer",
+   "kurz": "Vampire Slayer (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:vs",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30365:27015/udp",
+    "30355:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/vs:/data"
+   ],
+   "env": {
+    "GAMESERVER": "vsserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30365,
+   "spieler": 4,
+   "hinweis": "Vampire Slayer in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/vsserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "wf",
+   "name": "Warfork",
+   "kurz": "Warfork (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:wf",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "44400:44400/udp",
+    "44400:44400/tcp"
+   ],
+   "volumes": [
+    "/srv/games/wf:/data"
+   ],
+   "env": {
+    "GAMESERVER": "wfserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 44400,
+   "spieler": 4,
+   "hinweis": "Warfork in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/wfserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
   },
   {
    "schluessel": "windward",
@@ -2958,7 +5558,8 @@
    "adresse_port": 5127,
    "spieler": 4,
    "hinweis": "Segelschiffe, Handel und Gefechte, Koop. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
-   "ausschluss": []
+   "ausschluss": [],
+   "bauart": "ich777"
   },
   {
    "schluessel": "wurmunlimited",
@@ -2997,7 +5598,8 @@
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
-   ]
+   ],
+   "bauart": "ich777"
   },
   {
    "schluessel": "xonotic",
@@ -3027,7 +5629,8 @@
    "adresse_port": 26000,
    "spieler": 4,
    "hinweis": "Schneller Arena-Shooter, frei und quelloffen. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
-   "ausschluss": []
+   "ausschluss": [],
+   "bauart": "ich777"
   },
   {
    "schluessel": "zandronum",
@@ -3057,7 +5660,84 @@
    "adresse_port": 10666,
    "spieler": 4,
    "hinweis": "Doom im Mehrspieler, Koop und Deathmatch. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
-   "ausschluss": []
+   "ausschluss": [],
+   "bauart": "ich777"
+  },
+  {
+   "schluessel": "zmr",
+   "name": "Zombie Master: Reborn",
+   "kurz": "Zombie Master: Reborn (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:zmr",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30366:27015/udp",
+    "30356:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/zmr:/data"
+   ],
+   "env": {
+    "GAMESERVER": "zmrserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30366,
+   "spieler": 4,
+   "hinweis": "Zombie Master: Reborn in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/zmrserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
+  },
+  {
+   "schluessel": "zps",
+   "name": "Zombie Panic! Source",
+   "kurz": "Zombie Panic! Source (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:zps",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [
+    "30367:27015/udp",
+    "30357:27015/tcp"
+   ],
+   "volumes": [
+    "/srv/games/zps:/data"
+   ],
+   "env": {
+    "GAMESERVER": "zpsserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 30367,
+   "spieler": 4,
+   "hinweis": "Zombie Panic! Source in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/zpsserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm"
   }
  ]
 }

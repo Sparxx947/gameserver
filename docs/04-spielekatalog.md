@@ -73,6 +73,59 @@ im Katalog nach, und den Katalog kann die Oberfläche nur lesen.
 
 ---
 
+## Zwei Bauarten
+
+| | ich777 | LinuxGSM |
+|---|---|---|
+| Image | `ghcr.io/ich777/steamcmd:<spiel>` und eigene | `gameservermanagers/gameserver:<kürzel>` |
+| Datenverzeichnis | `/serverdata` | `/data` |
+| Umgebung | `GAME_ID`, `GAME_PARAMS`, `UID`/`GID` | `GAMESERVER`, `UID`/`GID` |
+| Konfiguration | je Spiel verschieden | `config-lgsm/<gs>/` **und** `serverfiles/` |
+| Einträge | 86 | 68 |
+
+Erzeugt werden beide aus den Vorlagen der jeweiligen Quelle —
+`werkzeuge/katalog-ergaenzen.py` und `werkzeuge/katalog-lgsm.py`. Das Feld
+`bauart` im Katalog nennt die Herkunft.
+
+**Doppelte Spiele werden über den Namen abgeglichen, nicht über die App-ID.**
+Bei GoldSrc teilen sich **13 Spiele** die Sammel-ID 90 (Half-Life Dedicated
+Server) — ein Abgleich darüber hätte Counter-Strike 1.6, Day of Defeat, Natural
+Selection und zehn weitere fälschlich als Duplikate verworfen. Verglichen wird
+gegen den Katalog **und** gegen die handgebauten Stacks: Palworld und
+Satisfactory laufen, stehen aber in keinem Katalog.
+
+> *Two build styles, both derived from their source's templates. Duplicates are
+> matched by name, never by app id: 13 GoldSrc games share the collective id 90,
+> and matching on it would have discarded Counter-Strike 1.6, Day of Defeat and
+> eleven others. The comparison covers the catalogue and the hand-built stacks —
+> Palworld and Satisfactory run but appear in no catalogue.*
+
+### Vier Eigenheiten von LinuxGSM
+
+An einem echten Fall durchgetestet (Ricochet), bevor 68 Einträge entstanden.
+Jede der vier machte eine Anpassung an den Werkzeugen nötig:
+
+1. **`_default.cfg` trägt „DO NOT EDIT, ANY CHANGES WILL BE OVERWRITTEN!"** und
+   wird bei jedem Start neu geschrieben. Der Einrichtungsschritt setzte dort
+   Werte und meldete Erfolg — wirkungslos. Jetzt ausgefiltert.
+2. **Jede LinuxGSM-Konfiguration enthält `betapassword` und `ntfypassword`** —
+   Steams Beta-Zweig und ein Benachrichtigungsdienst. Beide sahen aus wie
+   Beitrittspasswörter und wurden gesetzt.
+3. **Die eigentliche Serverkonfiguration steht im GoldSrc-Stil** ohne
+   Gleichheitszeichen und ohne Semikolon: `sv_password ""`. Das erkannte die
+   Ersetzung nicht — der Server wäre ohne Beitrittspasswort gelaufen.
+4. **`serverfiles/` darf nicht pauschal von der Sicherung ausgeschlossen
+   werden.** Dort liegen bei Ricochet 138 MB Installation **und** die 1 KB große
+   Serverkonfiguration. Ausgeschlossen wird deshalb nur
+   `serverfiles/steamapps`, `log` und `.steam`.
+
+> *Four LinuxGSM quirks, each found by testing one real case before adopting 68
+> entries: a regenerated `_default.cfg` that made the setup step report success
+> for nothing; two password-shaped fields that are not join passwords; the
+> GoldSrc config style the replacement did not recognise, which would have left
+> the server without a join password; and a `serverfiles/` directory holding both
+> the installation and the real configuration.*
+
 ## Die Bilder
 
 | Image | Anzahl | Bemerkung |

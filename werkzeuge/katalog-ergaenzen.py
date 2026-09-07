@@ -187,6 +187,7 @@ def eintrag_bauen(sch: str, v: dict, belegt: set) -> dict:
                    " Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind "
                    "geschaetzt und im Panel aenderbar.",
         "ausschluss": ["steamcmd", "serverfiles/steamapps"] if v["steamcmd"] else [],
+        "bauart": "ich777",
     }
 
 

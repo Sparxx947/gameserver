@@ -28,7 +28,14 @@ ENDLOS_NACH_H = 6          # danach aufgeben und im Panel melden
 MAX_TIEFE = 6
 MAX_DATEIEN = 4000
 
-PW_MUSTER    = re.compile(r"^(?!.*(?:admin|rcon|steam|api|web|db|sql|mysql|token))"
+# "beta" ist Steams Beta-Zweig-Passwort, "ntfy" das eines Benachrichtigungs-
+# dienstes - beide tauchen in JEDER LinuxGSM-Konfiguration auf und sind keine
+# Beitrittspasswoerter. Ohne diesen Ausschluss meldete der Lauf "gesetzt in
+# betapassword, ntfypassword" und hielt die Einrichtung fuer erledigt.
+# *"beta" is Steam's beta-branch password and "ntfy" a notification service's;
+#  both appear in every LinuxGSM config and are not join passwords.*
+PW_MUSTER    = re.compile(r"^(?!.*(?:admin|rcon|steam|api|web|db|sql|mysql|token|beta|ntfy|"
+                          r"discord|telegram|pushbullet|pushover|gotify|smtp|email|mail))"
                           r".*(?:password|passwort|passwd|\bpsw\b|serverpass)", re.I)
 # RCON bewusst NICHT: manche Container setzen ihr RCON-Passwort selbst und
 # sprechen den Server darueber an - ein fremder Wert bricht ihnen die Steuerung.
@@ -57,6 +64,36 @@ def meldung(*t):
 
 
 def dateien(basis: Path):
+    """Konfigurationskandidaten - VORRANGIG ueber konfig-datei, damit es nur EINE
+    Wahrheit darueber gibt, welche Datei Konfiguration ist.
+
+    Vorher hatte dieses Skript eine eigene Suche mit eigenen Filtern. Als
+    konfig-datei LinuxGSMs "_default.cfg" ausschloss (die Datei traegt "DO NOT
+    EDIT, ANY CHANGES WILL BE OVERWRITTEN!"), schrieb dieses hier weiterhin
+    hinein und meldete Erfolg - an einer Datei, die beim naechsten Start
+    zurueckgesetzt wird. Zwei Filterlisten heisst frueher oder later zwei
+    verschiedene Antworten.
+    *Previously this had its own search with its own filters. When konfig-datei
+     started excluding LinuxGSM's "_default.cfg" - a file marked DO NOT EDIT -
+     this one kept writing to it and reporting success. Two filter lists mean two
+     different answers sooner or later.*
+    """
+    stack = basis.name
+    try:
+        r = subprocess.run(["/usr/local/bin/konfig-datei", "liste", stack],
+                           capture_output=True, text=True, timeout=120)
+        if r.returncode == 0:
+            treffer = [basis / z.split("\t")[0] for z in r.stdout.splitlines() if z.strip()]
+            if treffer:
+                return treffer
+    except Exception:
+        pass
+    # Rueckfallweg, falls konfig-datei fehlt: die eigene Suche von frueher.
+    # Ohne ihn stuende die Einrichtung still, wenn ein Werkzeug fehlt.
+    return dateien_selbst(basis)
+
+
+def dateien_selbst(basis: Path):
     """Konfigurationskandidaten unter basis - flach genug, um schnell zu bleiben."""
     raus, zaehler = [], 0
     for p in basis.rglob("*"):
@@ -151,15 +188,34 @@ def setze_xml(text, muster, wert):
 
 
 def setze_cfg(text, muster, wert):
-    """Form "schluessel wert;" ohne Gleichheitszeichen."""
+    """Form "schluessel wert" ohne Gleichheitszeichen, Semikolon optional.
+
+    Das Semikolon war zunaechst Pflicht - damit fiel der komplette GoldSrc-Stil
+    durch, in dem LinuxGSM und alle Half-Life-Ableger ihre Serverkonfiguration
+    schreiben:
+
+        sv_password ""
+        hostname "LinuxGSM"
+
+    Ohne diese Zeilen bliebe ein solcher Server ohne Beitrittspasswort, und der
+    Einrichtungsschritt haette es nicht einmal gemerkt (gemessen 2026-09-07 an
+    Ricochet).
+    *The semicolon used to be mandatory, which excluded the entire GoldSrc style
+     that LinuxGSM and every Half-Life derivative use. Such a server would have
+     ended up without a join password, unnoticed.*
+
+    Die Regel bleibt eng: die Zeile muss AUSSCHLIESSLICH aus Schluessel und Wert
+    bestehen. Sonst zerlegt sie in einer Konfiguration mit Fliesstext die
+    falschen Zeilen.
+    """
     treffer = []
     def ersetze(m):
         if muster.search(m.group(1)):
             treffer.append(m.group(1))
             anf = '"' if m.group(2).startswith('"') else ''
-            return f'{m.group(1)} {anf}{wert}{anf};'
+            return f'{m.group(1)} {anf}{wert}{anf}{m.group(3)}'
         return m.group(0)
-    neu = re.sub(r'^([A-Za-z_][A-Za-z0-9_]*)[ \t]+("?[^"\r\n;]*"?)[ \t]*;',
+    neu = re.sub(r'^([A-Za-z_][A-Za-z0-9_]*)[ \t]+("[^"\r\n]*"|[^\s;]+)[ \t]*(;?)[ \t]*$',
                  ersetze, text, flags=re.M)
     return neu, treffer
 
