@@ -1,9 +1,9 @@
 # 04 — Der Spielekatalog
 
-`/etc/spiele-katalog.json` — 41 Spiele, die sich über die Oberfläche mit einem
+`/etc/spiele-katalog.json` — 179 Spiele, die sich über die Oberfläche mit einem
 Klick installieren und wieder entfernen lassen.
 
-> *41 games installable and removable from the panel with a single click.*
+> *179 games installable and removable from the panel with a single click.*
 
 ---
 
@@ -277,6 +277,205 @@ Eintrag für fremd.
 > `etlserver.cfg`, and the one that matters is whichever actually carries the
 > field. The port is written last, after setup has settled — that write is what
 > exposes the server.*
+
+---
+
+## Alle Spiele im Katalog
+
+Erzeugt aus `etc/spiele-katalog.json` — nicht von Hand ändern, sondern
+`python3 werkzeuge/katalog-doku.py` laufen lassen. `vollstaendigkeit.sh` meldet,
+wenn Liste und Katalog auseinandergehen.
+
+> *Generated from the catalogue; regenerate rather than edit. The completeness
+> check reports drift.*
+
+<!-- katalog:anfang -->
+
+<!-- Erzeugt von werkzeuge/katalog-doku.py — nicht von Hand aendern. -->
+
+| Schlüssel | Name | Kategorie | Bauart | Steam |
+|---|---|---|---|---|
+| `7daystodie` | 7DaysToDie | survival | ich777 | `251570` |
+| `abioticfactor` | AbioticFactor | survival | ich777 | `427410` |
+| `ahl` | Action Half-Life | arena | linuxgsm | — |
+| `ahl2` | Action: Source | arena | linuxgsm | `977050` |
+| `alienswarm` | AlienSwarm | shooter | ich777 | `630` |
+| `alienswarmreactivedrop` | AlienSwarm ReactiveDrop | shooter | ich777 | `563560` |
+| `altitude` | Altitude | arena | ich777 | `41300` |
+| `americantrucksimulator` | AmericanTruckSimulator | rennen | ich777 | `270880` |
+| `americasarmyprovinggrounds` | AmericasArmy ProvingGrounds | shooter | ich777 | `203300` |
+| `ark` | ARK: Survival Evolved | survival | linuxgsm | `346110` |
+| `arma3` | ARMA 3 | shooter | linuxgsm | `107410` |
+| `armar` | Arma Reforger |  | linuxgsm | `1874880` |
+| `assettocorsa` | AssettoCorsa | rennen | ich777 | `244210` |
+| `astroneer` | Astroneer | survival | ich777 | `361420` |
+| `avorion` | Avorion | sandbox | ich777 | `445220` |
+| `barotrauma` | Barotrauma | survival | ich777 | `602960` |
+| `bb` | BrainBread | shooter | linuxgsm | — |
+| `bb2` | BrainBread 2 | shooter | linuxgsm | `346330` |
+| `bd` | Base Defense | shooter | linuxgsm | `632730` |
+| `bf1942` | Battlefield 1942 |  | linuxgsm | — |
+| `bfv` | Battlefield: Vietnam |  | linuxgsm | — |
+| `bmdm` | Black Mesa: Deathmatch | shooter | linuxgsm | — |
+| `bo` | Ballistic Overkill |  | linuxgsm | — |
+| `bs` | Blade Symphony | shooter | linuxgsm | `225600` |
+| `btl` | BATTALION: Legacy | shooter | linuxgsm | `489940` |
+| `cc` | Codename CURE | shooter | linuxgsm | `355180` |
+| `chivalrymedievalwarfare` | Chivalry MedievalWarfare | shooter | ich777 | `220070` |
+| `citadelforgedwithfire` | Citadel ForgedWithFire | survival | ich777 | `487120` |
+| `cod` | Call of Duty | shooter | linuxgsm | `2620` |
+| `cod2` | Call of Duty 2 | shooter | linuxgsm | `2630` |
+| `cod4` | Call of Duty 4 | shooter | linuxgsm | — |
+| `coduo` | Call of Duty: United Offensive | shooter | linuxgsm | `2640` |
+| `codwaw` | Call of Duty: World at War | shooter | linuxgsm | `10090` |
+| `colonysurvival` | ColonySurvival | aufbau | ich777 | `366090` |
+| `conanexiles` | ConanExiles | survival | ich777 | `440900` |
+| `corekeeper` | CoreKeeper | survival | ich777 | `1621690` |
+| `counterstrike2d` | CounterStrike2D | arena | ich777 | — |
+| `craftopia` | Craftopia | survival | ich777 | `1307550` |
+| `creativerse` | Creativerse | survival | ich777 | `280790` |
+| `cs` | Counter-Strike 1.6 | shooter | linuxgsm | — |
+| `cs2` | Counter-Strike 2 | shooter | linuxgsm | `730` |
+| `cscz` | Counter-Strike: Condition Zero | shooter | linuxgsm | `80` |
+| `csgo` | Counter-Strike: Global Offensive | shooter | linuxgsm | — |
+| `css` | Counter-Strike: Source | shooter | linuxgsm | `240` |
+| `cstrike16` | CStrike1.6 | shooter | ich777 | `90` |
+| `dab` | Double Action: Boogaloo | shooter | linuxgsm | `317360` |
+| `dayofdefeatsource` | DayOfDefeatSource | shooter | ich777 | `232290` |
+| `dayofinfamy` | DayOfInfamy | shooter | ich777 | `447820` |
+| `daysofwar` | DaysOfWar | shooter | ich777 | `541790` |
+| `dayz` | DayZ | survival | linuxgsm | `221100` |
+| `ddnet` | DDNet | arena | ich777 | `412220` |
+| `dmc` | Deathmatch Classic | arena | linuxgsm | `40` |
+| `dod` | Day of Defeat | shooter | linuxgsm | `30` |
+| `dodr` | Day of Dragons | survival | linuxgsm | `1088090` |
+| `dontstarvetogether` | DontStarveTogether | survival | ich777 | `322330` |
+| `dys` | Dystopia | shooter | linuxgsm | — |
+| `eco` | ECO | aufbau | ich777 | `382310` |
+| `em` | Empires Mod | shooter | linuxgsm | `17740` |
+| `etl` | ET: Legacy |  | linuxgsm | — |
+| `eurotrucksimulator2` | EuroTruckSimulator2 | rennen | ich777 | `227300` |
+| `factorio` | Factorio | aufbau | eigenes-image | `427520` |
+| `fistfuloffrags` | FistfulOfFrags | shooter | ich777 | `265630` |
+| `fivem` | FiveM | sandbox | ich777 | — |
+| `frozenflame` | FrozenFlame | survival | ich777 | `715400` |
+| `garrysmod` | GarrysMod | sandbox | ich777 | `4000` |
+| `halflife2deathmatch` | HalfLife2DeathMatch | shooter | ich777 | `232370` |
+| `halflifedeathmatch` | HalfLife Deathmatch | shooter | ich777 | `90` |
+| `hcu` | HYPERCHARGE: Unboxed | shooter | linuxgsm | `523660` |
+| `hldms` | Half-Life Deathmatch: Source | shooter | linuxgsm | `360` |
+| `hurtworld` | Hurtworld | survival | ich777 | `393420` |
+| `hz` | Humanitz | survival | linuxgsm | `1766060` |
+| `icarus` | Icarus | survival | ich777 | `1149460` |
+| `insurgency` | Insurgency | shooter | ich777 | `222880` |
+| `insurgencysandstorm` | InsurgencySandstorm | shooter | ich777 | `581330` |
+| `ios` | IOSoccer | arena | linuxgsm | `673560` |
+| `jbep3` | Jabroni Brawl: Episode 3 | shooter | linuxgsm | `869480` |
+| `jc2` | Just Cause 2 |  | linuxgsm | `8190` |
+| `jc3` | Just Cause 3 |  | linuxgsm | `225540` |
+| `jk2` | Jedi Knight II: Jedi Outcast | sandbox | linuxgsm | — |
+| `killingfloor` | KillingFloor | shooter | ich777 | `1250` |
+| `killingfloor2` | KillingFloor2 | shooter | ich777 | `232090` |
+| `l4d2` | Left 4 Dead 2 | shooter | linuxgsm | `550` |
+| `lastoasis` | LastOasis | survival | ich777 | `903950` |
+| `left4dead` | Left4Dead | shooter | ich777 | `500` |
+| `lifeisfeudalyourown` | LifeIsFeudal YourOwn | survival | ich777 | `290080` |
+| `lotrreturntomoria` | LOTR ReturnToMoria | survival | ich777 | `2933080` |
+| `mcv` | Military Conflict: Vietnam | shooter | linuxgsm | `1012110` |
+| `memoriesofmars` | Memories of Mars | aufbau | ich777 | `715380` |
+| `mindustry` | Mindustry | aufbau | ich777 | `1127400` |
+| `minecraft` | Minecraft (Java) | survival | eigenes-image | — |
+| `minecraftbedrock` | Minecraft (Bedrock) | survival | eigenes-image | — |
+| `minecraftfabric` | Minecraft (Fabric) | survival | eigenes-image | — |
+| `minecraftforge` | Minecraft (Forge) | survival | eigenes-image | — |
+| `minecraftneoforge` | Minecraft (NeoForge) | survival | eigenes-image | — |
+| `minecraftpaper` | Minecraft (Paper) | survival | eigenes-image | — |
+| `minecraftpurpur` | Minecraft (Purpur) | survival | eigenes-image | — |
+| `minecraftquilt` | Minecraft (Quilt) | survival | eigenes-image | — |
+| `minecraftspigot` | Minecraft (Spigot) | survival | eigenes-image | — |
+| `mohaa` | Medal of Honor: Allied Assault | shooter | linuxgsm | — |
+| `mordhau` | Mordhau | shooter | ich777 | `629760` |
+| `multitheftauto` | MultiTheftAuto | sandbox | ich777 | — |
+| `nd` | Nuclear Dawn | shooter | linuxgsm | `17710` |
+| `necesse` | Necesse | survival | ich777 | `1169040` |
+| `neotokyo` | NEOTOKYO | shooter | ich777 | `244630` |
+| `nmrih` | No More Room in Hell | shooter | linuxgsm | `224260` |
+| `ns` | Natural Selection | shooter | linuxgsm | — |
+| `ns2` | Natural Selection 2 | shooter | linuxgsm | `4920` |
+| `ns2c` | NS2: Combat | shooter | linuxgsm | `310110` |
+| `ohd` | Operation: Harsh Doorstop | shooter | linuxgsm | `736590` |
+| `onset` | Onset |  | linuxgsm | `1105810` |
+| `openmwtes3mp` | OpenMW TES3MP | sandbox | ich777 | — |
+| `openrct2` | OpenRCT2 | aufbau | ich777 | — |
+| `openttd` | OpenTTD | aufbau | ich777 | `1536610` |
+| `opfor` | Opposing Force | shooter | linuxgsm | — |
+| `pc` | Project Cars |  | linuxgsm | `234630` |
+| `pc2` | Project Cars 2 |  | linuxgsm | `378860` |
+| `postscriptum` | PostScriptum | shooter | ich777 | `746200` |
+| `projectzomboid` | ProjectZomboid | survival | ich777 | `108600` |
+| `pvkii` | PVK II | shooter | ich777 | `17575` |
+| `pvr` | Pavlov VR | shooter | linuxgsm | — |
+| `q2` | Quake 2 | arena | linuxgsm | — |
+| `q3` | Quake 3: Arena | arena | linuxgsm | — |
+| `q4` | Quake 4 | arena | linuxgsm | `2210` |
+| `quakelive` | QuakeLive | arena | ich777 | `282440` |
+| `qw` | Quake World | arena | linuxgsm | — |
+| `redm` | RedM | sandbox | ich777 | — |
+| `ricochet` | Ricochet | arena | linuxgsm | — |
+| `ro` | Red Orchestra: Ostfront 41-45 |  | linuxgsm | `1200` |
+| `rtcw` | Return to Castle Wolfenstein | shooter | linuxgsm | `9010` |
+| `rust` | RUST | survival | ich777 | `252490` |
+| `rw` | Rising World |  | linuxgsm | `324080` |
+| `samp` | San Andreas Multiplayer | sandbox | linuxgsm | — |
+| `sbots` | StickyBots | shooter | linuxgsm | `889400` |
+| `scpsecretlaboratory` | SCP SecretLaboratory | shooter | ich777 | `996560` |
+| `scpslsm` | SCP: Secret Laboratory ServerMod | shooter | linuxgsm | — |
+| `sfc` | SourceForts Classic | shooter | linuxgsm | — |
+| `sof2` | Soldier Of Fortune 2: Gold Edition | shooter | linuxgsm | — |
+| `sol` | Soldat |  | linuxgsm | `638490` |
+| `sonsoftheforest` | SonsOfTheForest | survival | ich777 | `1326470` |
+| `soulmask` | Soulmask | survival | ich777 | `2646460` |
+| `squad` | Squad | shooter | ich777 | `393380` |
+| `squad44` | Squad 44 | shooter | linuxgsm | `736220` |
+| `st` | Stationeers |  | linuxgsm | `544550` |
+| `starbound` | Starbound | survival | ich777 | `211820` |
+| `starmade` | Starmade | sandbox | ich777 | `244770` |
+| `subsistence` | Subsistence | survival | ich777 | `418030` |
+| `survivethenights` | SurviveTheNights | survival | ich777 | `541300` |
+| `svencoop` | SvenCOOP | shooter | ich777 | `225840` |
+| `teamfortress2` | TeamFortress2 | shooter | ich777 | `440` |
+| `teamspeak` | TeamSpeak 3 | dienst | eigenes-image | — |
+| `teeworlds` | Teeworlds | arena | ich777 | `380840` |
+| `terraria` | Terraria | survival | ich777 | `105600` |
+| `terrariatshock` | Terraria TShock | survival | ich777 | — |
+| `terratechworlds` | TerraTech Worlds | aufbau | ich777 | `2313330` |
+| `tf2c` | Team Fortress 2 Classified | shooter | linuxgsm | `3545060` |
+| `tfc` | Team Fortress Classic | shooter | linuxgsm | `20` |
+| `theforest` | TheForest | survival | ich777 | `1326470` |
+| `thefront` | TheFront | survival | ich777 | `2285150` |
+| `ti` | The Isle | survival | linuxgsm | `376210` |
+| `ts` | The Specialists | shooter | linuxgsm | — |
+| `tu` | Tower Unite | sandbox | linuxgsm | `394690` |
+| `unturned` | Unturned | survival | ich777 | `304930` |
+| `urbanterror` | Urban Terror | arena | ich777 | — |
+| `ut` | Unreal Tournament | arena | linuxgsm | — |
+| `ut2k4` | Unreal Tournament 2004 |  | linuxgsm | — |
+| `ut3` | Unreal Tournament 3 | arena | linuxgsm | — |
+| `ut99` | Unreal Tournament 99 |  | linuxgsm | — |
+| `valheim` | Valheim | survival | ich777 | `892970` |
+| `vintagestory` | Vintage Story | survival | eigenes-image | — |
+| `vrising` | V Rising | survival | ich777 | `1604030` |
+| `vs` | Vampire Slayer | shooter | linuxgsm | `3043210` |
+| `wet` | Wolfenstein: Enemy Territory |  | linuxgsm | `1873030` |
+| `wf` | Warfork | arena | linuxgsm | `671610` |
+| `windward` | Windward | survival | ich777 | `326410` |
+| `wurmunlimited` | WurmUnlimited | survival | ich777 | `366220` |
+| `xonotic` | Xonotic | arena | ich777 | — |
+| `zandronum` | Zandronum | arena | ich777 | — |
+| `zmr` | Zombie Master: Reborn | shooter | linuxgsm | — |
+| `zps` | Zombie Panic! Source | shooter | linuxgsm | `17500` |
+
+<!-- katalog:ende -->
 
 ---
 
