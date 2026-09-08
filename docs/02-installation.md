@@ -14,7 +14,8 @@ in Stufen; jede ist einzeln aufrufbar und mehrfach ausführbar.
 |---|---|
 | Debian 12, root | `. /etc/os-release; echo $VERSION_CODENAME` → `bookworm` |
 | Öffentliche IPv4 | `curl -s https://api.ipify.org` |
-| Panel-Name zeigt darauf | `host <PANEL_DOMAIN>` — oder Stufe 25 legt ihn an (s.u.) |
+| DNS-Token liegt bereit | `test -s /etc/dns-gameserver.conf` — dann macht Stufe 25 die Namen |
+| Panel-Name zeigt darauf | `host <PANEL_DOMAIN>` — nur nötig, wenn es keinen Token gibt |
 | Tailscale verbunden | `tailscale status` (nur wenn übers Tailnet gesichert wird) |
 | Borg-Ziel erreichbar | `ssh borg@<ziel> true` |
 | Platz | mindestens 50 GB frei, besser 100 |
