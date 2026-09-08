@@ -122,6 +122,23 @@ Bei 154 Einträgen ist Blättern keine Bedienung mehr. Die Seite hat deshalb:
   `0-9` ist eine eigene Gruppe, weil genau ein Spiel mit einer Ziffer anfängt
   (7DaysToDie) und sonst unter keinem Buchstaben zu finden wäre.
 
+**Die Katalogseite ist breiter als der Rest der Oberfläche.** 1000 Pixel sind für
+Fließtext richtig und für 154 Kacheln viel zu wenig — auf einem breiten
+Bildschirm standen drei Spalten neben zwei Dritteln leerem Grau. Der Katalog
+bekommt deshalb eine eigene Spalte bis 2400 px und ein engeres Raster (240 statt
+300 px Mindestbreite, flachere Bilder). Gemessen: aus 3 Spalten werden 7 auf Full
+HD und 9 bis 11 auf breiteren Schirmen. Die Kopfleiste bleibt bei 1000 px — sie
+soll nicht über den ganzen Schirm wandern.
+
+Über 2400 px wird nicht weiter aufgezogen: Eine Kachelreihe, die breiter ist als
+das Blickfeld, liest niemand mehr als Reihe.
+
+> *The catalogue page is wider than the rest: 1000px is right for prose and far
+> too little for 154 tiles, which left three columns beside two thirds of empty
+> background. It gets its own column up to 2400px and a tighter grid — measured,
+> 3 columns become 7 on Full HD and 9–11 on wider screens. Beyond 2400px nothing
+> is gained: a row wider than the field of view stops reading as a row.*
+
 Die Sortierung ist **fest alphabetisch**. Vorher gab es A → Z, Z → A und „größte
 zuerst"; an ihre Stelle ist die Buchstabenleiste getreten. Eine umgekehrte
 Reihenfolge neben einer Buchstabenauswahl hilft niemandem: Wer unter „M"
