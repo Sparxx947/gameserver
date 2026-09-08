@@ -1655,7 +1655,7 @@ def zugang_loeschen(request: Request, csrf: str = Form(""), nr: str = Form("")):
 
 
 @app.get("/nutzer", response_class=HTMLResponse)
-def nutzer_liste(request: Request, neu: str = ""):
+def nutzer_liste(request: Request, neu: str = "", fehler: str = ""):
     s = angemeldet(request)
     if not ist_admin(s):
         return RedirectResponse("/", 303)
@@ -1676,7 +1676,13 @@ def nutzer_liste(request: Request, neu: str = ""):
                     f'<input type=hidden name=name value="{name}"><button class=x>löschen</button></form>')
         zeilen.append(f"<tr><td><b>{name}</b></td><td>{n['rolle']}</td><td>{mfa}</td>"
                       f"<td style=text-align:right>{knoepfe}</td></tr>")
-    frisch = ""
+    # Eine still abgewiesene Eingabe ist die schlechteste Rueckmeldung: die Seite
+    # sieht danach genauso aus wie vorher, und niemand weiss, ob etwas passiert
+    # ist. Genau daran scheiterte am 08.09. das Anlegen eines Benutzers - der
+    # Grund stand nirgends, weil die Route wortlos zurueckleitete.
+    # *A silently rejected form is the worst feedback: the page looks unchanged
+    #  and nobody can tell whether anything happened.*
+    frisch = f'<div class=warn>{esc(fehler)}</div>' if fehler else ""
     if neu:
         frisch = (f"<div class=warn><b>{neu}</b> angelegt. Gib Name und Passwort weiter — "
                   "den QR-Code für die Authenticator-App bekommt der Benutzer bei seiner "
@@ -1686,8 +1692,10 @@ def nutzer_liste(request: Request, neu: str = ""):
         f"""<h1 style=margin-top:28px;font-size:16px>Neuen Benutzer anlegen</h1>
 <form method=post action=/nutzer-anlegen>
 <input type=hidden name=csrf value="{s['csrf']}">
-<label>Name</label><input type=text name=name style=max-width:220px>
-<label>Passwort</label><input type=text name=passwort style=max-width:220px>
+<label>Name</label><input type=text name=name style=max-width:220px required pattern="[A-Za-z0-9]{1,20}" title="nur Buchstaben und Ziffern, höchstens 20 Zeichen">
+<div class=z style=margin-top:-6px>nur Buchstaben und Ziffern, höchstens 20 Zeichen</div>
+<label>Passwort</label><input type=text name=passwort style=max-width:220px required minlength=10>
+<div class=z style=margin-top:-6px>mindestens 10 Zeichen</div>
 <label>Rolle</label><select name=rolle>
 <option value=bedienen>bedienen (starten/anhalten/neu starten)</option>
 <option value=verwalten>verwalten (dazu: Spiele installieren, entfernen, einstellen)</option>
@@ -1763,9 +1771,28 @@ def nutzer_anlegen(request: Request, csrf: str = Form(""), name: str = Form(""),
         return RedirectResponse("/", 303)
     d = laden()
     name = name.strip()
-    if (not name.isalnum() or len(name) > 20 or name in d["nutzer"]
-            or len(passwort) < 10 or rolle not in ROLLEN):
-        return RedirectResponse("/nutzer", 303)
+    # Jede Bedingung einzeln, mit eigenem Text. Vorher war es eine einzige
+    # Sammelbedingung mit wortloser Umleitung - man sah nur, dass nichts geschah.
+    # *Each condition on its own, with its own message.*
+    if not name:
+        grund = "Bitte einen Benutzernamen eingeben."
+    elif not name.isalnum():
+        grund = ("Der Benutzername darf nur Buchstaben und Ziffern enthalten — "
+                 "keine Leerzeichen, Punkte, Bindestriche oder Unterstriche.")
+    elif len(name) > 20:
+        grund = f"Der Benutzername ist zu lang ({len(name)} Zeichen, erlaubt sind 20)."
+    elif name in d["nutzer"]:
+        grund = f"Den Benutzer „{name}“ gibt es bereits."
+    elif len(passwort) < 10:
+        grund = (f"Das Passwort ist zu kurz ({len(passwort)} Zeichen, "
+                 "nötig sind mindestens 10).")
+    elif rolle not in ROLLEN:
+        grund = f"Unbekannte Rolle „{rolle}“."
+    else:
+        grund = ""
+    if grund:
+        protokoll(s, "Benutzer anlegen abgelehnt", name, "abgelehnt", grund=grund)
+        return RedirectResponse(f"/nutzer?fehler={quote(grund)}", 303)
     # Das TOTP-Geheimnis wird erzeugt, aber NICHT angezeigt: der Benutzer
     # bekommt es bei seiner ersten Anmeldung selbst als QR-Code. So muss es
     # niemand weitergeben, und der Administrator sieht es nie.
