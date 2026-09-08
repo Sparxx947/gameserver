@@ -14,6 +14,30 @@ herausstellte, dass 39 von 41 Bildern nur zufaellig da waren.
  why. Found when Minecraft's artwork was missing and it turned out the other 39
  were there only by accident.*
 
+Warum es Zeile fuer Zeile berichtet: Es gab nur EINE Ausgabe, am Ende. Der
+Katalog steht inzwischen bei 179 Spielen, 128 davon mit Steam-Eintrag, und jeder
+Abruf darf 20 Sekunden brauchen. Auf einer Maschine ohne Weg zu Steam schwieg
+die Einrichtung dadurch bis zu 43 Minuten an der Stelle "Titelbilder der
+Katalogseite" - nicht von einem Absturz zu unterscheiden. Abgebrochen wurde dann
+mit Strg+C, und weil das die ganze Einrichtung mitnahm, blieben die spaeteren
+Stufen aus (Stufe 50 legt /etc/borg-ausschluss.txt an, ohne das panel.service
+nicht startet). Ein stiller Langlauf ist deshalb hier kein Schoenheitsfehler.
+
+Nach NETZ_ABBRUCH Netzfehlern hintereinander wird Steam nicht weiter gefragt.
+Unterschieden wird dabei streng zwischen "Steam kennt das Bild nicht" (normal,
+geht sofort, zaehlt nicht) und "Steam antwortet nicht" (kostet den vollen
+Zeitablauf). Nur das zweite deutet darauf hin, dass die naechsten 127 Abrufe
+genauso enden werden.
+
+*Why it reports line by line: there was exactly one line of output, at the end.
+ The catalogue now holds 179 games, 128 with a Steam entry, and each fetch may
+ take 20 seconds - so on a machine with no route to Steam the installer went
+ silent for up to 43 minutes, indistinguishable from a hang. People pressed
+ Ctrl+C, which took the whole run down with it and skipped the later stages.
+ After NETZ_ABBRUCH consecutive network failures Steam is no longer asked;
+ "Steam has no such image" (immediate) is counted separately from "Steam does
+ not answer" (a full timeout) - only the latter predicts the next 127.*
+
 Steam-Header sind Werke Dritter und liegen deshalb NICHT im Repositorium,
 sondern werden hier zur Laufzeit geholt. Spiele ohne Steam-Eintrag ("appid": 0)
 bekommen das selbst gezeichnete Bild aus /opt/panel/bilder/eigene.
@@ -21,65 +45,123 @@ bekommen das selbst gezeichnete Bild aus /opt/panel/bilder/eigene.
   katalogbilder-holen              fehlende Bilder holen
   katalogbilder-holen --alle       auch vorhandene neu holen
   katalogbilder-holen --pruefen    nur berichten, nichts holen (Exit 1 = Luecken)
+  katalogbilder-holen --still      ohne Fortschritt, nur die Schlusszeile
 """
-import json, shutil, sys, urllib.request
+import json, shutil, sys, urllib.error, urllib.request
 from pathlib import Path
 
 KATALOG = Path("/etc/spiele-katalog.json")
 ZIEL    = Path("/opt/panel/bilder/katalog")
 EIGENE  = Path("/opt/panel/bilder/eigene")
 URL     = "https://cdn.cloudflare.steamstatic.com/steam/apps/{}/header.jpg"
+ZEITABLAUF   = 20    # Sekunden je Abruf
+NETZ_ABBRUCH = 5     # so viele Netzfehler hintereinander, dann ohne Steam weiter
 
 
-def hole(appid: int) -> bytes | None:
+def hole(appid: int) -> tuple[str, bytes | None]:
+    """(zustand, daten) - zustand ist "ok", "kein-bild" oder "netz".
+
+    Der Unterschied traegt die Abbruchentscheidung: ein fehlendes Titelbild ist
+    normal und kostet keine Zeit, ein Netzfehler kostet den vollen Zeitablauf.
+    Nur der zweite Fall darf dazu fuehren, dass Steam nicht mehr gefragt wird.
+
+    *The distinction drives the give-up decision: a missing image is normal and
+     instant, a network failure costs the full timeout. Only the latter counts.*
+    """
     try:
-        with urllib.request.urlopen(URL.format(appid), timeout=20) as r:
-            d = r.read()
-        # Steam antwortet auf unbekannte IDs mit einer winzigen Platzhalterdatei
-        # statt mit 404 - die Groesse ist hier das verlaesslichere Kriterium.
-        # *Steam answers unknown ids with a tiny placeholder rather than a 404,
-        #  so size is the more reliable test.*
-        return d if len(d) > 2000 else None
+        with urllib.request.urlopen(URL.format(appid), timeout=ZEITABLAUF) as r:
+            daten = r.read()
+    except urllib.error.HTTPError:
+        # 404 und Verwandte: Steam antwortet, kennt das Bild nur nicht.
+        # *Steam answers, it just has no such image.*
+        return "kein-bild", None
     except Exception:
-        return None
+        return "netz", None
+    # Steam antwortet auf unbekannte IDs auch mit einer winzigen Platzhalterdatei
+    # statt mit 404 - die Groesse ist hier das verlaesslichere Kriterium.
+    # *Steam answers unknown ids with a tiny placeholder rather than a 404,
+    #  so size is the more reliable test.*
+    return ("ok", daten) if len(daten) > 2000 else ("kein-bild", None)
 
 
 def main():
     alle    = "--alle" in sys.argv
     pruefen = "--pruefen" in sys.argv
+    still   = "--still" in sys.argv
     spiele  = json.loads(KATALOG.read_text())["spiele"]
     ZIEL.mkdir(parents=True, exist_ok=True)
 
-    geholt = eigen = vorhanden = fehlt = 0
+    offen     = [g for g in spiele if alle or not (ZIEL / f'{g["schluessel"]}.jpg').is_file()]
+    vorhanden = len(spiele) - len(offen)
+
+    if pruefen:
+        luecken = [g["schluessel"] for g in offen]
+        print(f"{vorhanden} vorhanden, {len(luecken)} fehlen"
+              + (": " + ", ".join(luecken) if luecken else ""))
+        return 1 if luecken else 0
+
+    # flush=True ueberall: die Ausgabe laeuft in der Einrichtung durch eine Pipe
+    # und waere sonst blockweise gepuffert - der Fortschritt kaeme erst am Ende
+    # und damit genau dann, wenn er nicht mehr gebraucht wird.
+    # *flush=True throughout: piped output would be block-buffered and the
+    #  progress would arrive only at the end, when it is no longer needed.*
+    def sag(*t, **kw):
+        if not still:
+            print(*t, flush=True, **kw)
+
+    anzahl = len(offen)
+    sag(f"{anzahl} Titelbilder zu holen, {vorhanden} schon da"
+        + (f" (bis zu {ZEITABLAUF}s je Abruf)" if anzahl else "") + ".")
+
+    geholt = eigen = 0
     luecken = []
-    for g in spiele:
+    netzfehler = 0        # hintereinander, ohne Erfolg dazwischen
+    ohne_steam = False
+
+    for nr, g in enumerate(offen, 1):
         s = g["schluessel"]
         ziel = ZIEL / f"{s}.jpg"
-        if ziel.is_file() and not alle:
-            vorhanden += 1
-            continue
-        if pruefen:
-            fehlt += 1; luecken.append(s); continue
+        # Zeilenanfang VOR dem Abruf: bleibt es haengen, ist zu sehen, woran.
+        # *Printed before the fetch, so a stall names the game it stalls on.*
+        sag(f"  [{nr:3}/{anzahl}] {s:<28} ", end="")
 
-        daten = hole(g["appid"]) if g.get("appid") else None
+        zustand, daten = "kein-bild", None
+        if g.get("appid") and not ohne_steam:
+            zustand, daten = hole(g["appid"])
+
+        netzfehler = netzfehler + 1 if zustand == "netz" else 0
+        if netzfehler >= NETZ_ABBRUCH and not ohne_steam:
+            ohne_steam = True
+
         if daten:
             ziel.write_bytes(daten); geholt += 1
+            sag("Steam")
         elif (EIGENE / f"{s}.jpg").is_file():
             shutil.copyfile(EIGENE / f"{s}.jpg", ziel); eigen += 1
+            sag("eigenes Bild")
         else:
-            fehlt += 1; luecken.append(s); continue
+            luecken.append(s)
+            sag("Steam nicht erreichbar" if zustand == "netz" else "kein Bild")
+            continue
         try:
             shutil.chown(ziel, "panel", "panel"); ziel.chmod(0o644)
         except (PermissionError, LookupError):
             pass
 
-    if pruefen:
-        print(f"{vorhanden} vorhanden, {fehlt} fehlen" + (": " + ", ".join(luecken) if luecken else ""))
-        return 1 if fehlt else 0
+    if ohne_steam:
+        print(f"!! {NETZ_ABBRUCH}x hintereinander keine Antwort von Steam — der Rest "
+              f"wurde ohne Steam bedient. Spaeter nachziehen: katalogbilder-holen",
+              file=sys.stderr, flush=True)
 
+    # Die Luecken stehen schon Zeile fuer Zeile oben - hier reicht ein Anriss.
+    # Ungekuerzt waeren es im schlechtesten Fall 179 Schluessel in einer Zeile,
+    # und die Schlusszeile ist genau die, die man noch lesen soll.
+    # *The gaps are listed line by line above; unabridged this would be 179 keys
+    #  on the one line that is meant to stay readable.*
+    anriss = ", ".join(luecken[:12]) + (f" und {len(luecken) - 12} weitere" if len(luecken) > 12 else "")
     print(f"{geholt} von Steam geholt, {eigen} aus dem eigenen Vorrat, "
-          f"{vorhanden} schon da, {fehlt} ohne Bild"
-          + (" (" + ", ".join(luecken) + ")" if luecken else ""))
+          f"{vorhanden} schon da, {len(luecken)} ohne Bild"
+          + (f" ({anriss})" if luecken else ""), flush=True)
     # Ein fehlendes Bild ist kein Fehler - die Kachel bleibt blass, alles
     # andere funktioniert. Gemeldet wird es trotzdem.
     return 0
