@@ -131,8 +131,38 @@ case "${1:-}" in
     ( cd "$tmp" && timeout 900 borg extract "$REPO::$a" ) || fehler "Extrahieren fehlgeschlagen"
     quelle="$tmp${basis}"
     [ -d "$quelle" ] || fehler "Archiv enthaelt $basis nicht"
+    # Ausgeschlossene Pfade UEBERLEBEN das Zurueckspielen.
+    #
+    # Die Spieldateien stehen bewusst in /etc/borg-ausschluss.txt - sie sind
+    # gross und jederzeit neu ladbar. Ein "rm -rf $basis/*" loescht sie
+    # trotzdem, und das Archiv kann sie nicht ersetzen, weil es sie gar nicht
+    # enthaelt. Genau so verlor FOUNDRY am 06.09. sein server-Verzeichnis: nach
+    # der Wiederherstellung war der Mountpunkt weg, und Docker haette ihn beim
+    # naechsten Start als root neu angelegt.
+    # *Excluded paths survive the restore: they are deliberately not in the
+    #  archive, so deleting them means they are simply gone. That is how FOUNDRY
+    #  lost its server directory.*
+    while IFS= read -r muster; do
+      p=${muster#sh:}
+      case "$p" in "$basis"/*) mv "$p" "$tmp/verschont-$(basename "$p")" 2>/dev/null ;; esac
+    done < <(grep -v '^[[:space:]]*#' /etc/borg-ausschluss.txt 2>/dev/null)
+
     rm -rf "${basis:?}"/* && cp -a "$quelle/." "$basis/" || fehler "Kopieren fehlgeschlagen"
-    chown -R 4711:4711 "$basis" 2>/dev/null
+
+    for v in "$tmp"/verschont-*; do
+      [ -e "$v" ] || continue
+      mv "$v" "$basis/$(basename "${v#"$tmp"/verschont-}")" 2>/dev/null
+    done
+
+    # Eigentuemer vom Ist-Stand uebernehmen statt hart 4711 zu setzen. Die
+    # Katalogspiele laufen als 4711, von Hand gebaute Stacks nicht zwingend:
+    # FOUNDRYs Fremdimage laeuft fest als uid 1000 und konnte nach einem
+    # pauschalen chown sein eigenes Datenverzeichnis nicht mehr beschreiben.
+    # *Take ownership from the pre-restore state instead of forcing 4711:
+    #  hand-built stacks need not run as 4711, and FOUNDRY's image is fixed to
+    #  uid 1000, so a blanket chown locked it out of its own data.*
+    besitzer=$(stat -c "%u:%g" "$sich" 2>/dev/null)
+    chown -R "${besitzer:-4711:4711}" "$basis" 2>/dev/null
     # 4. Nur wieder starten, wenn er vorher lief
     [ $lief -eq 1 ] && { cd "/opt/stacks/$s" && docker compose up -d >/dev/null 2>&1; }
     echo "ok\tIst-Stand gesichert unter $sich"

@@ -197,13 +197,35 @@ Spielsitzung.
 > `Persistent=false` on purpose: a missed restart must not fire mid-session
 > after a boot.*
 
-### FOUNDRY hat keine Serverdaten
+### FOUNDRY: aufgeklärt und behoben (2026-09-08)
 
-`/srv/games/foundry` ist mit 56 KB praktisch leer, der Container beendet. Der
-Download ist offenbar nie durchgelaufen. Noch nicht untersucht.
+Der Verdacht „der Download lief nie durch" war **falsch**. Die Logs des ersten
+Starts zeigen `Success! App '2915550' fully installed` und
+`Dedicated server is now running!` — FOUNDRY lief am 06.09. korrekt.
 
-> *FOUNDRY's data directory holds 56 KB and the container is stopped — the
-> download evidently never completed. Not yet investigated.*
+Verloren gingen die Daten bei der **Wiederherstellung**. `panel-aktion restore`
+löschte mit `rm -rf $basis/*` alles unter `/srv/games/foundry`, spielte dann das
+Archiv zurück — und das enthält `server/` gar nicht, denn dieser Pfad steht
+bewusst in `/etc/borg-ausschluss.txt` (Zeile 27, Spieldateien sind groß und
+jederzeit neu ladbar). Danach fehlte der Mountpunkt vollständig; Docker hätte
+ihn beim nächsten Start als `root` angelegt.
+
+Dazu kam ein zweiter Schaden: das pauschale `chown -R 4711:4711` am Ende. Alle
+Katalogspiele laufen als 4711, FOUNDRYs Fremdimage aber fest als **uid 1000** —
+nach der Wiederherstellung konnte es sein eigenes Datenverzeichnis nicht mehr
+beschreiben.
+
+**Beides ist behoben:** `restore` verschont jetzt die ausgeschlossenen Pfade und
+übernimmt den Eigentümer aus dem gesicherten Ist-Stand, statt 4711 zu erzwingen.
+FOUNDRY läuft wieder (2,4 GB neu geladen, `Dedicated server is now running`,
+bei Steam registriert).
+
+> *The suspicion that the download never finished was wrong: the first run
+> installed and ran correctly. The data was lost during a **restore** — the
+> excluded `server/` path was deleted and could not be replaced, because the
+> archive deliberately does not contain it. A blanket `chown -R 4711` then locked
+> the image (fixed to uid 1000) out of its own data. Restore now spares excluded
+> paths and inherits ownership from the saved pre-restore state.*
 
 ---
 
