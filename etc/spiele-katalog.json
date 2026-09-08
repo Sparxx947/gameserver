@@ -43,7 +43,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "survival"
   },
   {
    "schluessel": "abioticfactor",
@@ -83,7 +84,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "survival"
   },
   {
    "schluessel": "ahl",
@@ -121,7 +123,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "arena"
   },
   {
    "schluessel": "ahl2",
@@ -159,7 +162,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "arena"
   },
   {
    "schluessel": "alienswarm",
@@ -196,7 +200,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "alienswarmreactivedrop",
@@ -233,7 +238,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "altitude",
@@ -264,7 +270,8 @@
    "spieler": 4,
    "hinweis": "2D-Luftkampf-Arena, schnelle Runden. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "arena"
   },
   {
    "schluessel": "americantrucksimulator",
@@ -301,7 +308,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "rennen"
   },
   {
    "schluessel": "americasarmyprovinggrounds",
@@ -339,7 +347,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "ark",
@@ -378,7 +387,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "survival"
   },
   {
    "schluessel": "arma3",
@@ -416,7 +426,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "assettocorsa",
@@ -456,7 +467,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "rennen"
   },
   {
    "schluessel": "astroneer",
@@ -492,7 +504,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "survival"
   },
   {
    "schluessel": "avorion",
@@ -532,7 +545,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "sandbox"
   },
   {
    "schluessel": "barotrauma",
@@ -569,7 +583,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "survival"
   },
   {
    "schluessel": "bb",
@@ -607,7 +622,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "bb2",
@@ -645,7 +661,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "bd",
@@ -683,7 +700,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "bmdm",
@@ -721,7 +739,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "bs",
@@ -759,7 +778,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "btl",
@@ -798,7 +818,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "cc",
@@ -836,7 +857,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "chivalrymedievalwarfare",
@@ -874,7 +896,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "citadelforgedwithfire",
@@ -911,7 +934,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "survival"
   },
   {
    "schluessel": "cod",
@@ -949,7 +973,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "cod2",
@@ -987,7 +1012,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "cod4",
@@ -1025,7 +1051,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "coduo",
@@ -1063,7 +1090,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "codwaw",
@@ -1101,7 +1129,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "colonysurvival",
@@ -1137,7 +1166,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "aufbau"
   },
   {
    "schluessel": "conanexiles",
@@ -1176,7 +1206,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "survival"
   },
   {
    "schluessel": "corekeeper",
@@ -1212,7 +1243,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "survival"
   },
   {
    "schluessel": "counterstrike2d",
@@ -1243,7 +1275,8 @@
    "spieler": 4,
    "hinweis": "Counter-Strike als 2D-Draufsicht, sehr genuegsam. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "arena"
   },
   {
    "schluessel": "craftopia",
@@ -1280,7 +1313,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "survival"
   },
   {
    "schluessel": "creativerse",
@@ -1318,7 +1352,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "survival"
   },
   {
    "schluessel": "cs",
@@ -1356,7 +1391,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "cs2",
@@ -1394,7 +1430,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "cscz",
@@ -1432,7 +1469,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "csgo",
@@ -1470,7 +1508,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "css",
@@ -1508,7 +1547,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "cstrike16",
@@ -1545,7 +1585,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "dab",
@@ -1583,7 +1624,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "dayofdefeatsource",
@@ -1620,7 +1662,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "dayofinfamy",
@@ -1657,7 +1700,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "daysofwar",
@@ -1694,7 +1738,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "dayz",
@@ -1732,7 +1777,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "survival"
   },
   {
    "schluessel": "ddnet",
@@ -1764,7 +1810,8 @@
    "spieler": 4,
    "hinweis": "Koop-Plattformer, Teeworlds-Ableger, sehr genuegsam. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "arena"
   },
   {
    "schluessel": "dmc",
@@ -1802,7 +1849,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "arena"
   },
   {
    "schluessel": "dod",
@@ -1840,7 +1888,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "dodr",
@@ -1879,7 +1928,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "survival"
   },
   {
    "schluessel": "dontstarvetogether",
@@ -1917,7 +1967,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "survival"
   },
   {
    "schluessel": "dys",
@@ -1955,7 +2006,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "eco",
@@ -1992,7 +2044,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "aufbau"
   },
   {
    "schluessel": "em",
@@ -2030,7 +2083,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "eurotrucksimulator2",
@@ -2067,7 +2121,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "rennen"
   },
   {
    "schluessel": "factorio",
@@ -2098,7 +2153,8 @@
    "hinweis": "Sehr genuegsam. Passwort in config/server-settings.json, die der erste Start anlegt.",
    "spieler": 4,
    "appid": 427520,
-   "bauart": "eigenes-image"
+   "bauart": "eigenes-image",
+   "kategorie": "aufbau"
   },
   {
    "schluessel": "fistfuloffrags",
@@ -2135,7 +2191,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "fivem",
@@ -2170,7 +2227,8 @@
    "spieler": 4,
    "hinweis": "Mehrspieler-Framework fuer GTA V, braucht das Spiel. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "sandbox"
   },
   {
    "schluessel": "frozenflame",
@@ -2210,7 +2268,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "survival"
   },
   {
    "schluessel": "garrysmod",
@@ -2247,7 +2306,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "sandbox"
   },
   {
    "schluessel": "halflife2deathmatch",
@@ -2284,7 +2344,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "halflifedeathmatch",
@@ -2321,7 +2382,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "hcu",
@@ -2360,7 +2422,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "hldms",
@@ -2398,7 +2461,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "hurtworld",
@@ -2438,7 +2502,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "survival"
   },
   {
    "schluessel": "hz",
@@ -2477,7 +2542,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "survival"
   },
   {
    "schluessel": "icarus",
@@ -2514,7 +2580,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "survival"
   },
   {
    "schluessel": "insurgency",
@@ -2551,7 +2618,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "insurgencysandstorm",
@@ -2588,7 +2656,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "ios",
@@ -2626,7 +2695,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "arena"
   },
   {
    "schluessel": "jbep3",
@@ -2664,7 +2734,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "jk2",
@@ -2702,7 +2773,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "sandbox"
   },
   {
    "schluessel": "killingfloor",
@@ -2744,7 +2816,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "killingfloor2",
@@ -2783,7 +2856,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "l4d2",
@@ -2821,7 +2895,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "lastoasis",
@@ -2858,7 +2933,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "survival"
   },
   {
    "schluessel": "left4dead",
@@ -2895,7 +2971,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "lifeisfeudalyourown",
@@ -2938,7 +3015,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "survival"
   },
   {
    "schluessel": "lotrreturntomoria",
@@ -2974,7 +3052,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "survival"
   },
   {
    "schluessel": "mcv",
@@ -3012,7 +3091,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "memoriesofmars",
@@ -3051,7 +3131,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "aufbau"
   },
   {
    "schluessel": "mindustry",
@@ -3084,7 +3165,8 @@
    "spieler": 4,
    "hinweis": "Fabrikbau und Tower Defense, Koop, sehr genuegsam. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "aufbau"
   },
   {
    "schluessel": "minecraft",
@@ -3123,7 +3205,8 @@
    "hinweis": "ACHTUNG: Die Installation setzt EULA=TRUE - das ist die Zustimmung zu Mojangs Nutzungsbedingungen. Minecraft kennt kein Serverpasswort; stattdessen ist die Weissliste an: Mitspieler mit \"whitelist add <Name>\" freischalten. Die Spielerzahl setzt der Einrichtungsschritt in server.properties (max-players).",
    "spieler": 4,
    "appid": 0,
-   "bauart": "eigenes-image"
+   "bauart": "eigenes-image",
+   "kategorie": "survival"
   },
   {
    "schluessel": "mohaa",
@@ -3161,7 +3244,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "mordhau",
@@ -3199,7 +3283,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "multitheftauto",
@@ -3232,7 +3317,8 @@
    "spieler": 4,
    "hinweis": "Mehrspieler fuer GTA San Andreas. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "sandbox"
   },
   {
    "schluessel": "nd",
@@ -3270,7 +3356,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "necesse",
@@ -3308,7 +3395,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "survival"
   },
   {
    "schluessel": "neotokyo",
@@ -3345,7 +3433,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "nmrih",
@@ -3383,7 +3472,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "ns",
@@ -3421,7 +3511,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "ns2",
@@ -3459,7 +3550,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "ns2c",
@@ -3497,7 +3589,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "ohd",
@@ -3536,7 +3629,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "openmwtes3mp",
@@ -3568,7 +3662,8 @@
    "spieler": 4,
    "hinweis": "Morrowind zu mehreren, offene Neuimplementierung. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "sandbox"
   },
   {
    "schluessel": "openrct2",
@@ -3599,7 +3694,8 @@
    "spieler": 4,
    "hinweis": "Freizeitpark bauen, gemeinsam - RollerCoaster Tycoon 2. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "aufbau"
   },
   {
    "schluessel": "openttd",
@@ -3632,7 +3728,8 @@
    "spieler": 4,
    "hinweis": "Transportunternehmen aufbauen, Koop, sehr genuegsam. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "aufbau"
   },
   {
    "schluessel": "opfor",
@@ -3670,7 +3767,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "postscriptum",
@@ -3707,7 +3805,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "projectzomboid",
@@ -3746,7 +3845,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "survival"
   },
   {
    "schluessel": "pvkii",
@@ -3783,7 +3883,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "pvr",
@@ -3821,7 +3922,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "q2",
@@ -3859,7 +3961,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "arena"
   },
   {
    "schluessel": "q3",
@@ -3897,7 +4000,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "arena"
   },
   {
    "schluessel": "q4",
@@ -3935,7 +4039,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "arena"
   },
   {
    "schluessel": "quakelive",
@@ -3972,7 +4077,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "arena"
   },
   {
    "schluessel": "qw",
@@ -4010,7 +4116,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "arena"
   },
   {
    "schluessel": "redm",
@@ -4045,7 +4152,8 @@
    "spieler": 4,
    "hinweis": "Mehrspieler-Framework fuer Red Dead Redemption 2. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "sandbox"
   },
   {
    "schluessel": "ricochet",
@@ -4083,7 +4191,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "arena"
   },
   {
    "schluessel": "rtcw",
@@ -4121,7 +4230,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "rust",
@@ -4163,7 +4273,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "survival"
   },
   {
    "schluessel": "samp",
@@ -4201,7 +4312,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "sandbox"
   },
   {
    "schluessel": "sbots",
@@ -4240,7 +4352,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "scpsecretlaboratory",
@@ -4277,7 +4390,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "scpslsm",
@@ -4315,7 +4429,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "sfc",
@@ -4353,7 +4468,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "sof2",
@@ -4391,7 +4507,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "sonsoftheforest",
@@ -4429,7 +4546,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "survival"
   },
   {
    "schluessel": "soulmask",
@@ -4465,7 +4583,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "survival"
   },
   {
    "schluessel": "squad",
@@ -4507,7 +4626,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "squad44",
@@ -4546,7 +4666,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "starbound",
@@ -4584,7 +4705,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "survival"
   },
   {
    "schluessel": "starmade",
@@ -4615,7 +4737,8 @@
    "spieler": 4,
    "hinweis": "Raumschiffe bauen und fliegen, Sandbox. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "sandbox"
   },
   {
    "schluessel": "subsistence",
@@ -4652,7 +4775,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "survival"
   },
   {
    "schluessel": "survivethenights",
@@ -4689,7 +4813,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "survival"
   },
   {
    "schluessel": "svencoop",
@@ -4726,7 +4851,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "teamfortress2",
@@ -4763,7 +4889,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "teamspeak",
@@ -4791,7 +4918,8 @@
    "spieler": 4,
    "hinweis": "Das Serverpasswort setzt man im TeamSpeak-Client selbst (Serververwaltung → Server bearbeiten). Beim allerersten Start steht der Admin-Token im Containerprotokoll. Die Installation nimmt die TeamSpeak-Lizenzbedingungen an (TS3SERVER_LICENSE=accept).",
    "ausschluss": [],
-   "bauart": "eigenes-image"
+   "bauart": "eigenes-image",
+   "kategorie": "dienst"
   },
   {
    "schluessel": "teeworlds",
@@ -4823,7 +4951,8 @@
    "spieler": 4,
    "hinweis": "2D-Arena mit Enterhaken, sehr genuegsam. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "arena"
   },
   {
    "schluessel": "terraria",
@@ -4855,7 +4984,8 @@
    "spieler": 4,
    "hinweis": "2D-Sandbox mit Bossen und Erkundung, Koop. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "survival"
   },
   {
    "schluessel": "terrariatshock",
@@ -4887,7 +5017,8 @@
    "spieler": 4,
    "hinweis": "Terraria mit Server-Plugins und Rechteverwaltung. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "survival"
   },
   {
    "schluessel": "terratechworlds",
@@ -4923,7 +5054,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "aufbau"
   },
   {
    "schluessel": "tf2c",
@@ -4961,7 +5093,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "tfc",
@@ -4999,7 +5132,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "theforest",
@@ -5037,7 +5171,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "survival"
   },
   {
    "schluessel": "thefront",
@@ -5075,7 +5210,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "survival"
   },
   {
    "schluessel": "ti",
@@ -5113,7 +5249,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "survival"
   },
   {
    "schluessel": "ts",
@@ -5151,7 +5288,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "tu",
@@ -5190,7 +5328,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "sandbox"
   },
   {
    "schluessel": "unturned",
@@ -5232,7 +5371,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "survival"
   },
   {
    "schluessel": "urbanterror",
@@ -5263,7 +5403,8 @@
    "spieler": 4,
    "hinweis": "Realistischer Arena-Shooter, frei spielbar. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "arena"
   },
   {
    "schluessel": "ut",
@@ -5301,7 +5442,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "arena"
   },
   {
    "schluessel": "ut3",
@@ -5340,7 +5482,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "arena"
   },
   {
    "schluessel": "valheim",
@@ -5380,7 +5523,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "survival"
   },
   {
    "schluessel": "vintagestory",
@@ -5413,7 +5557,8 @@
    "hinweis": "Passwort in data/serverconfig.json nach dem ersten Start.",
    "spieler": 4,
    "appid": 0,
-   "bauart": "eigenes-image"
+   "bauart": "eigenes-image",
+   "kategorie": "survival"
   },
   {
    "schluessel": "vrising",
@@ -5452,7 +5597,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "survival"
   },
   {
    "schluessel": "vs",
@@ -5490,7 +5636,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "wf",
@@ -5528,7 +5675,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "arena"
   },
   {
    "schluessel": "windward",
@@ -5559,7 +5707,8 @@
    "spieler": 4,
    "hinweis": "Segelschiffe, Handel und Gefechte, Koop. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "survival"
   },
   {
    "schluessel": "wurmunlimited",
@@ -5599,7 +5748,8 @@
     "steamcmd",
     "serverfiles/steamapps"
    ],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "survival"
   },
   {
    "schluessel": "xonotic",
@@ -5630,7 +5780,8 @@
    "spieler": 4,
    "hinweis": "Schneller Arena-Shooter, frei und quelloffen. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "arena"
   },
   {
    "schluessel": "zandronum",
@@ -5661,7 +5812,8 @@
    "spieler": 4,
    "hinweis": "Doom im Mehrspieler, Koop und Deathmatch. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [],
-   "bauart": "ich777"
+   "bauart": "ich777",
+   "kategorie": "arena"
   },
   {
    "schluessel": "zmr",
@@ -5699,7 +5851,8 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   },
   {
    "schluessel": "zps",
@@ -5737,7 +5890,18 @@
     "log",
     ".steam"
    ],
-   "bauart": "linuxgsm"
+   "bauart": "linuxgsm",
+   "kategorie": "shooter"
   }
- ]
+ ],
+ "_kategorien": {
+  "aufbau": "Aufbau & Simulation",
+  "survival": "Survival & Koop",
+  "sandbox": "Sandbox & Rollenspiel",
+  "shooter": "Shooter",
+  "arena": "Arena & Klassiker",
+  "rennen": "Rennen & Fahren",
+  "dienst": "Dienste",
+  "sonstiges": "Sonstiges"
+ }
 }

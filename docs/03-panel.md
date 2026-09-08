@@ -103,6 +103,53 @@ kann. Siehe [04-spielekatalog.md](04-spielekatalog.md).
 > one click, remove with a confirmation. Only the key is passed; everything else
 > comes from the catalogue file, which the panel can only read.*
 
+### Suche, Kategorien und Sortierung auf der Katalogseite
+
+Bei 154 Einträgen ist Blättern keine Bedienung mehr. Die Seite hat deshalb:
+
+* **Textsuche** über Name, Schlüssel **und** Kurzbeschreibung — wer `koop`
+  eintippt, meint eine Eigenschaft, keinen Titel. Mehrere Wörter müssen **alle**
+  vorkommen; sonst lieferte `koop survival` mehr Treffer als `koop` allein, was
+  niemand erwartet.
+* **Acht Kategorien** mit Trefferzahl. Die Zahl zählt die Suche mit, aber nicht
+  den Kategoriefilter — sie beantwortet „wie viele davon passen zu dem, was ich
+  gerade suche".
+* **Sortierung** A → Z, Z → A und „größte zuerst" (nach Plattenbedarf).
+
+| Kategorie | Einträge |
+|---|---|
+| Aufbau & Simulation | 8 |
+| Survival & Koop | 40 |
+| Sandbox & Rollenspiel | 10 |
+| Shooter | 72 |
+| Arena & Klassiker | 20 |
+| Rennen & Fahren | 3 |
+| Dienste | 1 |
+
+**Alles läuft serverseitig über GET-Parameter — kein JavaScript.** Das ist keine
+Vorliebe, sondern folgt aus `default-src 'none'`: ein Filter im Browser wäre
+schlicht tot. Der Nebeneffekt ist angenehm: Die Zurück-Taste funktioniert, und
+jede Auswahl lässt sich als Lesezeichen ablegen.
+
+Die aktuelle Auswahl wandert als verstecktes Feld mit, damit eine Suche den
+Kategoriefilter nicht wegwirft und umgekehrt.
+
+**Die Kategorien sind von Hand vergeben** (`werkzeuge/katalog-kategorien.py`),
+nicht aus Steam übernommen: Dort steht Terraria unter „Action, Abenteuer, Indie,
+Rollenspiel" und Killing Floor 2 unter „Action" — beides sagt nichts darüber, ob
+ein Spiel zu zweit an einem Abend Spaß macht. Wer eine Zuordnung für falsch
+hält, ändert eine Zeile; ein Spiel ohne Zuordnung landet sichtbar in
+„Sonstiges" und wird beim Lauf benannt.
+
+> *At 154 entries, scrolling is not an interface. The page offers a text search
+> across name, key and blurb (multiple words must all match, or a longer query
+> would return more results than a shorter one), eight categories with counts
+> that respect the search but not the category filter, and three sort orders.
+> Everything is server-side via GET parameters — not a preference but a
+> consequence of `default-src 'none'`, where client-side filtering would be dead.
+> Categories are assigned by hand rather than taken from Steam, whose genres say
+> nothing about whether a game suits an evening for two.*
+
 ### Zugangsdaten `/passwoerter`
 
 Beitritts- und Adminpasswörter aller Server, an einer Stelle. Zwei Quellen,
