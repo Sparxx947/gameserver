@@ -47,6 +47,22 @@ else
 fi
 rm -f /tmp/sudoers-panel.$$
 
+# Die Ausschlussliste gehoert der Sache nach zur Sicherung und wird in Stufe 50
+# eingesetzt - panel.service braucht sie aber JETZT: die Einheit gibt genau diese
+# eine Datei ueber ReadWritePaths frei, und systemd verweigert den Start, wenn
+# der Pfad nicht existiert ("Failed to set up mount namespacing", 226/NAMESPACE).
+# Mit Restart=on-failure wurde daraus eine Neustartschleife, die erst Stufe 50
+# beendet haette - bei einer Neuinstallation stand der Zaehler fuenfstellig, und
+# im Journal steht als Ursache nur der fehlende Namensraum, nicht die Datei.
+# Angelegt wird sie nur, wenn sie fehlt: eine vorhandene traegt die
+# Ausschlussbloecke der bereits installierten Spiele.
+# *panel.service opens this one file via ReadWritePaths, and systemd refuses to
+#  start when the path is missing (226/NAMESPACE). With Restart=on-failure that
+#  became a restart loop lasting until stage 50 created the file. Only created
+#  when absent: an existing one carries the installed games' exclusion blocks.*
+[ -f /etc/borg-ausschluss.txt ] \
+  || einsetzen "$REPO/etc/borg-ausschluss.txt" /etc/borg-ausschluss.txt 0644 root:root
+
 log "Dienste"
 einsetzen "$REPO/systemd/panel.service" /etc/systemd/system/panel.service
 einsetzen "$REPO/systemd/spiel-einrichtung.service" /etc/systemd/system/spiel-einrichtung.service
