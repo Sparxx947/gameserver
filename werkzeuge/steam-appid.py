@@ -40,13 +40,30 @@ def hole(u, kopf=None, timeout=25):
         return f.read()
 
 
+# Regionen in dieser Reihenfolge. Der deutsche Store zeigt nicht, was in
+# Deutschland nicht gelistet ist - und das trifft ausgerechnet die Titel, von
+# denen dieser Katalog viele hat: "Wolfenstein: Enemy Territory" (1873030) gibt
+# es dort weder in der Suche noch in appdetails (`success: false`), im
+# US-Store beides. Ohne den zweiten Anlauf bleibt so ein Spiel ohne Bild, und
+# nichts sagt warum.
+# *The German store hides what is not listed in Germany, which hits exactly the
+#  titles this catalogue has many of: Wolfenstein: Enemy Territory is absent from
+#  both search and appdetails there, present in the US store. Without a second
+#  region such a game silently stays without artwork.*
+REGIONEN = (("de", "german"), ("us", "english"))
+
+
 def suche(begriff: str) -> list:
-    try:
-        d = json.loads(hole(SUCHE + urllib.parse.urlencode(
-            {"term": begriff, "cc": "de", "l": "german"})))
-        return d.get("items") or []
-    except Exception:
-        return []
+    for cc, l in REGIONEN:
+        try:
+            d = json.loads(hole(SUCHE + urllib.parse.urlencode(
+                {"term": begriff, "cc": cc, "l": l})))
+            if d.get("items"):
+                return d["items"]
+        except Exception:
+            pass
+        time.sleep(0.4)
+    return []
 
 
 def hat_bild(appid: int) -> bool:
@@ -68,12 +85,16 @@ def echter_eintrag(appid: int) -> dict | None:
     *A header image does not prove the id belongs to the game: two ids had
      artwork but no store entry at all.*
     """
-    try:
-        d = json.loads(hole(f"https://store.steampowered.com/api/appdetails?"
-                            f"appids={appid}&cc=de&l=german")).get(str(appid), {})
-        return d["data"] if d.get("success") else None
-    except Exception:
-        return None
+    for cc, l in REGIONEN:
+        try:
+            d = json.loads(hole(f"https://store.steampowered.com/api/appdetails?"
+                                f"appids={appid}&cc={cc}&l={l}")).get(str(appid), {})
+            if d.get("success"):
+                return d["data"]
+        except Exception:
+            pass
+        time.sleep(0.4)
+    return None
 
 
 # Spiele, deren Name auch ein NEUERES Spiel traegt. Die Suche findet dann das
@@ -83,8 +104,17 @@ def echter_eintrag(appid: int) -> dict | None:
 # *Games whose name a newer title also carries: "Call of Duty" resolves to the
 #  2022 release while LinuxGSM serves the 2003 game. Exact name matching is not
 #  enough; such cases are listed individually.*
+# Dazu Spiele, die aus dem Store GENOMMEN wurden: die Suche findet sie nicht mehr,
+# appdetails und das Titelbild gibt es aber weiter. Jede dieser IDs ist gegen
+# appdetails geprueft - der dort gemeldete Name stimmt normalisiert mit dem
+# Katalognamen ueberein, geraten ist keine.
+# *Plus games delisted from the store: search no longer finds them, while
+#  appdetails and the header image remain. Every id here was checked against
+#  appdetails and matches the catalogue name; none is a guess.*
 VON_HAND = {
     "cod": 2620,        # Call of Duty (2003), nicht der Sammeltitel von 2022
+    "pc":  234630,      # "Project CARS"   - delistet, appdetails bestaetigt den Namen
+    "pc2": 378860,      # "Project CARS 2" - delistet, appdetails bestaetigt den Namen
 }
 
 
