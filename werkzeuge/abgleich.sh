@@ -251,6 +251,41 @@ for u in spiele-sicherung.timer spiele-sicherung-voll.timer; do
   fi
 done
 
+# 9. Die Gegenrichtung: was liegt in /usr/local/bin, das hier niemand kennt?
+#
+#    Alles bisher Gepruefte geht von der Tabelle aus und fragt, ob es auf der
+#    Maschine steht. Eine Datei, die dort liegt und in der Tabelle GAR NICHT
+#    mehr vorkommt, sieht dabei nie jemand an. Nach einer Umbenennung bleibt der
+#    alte Name deshalb liegen, ist lauffuehrbar, wird von niemandem mehr
+#    gepflegt — und der Abgleich meldet "alles in Ordnung". Dieselbe Luecke, die
+#    rueckbau.sh mit ALTLASTEN schliessen musste: eine Ableitung aus dem
+#    Repositorium kennt nur die Gegenwart.
+#
+#    Gemeldet wird das als HINWEIS und nicht als Abweichung: auf der Maschine
+#    darf es Werkzeuge geben, die mit diesem Repositorium nichts zu tun haben.
+#    Eine Abweichung waere hier eine Meldung, die man sich abgewoehnt zu lesen.
+#
+# *The other direction: everything so far starts from the table and asks whether
+#  it exists on the machine. A file that lies there and appears nowhere in the
+#  table is never looked at, so a renamed tool stays behind, runnable and
+#  unmaintained, while the comparison reports "fine". Reported as a hint, not a
+#  deviation: the machine may legitimately carry foreign tools.*
+erwartet=$(mktemp)
+{ printf '%s\n' "${PAARE[@]}" | sed -n 's|.*:/usr/local/bin/||p'
+  echo ttyd            # kommt von GitHub, liegt aber am selben Ort
+} | sort -u > "$erwartet"
+fremd=$(ssh "$ZIEL" 'ls -1 /usr/local/bin 2>/dev/null' | sort | comm -23 - "$erwartet")
+rm -f "$erwartet"
+if [ -n "$fremd" ]; then
+  echo
+  echo "-- In /usr/local/bin, aber in keiner Stufe --"
+  while read -r f; do
+    [ -n "$f" ] || continue
+    printf '  HINWEIS               /usr/local/bin/%s\n' "$f"
+  done <<<"$fremd"
+  echo "  (kein Fehler — aber nach einer Umbenennung steht der alte Name hier)"
+fi
+
 echo
 printf 'deckungsgleich: %d   abweichend: %d   fehlend: %d\n' "$gleich" "$anders" "$fehlt"
 [ $((anders + fehlt)) -eq 0 ] || exit 1

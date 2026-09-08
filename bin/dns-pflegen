@@ -37,11 +37,15 @@ Drei Dinge, die hier leicht schiefgehen:
 
 Anbieter und Token stehen in /etc/dns-gameserver.conf:
 
-  ANBIETER=cloudflare
+  ANBIETER=cloudflare      moeglich: cloudflare, hetzner
   TOKEN=...
 
-Die aeltere /etc/cloudflare-gameserver.conf (CF_TOKEN=...) wird weiter gelesen,
-damit vorhandene Installationen nicht stehenbleiben.
+hetzner ist nach der Dokumentation geschrieben und gegen eine nachgebildete API
+geprueft, aber noch nicht gegen eine echte Zone gelaufen - siehe die Klasse.
+
+Die aeltere /etc/cloudflare-gameserver.conf (CF_TOKEN=...) wird nicht mehr
+gelesen; install/lib.sh uebernimmt sie einmalig beim naechsten Lauf der Stufen
+25 oder 70.
 
   dns-pflegen setzen <name>      CNAME <name>.@@DNS_ZONE@@ -> @@DNS_ZIEL@@
   dns-pflegen entfernen <name>
@@ -60,10 +64,15 @@ import contextlib, ipaddress, json, re, socket, sys, urllib.request, urllib.erro
 from pathlib import Path
 
 KONF = Path("/etc/dns-gameserver.conf")
-# Der alte Ort. Wird gelesen, aber nicht mehr geschrieben - eine Installation,
-# die schon laeuft, soll von einer Umbenennung nichts merken.
-# *The old location: still read, never written. A running install must not
-#  notice a rename.*
+# Der alte Ort wird NICHT mehr gelesen. Er steht hier nur noch, um beim Fehlen
+# der neuen Datei sagen zu koennen, wo der Zugang stattdessen liegt: zwei Orte
+# fuer dasselbe Geheimnis brauchen eine Vorrangregel, und eine Vorrangregel ueber
+# Geheimnisse muss man im Zweifel nachvollziehen koennen. Die Uebernahme macht
+# einmalig install/lib.sh (dns_konf_uebernehmen).
+# *The old location is no longer read. It survives only so a missing new file
+#  can say where the access went instead: two places for one secret need a
+#  precedence rule, and a precedence rule about secrets is one people must be
+#  able to reason about. Migration happens once, in install/lib.sh.*
 KONF_ALT = Path("/etc/cloudflare-gameserver.conf")
 
 ZONE = "@@DNS_ZONE@@"
@@ -108,6 +117,27 @@ def fehler(*t):
     sys.exit(1)
 
 
+def lies_json(roh: bytes) -> dict:
+    """JSON-Objekt aus einer Antwort, oder {} wenn es keines ist.
+
+    Nicht jede Antwort ist das, was die Dokumentation verspricht: ein
+    vorgeschalteter Proxy schickt HTML, und ein Leib, der zu "null" zerfaellt,
+    ergibt None statt eines leeren Objekts. Beides ist hier schon aufgetreten -
+    das zweite als Abbruch mit AttributeError mitten in der Fehlerbehandlung,
+    also genau dort, wo man am wenigsten davon hat.
+
+    *Not every answer is what the documentation promises: a proxy sends HTML,
+     and a body that parses to "null" yields None rather than an empty object.
+     The latter surfaced as an AttributeError inside the error handling itself -
+     the least useful place for one.*
+    """
+    try:
+        d = json.loads(roh)
+    except Exception:
+        return {}
+    return d if isinstance(d, dict) else {}
+
+
 @contextlib.contextmanager
 def nur_ipv4():
     """Erzwingt IPv4 fuer alles, was innerhalb laeuft. Zwei verschiedene Gruende:
@@ -142,8 +172,12 @@ def konfiguration() -> dict:
     *A missing ANBIETER means cloudflare - the only provider that existed before
      the setting did. A default that continues the status quo surprises nobody.*
     """
-    datei = KONF if KONF.exists() else KONF_ALT
+    datei = KONF
     if not datei.exists():
+        if KONF_ALT.exists():
+            fehler(f"{KONF} fehlt, aber {KONF_ALT} liegt noch da. Der alte Ort wird "
+                   "nicht mehr gelesen. Uebernehmen mit: "
+                   "install/einrichten.sh 25-dns-grundgeruest")
         fehler(f"{KONF} fehlt - dort muessen ANBIETER=... und TOKEN=... stehen")
     werte = {}
     for z in datei.read_text().splitlines():
@@ -151,8 +185,7 @@ def konfiguration() -> dict:
         if m:
             werte[m.group(1)] = m.group(2)
     name = werte.get("ANBIETER", "cloudflare").lower()
-    # CF_TOKEN ist der alte Name derselben Sache.
-    schluessel = werte.get("TOKEN") or werte.get("CF_TOKEN")
+    schluessel = werte.get("TOKEN")
     if not schluessel:
         fehler(f"kein TOKEN in {datei}")
     if name not in ANBIETER:
@@ -226,12 +259,13 @@ class Cloudflare(Anbieter):
         with nur_ipv4():
             try:
                 with urllib.request.urlopen(a, timeout=30) as r:
-                    d = json.loads(r.read())
+                    d = lies_json(r.read())
             except urllib.error.HTTPError as e:
-                try:
-                    d = json.loads(e.read())
-                except Exception:
-                    fehler(f"HTTP {e.code}")
+                d = lies_json(e.read())
+                if not d:
+                    fehler(f"HTTP {e.code} ohne verwertbare Antwort")
+        if not d:
+            fehler("keine JSON-Antwort von der API - steht ein Proxy davor?")
         if not d.get("success"):
             fehler([m.get("message") for m in d.get("errors", [])] or "unbekannter Fehler")
         return d
@@ -268,9 +302,131 @@ class Cloudflare(Anbieter):
         self.ruf(f"/zones/{zid}/dns_records/{kennung}", "DELETE")
 
 
+class Hetzner(Anbieter):
+    """Hetzner DNS. Token: DNS-Console -> API tokens.
+
+    ACHTUNG: Diese Umsetzung ist nach der Dokumentation geschrieben und gegen
+    eine nachgebildete API geprueft, NICHT gegen eine echte Zone. Bevor sich
+    jemand darauf verlaesst, gehoert die Liste aus Issue #60 einmal durchlaufen:
+    anbieter, grundgeruest zweimal, setzen zweimal, liste, entfernen, und ein
+    fremder Eintrag darf sich nicht loeschen lassen.
+
+    *Written from the documentation and tested against a mock, NOT against a
+     real zone. Run the checklist in issue #60 before relying on it.*
+
+    Drei Unterschiede zu Cloudflare, und alle drei stecken in dieser Klasse:
+
+    1. Namen sind RELATIV zur Zone, die Zone selbst heisst "@". Nach aussen
+       gibt diese Klasse immer vollstaendige Namen - die Regeln oben rechnen
+       nirgends mit Zonen.
+    2. Werte koennen mit einem Punkt enden ("ziel.beispiel.de."). Geschrieben
+       wird mit Punkt, damit ein CNAME nicht als relativer Name gelesen wird;
+       gelesen wird ohne, weil die Regeln oben auf Gleichheit vergleichen.
+    3. Es gibt kein "success"-Feld. Ein Fehler kommt als HTTP-Status mit einem
+       "error"-Objekt - und was NICHT passieren darf, ist ihn als leere
+       Ergebnisliste durchzureichen: grundgeruest legt dann alles noch einmal an.
+
+    *Three differences from Cloudflare, all contained in this class: relative
+     names with "@" for the apex; values that may carry a trailing dot; and no
+     "success" field - an error must never pass as an empty result list, or
+     grundgeruest would create everything a second time.*
+    """
+    name = "hetzner"
+    kennt_proxy = False
+    API = "https://dns.hetzner.com/api/v1"
+
+    def ruf(self, weg, methode="GET", daten=None):
+        k = {"Auth-API-Token": self.token, "Content-Type": "application/json"}
+        leib = json.dumps(daten).encode() if daten is not None else None
+        a = urllib.request.Request(self.API + weg, data=leib, headers=k, method=methode)
+        with nur_ipv4():
+            try:
+                with urllib.request.urlopen(a, timeout=30) as r:
+                    roh = r.read()
+            except urllib.error.HTTPError as e:
+                d = lies_json(e.read())
+                fehler(f"HTTP {e.code}:",
+                       (d.get("error") or {}).get("message") or d.get("message")
+                       or "kein Grund genannt")
+        # DELETE antwortet mit leerem Leib - das ist Erfolg, kein Fehler.
+        if not roh.strip():
+            return {}
+        d = lies_json(roh)
+        if not d:
+            fehler("unerwartete Antwort:", roh[:120])
+        if "error" in d:
+            fehler((d["error"] or {}).get("message") or "unbekannter Fehler")
+        return d
+
+    def _voll(self, name: str) -> str:
+        """Relativer Hetzner-Name -> vollstaendiger Name."""
+        return self.zone if name in ("@", "") else f"{name}.{self.zone}"
+
+    def _relativ(self, fqdn: str) -> str:
+        """Vollstaendiger Name -> relativer Hetzner-Name."""
+        if fqdn == self.zone:
+            return "@"
+        if fqdn.endswith("." + self.zone):
+            return fqdn[: -(len(self.zone) + 1)]
+        fehler(f"{fqdn} liegt nicht in der Zone {self.zone}")
+
+    def _satz(self, r: dict) -> dict:
+        return {"kennung": r["id"], "typ": r["type"], "name": self._voll(r["name"]),
+                "wert": (r.get("value") or "").rstrip("."),
+                "ttl": r.get("ttl") or SPIEL_TTL, "proxy": False}
+
+    def _nutzlast(self, zid, satz: dict) -> dict:
+        wert = satz["wert"]
+        # Ein CNAME ohne Punkt am Ende wuerde als relativer Name gelesen und
+        # bekaeme die Zone noch einmal angehaengt.
+        # *A CNAME without the trailing dot would be read as a relative name and
+        #  get the zone appended a second time.*
+        if satz["typ"] == "CNAME" and not wert.endswith("."):
+            wert += "."
+        return {"zone_id": zid, "type": satz["typ"], "name": self._relativ(satz["name"]),
+                "value": wert, "ttl": satz.get("ttl", SPIEL_TTL)}
+
+    def zone_id(self) -> str:
+        d = self.ruf(f"/zones?name={self.zone}")
+        for z in d.get("zones", []):
+            if z.get("name") == self.zone:
+                return z["id"]
+        fehler("Zone nicht gefunden oder Token ohne Recht auf", self.zone)
+
+    def saetze(self, zid, name=None) -> list[dict]:
+        # Hetzner kann Saetze nicht nach Namen filtern - also alle holen und
+        # hier auswaehlen. Geblaettert wird, bis die letzte Seite erreicht ist:
+        # eine Zone mit mehr Eintraegen als einer Seite duerfte sonst still
+        # unvollstaendig gelesen werden, und "nicht gefunden" hiesse dann
+        # "wird noch einmal angelegt".
+        # *No server-side name filter, so fetch everything and select here.
+        #  Paged to the end: reading a zone short would turn "not found" into
+        #  "created a second time".*
+        alle, seite, letzte = [], 1, 1
+        while seite <= letzte:
+            d = self.ruf(f"/records?zone_id={zid}&per_page=100&page={seite}")
+            alle += d.get("records") or []
+            letzte = ((d.get("meta") or {}).get("pagination") or {}).get("last_page", 1)
+            seite += 1
+        saetze = [self._satz(r) for r in alle if r.get("type") in ("A", "CNAME")]
+        return [s for s in saetze if name is None or s["name"] == name]
+
+    def anlegen(self, zid, satz):
+        self.ruf("/records", "POST", self._nutzlast(zid, satz))
+
+    def aendern(self, zid, kennung, satz):
+        self.ruf(f"/records/{kennung}", "PUT", self._nutzlast(zid, satz))
+
+    def loeschen(self, zid, kennung):
+        self.ruf(f"/records/{kennung}", "DELETE")
+
+
 # Ein neuer Anbieter kommt hier hinein - und sonst nirgends.
-# *A new provider is added here and nowhere else.*
-ANBIETER = {"cloudflare": Cloudflare}
+# Schritt fuer Schritt, mit den Fallstricken: docs/06-netz-dns-firewall.md,
+# Abschnitt "Einen weiteren Anbieter schreiben".
+# *A new provider is added here and nowhere else. Step by step, with the
+#  pitfalls: docs/06-netz-dns-firewall.md.*
+ANBIETER = {"cloudflare": Cloudflare, "hetzner": Hetzner}
 
 _A = None
 

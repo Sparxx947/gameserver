@@ -129,6 +129,47 @@ version_markieren() {
     && chmod 0644 "$tmp" && mv "$tmp" "$VERSIONSDATEI"
 }
 
+# dns_konf_uebernehmen — holt den DNS-Zugang aus dem alten Dateinamen herueber.
+#
+# Bis zum Anbieter-Umbau stand der Cloudflare-Token in
+# /etc/cloudflare-gameserver.conf (CF_TOKEN=...). Heute stehen Anbieter und
+# Token zusammen in /etc/dns-gameserver.conf. Beide Orte gleichzeitig zu lesen
+# war die Uebergangshilfe; zwei Orte fuer dieselbe Angabe laufen aber
+# frueher oder spaeter auseinander, und dann entscheidet ein Vorrang darueber,
+# welches Geheimnis gilt - das will niemand nachvollziehen muessen.
+#
+# Uebernommen wird deshalb EINMAL, hier, und laut: die alte Datei wandert nach
+# <datei>.vor-<datum>, und beide Pfade stehen im Protokoll. Das Token ist das
+# einzige Geheimnis dieser Datei - wer hinterher nicht weiss, wo es liegt, sucht
+# an der falschen Stelle.
+#
+# *Provider and token now live together in /etc/dns-gameserver.conf. Reading
+#  both locations was the transition; two places for one setting drift, and then
+#  a precedence rule decides which secret applies. Migrated once, here, and
+#  loudly: the old file is moved aside and both paths are logged.*
+DNS_KONF=/etc/dns-gameserver.conf
+DNS_KONF_ALT=/etc/cloudflare-gameserver.conf
+
+dns_konf_uebernehmen() {
+  [ -s "$DNS_KONF_ALT" ] || return 0
+  if [ -s "$DNS_KONF" ]; then
+    warn "$DNS_KONF_ALT liegt noch da und wird NICHT mehr gelesen — es gilt $DNS_KONF."
+    warn "Wegraeumen, sobald geprueft: mv $DNS_KONF_ALT $DNS_KONF_ALT.alt"
+    return 0
+  fi
+  local tok
+  tok=$(sed -n 's/^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}CF_TOKEN[[:space:]]*=[[:space:]]*["'"'"']\{0,1\}\([^"'"'"'[:space:]#]\{1,\}\).*/\2/p' \
+          "$DNS_KONF_ALT" | head -1)
+  [ -n "$tok" ] || fehler "$DNS_KONF_ALT enthaelt kein CF_TOKEN — von Hand nach $DNS_KONF uebertragen"
+  printf 'ANBIETER=cloudflare\nTOKEN=%s\n' "$tok" > "$DNS_KONF"
+  chmod 600 "$DNS_KONF"; chown root:root "$DNS_KONF"
+  local weg="$DNS_KONF_ALT.vor-$(date +%Y%m%d-%H%M%S)"
+  mv "$DNS_KONF_ALT" "$weg"
+  log "DNS-Zugang uebernommen:"
+  log "  von  $weg   (frueher $DNS_KONF_ALT)"
+  log "  nach $DNS_KONF   (ANBIETER=cloudflare)"
+}
+
 # einsetzen <quelle> <ziel> [modus] [eigentuemer]
 #
 # Kopiert eine Repo-Datei nach <ziel> und ersetzt dabei jeden @@PLATZHALTER@@.
