@@ -114,7 +114,18 @@ Bei 154 Einträgen ist Blättern keine Bedienung mehr. Die Seite hat deshalb:
 * **Acht Kategorien** mit Trefferzahl. Die Zahl zählt die Suche mit, aber nicht
   den Kategoriefilter — sie beantwortet „wie viele davon passen zu dem, was ich
   gerade suche".
-* **Sortierung** A → Z, Z → A und „größte zuerst" (nach Plattenbedarf).
+* **Eine Buchstabenleiste** `alle · 0-9 · A … Z`. Jeder Buchstabe zeigt seine
+  Trefferzahl als Kurzinfo; Buchstaben ohne Treffer bleiben stehen, sind aber
+  ausgegraut und nicht anklickbar. Sie wegzulassen ließe die Leiste bei jeder
+  Suche die Breite wechseln, und man müsste jedes Mal neu suchen, wo das M nun
+  steht — ein graues M sagt außerdem etwas: dass es dort nichts gibt.
+  `0-9` ist eine eigene Gruppe, weil genau ein Spiel mit einer Ziffer anfängt
+  (7DaysToDie) und sonst unter keinem Buchstaben zu finden wäre.
+
+Die Sortierung ist **fest alphabetisch**. Vorher gab es A → Z, Z → A und „größte
+zuerst"; an ihre Stelle ist die Buchstabenleiste getreten. Eine umgekehrte
+Reihenfolge neben einer Buchstabenauswahl hilft niemandem: Wer unter „M"
+nachsieht, will die M-Spiele, nicht ihre Richtung.
 
 | Kategorie | Einträge |
 |---|---|
@@ -144,7 +155,7 @@ hält, ändert eine Zeile; ein Spiel ohne Zuordnung landet sichtbar in
 > *At 154 entries, scrolling is not an interface. The page offers a text search
 > across name, key and blurb (multiple words must all match, or a longer query
 > would return more results than a shorter one), eight categories with counts
-> that respect the search but not the category filter, and three sort orders.
+> that respect the search but not the category filter, and a letter bar.
 > Everything is server-side via GET parameters — not a preference but a
 > consequence of `default-src 'none'`, where client-side filtering would be dead.
 > Categories are assigned by hand rather than taken from Steam, whose genres say

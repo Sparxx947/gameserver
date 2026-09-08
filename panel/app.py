@@ -228,6 +228,11 @@ nav{display:flex;gap:4px;flex:1;min-width:0;overflow:auto}
 .leiste{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 10px}
 .leiste .nv{font-size:13px;padding:6px 10px}
 .leiste .nv .z{opacity:.65;margin-left:3px}
+/* Buchstabenleiste: gleich breite Felder, damit sie nicht bei jeder Suche
+   herumspringt. Leere Buchstaben bleiben stehen und sind erkennbar tot. */
+.abc .nv{min-width:26px;text-align:center;padding:6px 7px;font-variant-numeric:tabular-nums}
+.abc .leer{color:var(--r);cursor:default}
+.abc .leer:hover{background:none;color:var(--r)}
 .usr{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--d);flex:none}
 .usr b{color:var(--t)}
 .rolle{font-size:11px;background:var(--r);padding:2px 7px;border-radius:99px}
@@ -509,36 +514,49 @@ def katalogbild(request: Request, schluessel: str):
 #  be dead. Server-side costs nothing measurable at 154 entries and works with
 #  the back button and in a bookmark.*
 
-def katalog_filtern(spiele: list, q: str, kat: str, sortierung: str) -> list:
-    """Sucht, filtert und sortiert - in dieser Reihenfolge.
+def anfangsbuchstabe(name: str) -> str:
+    """Erste Gruppe eines Namens: ein Grossbuchstabe oder "0-9".
+
+    Genau ein Spiel faengt mit einer Ziffer an (7DaysToDie). Ohne eigene Gruppe
+    waere es unter keinem Buchstaben zu finden - und wer es sucht, sucht dann
+    lange.
+    *Exactly one game starts with a digit; without its own group it would sit
+     under no letter at all.*
+    """
+    z = name[:1].upper()
+    return z if z.isalpha() else "0-9"
+
+
+def katalog_filtern(spiele: list, q: str, kat: str, buchstabe: str = "") -> list:
+    """Sucht und filtert, immer alphabetisch sortiert.
 
     Gesucht wird in Name, Schluessel UND Kurzbeschreibung: wer "koop" eintippt,
     meint eine Eigenschaft, keinen Titel. Gross- und Kleinschreibung spielt keine
     Rolle, und mehrere Woerter muessen ALLE vorkommen (nicht irgendeines) - sonst
     liefert "koop survival" mehr Treffer als "koop" allein, was niemand erwartet.
-    *Searches name, key and blurb: someone typing "koop" means a property, not a
-     title. Multiple words must all match - otherwise a longer query would return
-     more results than a shorter one, which nobody expects.*
+
+    Die Sortierung ist FEST alphabetisch. Vorher gab es A-Z, Z-A und "groesste
+    zuerst"; an ihre Stelle ist die Buchstabenleiste getreten. Eine umgekehrte
+    Reihenfolge neben einer Buchstabenauswahl hilft niemandem: wer unter "M"
+    nachsieht, will die M-Spiele, nicht ihre Richtung.
+    *Sorting is fixed alphabetical. The three sort orders were replaced by the
+     letter bar: reverse order alongside a letter selector helps nobody.*
     """
     raus = spiele
     if kat:
         raus = [g for g in raus if g.get("kategorie") == kat]
+    if buchstabe:
+        raus = [g for g in raus if anfangsbuchstabe(g["name"]) == buchstabe]
     for wort in q.lower().split():
         raus = [g for g in raus
                 if wort in g["name"].lower()
                 or wort in g["schluessel"].lower()
                 or wort in g.get("kurz", "").lower()]
-    if sortierung == "za":
-        raus = sorted(raus, key=lambda g: g["name"].lower(), reverse=True)
-    elif sortierung == "platte":
-        raus = sorted(raus, key=lambda g: (-g["platte_gb"], g["name"].lower()))
-    else:
-        raus = sorted(raus, key=lambda g: g["name"].lower())
-    return raus
+    return sorted(raus, key=lambda g: g["name"].lower())
 
 
 @app.get("/spiele", response_class=HTMLResponse)
-def spiele(request: Request, meldung: str = "", q: str = "", kat: str = "", sort: str = "az"):
+def spiele(request: Request, meldung: str = "", q: str = "", kat: str = "", b: str = ""):
     s = angemeldet(request)
     if not s:
         return RedirectResponse("/login", 303)
@@ -560,9 +578,10 @@ def spiele(request: Request, meldung: str = "", q: str = "", kat: str = "", sort
     kategorien = kategorien_liste()
     if kat and kat not in kategorien:
         kat = ""
-    if sort not in ("az", "za", "platte"):
-        sort = "az"
-    gezeigt = katalog_filtern(alle, q, kat, sort)
+    b = b.upper() if b != "0-9" else b
+    if b and b != "0-9" and not (len(b) == 1 and b.isalpha()):
+        b = ""
+    gezeigt = katalog_filtern(alle, q, kat, b)
 
     karten = []
     for g in gezeigt:
@@ -603,18 +622,18 @@ def spiele(request: Request, meldung: str = "", q: str = "", kat: str = "", sort
     #  discard the category filter and vice versa.*
     suchfeld = (f'<form method=get action=/spiele class=suche>'
                 f'<input type=hidden name=kat value="{esc(kat)}">'
-                f'<input type=hidden name=sort value="{esc(sort)}">'
+                f'<input type=hidden name=b value="{esc(b)}">'
                 f'<input type=search name=q value="{esc(q)}" placeholder="Name oder Stichwort…" '
                 f'autofocus>'
                 f'<button class=p>suchen</button>'
-                + (f'<a class=b href="/spiele?kat={esc(kat)}&sort={esc(sort)}">zurücksetzen</a>'
+                + (f'<a class=b href="/spiele?kat={quote(kat)}&b={quote(b)}">zurücksetzen</a>'
                    if q else "")
                 + '</form>')
 
     def verweis(neu_kat: str, beschriftung: str, anzahl: int) -> str:
         aktiv = " hier" if neu_kat == kat else ""
         return (f'<a class="nv{aktiv}" href="/spiele?q={quote(q)}&kat={quote(neu_kat)}'
-                f'&sort={esc(sort)}">{esc(beschriftung)} <span class=z>{anzahl}</span></a>')
+                f'&b={quote(b)}">{esc(beschriftung)} <span class=z>{anzahl}</span></a>')
 
     # Die Zahl neben jeder Kategorie zaehlt MIT der Suche, aber ohne den
     # Kategoriefilter: sie beantwortet "wie viele davon passen zu dem, was ich
@@ -622,15 +641,32 @@ def spiele(request: Request, meldung: str = "", q: str = "", kat: str = "", sort
     # Kategorie ausser der gewaehlten null.
     # *Counts respect the search but not the category filter, answering "how many
     #  of these match what I am looking for".*
-    kat_leiste = (verweis("", "alle", len(katalog_filtern(alle, q, "", sort)))
-                  + "".join(verweis(k, n, len(katalog_filtern(alle, q, k, sort)))
+    kat_leiste = (verweis("", "alle", len(katalog_filtern(alle, q, "", b)))
+                  + "".join(verweis(k, n, len(katalog_filtern(alle, q, k, b)))
                             for k, n in kategorien.items()
-                            if katalog_filtern(alle, "", k, sort)))
+                            if katalog_filtern(alle, "", k)))
 
-    sort_leiste = "".join(
-        f'<a class="nv{" hier" if sort == s_ else ""}" '
-        f'href="/spiele?q={quote(q)}&kat={quote(kat)}&sort={s_}">{b}</a>'
-        for s_, b in (("az", "A → Z"), ("za", "Z → A"), ("platte", "größte zuerst")))
+    # --- Buchstabenleiste ---------------------------------------------------
+    # Buchstaben OHNE Treffer bleiben stehen, nur nicht anklickbar. Sie
+    # wegzulassen liesse die Leiste bei jeder Suche die Breite wechseln, und man
+    # muesste jedes Mal neu suchen, wo das M nun steht. Ein ausgegrautes M sagt
+    # ausserdem etwas: dass es dort nichts gibt.
+    # *Letters without matches stay in place but are not clickable. Dropping them
+    #  would make the bar change width on every search, and a greyed-out letter
+    #  says something in itself: there is nothing there.*
+    vorhanden = {}
+    for g in katalog_filtern(alle, q, kat):
+        vorhanden[anfangsbuchstabe(g["name"])] = vorhanden.get(anfangsbuchstabe(g["name"]), 0) + 1
+    gruppen = ["0-9"] + list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    buchstaben = (f'<a class="nv{" hier" if not b else ""}" '
+                  f'href="/spiele?q={quote(q)}&kat={quote(kat)}">alle</a>')
+    for gr in gruppen:
+        n = vorhanden.get(gr, 0)
+        if not n:
+            buchstaben += f'<span class="nv leer">{gr}</span>'
+        else:
+            buchstaben += (f'<a class="nv{" hier" if b == gr else ""}" title="{n} Spiele" '
+                           f'href="/spiele?q={quote(q)}&kat={quote(kat)}&b={quote(gr)}">{gr}</a>')
 
     if gezeigt:
         inhalt = f'<div class=g>{"".join(karten)}</div>'
@@ -638,15 +674,17 @@ def spiele(request: Request, meldung: str = "", q: str = "", kat: str = "", sort
         inhalt = ('<div class=m>Kein Treffer. '
                   + (f'Gesucht wurde nach <b>{esc(q)}</b>' if q else "")
                   + (f' in <b>{esc(kategorien.get(kat, kat))}</b>' if kat else "")
+                  + (f' unter <b>{esc(b)}</b>' if b else "")
                   + '. <a class=b href=/spiele>alles zeigen</a></div>')
 
     return HTMLResponse(KOPF + kopfleiste(s, "spiele") + RUMPF + hinweis
         + suchfeld
         + f'<div class=leiste>{kat_leiste}</div>'
-        + f'<div class=leiste>{sort_leiste}</div>'
+        + f'<div class="leiste abc">{buchstaben}</div>'
         + f'<div class=m><b>{len(gezeigt)}</b> von {len(alle)} Spielen'
           + (f' — gesucht nach „{esc(q)}“' if q else "")
           + (f' in {esc(kategorien.get(kat, ""))}' if kat else "")
+          + (f', Anfangsbuchstabe <b>{esc(b)}</b>' if b else "")
           + f'. {len(da)} Server angelegt, {frei_gb} GB frei. '
           f'Die Installation legt Beitritts- und Adminpasswort an (unter '
           f'„Zugangsdaten“ zu sehen) und begrenzt auf 4 Spieler. Der erste Start '
