@@ -169,14 +169,55 @@ aus.
 
 ## Bekannte offene Punkte
 
-### StarRupture läuft nicht
+### StarRupture läuft nicht — am 2026-09-08 durchgemessen
 
-Der Server füllt jede gesetzte Speichergrenze und wird vom OOM-Killer beendet;
-zuletzt 32 Neustarts in Folge. Er steht deshalb auf `restart: on-failure` statt
-`unless-stopped` und ist angehalten.
+Der Server ist auf dieser Maschine nicht zu betreiben. Er steht auf
+`restart: on-failure:3` und ist angehalten.
 
-Ein Versuch ohne Speichergrenze setzt voraus, dass die übrigen Server kurz
-angehalten werden — sonst trifft der OOM-Killer sie.
+**Was gemessen wurde.** Der Speicher wächst nach dem Start **linear mit rund
+152 MiB/s** — das ist die prozedurale Weltgenerierung, nicht der laufende
+Betrieb. Ein kurzes Abflachen bei 3 GiB täuscht: danach geht es ungebremst
+weiter.
+
+| | mit den anderen Servern | allein auf der Maschine |
+|---|---|---|
+| verfügbar | 14 GB | 23 GB |
+| erreicht | 14,5 GiB nach 137 s | 19,76 GiB nach 150 s |
+| Ausgang | abgebrochen, sonst hätte der Kernel-OOM fremde Container getroffen | stabil am Limit, aber **98,8 % ausgelastet** |
+
+Im Alleingang lief der Server technisch an: `OnUpdateSessionComplete
+GameSession bWasSuccessful: 1`, Ports 7779 und 27017 veröffentlicht. Er läuft
+dort aber **nur, weil die Grenze ihn bremst**: `memory.events` zählte
+**22 985** Mal `max`, also erzwungenes Freigeben an der Obergrenze. Der
+tatsächliche Bedarf liegt darüber.
+
+**Zwei Korrekturen an der bisherigen Beschreibung:**
+
+* Er wird **nicht** vom OOM-Killer beendet — `oom_kill` stand auf 0. Er wird
+  gedrosselt, nicht getötet. Die Neustarts kamen zustande, weil ihm im
+  Parallelbetrieb der Systemspeicher unter den Füßen wegging.
+* Eine Momentaufnahme des **gestoppten** Containers ("17 GB frei, also kein
+  Speicherproblem") beweist nichts. Der Bedarf entsteht erst beim Start.
+
+**Der eigentliche Befund:** Es existiert **kein einziger Spielstand**
+(`find -iname '*.sav'` → 0), obwohl `SAVE_GAME_INTERVAL` auf 300 s steht und
+der Test 353 s lief. `DSSettings.txt` und die Umgebung stehen weiterhin auf
+`StartNewGame: true` / `LoadSavedGame: false` — der Kommentar in der
+`compose.yaml` sagt „ERSTSTART … danach zurück auf false". Da nie eine Welt
+fertig wurde, beginnt jeder Start von vorn. Von außen antwortete `27017/udp`
+nicht.
+
+> *Measured on 2026-09-08: memory grows linearly at ~152 MiB/s after start —
+> that is procedural world generation, not steady-state play. Alone on the
+> machine it reached 19.76 GiB and held, but only because the limit throttled it
+> (`memory.events` counted 22,985 `max` events; `oom_kill` was 0 — it is
+> throttled, not killed). No save file was ever produced despite a 300 s
+> autosave interval, and the settings still say StartNewGame, so every start
+> begins again from scratch.*
+
+**Wenn er laufen soll,** braucht er die Maschine praktisch für sich, mit einer
+Grenze oberhalb von 20 GB — bei 24 GB Gesamtspeicher und rund 8 GB für die
+übrigen Server geht das im Parallelbetrieb nicht auf.
 
 ### Palworld hat ein Speicherleck
 
