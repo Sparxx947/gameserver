@@ -156,6 +156,19 @@ if ! python3 werkzeuge/eigene-bilder.py --pruefen 2>&1 | sed 's/^/  /'; then
   fehler=1
 fi
 
+# --- 7. Stimmt die Doku noch mit dem Katalog ueberein? -----------------------
+# Der Katalog wuchs 41 -> 86 -> 154 -> 162 -> 179, die Doku blieb bei 41, an vier
+# Stellen, ueber Monate. Von Hand nachzupflegen hat zweimal nicht funktioniert;
+# was hilft, ist eine Pruefung, die meckert. Geprueft werden ausdrueckliche
+# Stellen und die erzeugte Spieleliste - nicht "irgendeine Zahl vor dem Wort
+# Spiele", denn davon stehen mehrere in der Doku, die etwas anderes zaehlen.
+# *The catalogue grew while the docs stayed at 41 in four places. Maintaining it
+#  by hand failed twice; a check that complains is what helps.*
+echo "== Stimmt die Doku zum Spielekatalog? =="
+if ! python3 werkzeuge/katalog-doku.py --pruefen 2>&1 | sed 's/^/  /'; then
+  fehler=1
+fi
+
 echo
 [ $fehler -eq 0 ] && echo "vollstaendig." || echo "UNVOLLSTAENDIG — siehe oben."
 exit $fehler
