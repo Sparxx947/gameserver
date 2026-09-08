@@ -297,6 +297,15 @@ def installieren(sch: str):
         "einrichtung_offen": g["passwort"]["art"] != "env",
         "einrichtung_stand": ("über die Umgebung gesetzt" if g["passwort"]["art"] == "env"
                               else "wartet auf den ersten Start des Servers"),
+        # Spiele, deren Port erst in der eigenen Konfiguration steht. Die Regel
+        # stammt aus LinuxGSMs info_game.sh und wandert hier mit, damit
+        # port-ermitteln sie nach dem ersten Start anwenden kann. Bis dahin hat
+        # der Server KEINEN veroeffentlichten Port - er laeuft, ist aber von
+        # aussen nicht erreichbar, und genau das steht in der Uebersicht.
+        # *Games whose port only exists in their own config once written. The
+        #  rule comes from LinuxGSM and travels along so it can be applied after
+        #  the first start; until then the server has no published port.*
+        "port_regel": g.get("port_regel"),
     }, indent=1) + "\n")
     # panel.json enthaelt die Passwoerter - deshalb 0640 und Gruppe panel,
     # nicht world-readable.

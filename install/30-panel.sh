@@ -28,7 +28,7 @@ log "Python-Umgebung"
 /opt/panel/venv/bin/pip install -q -r "$REPO/panel/requirements.txt"
 
 log "Werkzeuge nach /usr/local/bin"
-for w in cf-dns compose-feld katalog-vorpruefung katalogbilder-holen konfig-datei panel-aktion spiel-einrichtung spiel-verwalten; do
+for w in cf-dns compose-feld katalog-vorpruefung katalogbilder-holen konfig-datei panel-aktion port-ermitteln spiel-einrichtung spiel-verwalten; do
   einsetzen "$REPO/bin/$w" "/usr/local/bin/$w" 0755 root:root
 done
 einsetzen "$REPO/etc/spiele-katalog.json" /etc/spiele-katalog.json 0644 root:root

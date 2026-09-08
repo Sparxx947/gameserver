@@ -447,6 +447,20 @@ def uebersicht(request: Request):
         # Wenn ein frisch installierter Server sein Passwort noch nicht gesetzt
         # bekommen hat, muss das sichtbar sein - sonst steht er ungeschuetzt im
         # Netz, ohne dass es jemand merkt.
+        # Kein veroeffentlichter Port heisst: der Server laeuft, aber niemand
+        # kommt hin. Das muss oben stehen, noch vor der Passwortwarnung - ohne
+        # Port ist das Passwort belanglos.
+        # *No published port means the server runs but nobody can reach it; this
+        #  outranks the password warning, which would be moot.*
+        if pi.get("port_regel"):
+            adresse += ('<div class=warn>Noch keine Beitrittsadresse: Dieses Spiel nennt seinen '
+                        'Port erst in <code>' + esc(pi["port_regel"].get("datei", "?")) + '</code>, '
+                        'die der Server beim ersten Start schreibt. Danach trägt der '
+                        'Einrichtungsschritt ihn selbst nach und startet den Server neu.</div>')
+        elif pi.get("port_ermittelt"):
+            pe = pi["port_ermittelt"]
+            adresse += (f'<div class=z>Port {pe["host"]} wurde am {esc(str(pe["am"])[:10])} aus '
+                        f'<code>{esc(pe["quelle"])}</code> übernommen.</div>')
         if pi.get("einrichtung_offen"):
             adresse += ('<div class=warn>Einrichtung läuft: '
                         + pi.get("einrichtung_stand", "") + '</div>')

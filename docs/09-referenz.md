@@ -64,10 +64,42 @@ handgepflegten Stacks.
 
 ### `spiel-einrichtung`
 
+```
+spiel-einrichtung [<stack>]
+```
+
 Ohne Parameter; wird vom Timer alle zwei Minuten gerufen. Sucht bei frisch
 installierten Servern die Konfigurationsdatei und trägt Beitrittspasswort,
 Adminpasswort und Spielerzahl ein. Erkennt `.ini`, `.json`, `.xml` und `.cfg`
-über Feldnamensmuster. Gibt nach sechs Stunden auf und meldet das sichtbar.
+über Feldnamensmuster, im `.cfg`-Fall auch den id-Tech-Stil mit `set`-Präfix.
+Gibt nach sechs Stunden auf und meldet das sichtbar.
+
+Ruft **zuletzt** `port-ermitteln --aus-einrichtung`, sofern der Eintrag eine
+`port_regel` trägt — und nur dann, wenn die Einrichtung entschieden ist (E23).
+
+### `port-ermitteln`
+
+```
+port-ermitteln <stack> [--zeigen] [--aus-einrichtung]
+```
+
+Liest den Spielport aus der Konfiguration, die der erste Start geschrieben hat,
+und trägt ihn in die `compose.yaml` ein. Für die 17 Katalogspiele, deren Port
+vorab nicht bekannt ist; die Regel steht als `port_regel` im Katalogeintrag.
+
+| Exit | Bedeutung |
+|---|---|
+| 0 | Port eingetragen, Container neu gestartet |
+| 1 | Fehler (keine Regel, kein Datenverzeichnis, kein freier Ersatzport) |
+| 2 | **warte** — Datei oder Feld noch nicht da; der Timer versucht es erneut |
+
+`--zeigen` liest nur und ändert nichts. Ohne `--aus-einrichtung` übergibt das
+Werkzeug per `execv` an `spiel-einrichtung`, damit es **genau einen** Weg gibt,
+der einen Port veröffentlicht — sonst öffnete der Knopf im Panel einen Server,
+bevor sein Beitrittspasswort steht.
+
+Nach dem Schreiben vergleicht es die `compose.yaml` mit sich selbst **ohne** den
+`ports`-Block und rollt zurück, falls sich mehr geändert hat als die Ports.
 
 ### `spiele-sicherung`
 

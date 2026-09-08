@@ -430,6 +430,49 @@
    "kategorie": "shooter"
   },
   {
+   "schluessel": "armar",
+   "name": "Arma Reforger",
+   "kurz": "Arma Reforger (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:armar",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [],
+   "volumes": [
+    "/srv/games/armar:/data"
+   ],
+   "env": {
+    "GAMESERVER": "armarserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 0,
+   "spieler": 4,
+   "hinweis": "Arma Reforger in der LinuxGSM-Bauart. ACHTUNG: Dieses Spiel nennt seinen Port nirgends vorab - er steht erst in ${selfname}_config.json, die der Server beim ERSTEN Start schreibt. Bis dahin laeuft der Server, ist aber von aussen nicht erreichbar; der Einrichtungsschritt traegt den Port dann selbst nach und startet den Container neu. Speicher- und Plattenbedarf sind geschaetzt.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm",
+   "port_regel": {
+    "art": "json",
+    "feld": ".bindPort",
+    "datei": "${selfname}_config.json",
+    "protokolle": [
+     "udp"
+    ]
+   }
+  },
+  {
    "schluessel": "assettocorsa",
    "name": "AssettoCorsa",
    "kurz": "Rennsimulation mit Fahrphysik",
@@ -704,6 +747,94 @@
    "kategorie": "shooter"
   },
   {
+   "schluessel": "bf1942",
+   "name": "Battlefield 1942",
+   "kurz": "Battlefield 1942 (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:bf1942",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [],
+   "volumes": [
+    "/srv/games/bf1942:/data"
+   ],
+   "env": {
+    "GAMESERVER": "bf1942server",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 0,
+   "spieler": 4,
+   "hinweis": "Battlefield 1942 in der LinuxGSM-Bauart. ACHTUNG: Dieses Spiel nennt seinen Port nirgends vorab - er steht erst in serversettings.con, die der Server beim ERSTEN Start schreibt. Bis dahin laeuft der Server, ist aber von aussen nicht erreichbar; der Einrichtungsschritt traegt den Port dann selbst nach und startet den Container neu. Speicher- und Plattenbedarf sind geschaetzt.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm",
+   "port_regel": {
+    "art": "keyvalue_pairs_space",
+    "feld": "game.serverPort",
+    "datei": "serversettings.con",
+    "protokolle": [
+     "udp",
+     "tcp"
+    ]
+   }
+  },
+  {
+   "schluessel": "bfv",
+   "name": "Battlefield: Vietnam",
+   "kurz": "Battlefield: Vietnam (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:bfv",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [],
+   "volumes": [
+    "/srv/games/bfv:/data"
+   ],
+   "env": {
+    "GAMESERVER": "bfvserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 0,
+   "spieler": 4,
+   "hinweis": "Battlefield: Vietnam in der LinuxGSM-Bauart. ACHTUNG: Dieses Spiel nennt seinen Port nirgends vorab - er steht erst in serversettings.con, die der Server beim ERSTEN Start schreibt. Bis dahin laeuft der Server, ist aber von aussen nicht erreichbar; der Einrichtungsschritt traegt den Port dann selbst nach und startet den Container neu. Speicher- und Plattenbedarf sind geschaetzt.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm",
+   "port_regel": {
+    "art": "keyvalue_pairs_space",
+    "feld": "game.serverPort",
+    "datei": "serversettings.con",
+    "protokolle": [
+     "udp",
+     "tcp"
+    ]
+   }
+  },
+  {
    "schluessel": "bmdm",
    "name": "Black Mesa: Deathmatch",
    "kurz": "Black Mesa: Deathmatch (LinuxGSM)",
@@ -741,6 +872,49 @@
    ],
    "bauart": "linuxgsm",
    "kategorie": "shooter"
+  },
+  {
+   "schluessel": "bo",
+   "name": "Ballistic Overkill",
+   "kurz": "Ballistic Overkill (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:bo",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [],
+   "volumes": [
+    "/srv/games/bo:/data"
+   ],
+   "env": {
+    "GAMESERVER": "boserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 0,
+   "spieler": 4,
+   "hinweis": "Ballistic Overkill in der LinuxGSM-Bauart. ACHTUNG: Dieses Spiel nennt seinen Port nirgends vorab - er steht erst in ${selfname}.txt, die der Server beim ERSTEN Start schreibt. Bis dahin laeuft der Server, ist aber von aussen nicht erreichbar; der Einrichtungsschritt traegt den Port dann selbst nach und startet den Container neu. Speicher- und Plattenbedarf sind geschaetzt.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm",
+   "port_regel": {
+    "art": "ini",
+    "feld": "ServerPort",
+    "datei": "${selfname}.txt",
+    "protokolle": [
+     "udp"
+    ]
+   }
   },
   {
    "schluessel": "bs",
@@ -2087,6 +2261,49 @@
    "kategorie": "shooter"
   },
   {
+   "schluessel": "etl",
+   "name": "ET: Legacy",
+   "kurz": "ET: Legacy (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:etl",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [],
+   "volumes": [
+    "/srv/games/etl:/data"
+   ],
+   "env": {
+    "GAMESERVER": "etlserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 0,
+   "spieler": 4,
+   "hinweis": "ET: Legacy in der LinuxGSM-Bauart. ACHTUNG: Dieses Spiel nennt seinen Port nirgends vorab - er steht erst in ${selfname}.cfg, die der Server beim ERSTEN Start schreibt. Bis dahin laeuft der Server, ist aber von aussen nicht erreichbar; der Einrichtungsschritt traegt den Port dann selbst nach und startet den Container neu. Speicher- und Plattenbedarf sind geschaetzt.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm",
+   "port_regel": {
+    "art": "quakec",
+    "feld": "net_port",
+    "datei": "${selfname}.cfg",
+    "protokolle": [
+     "udp"
+    ]
+   }
+  },
+  {
    "schluessel": "eurotrucksimulator2",
    "name": "EuroTruckSimulator2",
    "kurz": "Convoy-Modus: gemeinsam Fracht fahren",
@@ -2736,6 +2953,92 @@
    ],
    "bauart": "linuxgsm",
    "kategorie": "shooter"
+  },
+  {
+   "schluessel": "jc2",
+   "name": "Just Cause 2",
+   "kurz": "Just Cause 2 (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:jc2",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [],
+   "volumes": [
+    "/srv/games/jc2:/data"
+   ],
+   "env": {
+    "GAMESERVER": "jc2server",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 0,
+   "spieler": 4,
+   "hinweis": "Just Cause 2 in der LinuxGSM-Bauart. ACHTUNG: Dieses Spiel nennt seinen Port nirgends vorab - er steht erst in config.lua, die der Server beim ERSTEN Start schreibt. Bis dahin laeuft der Server, ist aber von aussen nicht erreichbar; der Einrichtungsschritt traegt den Port dann selbst nach und startet den Container neu. Speicher- und Plattenbedarf sind geschaetzt.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm",
+   "port_regel": {
+    "art": "lua",
+    "feld": "BindPort",
+    "datei": "config.lua",
+    "protokolle": [
+     "udp"
+    ]
+   }
+  },
+  {
+   "schluessel": "jc3",
+   "name": "Just Cause 3",
+   "kurz": "Just Cause 3 (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:jc3",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [],
+   "volumes": [
+    "/srv/games/jc3:/data"
+   ],
+   "env": {
+    "GAMESERVER": "jc3server",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 0,
+   "spieler": 4,
+   "hinweis": "Just Cause 3 in der LinuxGSM-Bauart. ACHTUNG: Dieses Spiel nennt seinen Port nirgends vorab - er steht erst in config.json, die der Server beim ERSTEN Start schreibt. Bis dahin laeuft der Server, ist aber von aussen nicht erreichbar; der Einrichtungsschritt traegt den Port dann selbst nach und startet den Container neu. Speicher- und Plattenbedarf sind geschaetzt.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm",
+   "port_regel": {
+    "art": "json",
+    "feld": ".port",
+    "datei": "config.json",
+    "protokolle": [
+     "udp"
+    ]
+   }
   },
   {
    "schluessel": "jk2",
@@ -3950,6 +4253,49 @@
    "kategorie": "shooter"
   },
   {
+   "schluessel": "onset",
+   "name": "Onset",
+   "kurz": "Onset (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:onset",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [],
+   "volumes": [
+    "/srv/games/onset:/data"
+   ],
+   "env": {
+    "GAMESERVER": "onsetserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 0,
+   "spieler": 4,
+   "hinweis": "Onset in der LinuxGSM-Bauart. ACHTUNG: Dieses Spiel nennt seinen Port nirgends vorab - er steht erst in server_config.json, die der Server beim ERSTEN Start schreibt. Bis dahin laeuft der Server, ist aber von aussen nicht erreichbar; der Einrichtungsschritt traegt den Port dann selbst nach und startet den Container neu. Speicher- und Plattenbedarf sind geschaetzt.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm",
+   "port_regel": {
+    "art": "json",
+    "feld": ".port",
+    "datei": "server_config.json",
+    "protokolle": [
+     "udp"
+    ]
+   }
+  },
+  {
    "schluessel": "openmwtes3mp",
    "name": "OpenMW TES3MP",
    "kurz": "Morrowind zu mehreren, offene Neuimplementierung",
@@ -4086,6 +4432,92 @@
    ],
    "bauart": "linuxgsm",
    "kategorie": "shooter"
+  },
+  {
+   "schluessel": "pc",
+   "name": "Project Cars",
+   "kurz": "Project Cars (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:pc",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [],
+   "volumes": [
+    "/srv/games/pc:/data"
+   ],
+   "env": {
+    "GAMESERVER": "pcserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 0,
+   "spieler": 4,
+   "hinweis": "Project Cars in der LinuxGSM-Bauart. ACHTUNG: Dieses Spiel nennt seinen Port nirgends vorab - er steht erst in ${selfname}.cfg, die der Server beim ERSTEN Start schreibt. Bis dahin laeuft der Server, ist aber von aussen nicht erreichbar; der Einrichtungsschritt traegt den Port dann selbst nach und startet den Container neu. Speicher- und Plattenbedarf sind geschaetzt.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm",
+   "port_regel": {
+    "art": "pc_config",
+    "feld": "hostPort",
+    "datei": "${selfname}.cfg",
+    "protokolle": [
+     "udp"
+    ]
+   }
+  },
+  {
+   "schluessel": "pc2",
+   "name": "Project Cars 2",
+   "kurz": "Project Cars 2 (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:pc2",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [],
+   "volumes": [
+    "/srv/games/pc2:/data"
+   ],
+   "env": {
+    "GAMESERVER": "pc2server",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 0,
+   "spieler": 4,
+   "hinweis": "Project Cars 2 in der LinuxGSM-Bauart. ACHTUNG: Dieses Spiel nennt seinen Port nirgends vorab - er steht erst in ${selfname}.cfg, die der Server beim ERSTEN Start schreibt. Bis dahin laeuft der Server, ist aber von aussen nicht erreichbar; der Einrichtungsschritt traegt den Port dann selbst nach und startet den Container neu. Speicher- und Plattenbedarf sind geschaetzt.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm",
+   "port_regel": {
+    "art": "pc_config",
+    "feld": "hostPort",
+    "datei": "${selfname}.cfg",
+    "protokolle": [
+     "udp"
+    ]
+   }
   },
   {
    "schluessel": "postscriptum",
@@ -4512,6 +4944,50 @@
    "kategorie": "arena"
   },
   {
+   "schluessel": "ro",
+   "name": "Red Orchestra: Ostfront 41-45",
+   "kurz": "Red Orchestra: Ostfront 41-45 (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:ro",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [],
+   "volumes": [
+    "/srv/games/ro:/data"
+   ],
+   "env": {
+    "GAMESERVER": "roserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 0,
+   "spieler": 4,
+   "hinweis": "Red Orchestra: Ostfront 41-45 in der LinuxGSM-Bauart. ACHTUNG: Dieses Spiel nennt seinen Port nirgends vorab - er steht erst in ${selfname}.ini, die der Server beim ERSTEN Start schreibt. Bis dahin laeuft der Server, ist aber von aussen nicht erreichbar; der Einrichtungsschritt traegt den Port dann selbst nach und startet den Container neu. Speicher- und Plattenbedarf sind geschaetzt.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm",
+   "port_regel": {
+    "art": "ini",
+    "feld": "Port",
+    "datei": "${selfname}.ini",
+    "protokolle": [
+     "udp",
+     "tcp"
+    ]
+   }
+  },
+  {
    "schluessel": "rtcw",
    "name": "Return to Castle Wolfenstein",
    "kurz": "Return to Castle Wolfenstein (LinuxGSM)",
@@ -4592,6 +5068,50 @@
    ],
    "bauart": "ich777",
    "kategorie": "survival"
+  },
+  {
+   "schluessel": "rw",
+   "name": "Rising World",
+   "kurz": "Rising World (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:rw",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [],
+   "volumes": [
+    "/srv/games/rw:/data"
+   ],
+   "env": {
+    "GAMESERVER": "rwserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 0,
+   "spieler": 4,
+   "hinweis": "Rising World in der LinuxGSM-Bauart. ACHTUNG: Dieses Spiel nennt seinen Port nirgends vorab - er steht erst in server.properties, die der Server beim ERSTEN Start schreibt. Bis dahin laeuft der Server, ist aber von aussen nicht erreichbar; der Einrichtungsschritt traegt den Port dann selbst nach und startet den Container neu. Speicher- und Plattenbedarf sind geschaetzt.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm",
+   "port_regel": {
+    "art": "keyvalue_pairs_equals",
+    "feld": "Server_Port",
+    "datei": "server.properties",
+    "protokolle": [
+     "udp",
+     "tcp"
+    ]
+   }
   },
   {
    "schluessel": "samp",
@@ -4828,6 +5348,50 @@
    "kategorie": "shooter"
   },
   {
+   "schluessel": "sol",
+   "name": "Soldat",
+   "kurz": "Soldat (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:sol",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [],
+   "volumes": [
+    "/srv/games/sol:/data"
+   ],
+   "env": {
+    "GAMESERVER": "solserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 0,
+   "spieler": 4,
+   "hinweis": "Soldat in der LinuxGSM-Bauart. ACHTUNG: Dieses Spiel nennt seinen Port nirgends vorab - er steht erst in soldat.ini, die der Server beim ERSTEN Start schreibt. Bis dahin laeuft der Server, ist aber von aussen nicht erreichbar; der Einrichtungsschritt traegt den Port dann selbst nach und startet den Container neu. Speicher- und Plattenbedarf sind geschaetzt.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm",
+   "port_regel": {
+    "art": "ini",
+    "feld": "Port",
+    "datei": "soldat.ini",
+    "protokolle": [
+     "udp",
+     "tcp"
+    ]
+   }
+  },
+  {
    "schluessel": "sonsoftheforest",
    "name": "SonsOfTheForest",
    "kurz": "Survival-Horror auf der Insel, Koop bis 8",
@@ -4985,6 +5549,49 @@
    ],
    "bauart": "linuxgsm",
    "kategorie": "shooter"
+  },
+  {
+   "schluessel": "st",
+   "name": "Stationeers",
+   "kurz": "Stationeers (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:st",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [],
+   "volumes": [
+    "/srv/games/st:/data"
+   ],
+   "env": {
+    "GAMESERVER": "stserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 0,
+   "spieler": 4,
+   "hinweis": "Stationeers in der LinuxGSM-Bauart. ACHTUNG: Dieses Spiel nennt seinen Port nirgends vorab - er steht erst in setting.xml, die der Server beim ERSTEN Start schreibt. Bis dahin laeuft der Server, ist aber von aussen nicht erreichbar; der Einrichtungsschritt traegt den Port dann selbst nach und startet den Container neu. Speicher- und Plattenbedarf sind geschaetzt.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm",
+   "port_regel": {
+    "art": "xml",
+    "feld": "/SettingData/GamePort",
+    "datei": "setting.xml",
+    "protokolle": [
+     "udp"
+    ]
+   }
   },
   {
    "schluessel": "starbound",
@@ -5763,6 +6370,49 @@
    "kategorie": "arena"
   },
   {
+   "schluessel": "ut2k4",
+   "name": "Unreal Tournament 2004",
+   "kurz": "Unreal Tournament 2004 (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:ut2k4",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [],
+   "volumes": [
+    "/srv/games/ut2k4:/data"
+   ],
+   "env": {
+    "GAMESERVER": "ut2k4server",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 0,
+   "spieler": 4,
+   "hinweis": "Unreal Tournament 2004 in der LinuxGSM-Bauart. ACHTUNG: Dieses Spiel nennt seinen Port nirgends vorab - er steht erst in ${selfname}.ini, die der Server beim ERSTEN Start schreibt. Bis dahin laeuft der Server, ist aber von aussen nicht erreichbar; der Einrichtungsschritt traegt den Port dann selbst nach und startet den Container neu. Speicher- und Plattenbedarf sind geschaetzt.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm",
+   "port_regel": {
+    "art": "ini",
+    "feld": "Port",
+    "datei": "${selfname}.ini",
+    "protokolle": [
+     "udp"
+    ]
+   }
+  },
+  {
    "schluessel": "ut3",
    "name": "Unreal Tournament 3",
    "kurz": "Unreal Tournament 3 (LinuxGSM)",
@@ -5801,6 +6451,49 @@
    ],
    "bauart": "linuxgsm",
    "kategorie": "arena"
+  },
+  {
+   "schluessel": "ut99",
+   "name": "Unreal Tournament 99",
+   "kurz": "Unreal Tournament 99 (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:ut99",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [],
+   "volumes": [
+    "/srv/games/ut99:/data"
+   ],
+   "env": {
+    "GAMESERVER": "ut99server",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 0,
+   "spieler": 4,
+   "hinweis": "Unreal Tournament 99 in der LinuxGSM-Bauart. ACHTUNG: Dieses Spiel nennt seinen Port nirgends vorab - er steht erst in ${selfname}.ini, die der Server beim ERSTEN Start schreibt. Bis dahin laeuft der Server, ist aber von aussen nicht erreichbar; der Einrichtungsschritt traegt den Port dann selbst nach und startet den Container neu. Speicher- und Plattenbedarf sind geschaetzt.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm",
+   "port_regel": {
+    "art": "ini",
+    "feld": "Port",
+    "datei": "${selfname}.ini",
+    "protokolle": [
+     "udp"
+    ]
+   }
   },
   {
    "schluessel": "valheim",
@@ -5955,6 +6648,49 @@
    ],
    "bauart": "linuxgsm",
    "kategorie": "shooter"
+  },
+  {
+   "schluessel": "wet",
+   "name": "Wolfenstein: Enemy Territory",
+   "kurz": "Wolfenstein: Enemy Territory (LinuxGSM)",
+   "appid": 0,
+   "image": "gameservermanagers/gameserver:wet",
+   "mem_gb": 2,
+   "platte_gb": 12,
+   "ports": [],
+   "volumes": [
+    "/srv/games/wet:/data"
+   ],
+   "env": {
+    "GAMESERVER": "wetserver",
+    "UID": "4711",
+    "GID": "4711",
+    "VALIDATE_ON_START": "false",
+    "UPDATE_CHECK": "0",
+    "TZ": "Europe/Berlin"
+   },
+   "passwort": {
+    "art": "datei",
+    "pfad": "",
+    "feld": ""
+   },
+   "adresse_port": 0,
+   "spieler": 4,
+   "hinweis": "Wolfenstein: Enemy Territory in der LinuxGSM-Bauart. ACHTUNG: Dieses Spiel nennt seinen Port nirgends vorab - er steht erst in ${selfname}.cfg, die der Server beim ERSTEN Start schreibt. Bis dahin laeuft der Server, ist aber von aussen nicht erreichbar; der Einrichtungsschritt traegt den Port dann selbst nach und startet den Container neu. Speicher- und Plattenbedarf sind geschaetzt.",
+   "ausschluss": [
+    "serverfiles/steamapps",
+    "log",
+    ".steam"
+   ],
+   "bauart": "linuxgsm",
+   "port_regel": {
+    "art": "quakec",
+    "feld": "net_port",
+    "datei": "${selfname}.cfg",
+    "protokolle": [
+     "udp"
+    ]
+   }
   },
   {
    "schluessel": "wf",

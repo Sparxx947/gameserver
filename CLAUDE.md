@@ -93,7 +93,7 @@ Zeit spart. Beispiel aus `install/lib.sh`:
 
 ## Die Grenzen, die nicht verhandelbar sind
 
-Diese vier Punkte tragen den ganzen Sicherheitsentwurf. Wer einen davon
+Diese fünf Punkte tragen den ganzen Sicherheitsentwurf. Wer einen davon
 aufweicht, macht aus einem abgesicherten System ein offenes. Begründung in
 `docs/07-sicherheitsentwurf.md`.
 
@@ -108,12 +108,20 @@ aufweicht, macht aus einem abgesicherten System ein offenes. Begründung in
    dort ein Volume `/:/host` eintragen kann, ist root.
 4. **Verwaltungsports binden auf `127.0.0.1`.** RCON, Webkonsolen, ServerQuery,
    Telnet, API — dreiteilige Portform im Katalog: `127.0.0.1:8080:8080/tcp`.
+5. **Ein Spielport wird erst veröffentlicht, wenn das Beitrittspasswort steht.**
+   Das Eintragen des Ports ist der Schritt, der den Server nach außen öffnet;
+   er gehört ans **Ende** der Einrichtung, nie an den Anfang. `port-ermitteln`
+   trägt deshalb nur ein, wenn `einrichtung_offen` nicht mehr gesetzt ist, und
+   einzeln aufgerufen übergibt es per `execv` an `spiel-einrichtung` — es soll
+   genau **einen** Weg geben, der Ports veröffentlicht. Wer einen zweiten baut,
+   baut die Lücke von E23 nach.
 
-> *Four non-negotiables carrying the whole security design: the panel never gets
+> *Five non-negotiables carrying the whole security design: the panel never gets
 > the Docker socket and nobody joins the `docker` group; `panel-aktion` validates
 > every parameter against an allow-list with no eval; only individual fields are
 > editable, never the compose file as a whole; management ports bind to
-> localhost.*
+> localhost; and a game port is published only once the join password is in
+> place — one code path, at the end of setup, never at the start.*
 
 ---
 
