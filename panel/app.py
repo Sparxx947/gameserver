@@ -206,6 +206,14 @@ KOPF = """<!doctype html><html lang=de><head><meta charset=utf-8>
 :root{color-scheme:dark;--bg:#14161a;--k:#1d2026;--r:#2b303a;--t:#e6e8ec;--d:#9aa1ad;--a:#5b9dd9;--g:#4caf7d;--x:#d9534f;--y:#d9a441}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--t);font:15px/1.5 system-ui,sans-serif}
 .w{max-width:1000px;margin:0 auto;padding:22px 16px}h1{font-size:20px;margin:0 0 16px}
+/* Der Katalog bekommt eine eigene, breitere Spalte. 1000px sind fuer Fliesstext
+   richtig und fuer 154 Kacheln viel zu wenig: auf einem breiten Bildschirm
+   standen drei Spalten neben zwei Dritteln leerem Grau. Die Kopfleiste bleibt
+   bei 1000px - sie soll nicht ueber den ganzen Schirm wandern.
+   *The catalogue gets its own wider column: 1000px is right for prose and far
+    too little for 154 tiles, which left three columns beside two thirds of empty
+    background. The header stays at 1000px.* */
+.w.breit{max-width:2400px}
 /* Kopfleiste: bleibt beim Scrollen oben, zeigt durch Hervorhebung, auf welcher
    Seite man ist. backdrop-filter faellt in aelteren Browsern still weg — die
    Leiste hat deshalb eine eigene Hintergrundfarbe und ist nicht darauf angewiesen. */
@@ -239,6 +247,14 @@ nav{display:flex;gap:4px;flex:1;min-width:0;overflow:auto}
 @media(max-width:640px){.marke span{display:none}.usr b{display:none}}
 .d{color:var(--d);font-size:13px;margin-bottom:20px}
 .g{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+/* Kompakte Kacheln fuer den Katalog: schmaler und mit flacherem Bild, damit auf
+   einen Bildschirm ein Vielfaches passt. 240px ist die Grenze, ab der ein
+   zweizeiliger Spielname noch lesbar bleibt. */
+.g.eng{grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
+.g.eng img,.g.eng .ph{height:88px}
+.g.eng .cb{padding:9px 11px;gap:5px}
+.g.eng .n{font-size:14px}
+.g.eng .z{font-size:12px;line-height:1.35}
 .c{background:var(--k);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
 .c img{width:100%;height:110px;object-fit:cover;display:block}
 .ph{width:100%;height:110px;background:linear-gradient(135deg,#232833,#2f3644);display:flex;align-items:center;justify-content:center;color:var(--d);font-size:26px;font-weight:700;letter-spacing:.08em}
@@ -669,7 +685,7 @@ def spiele(request: Request, meldung: str = "", q: str = "", kat: str = "", b: s
                            f'href="/spiele?q={quote(q)}&kat={quote(kat)}&b={quote(gr)}">{gr}</a>')
 
     if gezeigt:
-        inhalt = f'<div class=g>{"".join(karten)}</div>'
+        inhalt = f'<div class="g eng">{"".join(karten)}</div>'
     else:
         inhalt = ('<div class=m>Kein Treffer. '
                   + (f'Gesucht wurde nach <b>{esc(q)}</b>' if q else "")
@@ -677,7 +693,8 @@ def spiele(request: Request, meldung: str = "", q: str = "", kat: str = "", b: s
                   + (f' unter <b>{esc(b)}</b>' if b else "")
                   + '. <a class=b href=/spiele>alles zeigen</a></div>')
 
-    return HTMLResponse(KOPF + kopfleiste(s, "spiele") + RUMPF + hinweis
+    # Eigene, breitere Inhaltsspalte statt RUMPF: siehe .w.breit im Stylesheet.
+    return HTMLResponse(KOPF + kopfleiste(s, "spiele") + '<div class="w breit">' + hinweis
         + suchfeld
         + f'<div class=leiste>{kat_leiste}</div>'
         + f'<div class="leiste abc">{buchstaben}</div>'
