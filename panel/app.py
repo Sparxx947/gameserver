@@ -186,6 +186,112 @@ def ist_admin(s: dict | None) -> bool:
     return bool(s and s.get("rolle") == "admin")
 
 
+# Drei Rollen, mit einer klaren Trennlinie: "verwalten" darf alles rund um die
+# SPIELESERVER, "admin" zusaetzlich alles rund um die MASCHINE und die MENSCHEN
+# (Benutzerverwaltung, Webterminal, Neustart der Maschine, Protokoll).
+#
+# Vorher gab es dazwischen nichts: wer ein Spiel installieren koennen sollte,
+# musste Administrator werden - und bekam damit Benutzerverwaltung und Terminal
+# gleich mit.
+#
+# Wichtig: Diese Rolle lockert KEINE bestehende Pruefung. Sie entscheidet nur,
+# ob eine Route ueberhaupt betreten werden darf; was dann ausgefuehrt wird,
+# entscheidet weiterhin die Positivliste in panel-aktion.
+# *Three roles with a clear line: "verwalten" covers the game servers, "admin"
+#  additionally covers the machine and the people. This loosens no existing
+#  check - the role gates the route, the allow-list still gates the action.*
+ROLLEN = ("admin", "verwalten", "bedienen")
+
+
+def darf_verwalten(s: dict | None) -> bool:
+    """Spiele installieren, entfernen, konfigurieren, wiederherstellen."""
+    return bool(s and s.get("rolle") in ("admin", "verwalten"))
+
+
+# --- Protokoll: wer hat wann was getan ---------------------------------------
+#
+# Vorher liess sich das nur zufaellig aus dem Journal rekonstruieren, weil jede
+# Aktion ueber "sudo panel-aktion" laeuft. Diese Zeile nennt aber den
+# DIENSTNUTZER "panel", nie den angemeldeten Menschen, entsteht nur fuer den Weg
+# ueber die sudo-Bruecke und faellt mit der Journalrotation weg. Am 08.09. liess
+# sich damit gerade noch klaeren, ob ein Server durch einen Fehler verschwunden
+# war oder geloescht wurde - Glueck, keine Funktion.
+# *Previously reconstructible only by accident from the journal, which names the
+#  service account rather than the person, covers only the sudo path, and expires
+#  with rotation.*
+AUDITDATEI = Path("/opt/panel/daten/audit.jsonl")
+AUDIT_MAX = 4 * 1024 * 1024        # danach einmal rotieren, .1 bleibt liegen
+
+# Ein Protokoll, das heimlich nichts mehr schreibt, ist schlimmer als keins: seine
+# Leere liest sich als "es ist nichts passiert". Ein Schreibfehler wird deshalb
+# gemerkt und in der Oberflaeche angezeigt, statt still verschluckt zu werden.
+# *An audit log that quietly stops recording is worse than none, because its
+#  emptiness reads as "nothing happened".*
+AUDIT_FEHLER: str | None = None
+
+# Feldnamen, deren WERT nie ins Protokoll darf. Das Protokoll soll nachvollziehbar
+# machen, WAS geaendert wurde - nicht Passwoerter an einer zweiten Stelle sammeln.
+GEHEIM_MUSTER = re.compile(r"passwo?r|passwd|\bpsw\b|secret|token|api[_-]?key|rcon", re.I)
+
+
+def ohne_geheimnis(feld: str, wert: str) -> str:
+    """Wert fuers Protokoll: bei Passwortfeldern nur die Laenge, sonst gekuerzt."""
+    if GEHEIM_MUSTER.search(feld or ""):
+        return f"<{len(wert)} Zeichen, nicht protokolliert>"
+    w = (wert or "").strip().replace("\n", " ")
+    return w[:120] + ("…" if len(w) > 120 else "")
+
+
+def protokoll(s: dict | None, aktion: str, ziel: str = "",
+              ergebnis: str = "ok", **details) -> None:
+    global AUDIT_FEHLER
+    eintrag = {
+        "zeit": time.strftime("%Y-%m-%d %H:%M:%S%z"),
+        "nutzer": (s or {}).get("nutzer") or "—",
+        "rolle": (s or {}).get("rolle") or "—",
+        "aktion": aktion,
+        "ziel": ziel,
+        "ergebnis": ergebnis,
+    }
+    if details:
+        eintrag["details"] = details
+    try:
+        AUDITDATEI.parent.mkdir(parents=True, exist_ok=True)
+        if AUDITDATEI.exists() and AUDITDATEI.stat().st_size > AUDIT_MAX:
+            AUDITDATEI.replace(AUDITDATEI.with_name(AUDITDATEI.name + ".1"))
+        with AUDITDATEI.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(eintrag, ensure_ascii=False) + "\n")
+        AUDIT_FEHLER = None
+    except OSError as e:
+        AUDIT_FEHLER = f"{type(e).__name__}: {e}"
+
+
+def protokoll_lesen(grenze: int = 300) -> list:
+    """Die letzten Eintraege, neueste zuerst. Kaputte Zeilen werden als solche
+    gezeigt statt uebersprungen - eine stillschweigend verschluckte Zeile waere
+    genau die, die jemand loswerden wollte."""
+    zeilen = []
+    for p in (AUDITDATEI, AUDITDATEI.with_name(AUDITDATEI.name + ".1")):
+        try:
+            zeilen += p.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            pass
+        if len(zeilen) >= grenze:
+            break
+    aus = []
+    for z in reversed(zeilen[-grenze * 2:]):
+        if not z.strip():
+            continue
+        try:
+            aus.append(json.loads(z))
+        except ValueError:
+            aus.append({"zeit": "?", "nutzer": "?", "rolle": "?",
+                        "aktion": "UNLESBARE ZEILE", "ziel": z[:120], "ergebnis": "?"})
+        if len(aus) >= grenze:
+            break
+    return aus
+
+
 def pruefe(request: Request, csrf: str) -> dict | None:
     s = angemeldet(request)
     if not s or not hmac.compare_digest(csrf, s["csrf"]):
@@ -360,9 +466,16 @@ def kopfleiste(s: dict, hier: str = "") -> str:
     """Kopfleiste mit Navigation. "hier" markiert die aktuelle Seite — ohne diese
     Rueckmeldung weiss man auf Unterseiten nicht, wo man steht."""
     punkte = [("/", "Übersicht", "start")]
-    if ist_admin(s):
+    # Zwei Stufen: was die SPIELE betrifft, sieht auch "verwalten"; was die
+    # Maschine und die Benutzer betrifft, bleibt bei "admin". Die Navigation
+    # blendet nur aus — die Entscheidung sitzt in jeder Route selbst.
+    # *Two tiers; the navigation only hides, each route decides for itself.*
+    if darf_verwalten(s):
         punkte += [("/spiele", "Spiele", "spiele"),
-                   ("/passwoerter", "Zugangsdaten", "pw"), ("/nutzer", "Benutzer", "nutzer"),
+                   ("/passwoerter", "Zugangsdaten", "pw")]
+    if ist_admin(s):
+        punkte += [("/nutzer", "Benutzer", "nutzer"),
+                   ("/protokoll", "Protokoll", "prot"),
                    ("/terminal/", "Terminal", "term"), ("/neustart-fragen", "Neustart", "reboot")]
     nav = "".join(f'<a class="nv{" hier" if k == hier else ""}" href="{u}">{t}</a>'
                   for u, t, k in punkte)
@@ -425,7 +538,7 @@ def uebersicht(request: Request):
         pi = stackinfo(name)
         verweise = (f'<a class=b href="/archive/{name}">Sicherungen</a>'
                     if SICHERUNG_AN else "")
-        if ist_admin(s):
+        if darf_verwalten(s):
             verweise += f'<a class=b href="/konfig/{name}">Einstellungen</a>'
             # Die Zahl kommt aus konfigzahlen.json (von spiel-einrichtung alle
             # zwei Minuten gepflegt). Ein eigener Aufruf je Server waere hier zu
@@ -590,7 +703,7 @@ def spiele(request: Request, meldung: str = "", q: str = "", kat: str = "", b: s
     s = angemeldet(request)
     if not s:
         return RedirectResponse("/login", 303)
-    if not ist_admin(s):
+    if not darf_verwalten(s):
         return RedirectResponse("/", 303)
 
     rc, aus = aktion("status", timeout=60)
@@ -726,9 +839,11 @@ def spiele(request: Request, meldung: str = "", q: str = "", kat: str = "", b: s
 @app.post("/installieren")
 def installieren(request: Request, csrf: str = Form(""), schluessel: str = Form("")):
     s = pruefe(request, csrf)
-    if not s or not ist_admin(s):
+    if not s or not darf_verwalten(s):
         return RedirectResponse("/login", 303)
     rc, aus = aktion("installieren", schluessel, timeout=900)
+    protokoll(s, "Spiel installiert", schluessel,
+              "ok" if rc == 0 else "fehlgeschlagen", meldung=aus.strip()[:200])
     if rc != 0:
         return RedirectResponse(f"/spiele?meldung={quote(aus.strip()[:300])}", 303)
     t = aus.strip().split("\t")
@@ -741,7 +856,7 @@ def installieren(request: Request, csrf: str = Form(""), schluessel: str = Form(
 @app.get("/deinstallieren-fragen/{stack}", response_class=HTMLResponse)
 def deinstallieren_fragen(request: Request, stack: str):
     s = angemeldet(request)
-    if not s or not ist_admin(s):
+    if not s or not darf_verwalten(s):
         return RedirectResponse("/login", 303)
     p = stackinfo(stack)
     if not p:
@@ -768,9 +883,11 @@ Konfiguration, DNS-Name und die Zugangsdaten dieses Servers.<br><br>
 @app.post("/deinstallieren")
 def deinstallieren(request: Request, csrf: str = Form(""), stack: str = Form("")):
     s = pruefe(request, csrf)
-    if not s or not ist_admin(s):
+    if not s or not darf_verwalten(s):
         return RedirectResponse("/login", 303)
     rc, aus = aktion("deinstallieren", stack, timeout=1800)
+    protokoll(s, "Spiel entfernt", stack,
+              "ok" if rc == 0 else "fehlgeschlagen", meldung=aus.strip()[:200])
     return RedirectResponse(f"/spiele?meldung={quote(aus.strip()[:300])}", 303)
 
 
@@ -818,8 +935,18 @@ def login(request: Request, nutzer: str = Form(""), passwort: str = Form(""), co
         ok = pyotp.TOTP(n["totp"]).verify(code, valid_window=1)
     if not ok:
         fehlversuche.setdefault(ip, []).append(time.time())
+        # Auch der GESCHEITERTE Versuch gehoert ins Protokoll - nach einem
+        # Vorfall sucht man genau danach. Der Nutzername wird mitgeschrieben,
+        # das Passwort selbstverstaendlich nicht; ob es am Passwort oder am
+        # zweiten Faktor lag, bleibt bewusst offen, damit das Protokoll keine
+        # Auskunft daruber gibt, welche Haelfte schon stimmte.
+        # *Failed attempts belong in the log; which half was already correct
+        #  deliberately is not recorded.*
+        protokoll({"nutzer": nutzer or "—", "rolle": "—"},
+                  "Anmeldung fehlgeschlagen", "", "abgelehnt", ip=ip)
         return login_form(request, "Anmeldung fehlgeschlagen.")
     fehlversuche.pop(ip, None)
+    protokoll({"nutzer": nutzer, "rolle": n.get("rolle", "?")}, "Angemeldet", "", "ok", ip=ip)
     antwort = RedirectResponse("/", 303)
     antwort.set_cookie("sitzung", signierer.dumps({"nutzer": nutzer, "csrf": secrets.token_urlsafe(24)}),
                        httponly=True, secure=True, samesite="strict", max_age=SITZUNG_MAXALTER)
@@ -898,6 +1025,8 @@ def einrichten(request: Request, code: str = Form("")):
     fehlversuche.pop(ip, None)
     d["nutzer"][name]["totp_bestaetigt"] = True
     speichern(d)
+    protokoll({"nutzer": name, "rolle": d["nutzer"][name].get("rolle", "?")},
+              "Zweiten Faktor eingerichtet", "", "ok", ip=ip)
     a = RedirectResponse("/", 303)
     a.set_cookie("sitzung", signierer.dumps({"nutzer": name, "csrf": secrets.token_urlsafe(24)}),
                  httponly=True, secure=True, samesite="strict", max_age=SITZUNG_MAXALTER)
@@ -914,10 +1043,14 @@ def abmelden():
 
 @app.post("/aktion")
 def steuern(request: Request, csrf: str = Form(""), stack: str = Form(""), was: str = Form("")):
-    if not pruefe(request, csrf):
+    s = pruefe(request, csrf)
+    if not s:
         return RedirectResponse("/login", 303)
     if was in ("start", "stop", "restart"):
-        aktion(was, stack, timeout=180)
+        rc, aus = aktion(was, stack, timeout=180)
+        protokoll(s, {"start": "gestartet", "stop": "angehalten",
+                      "restart": "neu gestartet"}[was], stack,
+                  "ok" if rc == 0 else "fehlgeschlagen")
     return RedirectResponse("/", 303)
 
 
@@ -949,7 +1082,7 @@ def archive(request: Request, stack: str):
             continue
         name, zeit = z.split("\t", 1)
         knopf = (f'<a class=b href="/restore-fragen/{stack}/{name}">zurückspielen</a>'
-                 if ist_admin(s) else '<span class=z>nur Admin</span>')
+                 if darf_verwalten(s) else '<span class=z>nur Admin</span>')
         zeilen.append(f"<tr><td><code>{name}</code></td><td>{zeit}</td><td style=text-align:right>{knopf}</td></tr>")
     return HTMLResponse(KOPF + kopfleiste(s) + RUMPF + f"<h1>Sicherungen: {stack}</h1>"
         f"<div class=d><a class=b href=/>zurück zur Übersicht</a></div>"
@@ -962,7 +1095,7 @@ def restore_fragen(request: Request, stack: str, archiv: str):
     """Serverseitige Rueckfrage — ohne JavaScript, damit sie nicht an der
     Content-Security-Policy scheitert und dabei unbemerkt ausfaellt."""
     s = angemeldet(request)
-    if not ist_admin(s):
+    if not darf_verwalten(s):
         return RedirectResponse("/", 303)
     if not SICHERUNG_AN:
         return sicherung_aus_seite(s)
@@ -980,11 +1113,13 @@ nur, wenn er vorher lief.</div>
 @app.post("/restore", response_class=HTMLResponse)
 def restore(request: Request, csrf: str = Form(""), stack: str = Form(""), archiv: str = Form("")):
     s = pruefe(request, csrf)
-    if not ist_admin(s):
+    if not darf_verwalten(s):
         return RedirectResponse("/", 303)
     if not SICHERUNG_AN:
         return sicherung_aus_seite(s)
     rc, aus = aktion("restore", stack, archiv, timeout=1800)
+    protokoll(s, "Wiederherstellung", stack,
+              "ok" if rc == 0 else "fehlgeschlagen", archiv=archiv)
     return HTMLResponse(KOPF + kopfleiste(s) + RUMPF + f"<h1>{'Zurückgespielt' if rc == 0 else 'Fehlgeschlagen'}</h1>"
         f"<div class=d>{stack} &larr; <code>{archiv}</code></div>"
         f"<pre style=\"background:var(--k);padding:12px;border-radius:8px;white-space:pre-wrap\">{aus}</pre>"
@@ -994,7 +1129,7 @@ def restore(request: Request, csrf: str = Form(""), stack: str = Form(""), archi
 @app.get("/konfig/{stack}", response_class=HTMLResponse)
 def konfig(request: Request, stack: str, meldung: str = ""):
     s = angemeldet(request)
-    if not ist_admin(s):
+    if not darf_verwalten(s):
         return RedirectResponse("/", 303)
     zeilen = []
 
@@ -1062,7 +1197,7 @@ def konfig(request: Request, stack: str, meldung: str = ""):
 def konfig_setzen(request: Request, csrf: str = Form(""), stack: str = Form(""),
                   feld: str = Form(""), wert: str = Form("")):
     s = pruefe(request, csrf)
-    if not ist_admin(s):
+    if not darf_verwalten(s):
         return RedirectResponse("/", 303)
     # "env:NAME" geht an compose-feld (alle Umgebungsvariablen), alles andere
     # an den alten Weg (Palworlds eigene Datei, mem_limit). Der Wert geht ueber
@@ -1079,6 +1214,9 @@ def konfig_setzen(request: Request, csrf: str = Form(""), stack: str = Form(""),
             rc, aus = 1, "Zeitüberschreitung"
     else:
         rc, aus = aktion("konfig-setzen", stack, feld, wert, timeout=60)
+    protokoll(s, "Konfigurationsfeld gesetzt", stack,
+              "ok" if rc == 0 else "fehlgeschlagen",
+              feld=feld, wert=ohne_geheimnis(feld, wert))
     m = ("Gespeichert. Wirkt nach einem Neustart des Servers."
          if rc == 0 else f"Nicht gespeichert: {aus.strip()[:200]}")
     return RedirectResponse(f"/konfig/{stack}?meldung={quote(m)}", 303)
@@ -1212,7 +1350,7 @@ def konf_dateien(stack: str) -> list:
 @app.get("/dateien/{stack}", response_class=HTMLResponse)
 def dateien(request: Request, stack: str, meldung: str = ""):
     s = angemeldet(request)
-    if not ist_admin(s):
+    if not darf_verwalten(s):
         return RedirectResponse("/", 303)
     liste = konf_dateien(stack)
     if not liste:
@@ -1257,7 +1395,7 @@ def dateien(request: Request, stack: str, meldung: str = ""):
 @app.get("/datei/{stack}", response_class=HTMLResponse)
 def datei(request: Request, stack: str, p: str = "", modus: str = "formular", meldung: str = ""):
     s = angemeldet(request)
-    if not ist_admin(s):
+    if not darf_verwalten(s):
         return RedirectResponse("/", 303)
     rc, inhalt = aktion("konfig-datei-lesen", stack, p, timeout=60)
     if rc != 0:
@@ -1333,7 +1471,7 @@ def datei(request: Request, stack: str, p: str = "", modus: str = "formular", me
 async def datei_speichern(request: Request):
     formular = await request.form()
     s = pruefe(request, str(formular.get("csrf", "")))
-    if not ist_admin(s):
+    if not darf_verwalten(s):
         return RedirectResponse("/", 303)
     stack = str(formular.get("stack", ""))
     pfad = str(formular.get("pfad", ""))
@@ -1364,6 +1502,13 @@ async def datei_speichern(request: Request):
                 f"/datei/{stack}?p={quote(pfad)}&meldung={quote(f'Nicht gespeichert: {e}')}", 303)
 
     rc, aus = subprocess_schreiben(stack, pfad, neu)
+    # Der Dateiinhalt selbst gehoert nicht ins Protokoll: er enthaelt regelmaessig
+    # Beitrittspasswoerter, und das Protokoll soll nachvollziehbar machen, WER
+    # WAS angefasst hat - nicht Geheimnisse an einer zweiten Stelle sammeln.
+    # *The file content itself stays out: it routinely holds join passwords.*
+    protokoll(s, "Konfigurationsdatei geschrieben", stack,
+              "ok" if rc == 0 else "fehlgeschlagen",
+              datei=pfad, modus=modus, zeilen=neu.count("\n") + 1, zeichen=len(neu))
     ziel = f"/datei/{stack}?p={quote(pfad)}&modus={modus}"
     return RedirectResponse(f"{ziel}&meldung={quote(aus.strip()[:250])}", 303)
 
@@ -1406,6 +1551,8 @@ def neustart(request: Request, csrf: str = Form("")):
     if not ist_admin(s):
         return RedirectResponse("/", 303)
     rc, aus = aktion("neustart", timeout=120)
+    protokoll(s, "Maschine neu gestartet", "", "ok" if rc == 0 else "abgebrochen",
+              meldung=aus.strip()[:200])
     if rc != 0:
         return HTMLResponse(KOPF + kopfleiste(s) + RUMPF +
             f"<h1>Neustart abgebrochen</h1><div class=warn>{aus}</div><a class=b href=/>zurück</a>" + FUSS)
@@ -1429,7 +1576,7 @@ def auth_check(request: Request):
 @app.get("/passwoerter", response_class=HTMLResponse)
 def passwoerter(request: Request):
     s = angemeldet(request)
-    if not ist_admin(s):
+    if not darf_verwalten(s):
         return RedirectResponse("/", 303)
     rc, aus = aktion("passwoerter", timeout=60)
     auto = [f"<tr><td>{t[0]}</td><td>{t[1]}</td><td><code>{t[2]}</code></td></tr>"
@@ -1480,25 +1627,30 @@ Passwort später im Spiel geändert wird. Der Server bestätigt diese Werte nich
 def zugang_anlegen(request: Request, csrf: str = Form(""), server: str = Form(""),
                    feld: str = Form(""), wert: str = Form("")):
     s = pruefe(request, csrf)
-    if not ist_admin(s):
+    if not darf_verwalten(s):
         return RedirectResponse("/", 303)
     feld, wert, server = feld.strip(), wert.strip(), server.strip()
     if feld and wert and server and len(feld) <= 40 and len(wert) <= 120:
         eigene = eigene_laden()
         eigene.append({"server": server, "feld": feld, "wert": wert})
         eigene_speichern(eigene)
+        protokoll(s, "Zugangsdatum hinterlegt", server, feld=feld,
+                  wert=ohne_geheimnis(feld, wert))
     return RedirectResponse("/passwoerter", 303)
 
 
 @app.post("/zugang-loeschen")
 def zugang_loeschen(request: Request, csrf: str = Form(""), nr: str = Form("")):
     s = pruefe(request, csrf)
-    if not ist_admin(s):
+    if not darf_verwalten(s):
         return RedirectResponse("/", 303)
     eigene = eigene_laden()
     if nr.isdigit() and 0 <= int(nr) < len(eigene):
+        weg = eigene[int(nr)]
         del eigene[int(nr)]
         eigene_speichern(eigene)
+        protokoll(s, "Zugangsdatum geloescht", weg.get("server", "?"),
+                  feld=weg.get("feld", "?"))
     return RedirectResponse("/passwoerter", 303)
 
 
@@ -1538,11 +1690,69 @@ def nutzer_liste(request: Request, neu: str = ""):
 <label>Passwort</label><input type=text name=passwort style=max-width:220px>
 <label>Rolle</label><select name=rolle>
 <option value=bedienen>bedienen (starten/anhalten/neu starten)</option>
+<option value=verwalten>verwalten (dazu: Spiele installieren, entfernen, einstellen)</option>
 <option value=admin>admin (alles)</option></select>
 <div style=margin-top:14px><button class=p>anlegen</button></div></form>
-<div class=m>„bedienen“ darf Server starten, anhalten und neu starten{" sowie Sicherungen einsehen" if SICHERUNG_AN else ""}
+<div class=m><b>bedienen</b> darf Server starten, anhalten und neu starten{" sowie Sicherungen einsehen" if SICHERUNG_AN else ""}
  — aber keine Passwörter sehen,{" nichts zurückspielen," if SICHERUNG_AN else ""} keine Einstellungen ändern
-und keine Benutzer verwalten.</div>""" + FUSS)
+und keine Benutzer verwalten.<br>
+<b>verwalten</b> darf zusätzlich Spiele installieren und entfernen, ihre Einstellungen und
+Konfigurationsdateien ändern, Zugangsdaten sehen{" und Sicherungen zurückspielen" if SICHERUNG_AN else ""} —
+also alles rund um die <b>Spieleserver</b>. Nicht dabei: Benutzerverwaltung, Webterminal,
+Neustart der Maschine und das Protokoll.<br>
+<b>admin</b> darf alles, auch die Maschine und die Benutzer.</div>""" + FUSS)
+
+
+@app.get("/protokoll", response_class=HTMLResponse)
+def protokoll_seite(request: Request, n: int = 200):
+    """Wer hat wann was getan. Nur fuer Admins - das Protokoll nennt Benutzernamen
+    und gescheiterte Anmeldungen."""
+    s = angemeldet(request)
+    if not s or not ist_admin(s):
+        return RedirectResponse("/", 303)
+
+    eintraege = protokoll_lesen(max(20, min(n, 1000)))
+
+    # Ein Protokoll, das nichts mehr schreibt, sieht aus wie eines, in dem nichts
+    # passiert ist. Beide Faelle bekommen deshalb einen eigenen, deutlichen Text.
+    # *A log that cannot write looks exactly like a log where nothing happened.*
+    warnung = ""
+    if AUDIT_FEHLER:
+        warnung = (f'<div class=warn><b>Das Protokoll kann gerade nicht schreiben:</b> '
+                   f'{esc(AUDIT_FEHLER)}<br>Die Eintraege unten sind womöglich '
+                   f'unvollständig — Aktionen laufen weiter, werden aber nicht '
+                   f'aufgezeichnet.</div>')
+    elif not eintraege:
+        warnung = ('<div class=m>Noch keine Einträge. Das Protokoll beginnt mit '
+                   'dieser Fassung — ältere Änderungen stehen nicht darin.</div>')
+
+    zeilen = []
+    for e in eintraege:
+        d = e.get("details") or {}
+        klein = " · ".join(f"{esc(str(k))}: {esc(str(v))}" for k, v in d.items())
+        erg = e.get("ergebnis", "")
+        farbe = "var(--g)" if erg == "ok" else "var(--x)"
+        zeilen.append(
+            f'<tr><td style=white-space:nowrap>{esc(str(e.get("zeit", "?")))}</td>'
+            f'<td><b>{esc(str(e.get("nutzer", "?")))}</b>'
+            f'<span class=z> {esc(str(e.get("rolle", "")))}</span></td>'
+            f'<td>{esc(str(e.get("aktion", "?")))}</td>'
+            f'<td>{esc(str(e.get("ziel", "")))}</td>'
+            f'<td style="color:{farbe}">{esc(str(erg))}</td>'
+            f'<td class=z>{klein}</td></tr>')
+
+    return HTMLResponse(KOPF + kopfleiste(s, "prot") + '<div class="w breit">'
+        + '<h1>Protokoll</h1>'
+        + '<div class=z style=margin-bottom:10px>Wer hat wann was geändert. '
+          'Passwörter und Dateiinhalte stehen bewusst <b>nicht</b> darin — nur, '
+          'welches Feld angefasst wurde.</div>'
+        + warnung
+        + '<table><tr><th>Zeit</th><th>Wer</th><th>Was</th><th>Ziel</th>'
+          '<th>Ergebnis</th><th>Einzelheiten</th></tr>'
+        + "".join(zeilen) + '</table>'
+        + f'<div class=m>{len(eintraege)} Einträge angezeigt. '
+          f'<a class=b href="/protokoll?n=1000">mehr laden</a></div>'
+        + '</div>' + FUSS)
 
 
 @app.post("/nutzer-anlegen")
@@ -1554,7 +1764,7 @@ def nutzer_anlegen(request: Request, csrf: str = Form(""), name: str = Form(""),
     d = laden()
     name = name.strip()
     if (not name.isalnum() or len(name) > 20 or name in d["nutzer"]
-            or len(passwort) < 10 or rolle not in ("admin", "bedienen")):
+            or len(passwort) < 10 or rolle not in ROLLEN):
         return RedirectResponse("/nutzer", 303)
     # Das TOTP-Geheimnis wird erzeugt, aber NICHT angezeigt: der Benutzer
     # bekommt es bei seiner ersten Anmeldung selbst als QR-Code. So muss es
@@ -1562,6 +1772,7 @@ def nutzer_anlegen(request: Request, csrf: str = Form(""), name: str = Form(""),
     d["nutzer"][name] = {"passwort_hash": hasher.hash(passwort), "totp": pyotp.random_base32(),
                          "rolle": rolle, "totp_bestaetigt": False}
     speichern(d)
+    protokoll(s, "Benutzer angelegt", name, rolle=rolle)
     return RedirectResponse(f"/nutzer?neu={name}", 303)
 
 
@@ -1578,6 +1789,7 @@ def mfa_zuruecksetzen(request: Request, csrf: str = Form(""), name: str = Form("
         d["nutzer"][name]["totp"] = pyotp.random_base32()
         d["nutzer"][name]["totp_bestaetigt"] = False
         speichern(d)
+        protokoll(s, "Zweiter Faktor zurueckgesetzt", name)
     return RedirectResponse("/nutzer", 303)
 
 
@@ -1590,6 +1802,8 @@ def nutzer_loeschen(request: Request, csrf: str = Form(""), name: str = Form("")
     # Das eigene Konto bleibt tabu — sonst sperrt man sich mit einem Klick aus,
     # und ohne Admin kaeme niemand mehr an die Benutzerverwaltung.
     if name in d["nutzer"] and name != s["nutzer"]:
+        rolle_war = d["nutzer"][name].get("rolle", "?")
         del d["nutzer"][name]
         speichern(d)
+        protokoll(s, "Benutzer geloescht", name, rolle=rolle_war)
     return RedirectResponse("/nutzer", 303)

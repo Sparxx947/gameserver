@@ -53,25 +53,83 @@ bis zum Ablauf des Cookies — bis zu acht Stunden.
 
 ## Rollen
 
-| | `admin` | `bedienen` |
-|---|---|---|
-| Übersicht sehen | ja | ja |
-| Starten, Anhalten, Neustarten | ja | ja |
-| Spiele installieren/entfernen | ja | **nein** |
-| Zugangsdaten sehen | ja | **nein** |
-| Konfiguration ändern | ja | **nein** |
-| Wiederherstellen | ja | **nein** |
-| Benutzerverwaltung | ja | **nein** |
-| Webterminal | ja | **nein** |
-| Server neu starten | ja | **nein** |
+| | `admin` | `verwalten` | `bedienen` |
+|---|---|---|---|
+| Übersicht sehen | ja | ja | ja |
+| Starten, Anhalten, Neustarten | ja | ja | ja |
+| Spiele installieren/entfernen | ja | ja | **nein** |
+| Zugangsdaten sehen | ja | ja | **nein** |
+| Konfiguration ändern | ja | ja | **nein** |
+| Wiederherstellen | ja | ja | **nein** |
+| Benutzerverwaltung | ja | **nein** | **nein** |
+| Protokoll lesen | ja | **nein** | **nein** |
+| Webterminal | ja | **nein** | **nein** |
+| Maschine neu starten | ja | **nein** | **nein** |
 
-Die Navigation blendet für `bedienen` alles aus, was nicht erlaubt ist — die
-Prüfung sitzt aber in jeder Route, nicht in der Anzeige. Ein direkt aufgerufener
-Pfad landet auf der Übersicht, nicht auf der Seite.
+**Die Trennlinie liegt zwischen Spielen und Maschine.** `verwalten` darf alles,
+was die Spieleserver betrifft; `admin` zusätzlich alles, was die Maschine und
+die Menschen betrifft.
 
-> *Roles: `admin` may do everything, `bedienen` may only start, stop and restart.
-> The navigation hides what is not permitted, but the check lives in every route,
-> not in the rendering: a hand-typed path redirects to the overview.*
+Vorher gab es dazwischen nichts: Wer ein Spiel installieren können sollte,
+musste Administrator werden — und bekam Benutzerverwaltung, Webterminal und den
+Maschinenneustart gleich mit.
+
+**Die Rolle öffnet nur die Route, sie ersetzt keine Prüfung.** Was tatsächlich
+ausgeführt wird, entscheidet weiterhin die Positivliste in `panel-aktion`. Eine
+neue Rolle darf niemals durch Lockern einer bestehenden Prüfung entstehen —
+siehe die nicht verhandelbaren Grenzen in `CLAUDE.md`.
+
+Die Navigation blendet aus, was nicht erlaubt ist — die Prüfung sitzt aber in
+jeder Route, nicht in der Anzeige. Ein direkt aufgerufener Pfad landet auf der
+Übersicht. Eine unbekannte Rolle in `nutzer.json` bekommt **keine** Rechte
+(`ist_admin` und `darf_verwalten` sind beide falsch), nicht etwa die des
+niedrigsten Niveaus.
+
+> *Three roles, with the line drawn between games and machine: `verwalten`
+> covers everything about the game servers, `admin` additionally the machine and
+> the people. Previously nothing sat in between, so anyone who needed to install
+> a game had to become an administrator. The role only gates the route — the
+> allow-list in `panel-aktion` still gates the action, and a new role must never
+> be created by loosening an existing check. An unknown role gets no rights at
+> all rather than the lowest tier.*
+
+---
+
+## Protokoll `/protokoll`
+
+Wer hat wann was getan. Nur für `admin` — die Seite nennt Benutzernamen und
+gescheiterte Anmeldungen.
+
+Aufgezeichnet wird jede schreibende Aktion: installieren, entfernen, starten,
+anhalten, neu starten, Konfigurationsfelder und -dateien, Wiederherstellungen,
+Zugangsdaten, Benutzerverwaltung, Maschinenneustart — dazu Anmeldungen,
+**auch die gescheiterten**, denn nach einem Vorfall sucht man genau danach.
+
+**Was bewusst nicht darin steht:** Passwörter und Dateiinhalte. Bei einem Feld,
+dessen Name auf ein Geheimnis hindeutet, steht nur die Länge; bei einer
+geschriebenen Datei nur Name, Zeilen- und Zeichenzahl. Ein Protokoll soll
+nachvollziehbar machen, *wer was* angefasst hat, und nicht Geheimnisse an einer
+zweiten Stelle sammeln.
+
+Vorher ließ sich das nur zufällig aus `journalctl` rekonstruieren, weil jede
+Aktion über `sudo panel-aktion` läuft. Diese Zeile nennt aber den **Dienstnutzer**
+`panel`, nie den angemeldeten Menschen, entsteht nur für den Weg über die
+sudo-Brücke und fällt mit der Journalrotation weg.
+
+Die Datei liegt unter `/opt/panel/daten/audit.jsonl`, eine JSON-Zeile je
+Ereignis; ab 4 MB wird einmal nach `.jsonl.1` rotiert.
+
+**Ein Protokoll, das heimlich nichts mehr schreibt, ist schlimmer als keines** —
+seine Leere liest sich als „es ist nichts passiert". Ein Schreibfehler wird
+deshalb gemerkt und **auf der Seite angezeigt**, und eine unlesbare Zeile
+erscheint als solche, statt übersprungen zu werden.
+
+> *Who did what, when — admin only, since it names users and failed logins.
+> Every writing action is recorded, plus logins including failed ones. Passwords
+> and file contents deliberately stay out: a secret-looking field logs only its
+> length, a written file only its name and size. A log that quietly stops
+> writing is worse than none, so a write error is surfaced on the page, and an
+> unreadable line is shown as such rather than skipped.*
 
 ---
 
