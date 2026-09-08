@@ -61,6 +61,34 @@ python3 -c "import ast;ast.parse(open('panel/app.py').read())" 2>/dev/null \
 python3 -c "import json;json.load(open('etc/spiele-katalog.json'))" 2>/dev/null \
   || { echo "  UNGUELTIGES JSON: etc/spiele-katalog.json"; fehler=1; }
 
+# Geschweifte Klammern in f-Strings: {1,20} in einem HTML-Attribut ist fuer
+# Python ein AUSDRUCK und wird zum Tupel "(1, 20)". Die Syntaxpruefung laesst das
+# durch, weil "1,20" gueltiges Python ist - im ausgelieferten HTML stand dann
+# pattern="[A-Za-z0-9](1, 20)", und ein voellig korrekter Benutzername wurde vom
+# Browser abgewiesen (08.09., "ropax85"). Deshalb wird hier das ERGEBNIS geprueft,
+# nicht der Quelltext.
+# *Braces in f-strings: {1,20} in an HTML attribute is an expression to Python and
+#  renders as a tuple. The syntax check passes it, so the rendered output is what
+#  gets checked here.*
+echo "== Keine ausgewerteten Klammern im HTML? =="
+python3 - <<'PRUEF' || fehler=1
+import re, sys
+t = open("panel/app.py").read()
+schlecht = []
+for m in re.finditer(r'(?:pattern|minlength|maxlength|size)=("?)([^"\s>]*)\1', t):
+    if re.search(r'\(\s*\d+\s*,\s*\d+\s*\)', m.group(0)):
+        schlecht.append(m.group(0))
+# und der haeufigere Fall: einfache Klammern in einem HTML-Attribut eines f-Strings
+for m in re.finditer(r'pattern="[^"]*(?<!\{)\{[0-9]+,[0-9]*\}(?!\})[^"]*"', t):
+    zeile = t[:m.start()].count("\n") + 1
+    anfang = t.rfind('f"""', 0, m.start())
+    if anfang != -1 and t.rfind('"""', anfang + 4, m.start()) == -1:
+        schlecht.append(f"Zeile {zeile}: {m.group(0)} steht in einem f-String und muss {{{{...}}}} lauten")
+if schlecht:
+    print("  " + "\n  ".join(schlecht))
+    sys.exit(1)
+PRUEF
+
 # --- 3b. Jedes Werkzeug aus bin/ muss auch eingebaut werden -----------------
 # Warum es das gibt: bin/konfig-datei stand im Repositorium, wurde von
 # panel-aktion aufgerufen und von abgleich.sh verglichen — aber von KEINER
