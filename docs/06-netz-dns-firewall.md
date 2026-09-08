@@ -214,6 +214,97 @@ selbst anzulegen und der Token zu hinterlegen.
 > what is missing and never rewrites an existing record; `ziel-setzen` updates
 > and belongs to the unattended timer, which must not invent names.*
 
+### Einen weiteren Anbieter schreiben
+
+Umgesetzt sind `cloudflare` (im Betrieb) und `hetzner` (nach Dokumentation,
+gegen eine nachgebildete API geprüft, **noch nicht gegen eine echte Zone**).
+Beide sitzen in `bin/dns-pflegen`, und sie sind absichtlich gegensätzlich —
+Cloudflare mit vollständigen Namen und einem Proxy, Hetzner mit relativen Namen
+und ohne. Wer einen dritten schreibt, findet in einem der beiden schon den
+passenden Fall.
+
+**Ein Anbieter kann fünf Dinge und entscheidet nichts.** Ob ein Eintrag angelegt,
+geändert oder in Ruhe gelassen wird, steht einmal darüber und für alle — siehe
+[E24](10-entscheidungen.md). Wer das in der Klasse noch einmal entscheidet, baut
+die zweite Auslegung derselben Sicherheitsregel, und beide „funktionieren".
+
+#### 1. Die Klasse
+
+```python
+class MeinAnbieter(Anbieter):
+    name = "meinanbieter"        # so heißt er in ANBIETER= der Konfigdatei
+    kennt_proxy = False          # True nur, wenn es einen HTTP-Proxy davor gibt
+    API = "https://api.example.net/v1"
+
+    def zone_id(self)                 -> str
+    def saetze(self, zid, name=None)  -> list[satz]
+    def anlegen(self, zid, satz)
+    def aendern(self, zid, kennung, satz)
+    def loeschen(self, zid, kennung)
+```
+
+Ein `satz` ist **immer** dieselbe Form, in beide Richtungen:
+
+```python
+{"kennung": "abc123",              # was der Anbieter zum Ändern/Löschen braucht
+ "typ":     "A" | "CNAME",
+ "name":    "spiel.beispiel.de",   # VOLLSTÄNDIG, ohne Punkt am Ende
+ "wert":    "203.0.113.10",        # ohne Punkt am Ende
+ "ttl":     300,
+ "proxy":   False}
+```
+
+Alles, was die API anders macht, wird in der Klasse übersetzt — `_satz()` beim
+Lesen, `_nutzlast()` beim Schreiben. `Hetzner` zeigt beides.
+
+#### 2. Eintragen
+
+```python
+ANBIETER = {"cloudflare": Cloudflare, "hetzner": Hetzner, "meinanbieter": MeinAnbieter}
+```
+
+Mehr nicht. Kein Aufrufer ändert sich, keine Stufe, keine systemd-Einheit.
+
+#### 3. Worauf zu achten ist
+
+| Fallstrick | Was passiert, wenn man ihn übersieht |
+|---|---|
+| **Relative Namen** | Viele APIs führen `spiel` statt `spiel.zone.de`, den Zonenkopf als `@`. Nach außen müssen es volle Namen sein, sonst vergleichen die Regeln Äpfel mit Birnen. |
+| **Punkt am Ende** | `ziel.zone.de.` und `ziel.zone.de` sind für die Regeln zwei verschiedene Werte — der Abgleich schlägt dann bei jedem Lauf an, und `setzen` schreibt jedes Mal neu. |
+| **CNAME ohne Punkt** | Manche APIs hängen die Zone dann ein zweites Mal an: `ziel.zone.de.zone.de`. |
+| **Fehler als leere Liste** | Der schlimmste. Wer bei einem API-Fehler `[]` zurückgibt, sagt „gibt es nicht" — und `grundgeruest` legt daraufhin alles **noch einmal** an. Ein Fehler muss abbrechen. |
+| **Antwort, die kein JSON ist** | Ein Proxy davor schickt HTML, ein Fehlerleib zerfällt zu `null`. Dafür gibt es `lies_json()`; ohne sie steigt die Fehlerbehandlung selbst mit einem Traceback aus. |
+| **Blättern** | Eine Zone mit mehr Einträgen als einer Seite wird sonst still unvollständig gelesen — und „nicht gefunden" heißt hier „wird noch einmal angelegt". |
+| **`kennt_proxy`** | Bei `False` entfällt die Proxy-Prüfung; `pruefen` meldet dann „kennt keinen Proxy" und endet mit 0. |
+
+#### 4. Prüfen, bevor sich jemand darauf verlässt
+
+Gegen eine **echte** Zone, in dieser Reihenfolge:
+
+```bash
+dns-pflegen anbieter          # richtiger Anbieter, richtige Datei?
+dns-pflegen grundgeruest      # legt an, was fehlt
+dns-pflegen grundgeruest      # zweiter Lauf darf NICHTS ändern
+dns-pflegen setzen testspiel
+dns-pflegen setzen testspiel  # "steht bereits richtig"
+dns-pflegen liste
+dns-pflegen entfernen testspiel
+```
+
+Dazu zwei Fälle, die schiefgehen **müssen**: ein Eintrag, der woandershin zeigt,
+darf sich weder von `grundgeruest` überschreiben noch von `entfernen` löschen
+lassen. Und ein falsches Token muss eine Meldung ergeben, keine leere Liste.
+
+> *Writing another provider: a provider does five things and decides nothing —
+> whether a record is created, changed or left alone is written once, above, for
+> all of them (E24). Records travel in one normalised shape in both directions;
+> everything the API does differently is translated inside the class. The
+> pitfalls are relative names, trailing dots, errors passed off as empty lists,
+> non-JSON bodies and pagination. Verify against a real zone with the sequence
+> above, including the two cases that must fail.*
+
+---
+
 **Ein DNS-Name in `SERVER_IPV4` ergibt nichts** — auch kein DDNS-Name. Aus
 diesem Wert entsteht kein Eintrag; die Adresse trägt allein `DNS_ZIEL`. Bis
 dahin wurde ein Name dort klaglos angenommen und wirkte nirgends. Heute bricht

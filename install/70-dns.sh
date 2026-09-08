@@ -7,13 +7,8 @@
 #  IP address: on a move there is a single record to change.*
 . "$(dirname "$0")/lib.sh"
 
-KONF=/etc/dns-gameserver.conf
-KONF_ALT=/etc/cloudflare-gameserver.conf
-if [ -s "$KONF_ALT" ] && [ ! -s "$KONF" ]; then
-  # Aeltere Installation: die alte Datei bleibt gueltig, dns-pflegen liest sie.
-  # *Older install: the old file stays valid and dns-pflegen reads it.*
-  KONF="$KONF_ALT"
-fi
+KONF="$DNS_KONF"
+dns_konf_uebernehmen
 if [ ! -s "$KONF" ]; then
   cat <<TEXT
 

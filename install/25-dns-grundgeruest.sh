@@ -28,14 +28,16 @@
 #  than one that says so plainly.*
 . "$(dirname "$0")/lib.sh"
 
-KONF=/etc/dns-gameserver.conf
-# Der aeltere Ort. Wer schon eine Installation hat, soll von der Umbenennung
-# nichts merken - dns-pflegen liest beide.
-# *The older location: dns-pflegen reads both, so existing installs notice
-#  nothing.*
-KONF_ALT=/etc/cloudflare-gameserver.conf
+KONF="$DNS_KONF"
 
-if [ ! -s "$KONF" ] && [ ! -s "$KONF_ALT" ]; then
+# Aeltere Installationen tragen den Zugang noch unter dem alten Dateinamen.
+# ZUERST uebernehmen, dann pruefen: umgekehrt wuerde die Stufe sich auf einer
+# Maschine ueberspringen, die sehr wohl einen Token hat - nur eben den alten.
+# *Migrate first, check second: the other order would skip the stage on a
+#  machine that does have a token, just under the former name.*
+dns_konf_uebernehmen
+
+if [ ! -s "$KONF" ]; then
   warn "kein $KONF — das DNS bleibt Handarbeit."
   warn "Vor Stufe 40 muessen ${DNS_ZIEL} und ${PANEL_DOMAIN} oeffentlich auf"
   warn "diese Maschine zeigen, sonst bekommt das Panel kein Zertifikat."
@@ -47,7 +49,7 @@ if [ ! -s "$KONF" ] && [ ! -s "$KONF_ALT" ]; then
   exit 0
 fi
 
-for k in "$KONF" "$KONF_ALT"; do [ -s "$k" ] && chmod 600 "$k"; done
+chmod 600 "$KONF"
 
 # dns-pflegen wird sonst erst in Stufe 30 eingebaut, hier aber schon gebraucht.
 # einsetzen() ist idempotent und legt bei gleichem Inhalt keine zweite Kopie an —

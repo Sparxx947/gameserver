@@ -8,9 +8,17 @@
 # *Provider and token live in one file because they belong together: a token
 #  always has the shape exactly one provider understands.*
 
-# Moegliche Anbieter: cloudflare
+# Moegliche Anbieter: cloudflare, hetzner
+#
+# hetzner ist nach der Dokumentation geschrieben und gegen eine nachgebildete
+# API geprueft, aber noch nicht gegen eine echte Zone gelaufen. Vor dem ersten
+# ernsthaften Einsatz die Pruefliste in docs/06-netz-dns-firewall.md durchgehen.
+#
 # Fehlt die Zeile, ist es cloudflare - das war der einzige Anbieter, als es die
 # Angabe noch nicht gab.
+#
+# Einen weiteren Anbieter schreiben: docs/06-netz-dns-firewall.md,
+# Abschnitt "Einen weiteren Anbieter schreiben".
 ANBIETER=cloudflare
 
 # Berechtigung des Tokens im Cloudflare-Dashboard:

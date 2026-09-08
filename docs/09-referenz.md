@@ -128,9 +128,12 @@ dns-pflegen anbieter             zeigt den eingestellten Anbieter
 ```
 
 Der Anbieter steht in `/etc/dns-gameserver.conf` (`ANBIETER=`), die API-Kenntnis
-in genau einer Klasse. Umgesetzt ist **cloudflare**; ein weiterer Anbieter ist
-sechs Methoden und ein Eintrag in `ANBIETER` — die Regeln darüber, welcher
-Eintrag angelegt, geändert oder in Ruhe gelassen wird, stehen einmal für alle.
+in genau einer Klasse. Umgesetzt sind **cloudflare** und **hetzner** (letzterer noch nicht gegen eine
+echte Zone gelaufen); ein weiterer ist fünf Methoden und ein Eintrag in
+`ANBIETER` — die Regeln darüber, welcher Eintrag angelegt, geändert oder in Ruhe
+gelassen wird, stehen einmal für alle. Anleitung:
+[06-netz-dns-firewall.md](06-netz-dns-firewall.md), „Einen weiteren Anbieter
+schreiben".
 
 Fragt **nur die API**, nie die Namensauflösung — ein Wildcard in der Zone würde
 jede Existenzprüfung per `dig` wertlos machen. Löscht nur Einträge, die
