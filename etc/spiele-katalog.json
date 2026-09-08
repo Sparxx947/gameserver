@@ -3209,6 +3209,323 @@
    "kategorie": "survival"
   },
   {
+   "schluessel": "minecraftbedrock",
+   "name": "Minecraft (Bedrock)",
+   "kurz": "Fuer Konsole, Handy und die Windows-Fassung - nicht Java",
+   "appid": 0,
+   "image": "itzg/minecraft-bedrock-server:latest",
+   "mem_gb": 3,
+   "platte_gb": 4,
+   "ports": [
+    "19132:19132/udp"
+   ],
+   "volumes": [
+    "/srv/games/minecraftbedrock:/data"
+   ],
+   "env": {
+    "EULA": "TRUE",
+    "GAMEMODE": "survival",
+    "DIFFICULTY": "easy",
+    "SERVER_NAME": "@@WELT_NAME@@",
+    "UID": "4711",
+    "GID": "4711",
+    "TZ": "Europe/Berlin",
+    "ALLOW_CHEATS": "false",
+    "MAX_PLAYERS": "4",
+    "ONLINE_MODE": "true",
+    "ALLOW_LIST": "true"
+   },
+   "passwort": {
+    "art": "keins"
+   },
+   "adresse_port": 19132,
+   "spieler": 4,
+   "hinweis": "ACHTUNG: Die Installation setzt EULA=TRUE - das ist die Zustimmung zu Mojangs Nutzungsbedingungen. Bedrock ist NICHT mit der Java-Fassung kompatibel: wer Java spielt, kommt hier nicht rein und umgekehrt. Ein Beitrittspasswort gibt es nicht; stattdessen ist die Zulassungsliste an (allowlist.json).",
+   "ausschluss": [],
+   "bauart": "eigenes-image",
+   "kategorie": "survival"
+  },
+  {
+   "schluessel": "minecraftfabric",
+   "name": "Minecraft (Fabric)",
+   "kurz": "Mods ueber Fabric, leicht und schnell aktuell",
+   "appid": 0,
+   "image": "itzg/minecraft-server:latest",
+   "mem_gb": 5,
+   "platte_gb": 8,
+   "ports": [
+    "25567:25565/tcp"
+   ],
+   "volumes": [
+    "/srv/games/minecraftfabric:/data"
+   ],
+   "env": {
+    "EULA": "TRUE",
+    "TYPE": "FABRIC",
+    "MEMORY": "4G",
+    "UID": "4711",
+    "GID": "4711",
+    "TZ": "Europe/Berlin",
+    "MOTD": "@@WELT_NAME@@",
+    "ENABLE_WHITELIST": "true",
+    "ENFORCE_WHITELIST": "true"
+   },
+   "passwort": {
+    "art": "keins"
+   },
+   "adresse_port": 25567,
+   "spieler": 4,
+   "hinweis": "Mods ueber Fabric, leicht und schnell aktuell. ACHTUNG: Die Installation setzt EULA=TRUE - das ist die Zustimmung zu Mojangs Nutzungsbedingungen. Minecraft kennt kein Serverpasswort; stattdessen ist die Weissliste an: Mitspieler mit \"whitelist add <Name>\" freischalten. Mods und Plugins gehoeren in die Konfigdateien unter mods/ bzw. plugins/.",
+   "ausschluss": [
+    "libraries",
+    "versions",
+    "minecraft_server.*.jar",
+    "logs"
+   ],
+   "bauart": "eigenes-image",
+   "kategorie": "survival"
+  },
+  {
+   "schluessel": "minecraftforge",
+   "name": "Minecraft (Forge)",
+   "kurz": "Mods ueber Forge, Grundlage der meisten Modpacks",
+   "appid": 0,
+   "image": "itzg/minecraft-server:latest",
+   "mem_gb": 6,
+   "platte_gb": 10,
+   "ports": [
+    "25568:25565/tcp"
+   ],
+   "volumes": [
+    "/srv/games/minecraftforge:/data"
+   ],
+   "env": {
+    "EULA": "TRUE",
+    "TYPE": "FORGE",
+    "MEMORY": "5G",
+    "UID": "4711",
+    "GID": "4711",
+    "TZ": "Europe/Berlin",
+    "MOTD": "@@WELT_NAME@@",
+    "ENABLE_WHITELIST": "true",
+    "ENFORCE_WHITELIST": "true"
+   },
+   "passwort": {
+    "art": "keins"
+   },
+   "adresse_port": 25568,
+   "spieler": 4,
+   "hinweis": "Mods ueber Forge, Grundlage der meisten Modpacks. ACHTUNG: Die Installation setzt EULA=TRUE - das ist die Zustimmung zu Mojangs Nutzungsbedingungen. Minecraft kennt kein Serverpasswort; stattdessen ist die Weissliste an: Mitspieler mit \"whitelist add <Name>\" freischalten. Mods und Plugins gehoeren in die Konfigdateien unter mods/ bzw. plugins/.",
+   "ausschluss": [
+    "libraries",
+    "versions",
+    "minecraft_server.*.jar",
+    "logs"
+   ],
+   "bauart": "eigenes-image",
+   "kategorie": "survival"
+  },
+  {
+   "schluessel": "minecraftneoforge",
+   "name": "Minecraft (NeoForge)",
+   "kurz": "Forge-Nachfolger fuer neuere Fassungen",
+   "appid": 0,
+   "image": "itzg/minecraft-server:latest",
+   "mem_gb": 6,
+   "platte_gb": 10,
+   "ports": [
+    "25569:25565/tcp"
+   ],
+   "volumes": [
+    "/srv/games/minecraftneoforge:/data"
+   ],
+   "env": {
+    "EULA": "TRUE",
+    "TYPE": "NEOFORGE",
+    "MEMORY": "5G",
+    "UID": "4711",
+    "GID": "4711",
+    "TZ": "Europe/Berlin",
+    "MOTD": "@@WELT_NAME@@",
+    "ENABLE_WHITELIST": "true",
+    "ENFORCE_WHITELIST": "true"
+   },
+   "passwort": {
+    "art": "keins"
+   },
+   "adresse_port": 25569,
+   "spieler": 4,
+   "hinweis": "Forge-Nachfolger fuer neuere Fassungen. ACHTUNG: Die Installation setzt EULA=TRUE - das ist die Zustimmung zu Mojangs Nutzungsbedingungen. Minecraft kennt kein Serverpasswort; stattdessen ist die Weissliste an: Mitspieler mit \"whitelist add <Name>\" freischalten. Mods und Plugins gehoeren in die Konfigdateien unter mods/ bzw. plugins/.",
+   "ausschluss": [
+    "libraries",
+    "versions",
+    "minecraft_server.*.jar",
+    "logs"
+   ],
+   "bauart": "eigenes-image",
+   "kategorie": "survival"
+  },
+  {
+   "schluessel": "minecraftpaper",
+   "name": "Minecraft (Paper)",
+   "kurz": "Plugin-Server, deutlich schneller als Vanilla",
+   "appid": 0,
+   "image": "itzg/minecraft-server:latest",
+   "mem_gb": 4,
+   "platte_gb": 6,
+   "ports": [
+    "25566:25565/tcp"
+   ],
+   "volumes": [
+    "/srv/games/minecraftpaper:/data"
+   ],
+   "env": {
+    "EULA": "TRUE",
+    "TYPE": "PAPER",
+    "MEMORY": "3G",
+    "UID": "4711",
+    "GID": "4711",
+    "TZ": "Europe/Berlin",
+    "MOTD": "@@WELT_NAME@@",
+    "ENABLE_WHITELIST": "true",
+    "ENFORCE_WHITELIST": "true"
+   },
+   "passwort": {
+    "art": "keins"
+   },
+   "adresse_port": 25566,
+   "spieler": 4,
+   "hinweis": "Plugin-Server, deutlich schneller als Vanilla. ACHTUNG: Die Installation setzt EULA=TRUE - das ist die Zustimmung zu Mojangs Nutzungsbedingungen. Minecraft kennt kein Serverpasswort; stattdessen ist die Weissliste an: Mitspieler mit \"whitelist add <Name>\" freischalten. Mods und Plugins gehoeren in die Konfigdateien unter mods/ bzw. plugins/.",
+   "ausschluss": [
+    "libraries",
+    "versions",
+    "minecraft_server.*.jar",
+    "logs"
+   ],
+   "bauart": "eigenes-image",
+   "kategorie": "survival"
+  },
+  {
+   "schluessel": "minecraftpurpur",
+   "name": "Minecraft (Purpur)",
+   "kurz": "Paper-Ableger mit vielen zusaetzlichen Reglern",
+   "appid": 0,
+   "image": "itzg/minecraft-server:latest",
+   "mem_gb": 4,
+   "platte_gb": 6,
+   "ports": [
+    "25570:25565/tcp"
+   ],
+   "volumes": [
+    "/srv/games/minecraftpurpur:/data"
+   ],
+   "env": {
+    "EULA": "TRUE",
+    "TYPE": "PURPUR",
+    "MEMORY": "3G",
+    "UID": "4711",
+    "GID": "4711",
+    "TZ": "Europe/Berlin",
+    "MOTD": "@@WELT_NAME@@",
+    "ENABLE_WHITELIST": "true",
+    "ENFORCE_WHITELIST": "true"
+   },
+   "passwort": {
+    "art": "keins"
+   },
+   "adresse_port": 25570,
+   "spieler": 4,
+   "hinweis": "Paper-Ableger mit vielen zusaetzlichen Reglern. ACHTUNG: Die Installation setzt EULA=TRUE - das ist die Zustimmung zu Mojangs Nutzungsbedingungen. Minecraft kennt kein Serverpasswort; stattdessen ist die Weissliste an: Mitspieler mit \"whitelist add <Name>\" freischalten. Mods und Plugins gehoeren in die Konfigdateien unter mods/ bzw. plugins/.",
+   "ausschluss": [
+    "libraries",
+    "versions",
+    "minecraft_server.*.jar",
+    "logs"
+   ],
+   "bauart": "eigenes-image",
+   "kategorie": "survival"
+  },
+  {
+   "schluessel": "minecraftquilt",
+   "name": "Minecraft (Quilt)",
+   "kurz": "Fabric-Ableger mit eigenem Modloader",
+   "appid": 0,
+   "image": "itzg/minecraft-server:latest",
+   "mem_gb": 5,
+   "platte_gb": 8,
+   "ports": [
+    "25572:25565/tcp"
+   ],
+   "volumes": [
+    "/srv/games/minecraftquilt:/data"
+   ],
+   "env": {
+    "EULA": "TRUE",
+    "TYPE": "QUILT",
+    "MEMORY": "4G",
+    "UID": "4711",
+    "GID": "4711",
+    "TZ": "Europe/Berlin",
+    "MOTD": "@@WELT_NAME@@",
+    "ENABLE_WHITELIST": "true",
+    "ENFORCE_WHITELIST": "true"
+   },
+   "passwort": {
+    "art": "keins"
+   },
+   "adresse_port": 25572,
+   "spieler": 4,
+   "hinweis": "Fabric-Ableger mit eigenem Modloader. ACHTUNG: Die Installation setzt EULA=TRUE - das ist die Zustimmung zu Mojangs Nutzungsbedingungen. Minecraft kennt kein Serverpasswort; stattdessen ist die Weissliste an: Mitspieler mit \"whitelist add <Name>\" freischalten. Mods und Plugins gehoeren in die Konfigdateien unter mods/ bzw. plugins/.",
+   "ausschluss": [
+    "libraries",
+    "versions",
+    "minecraft_server.*.jar",
+    "logs"
+   ],
+   "bauart": "eigenes-image",
+   "kategorie": "survival"
+  },
+  {
+   "schluessel": "minecraftspigot",
+   "name": "Minecraft (Spigot)",
+   "kurz": "Plugin-Server, Vorlaeufer von Paper",
+   "appid": 0,
+   "image": "itzg/minecraft-server:latest",
+   "mem_gb": 4,
+   "platte_gb": 6,
+   "ports": [
+    "25571:25565/tcp"
+   ],
+   "volumes": [
+    "/srv/games/minecraftspigot:/data"
+   ],
+   "env": {
+    "EULA": "TRUE",
+    "TYPE": "SPIGOT",
+    "MEMORY": "3G",
+    "UID": "4711",
+    "GID": "4711",
+    "TZ": "Europe/Berlin",
+    "MOTD": "@@WELT_NAME@@",
+    "ENABLE_WHITELIST": "true",
+    "ENFORCE_WHITELIST": "true"
+   },
+   "passwort": {
+    "art": "keins"
+   },
+   "adresse_port": 25571,
+   "spieler": 4,
+   "hinweis": "Plugin-Server, Vorlaeufer von Paper. ACHTUNG: Die Installation setzt EULA=TRUE - das ist die Zustimmung zu Mojangs Nutzungsbedingungen. Minecraft kennt kein Serverpasswort; stattdessen ist die Weissliste an: Mitspieler mit \"whitelist add <Name>\" freischalten. Mods und Plugins gehoeren in die Konfigdateien unter mods/ bzw. plugins/.",
+   "ausschluss": [
+    "libraries",
+    "versions",
+    "minecraft_server.*.jar",
+    "logs"
+   ],
+   "bauart": "eigenes-image",
+   "kategorie": "survival"
+  },
+  {
    "schluessel": "mohaa",
    "name": "Medal of Honor: Allied Assault",
    "kurz": "Medal of Honor: Allied Assault (LinuxGSM)",
