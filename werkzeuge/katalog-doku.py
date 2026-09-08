@@ -86,7 +86,13 @@ def main() -> int:
     pruefen = "--pruefen" in sys.argv
     s = spiele()
     anzahl = len(s)
-    offen = []
+    # Zwei Listen, nicht eine: was dieses Werkzeug richten KANN, und was ein
+    # Mensch richten muss. Beides als "berichtigt" zu melden und mit 0 zu enden
+    # waere die stille Erfolgsmeldung, gegen die das Werkzeug gebaut ist - man
+    # laesst es laufen, liest "berichtigt", und die Zahl stimmt trotzdem nicht.
+    # *Two lists: what this tool can fix and what a person must. Reporting both
+    #  as "fixed" and exiting 0 would be the silent success this exists against.*
+    richtbar, offen = [], []
 
     # 1. Die Zahlen
     for datei, muster in STELLEN:
@@ -94,13 +100,15 @@ def main() -> int:
         text = p.read_text()
         treffer = list(re.finditer(muster, text))
         if len(treffer) != 1:
+            # Nicht automatisch zu richten: wo die Zahl jetzt steht, weiss nur
+            # der, der den Satz umformuliert hat.
             offen.append(f"{datei}: Muster passt {len(treffer)}x statt 1x — "
                          f"die Stelle hat sich verschoben: {muster}")
             continue
         m = treffer[0]
         if m.group("zahl") == str(anzahl):
             continue
-        offen.append(f"{datei}: {m.group('zahl')} statt {anzahl}")
+        richtbar.append(f"{datei}: {m.group('zahl')} statt {anzahl}")
         if not pruefen:
             a, e = m.span("zahl")
             p.write_text(text[:a] + str(anzahl) + text[e:])
@@ -110,23 +118,31 @@ def main() -> int:
     text = p.read_text()
     soll = liste_bauen(s)
     if ANFANG not in text or ENDE not in text:
+        # Auch das bleibt Handarbeit: die Marken irgendwohin zu setzen hiesse,
+        # ueber den Aufbau des Dokuments zu entscheiden.
         offen.append(f"{LISTE_DATEI}: die Marken {ANFANG} / {ENDE} fehlen")
     else:
         a = text.index(ANFANG)
         e = text.index(ENDE) + len(ENDE)
         if text[a:e] != soll:
-            offen.append(f"{LISTE_DATEI}: die Spieleliste ist nicht der Katalog")
+            richtbar.append(f"{LISTE_DATEI}: die Spieleliste ist nicht der Katalog")
             if not pruefen:
                 p.write_text(text[:a] + soll + text[e:])
 
-    if not offen:
+    if not richtbar and not offen:
         print(f"{anzahl} Spiele — Doku stimmt.")
         return 0
-    for z in offen:
+    for z in richtbar:
         print(("veraltet: " if pruefen else "berichtigt: ") + z)
-    if pruefen:
+    for z in offen:
+        print(("veraltet: " if pruefen else "NICHT ZU RICHTEN: ") + z)
+    # Der Hinweis nur dann, wenn er auch hilft. Eine verschobene Stelle richtet
+    # dieses Werkzeug nicht - dort waere er ein falsches Versprechen.
+    # *Only suggest the fix when it would work: a moved passage is not one.*
+    if pruefen and richtbar:
         print("mit: python3 werkzeuge/katalog-doku.py")
-    return 1 if pruefen else 0
+    # Der Schreibmodus endet nur mit 0, wenn nichts fuer Menschen offen blieb.
+    return 1 if (offen or (pruefen and richtbar)) else 0
 
 
 if __name__ == "__main__":
