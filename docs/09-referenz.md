@@ -158,6 +158,24 @@ Anfrage lief durch Tailscale.
 > An address from `100.64.0.0/10` is rejected — it means either carrier NAT (no
 > public IPv4 of one's own) or that the request went through Tailscale.*
 
+### `katalog-doku.py`
+
+```
+werkzeuge/katalog-doku.py             Zahlen und Spieleliste in der Doku schreiben
+werkzeuge/katalog-doku.py --pruefen   nur berichten (Exit 1 = veraltet)
+```
+
+Hält die Dokumentation am Katalog: die Gesamtzahl an vier ausdrücklich
+benannten Stellen und die erzeugte Spieleliste in
+[04-spielekatalog.md](04-spielekatalog.md). Wird von `vollstaendigkeit.sh`
+mitgeprüft.
+
+Geprüft werden **benannte Stellen**, keine Suche nach „Zahl vor dem Wort
+Spiele": in der Doku stehen mehrere Zahlen, die etwas anderes zählen (13 Spiele
+an der Sammel-ID 90, 17 Spiele ohne vorab bekannten Port). Jedes Muster muss
+**genau einmal** passen — kein Treffer heißt „die Stelle hat sich verschoben",
+nicht „in Ordnung".
+
 ### `katalog-vorpruefung`
 
 Ohne Parameter. Prüft alle Katalogeinträge **ohne Download**: Pflichtfelder,
@@ -551,7 +569,7 @@ schon einmal dazu geführt, dass Aufrufe still fehlschlugen.
 
 | Pfad | Rechte | Inhalt |
 |---|---|---|
-| `/etc/spiele-katalog.json` | `0644 root` | 41 installierbare Spiele |
+| `/etc/spiele-katalog.json` | `0644 root` | 179 installierbare Spiele |
 | `/etc/borg-ausschluss.txt` | `0644 root` | was nicht gesichert wird |
 | `/etc/caddy/Caddyfile` | `0644 root` | HTTPS, Vorschaltung, Kopfzeilen |
 | `/etc/fail2ban/jail.local` | `0644 root` | sshd-Jail, Ausnahmen |

@@ -1,7 +1,7 @@
 # gameserver
 
 Vollständiger Bausatz für einen selbst gehosteten **Spieleserver mit Weboberfläche**:
-Docker-Serverstacks, ein Panel mit Zwei-Faktor-Anmeldung, ein Katalog von 41
+Docker-Serverstacks, ein Panel mit Zwei-Faktor-Anmeldung, ein Katalog von 179
 installierbaren Spielen, Sicherung nach Borg mit Großvater-Vater-Sohn und
 automatisch gepflegte DNS-Namen bei Cloudflare.
 
@@ -12,7 +12,7 @@ standortbezogenen Angaben — Domains, Adressen, Netze, Passwörter — sind dur
 Datei.
 
 > *Complete kit for a self-hosted **game server with a web panel**: Docker
-> service stacks, a panel with two-factor login, a catalogue of 41 installable
+> service stacks, a panel with two-factor login, a catalogue of 179 installable
 > games, Borg backups on a grandfather-father-son rotation, and automatically
 > maintained Cloudflare DNS records. This repository documents the actual state
 > of a running machine and contains everything needed to rebuild it from a bare
