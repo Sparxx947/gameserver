@@ -116,6 +116,18 @@ while read -r p; do
     || { echo "  $p kommt vor, steht aber nicht in konfiguration.env.beispiel"; fehler=1; }
 done < <(grep -rhoE '@@[A-Z_]+@@' bin etc install panel stacks systemd 2>/dev/null | sort -u)
 
+# --- 6. Titelbild fuer jedes Spiel ohne Steam-Eintrag ------------------------
+# Die Bilder unter panel/bilder/eigene/ lagen frueher nur im Repositorium, weil
+# sie einmal von Hand erzeugt wurden. Kam ein Katalogspiel ohne Steam-Eintrag
+# dazu, fehlte sein Bild und niemand sah es - am 2026-09-08 waren es sechs.
+# *These images used to exist only because someone made them by hand once; a new
+#  catalogue game without a Steam entry silently had no artwork.*
+echo "== Titelbild fuer jedes Spiel ohne Steam-Eintrag? =="
+if ! python3 werkzeuge/eigene-bilder.py --pruefen 2>&1 | sed 's/^/  /'; then
+  echo "  mit: python3 werkzeuge/eigene-bilder.py"
+  fehler=1
+fi
+
 echo
 [ $fehler -eq 0 ] && echo "vollstaendig." || echo "UNVOLLSTAENDIG — siehe oben."
 exit $fehler

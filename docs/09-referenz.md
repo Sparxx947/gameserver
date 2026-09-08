@@ -265,6 +265,33 @@ Logo und keine Marke.
 > repository, while a self-made image may live here — deliberately carrying no
 > foreign logo or brand.*
 
+### `eigene-bilder.py` (in `werkzeuge/`)
+
+```
+werkzeuge/eigene-bilder.py [katalog.json] [--alle] [--pruefen]
+```
+
+Erzeugt über `titelbild.py` ein Bild für **jedes** Katalogspiel ohne
+Steam-Eintrag (`"appid": 0`). Ohne Schalter nur die fehlenden, `--alle` zeichnet
+auch vorhandene neu, `--pruefen` berichtet nur (Exit 1 = es fehlt etwas).
+
+Warum es das braucht: `titelbild.py` zeichnet ein Bild auf Zuruf. Die Dateien
+unter `panel/bilder/eigene/` lagen deshalb nur im Repositorium, weil sie einmal
+von Hand erzeugt wurden — dasselbe Muster wie bei den Steam-Bildern zuvor. Kam
+ein Spiel ohne Steam-Eintrag dazu, fehlte sein Bild, und nichts sagte es; am
+2026-09-08 waren es sechs. `vollstaendigkeit.sh` ruft deshalb `--pruefen`.
+
+Das Motiv wird aus dem Schlüssel abgeleitet, nicht zufällig gewählt: derselbe
+Katalog ergibt dieselben Bilder, zwei Läufe sind bytegleich. `hash()` wäre dafür
+falsch — der ist pro Prozess anders gesalzen.
+
+> *Draws artwork for every catalogue game without a Steam entry. Previously these
+> files existed only because somebody made them by hand once, so a new game
+> without a Steam entry silently had none — six of them on 2026-09-08. The motif
+> is derived from the key rather than chosen at random, so the same catalogue
+> yields byte-identical images; `hash()` would be wrong, being salted per
+> process.*
+
 ### `ttyd`
 
 Das Webterminal, Version 1.7.7 als Release-Binary. Nicht aus Debian: bookworm
