@@ -286,6 +286,17 @@ PY
         "$(python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('einrichtung_stand',''))" "$d")"
     done
     ;;
+  port-ermitteln)
+    # Portermittlung nach dem ersten Start. Die Pruefungen sitzen vollstaendig
+    # in port-ermitteln: Regel aus dem Katalog, Kollisionspruefung gegen die
+    # TATSAECHLICH belegten Ports und ein Vergleich der erzeugten Konfiguration
+    # vor und nach dem Eintragen - weicht mehr als der Portblock ab, wird
+    # zurueckgerollt.
+    # *All checks live in port-ermitteln, including a before/after comparison of
+    #  the rendered config: anything beyond the ports block is rolled back.*
+    s="${2:-}"; pruefe_stack "$s"
+    exec /usr/local/bin/port-ermitteln "$s"
+    ;;
   compose-lesen|compose-setzen)
     # Alle Umgebungsvariablen des Stacks. Die Absicherung sitzt vollstaendig in
     # compose-feld: Namensmuster, Sperrliste, keine Zeilenumbrueche im Wert und -

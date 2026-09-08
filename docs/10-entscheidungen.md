@@ -393,3 +393,55 @@ der schon einmal aus einem anderen Grund passiert ist (siehe `panel.service`,
 > and writes it on every install and uninstall, and its absence would abort an
 > uninstall mid-way, leaving remnants behind — exactly the abort that has already
 > happened once for a different reason.*
+
+---
+
+## E23 — Der Port kommt zuletzt, nicht zuerst
+
+17 Spiele nennen ihren Port erst in der Konfiguration, die ihr erster Start
+schreibt. Sie starten deshalb ohne veröffentlichten Port, und `port-ermitteln`
+trägt ihn nach. Die Frage war, wo dieser Schritt im Ablauf steht.
+
+**Naheliegend wäre der Port zuerst.** Ohne veröffentlichten Port ist der Server
+gar nicht erreichbar; ein Beitrittspasswort nützte dort niemandem. Genau so war
+es zuerst gebaut.
+
+**Dagegen spricht, was der Schritt tatsächlich tut:** Das Eintragen des Ports ist
+der Moment, in dem der Server nach außen offen ist. Steht er vor der
+Passwort-Einrichtung, liegt zwischen beiden ein Fenster, in dem der Server
+erreichbar ist und kein Passwort verlangt. Am 08.09. war das kein Gedankenspiel:
+ET: Legacy antwortete auf `45.82.122.120:27960` mit `g_needpass 0`, während die
+Einrichtung noch auf die Konfigurationsdatei wartete. Beide Schritte brauchen
+ohnehin dieselbe Datei — die Reihenfolge kostet also nichts.
+
+**Also drei Dinge, nicht eines:**
+
+1. **Reihenfolge umgedreht.** `spiel-einrichtung` setzt erst das Passwort, dann
+   den Port.
+2. **Ein Gate davor.** Der Port wird nur eingetragen, wenn `einrichtung_offen`
+   nicht mehr gesetzt ist — also entweder das Passwort steht oder die Suche
+   endgültig aufgegeben und laut gemeldet wurde. Das Gate hängt am **Ergebnis**,
+   nicht am Format: ein künftiges Konfigurationsformat, das niemand kennt, kann
+   nicht daran vorbei.
+3. **Nur ein Weg.** `port-ermitteln` einzeln aufgerufen — der Knopf im Panel tut
+   das — übergibt per `execv` an `spiel-einrichtung`, statt selbst zu handeln.
+   Zwei Wege, die Ports veröffentlichen, wären früher oder später zwei
+   verschiedene Reihenfolgen.
+
+Punkt 2 ist der eigentliche Schutz. Punkt 1 allein hätte den Fehler nur
+verschoben: als die Reihenfolge stimmte, fand die Einrichtung im id-Tech-Format
+trotzdem kein Passwortfeld, gab kein Passwort ein — und der Port wäre ohne das
+Gate wieder veröffentlicht worden.
+
+> *17 games only name their port in the config their first start writes, so the
+> port is filled in afterwards. Obvious: do that first, since without a published
+> port the server is unreachable and a password helps nobody. Against: publishing
+> the port is exactly what exposes the server, so doing it first opens a window in
+> which the server is reachable and asks for no password — measured on 08.09.,
+> ET: Legacy answered with `g_needpass 0` while setup was still waiting. Both
+> steps need the same file anyway, so the order costs nothing. Hence three things:
+> the order reversed; a gate that keys off the result (setup settled) rather than
+> the config format, so an unknown format cannot slip past; and a single code path,
+> with the standalone tool handing over via `execv` instead of acting itself. The
+> gate is the actual protection — reversing the order alone would only have moved
+> the bug, since setup still found no password field in the id-Tech format.*

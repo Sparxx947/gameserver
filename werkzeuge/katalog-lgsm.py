@@ -114,6 +114,35 @@ def eintrag(kuerzel: str, z: dict, cfg: str, belegt: set) -> dict | None:
     }
 
 
+# Spiele, deren Port NICHT in der LinuxGSM-Standardkonfiguration steht, sondern
+# erst in der spieleigenen Konfiguration nach dem ersten Start. Die Regel (Datei,
+# Format, Feldname) stammt aus lgsm/modules/info_game.sh - LinuxGSM sagt selbst,
+# wo es nachsieht. Damit ist der Wert genauso belegt wie bei jedem anderen
+# Eintrag; geraten wird nichts.
+# *Games whose port lives only in their own config, written at first start. The
+#  rules come from LinuxGSM's own info_game.sh - nothing is guessed.*
+PORT_NACH_START = {
+    "armar":  ("json", ".bindPort", "${selfname}_config.json", ["udp"]),
+    "bf1942": ("keyvalue_pairs_space", "game.serverPort", "serversettings.con", ["udp", "tcp"]),
+    "bfv":    ("keyvalue_pairs_space", "game.serverPort", "serversettings.con", ["udp", "tcp"]),
+    "bo":     ("ini", "ServerPort", "${selfname}.txt", ["udp"]),
+    "etl":    ("quakec", "net_port", "${selfname}.cfg", ["udp"]),
+    "jc2":    ("lua", "BindPort", "config.lua", ["udp"]),
+    "jc3":    ("json", ".port", "config.json", ["udp"]),
+    "mcb":    ("java_properties", "server-port", "server.properties", ["udp"]),
+    "onset":  ("json", ".port", "server_config.json", ["udp"]),
+    "pc":     ("pc_config", "hostPort", "${selfname}.cfg", ["udp"]),
+    "pc2":    ("pc_config", "hostPort", "${selfname}.cfg", ["udp"]),
+    "ro":     ("ini", "Port", "${selfname}.ini", ["udp", "tcp"]),
+    "rw":     ("keyvalue_pairs_equals", "Server_Port", "server.properties", ["udp", "tcp"]),
+    "sol":    ("ini", "Port", "soldat.ini", ["udp", "tcp"]),
+    "st":     ("xml", "/SettingData/GamePort", "setting.xml", ["udp"]),
+    "ut2k4":  ("ini", "Port", "${selfname}.ini", ["udp"]),
+    "ut99":   ("ini", "Port", "${selfname}.ini", ["udp"]),
+    "wet":    ("quakec", "net_port", "${selfname}.cfg", ["udp"]),
+}
+
+
 def main():
     if len(sys.argv) < 2:
         print("Aufruf: katalog-lgsm.py <katalog.json> [--schreiben]"); sys.exit(1)
@@ -174,6 +203,19 @@ def main():
             if treffer:
                 uebersprungen.append(f"{k} = {sorted(treffer)[0]}"); continue
         e = eintrag(k, z, cfgs.get(k, ""), belegt)
+        if not e and k in PORT_NACH_START:
+            art, feld, datei, protokolle = PORT_NACH_START[k]
+            e = eintrag(k, z, 'port="0"\n', belegt)   # Geruest ohne Ports
+            e["ports"] = []
+            e["adresse_port"] = 0
+            e["port_regel"] = {"art": art, "feld": feld, "datei": datei,
+                               "protokolle": protokolle}
+            e["hinweis"] = (f"{z['gamename']} in der LinuxGSM-Bauart. ACHTUNG: Dieses Spiel "
+                            f"nennt seinen Port nirgends vorab - er steht erst in "
+                            f"{datei}, die der Server beim ERSTEN Start schreibt. Bis dahin "
+                            f"laeuft der Server, ist aber von aussen nicht erreichbar; der "
+                            f"Einrichtungsschritt traegt den Port dann selbst nach und startet "
+                            f"den Container neu. Speicher- und Plattenbedarf sind geschaetzt.")
         if not e:
             uebersprungen.append(f"{k} (kein Port in der Vorlage)"); continue
         if e["schluessel"] in {g["schluessel"] for g in katalog["spiele"]}:

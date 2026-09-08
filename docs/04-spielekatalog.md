@@ -178,9 +178,9 @@ deshalb selbst an.
 
 ## Die Passwort-Einrichtung
 
-Die meisten Server (36 von 41) legen ihre Konfigurationsdatei **erst beim ersten
-Start** an, oft nach einem mehrere Minuten langen Download. Das Passwort lässt
-sich also nicht vorab setzen.
+Die meisten Server legen ihre Konfigurationsdatei **erst beim ersten Start** an,
+oft nach einem mehrere Minuten langen Download. Das Passwort lässt sich also
+nicht vorab setzen.
 
 Deshalb der Timer `spiel-einrichtung.timer`: alle zwei Minuten prüft er, ob eine
 Konfigurationsdatei aufgetaucht ist, und trägt Beitrittspasswort, Adminpasswort
@@ -208,7 +208,7 @@ unauffällig sein.
 > hours it gives up and says so visibly — a server without a password must not
 > be quiet about it.*
 
-**Vier Fallen, die das Ersetzen gekostet hat:**
+**Fünf Fallen, die das Ersetzen gekostet hat:**
 
 * `\s` in der Zeilenregel frisst den Zeilenumbruch. Bei leerem Wert wurde die
   Folgezeile als Wert verschluckt; das Passwort landete eine Zeile tiefer und
@@ -218,12 +218,65 @@ unauffällig sein.
 * Ohne `^(?!.*rcon)` überschrieb die Adminregel das RCON-Passwort.
 * Der Zeilenschwanz muss erhalten bleiben: Necesses `server.cfg` verlor die
   Kommas hinter `slots` und `password` und war damit ungültig.
+* Der **id-Tech-Stil** stellt ein `set` voran — `set g_password ""` statt
+  `g_password ""`. Die Regel verlangte, dass die Zeile ausschließlich aus
+  Schlüssel und Wert besteht, und ging deshalb an allen zehn Quake-, Wolfenstein-
+  und Jedi-Knight-Ablegern im Katalog vorbei: ET: Legacy lief im Test **ohne
+  Beitrittspasswort**, während sein Port schon veröffentlicht war. Das Präfix ist
+  jetzt optional und wird erhalten — ohne es liest das Spiel die Zeile nicht mehr.
 
-> *Four traps this cost: `\s` eats the newline (an empty value swallowed the next
+> *Five traps this cost: `\s` eats the newline (an empty value swallowed the next
 > line); XML appears both as attributes and as `<property name= value=>`; without
-> a negative look-ahead the admin rule overwrote the RCON password; and the line
+> a negative look-ahead the admin rule overwrote the RCON password; the line
 > tail — trailing comma or comment — must be preserved or the file becomes
-> invalid.*
+> invalid; and the id-Tech style prefixes `set`, which the rule rejected, leaving
+> all ten Quake/Wolfenstein/Jedi Knight entries without a join password.*
+
+---
+
+## Der Port nach dem ersten Start
+
+17 Spiele im Katalog nennen ihren Port **nicht** im Katalogeintrag, sondern erst
+in ihrer eigenen Konfiguration — derselben Datei, die der erste Start schreibt.
+Vorher ist er schlicht nicht bekannt. Sie starten deshalb **ohne
+veröffentlichten Port**, und `port-ermitteln` trägt ihn nach.
+
+Die Regel steht als `port_regel` im Katalogeintrag und stammt aus LinuxGSMs
+`lgsm/modules/info_game.sh` — sie ist abgeschrieben, nicht geraten:
+
+```json
+"port_regel": {"art": "quakec", "feld": "net_port",
+               "datei": "${selfname}.cfg", "protokolle": ["udp"]}
+```
+
+Neun Formate kommen vor: `json`, `xml`, `ini`, `java_properties`, `lua`,
+`pc_config`, `quakec` sowie `keyvalue_pairs_equals` und `_space`.
+
+**Nicht der Pfad entscheidet, welche Datei gilt, sondern der Inhalt.** LinuxGSM
+ersetzt `${selfname}` durch den Servernamen, den wir vorab nicht kennen; gesucht
+wird deshalb notfalls auf die Endung allein. Das trifft gleichnamige Dateien:
+ET: Legacy hat `etlserver.cfg` **zweimal** — als LinuxGSM-Einstellungen unter
+`config-lgsm/` (189 Byte, ohne `net_port`) und als echte Spielkonfiguration
+unter `serverfiles/etmain/` (7301 Byte, mit `net_port`). Es gewinnt die erste
+Datei, in der das Feld tatsächlich auf einem gültigen Port steht. Auskommentierte
+Vorgaben (`//set net_port "27960"`) zählen nicht.
+
+**Der Port kommt zuletzt** — siehe E23. Das Eintragen ist der Schritt, der den
+Server nach außen öffnet, und es geschieht erst, wenn die Einrichtung entschieden
+ist.
+
+Kollidiert der Port mit einem belegten, weicht der **Host**-Port auf 30500–30999
+aus; der Container-Port bleibt, denn den kennt nur das Spiel. Der eigene Stack
+zählt dabei nicht als belegt — sonst hielte ein zweiter Lauf seinen eigenen
+Eintrag für fremd.
+
+> *17 games name their port only in their own config — the file the first start
+> writes — so they start with no published port and `port-ermitteln` fills it in
+> afterwards. The rules are copied from LinuxGSM's `info_game.sh`, not guessed.
+> Content decides which file counts, not the path: ET: Legacy has two files named
+> `etlserver.cfg`, and the one that matters is whichever actually carries the
+> field. The port is written last, after setup has settled — that write is what
+> exposes the server.*
 
 ---
 

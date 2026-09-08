@@ -216,6 +216,39 @@ abgetippt, und manche Spiele filtern Sonderzeichen still weg.
 
 ---
 
+## Wann ein Server nach außen offen ist
+
+Ein Spielserver ist genau in dem Moment erreichbar, in dem sein Port in der
+`compose.yaml` steht und der Container damit läuft. Dieser Schritt — nicht die
+Installation, nicht der erste Start — ist die Grenze nach außen.
+
+Deshalb steht er am **Ende** der Einrichtung. 17 Katalogspiele nennen ihren Port
+erst in der Konfiguration, die ihr erster Start schreibt; `port-ermitteln` trägt
+ihn nach, aber nur, wenn `einrichtung_offen` nicht mehr gesetzt ist — also das
+Beitrittspasswort steht oder die Suche danach endgültig aufgegeben und laut
+gemeldet wurde.
+
+Das Gate hängt bewusst am **Ergebnis der Einrichtung**, nicht am
+Konfigurationsformat. Ein Format, das niemand kennt, führt dann zu einem Server
+ohne Port und mit sichtbarer Meldung — nicht zu einem offenen Server ohne
+Passwort. Am 08.09. war beides gleichzeitig zu sehen: ET: Legacy stand auf
+`27960/udp` offen im Netz, während die Einrichtung sein `set g_password ""`
+mangels Unterstützung für den id-Tech-Stil gar nicht gefunden hatte.
+
+Es gibt genau **einen** Weg, der einen Port veröffentlicht. `port-ermitteln`
+einzeln aufgerufen übergibt per `execv` an `spiel-einrichtung`, statt selbst zu
+handeln — sonst hätte der Knopf im Panel eine zweite Reihenfolge, und zwei
+Reihenfolgen werden früher oder später verschieden.
+
+> *A game server becomes reachable the moment its port lands in the compose file,
+> so that step sits at the very end of setup and only runs once setup has settled.
+> The gate keys off the setup result rather than the config format, so an unknown
+> format yields a server with no port and a visible warning instead of an open
+> server with no password. Exactly one code path publishes ports; the standalone
+> tool hands over via `execv`.*
+
+---
+
 ## Was dieser Aufbau **nicht** leistet
 
 Ehrlichkeitshalber:

@@ -207,15 +207,28 @@ def setze_cfg(text, muster, wert):
     Die Regel bleibt eng: die Zeile muss AUSSCHLIESSLICH aus Schluessel und Wert
     bestehen. Sonst zerlegt sie in einer Konfiguration mit Fliesstext die
     falschen Zeilen.
+    Ein zweites Mal zu eng war die Regel beim id-Tech-Stil, den Quake, Wolfenstein
+    und ET: Legacy benutzen - dort steht ein "set" davor:
+
+        set g_password ""
+        seta sv_hostname "LinuxGSM"
+
+    Ohne das optionale Praefix blieb ET: Legacy am 08.09. ohne Beitrittspasswort,
+    waehrend der Port schon veroeffentlicht war. Das Praefix wird erhalten, sonst
+    liest das Spiel die Zeile nicht mehr.
+    *Second time the rule was too narrow: the id-Tech style prefixes "set". ET:
+     Legacy stayed without a join password while its port was already published.*
     """
     treffer = []
     def ersetze(m):
-        if muster.search(m.group(1)):
-            treffer.append(m.group(1))
-            anf = '"' if m.group(2).startswith('"') else ''
-            return f'{m.group(1)} {anf}{wert}{anf}{m.group(3)}'
+        praefix, schluessel, altwert, semi = m.group(1), m.group(2), m.group(3), m.group(4)
+        if muster.search(schluessel):
+            treffer.append(schluessel)
+            anf = '"' if altwert.startswith('"') else ''
+            kopf = f"{praefix} {schluessel}" if praefix else schluessel
+            return f'{kopf} {anf}{wert}{anf}{semi}'
         return m.group(0)
-    neu = re.sub(r'^([A-Za-z_][A-Za-z0-9_]*)[ \t]+("[^"\r\n]*"|[^\s;]+)[ \t]*(;?)[ \t]*$',
+    neu = re.sub(r'^(?:(seta?)[ \t]+)?([A-Za-z_][A-Za-z0-9_]*)[ \t]+("[^"\r\n]*"|[^\s;]+)[ \t]*(;?)[ \t]*$',
                  ersetze, text, flags=re.M)
     return neu, treffer
 
@@ -351,6 +364,35 @@ def lauf(nur=None):
         else:
             p["einrichtung_stand"] = "wartet auf die Konfigurationsdatei des Servers"
         verz.write_text(json.dumps(p, indent=1) + "\n")
+
+        # Der Port ZULETZT - und nur, wenn die Einrichtung entschieden ist.
+        #
+        # Das Eintragen des Ports ist der Schritt, der den Server nach aussen
+        # oeffnet. Solange "einrichtung_offen" noch gesetzt ist, warten wir auf
+        # ein Passwortfeld - dann darf der Server nicht schon erreichbar sein.
+        # Am 08.09. war genau das der Fall: ET: Legacy stand auf 27960 offen im
+        # Netz, g_password war "", und der Einrichtungsschritt wartete noch.
+        # Dieses Gate haelt auch dann, wenn ein kuenftiges Konfigurationsformat
+        # unbekannt ist und deshalb kein Passwort gesetzt werden konnte - es
+        # haengt am Ergebnis, nicht am Format.
+        # *Publishing the port is what exposes the server, so it happens only once
+        #  setup has settled - either the password is in place, or we have given
+        #  up on finding a field and said so loudly. The gate keys off the result,
+        #  not the format, so an unknown config format cannot slip past it.*
+        if p.get("port_regel") and not p.get("einrichtung_offen", True):
+            r = subprocess.run(["/usr/local/bin/port-ermitteln", stack, "--aus-einrichtung"],
+                               capture_output=True, text=True, timeout=600)
+            p = json.loads(verz.read_text())   # port-ermitteln hat sie ggf. geaendert
+            if r.returncode == 0:
+                meldung(f"{stack}: {(r.stdout.strip().splitlines() or ['Port eingetragen'])[-1]}")
+            elif r.returncode == 2:
+                meldung(f"{stack}: Port noch nicht ermittelbar - {r.stdout.strip()[:120]}")
+            else:
+                meldung(f"{stack}: Portermittlung fehlgeschlagen - {r.stderr.strip()[:120]}")
+        elif p.get("port_regel"):
+            meldung(f"{stack}: Port bleibt unveroeffentlicht, solange kein "
+                    "Beitrittspasswort gesetzt ist")
+
         meldung(f"{stack}: {p['einrichtung_stand']}")
 
 

@@ -1,0 +1,308 @@
+#!/usr/bin/env python3
+"""port-ermitteln — liest den Spielport NACH dem ersten Start und traegt ihn ein.
+
+Warum es das gibt: 18 LinuxGSM-Spiele nennen ihren Port nirgends vorab. Weder
+die Vorlage noch das Image kennen ihn - er steht in der spieleigenen
+Konfiguration, die der Server beim ERSTEN Start schreibt. Ohne diesen Schritt
+liessen sie sich gar nicht in den Katalog aufnehmen, denn Ports zu raten
+verstoesst gegen dessen Regel, dass sie aus den Vorlagen stammen.
+
+*18 LinuxGSM games name their port nowhere in advance: neither the template nor
+ the image knows it, because it lives in the game's own config, written at first
+ start. Without this step they could not be catalogued at all - guessing ports
+ would violate the catalogue's own rule.*
+
+DIE REGELN STAMMEN VON LINUXGSM SELBST, nicht von mir: lgsm/modules/info_game.sh
+sagt je Spiel, in welcher Datei und unter welchem Feldnamen der Port steht. Diese
+Angabe wandert beim Erzeugen des Katalogeintrags in "port_regel" und wird hier
+angewandt. Damit ist der Wert genauso belegt wie bei allen anderen Eintraegen.
+
+*The rules come from LinuxGSM itself, not from me: info_game.sh states per game
+ which file and field carry the port.*
+
+  port-ermitteln <stack>            Port suchen, eintragen, Container neu starten
+  port-ermitteln <stack> --zeigen   nur suchen und melden
+"""
+import json, os, re, shutil, subprocess, sys, time
+from pathlib import Path
+
+STACKS = Path("/opt/stacks")
+BASEN = (Path("/srv/games"), Path("/srv/dienste"))
+# Ausserhalb dieses Bereichs wird nichts vergeben. 30500 aufwaerts ist frei:
+# der Katalog nutzt 30000-30399, LinuxGSM-Ersatzports 30300 aufwaerts.
+ERSATZ_VON, ERSATZ_BIS = 30500, 30999
+
+
+def fehler(t):
+    print(f"FEHLER: {t}", file=sys.stderr)
+    sys.exit(1)
+
+
+def lies_wert(text: str, art: str, feld: str) -> str | None:
+    """Einen Wert nach der LinuxGSM-Regel aus einer Konfigurationsdatei lesen.
+
+    Neun Formate kommen vor. Sie einzeln zu behandeln ist laenger als ein
+    Universalmuster, aber ein Universalmuster faende in "net_port" auch
+    "sv_maxclients 20" und traege eine Spielerzahl als Port ein - ein Fehler,
+    der erst auffiele, wenn niemand auf den Server kommt.
+    *Nine formats, handled individually: one universal pattern would also match
+     neighbouring keys and could enter a player count as a port - a mistake that
+     would surface only when nobody can join.*
+    """
+    if art == "json":
+        try:
+            d = json.loads(text)
+        except json.JSONDecodeError:
+            return None
+        for teil in feld.lstrip(".").split("."):
+            if not isinstance(d, dict) or teil not in d:
+                return None
+            d = d[teil]
+        return str(d)
+
+    if art == "xml":
+        # LinuxGSM gibt einen Pfad wie "/SettingData/GamePort" an. Gebraucht wird
+        # nur der letzte Teil - die Dateien sind flach.
+        tag = feld.rstrip("/").split("/")[-1]
+        m = (re.search(rf"<{re.escape(tag)}>([^<]*)</{re.escape(tag)}>", text)
+             or re.search(rf'{re.escape(tag)}\s*=\s*"([^"]*)"', text))
+        return m.group(1) if m else None
+
+    if art in ("ini", "java_properties", "keyvalue_pairs_equals", "lua", "pc_config"):
+        # Das Komma muss weg: in einer Lua-Tabelle steht "BindPort = 7777," und
+        # der Wert waere sonst "7777," - keine Zahl mehr. Der Eintrag scheiterte
+        # dann an der Ziffernpruefung statt am Komma, und die Meldung zeigte auf
+        # die falsche Stelle.
+        # *Lua entries end with a comma; without stripping it the value stops
+        #  being a number and the error points at the wrong thing.*
+        m = re.search(rf'^\s*{re.escape(feld)}\s*=\s*"?([^"\s;#]+)', text, re.M | re.I)
+        return m.group(1).rstrip(",;") if m else None
+
+    if art == "keyvalue_pairs_space":
+        m = re.search(rf'^\s*{re.escape(feld)}\s+"?([^"\s;#]+)', text, re.M | re.I)
+        return m.group(1).rstrip(",;") if m else None
+
+    if art == "quakec":
+        # set net_port "27960"  /  seta net_port 27960
+        m = re.search(rf'^\s*seta?\s+{re.escape(feld)}\s+"?([^"\s]+)', text, re.M | re.I)
+        return m.group(1) if m else None
+
+    return None
+
+
+def finde_wert(basis: Path, name: str, art: str, feld: str):
+    """Konfigurationsdatei finden UND den Wert lesen - beides zusammen, weil das
+    eine ohne das andere nicht entscheidbar ist.
+
+    LinuxGSM ersetzt "${selfname}" durch den Servernamen, den wir hier nicht
+    kennen; gesucht wird deshalb notfalls auf die Endung allein. Das trifft aber
+    mehrere Dateien, und zwar gleichnamige: ET: Legacy hat sein "etlserver.cfg"
+    zweimal - einmal als LinuxGSM-Einstellungen unter config-lgsm/ (189 Byte,
+    ohne net_port) und einmal als echte Spielkonfiguration unter
+    serverfiles/etmain/ (7301 Byte, mit net_port). Ueber den Pfad ist das nicht
+    sauber zu trennen, ueber den Inhalt schon: es gewinnt die erste Datei, in
+    der das gesuchte Feld auf einem gueltigen Port steht.
+
+    Auskommentierte Vorgaben ("//set net_port ...") zaehlen dabei nicht - darum
+    kuemmert sich lies_wert(), dessen Muster am Zeilenanfang nur Leerraum
+    zulaesst."""
+    muster = name.replace("${selfname}", "*").replace("$selfname", "*")
+    treffer = [p for p in basis.rglob(muster) if p.is_file() and not p.is_symlink()]
+    if not treffer and "*" in muster:
+        endung = muster.rsplit(".", 1)[-1] if "." in muster else ""
+        treffer = ([p for p in basis.rglob(f"*.{endung}")
+                    if p.is_file() and not p.is_symlink()] if endung else [])
+    # config-lgsm/ ist LinuxGSMs eigener Konfigbaum ("DO NOT EDIT, ANY CHANGES
+    # WILL BE OVERWRITTEN!") - nur als letzte Wahl. Sonst flach vor tief.
+    treffer.sort(key=lambda p: ("config-lgsm" in p.parts, len(p.parts), str(p)))
+
+    for p in treffer[:60]:
+        try:
+            wert = lies_wert(p.read_text(errors="replace"), art, feld)
+        except OSError:
+            continue
+        if wert and wert.isdigit() and 1 <= int(wert) <= 65535:
+            return p, wert
+    # Nichts gefunden: die aussichtsreichste Datei zurueckgeben, damit die
+    # Wartemeldung sagen kann, wo vergeblich gesucht wurde.
+    return (treffer[0] if treffer else None), None
+
+
+def belegte_ports(eigener: str | None = None) -> set:
+    """Welche (Port, Protokoll) sind vergeben.
+
+    Der eigene Stack zaehlt nicht mit: laeuft dieses Werkzeug ein zweites Mal,
+    wuerde es sonst seinen eigenen Eintrag fuer fremd halten und auf einen
+    Ersatzport ausweichen. Genau das ist am 08.09. im Test passiert - aus
+    27960 wurde 30500, weil der erste Lauf schon 27960 eingetragen hatte.
+    *The stack's own entry does not count as taken; otherwise a second run
+     mistakes its own port for someone else's and moves to a spare one.*
+    """
+    p = set()
+    for f in STACKS.glob("*/compose.yaml"):
+        if eigener and f.parent.name == eigener:
+            continue
+        for m in re.finditer(r'^\s*-\s*"(?:[\d.]+:)?(\d+):\d+(?:/(\w+))?"', f.read_text(), re.M):
+            p.add((int(m.group(1)), (m.group(2) or "tcp").lower()))
+    aus = subprocess.run(["ss", "-tulnH"], capture_output=True, text=True).stdout
+    for z in aus.splitlines():
+        t = z.split()
+        if len(t) >= 5:
+            m = re.search(r":(\d+)$", t[4])
+            if m:
+                p.add((int(m.group(1)), t[0].lower()))
+    return p
+
+
+def eintragen(stack: str, host: int, container: int, protokolle: list) -> None:
+    """Die Portzeilen in die compose.yaml aufnehmen - und danach pruefen, dass
+    sich NUR die Ports geaendert haben.
+
+    Dieselbe Absicherung wie in compose-feld: "docker compose config" vor und
+    nach dem Schreiben vergleichen. Weicht Image, Volume, user oder privileged
+    ab, wird zurueckgerollt. Die Pruefung sieht das Ergebnis an und haengt nicht
+    davon ab, dass das Einfuegen fehlerfrei war.
+    """
+    pfad = STACKS / stack / "compose.yaml"
+    vorher = geruest(pfad, ohne_ports=True)
+    if not vorher:
+        fehler("compose.yaml ist schon jetzt nicht auswertbar")
+
+    zeilen = pfad.read_text().splitlines(keepends=True)
+    # "ports:" suchen; fehlt der Block, kommt er vor "volumes:".
+    idx = einr = None
+    for i, z in enumerate(zeilen):
+        if re.match(r"^\s*ports:\s*$", z):
+            idx, einr = i, len(z) - len(z.lstrip())
+            break
+    neu = [f'{" " * ((einr or 4) + 2)}- "{host}:{container}/{p}"\n' for p in protokolle]
+    if idx is None:
+        for i, z in enumerate(zeilen):
+            if re.match(r"^\s*volumes:\s*$", z):
+                einr = len(z) - len(z.lstrip())
+                zeilen[i:i] = [f'{" " * einr}ports:\n'] + [
+                    f'{" " * (einr + 2)}- "{host}:{container}/{p}"\n' for p in protokolle]
+                break
+        else:
+            fehler("weder ports: noch volumes: gefunden - nichts geaendert")
+    else:
+        # Erst raeumen, dann eintragen: ein Eintrag, der schon auf denselben
+        # Container-Port zeigt, wird ersetzt statt verdoppelt. Ohne das entstand
+        # im Test ein Block mit "30500:27960/udp" UND "27960:27960/udp".
+        # *Clear first, then insert, so a repeated run replaces its own entry
+        #  instead of stacking a second one on top.*
+        ende = idx + 1
+        while ende < len(zeilen) and re.match(r'^\s*-\s*"', zeilen[ende]):
+            ende += 1
+        behalten = [z for z in zeilen[idx + 1:ende]
+                    if not re.match(rf'^\s*-\s*"(?:[\d.]+:)?\d+:{container}(?:/\w+)?"\s*$', z)]
+        zeilen[idx + 1:ende] = neu + behalten
+
+    sicherung = pfad.with_name(f"compose.yaml.vor-port-{time.strftime('%Y%m%d-%H%M%S')}")
+    shutil.copy2(pfad, sicherung)
+    pfad.write_text("".join(zeilen))
+    nachher = geruest(pfad, ohne_ports=True)
+    if not nachher or nachher != vorher:
+        shutil.copy2(sicherung, pfad)
+        fehler("die Aenderung haette mehr als die Ports beruehrt - zurueckgenommen")
+    print(f"ok\tPort {host} eingetragen\tSicherung: {sicherung.name}")
+
+
+def geruest(pfad: Path, ohne_ports: bool) -> str:
+    r = subprocess.run(["docker", "compose", "-f", str(pfad), "config", "--format", "json"],
+                       capture_output=True, text=True, timeout=60)
+    if r.returncode != 0:
+        return ""
+    try:
+        d = json.loads(r.stdout)
+    except json.JSONDecodeError:
+        return ""
+    kern = {}
+    for name, dienst in (d.get("services") or {}).items():
+        felder = ("volumes", "image", "user", "privileged", "cap_add", "devices",
+                  "network_mode", "security_opt")
+        kern[name] = {k: dienst.get(k) for k in felder}
+        if not ohne_ports:
+            kern[name]["ports"] = dienst.get("ports")
+    return json.dumps(kern, sort_keys=True)
+
+
+def main():
+    if len(sys.argv) < 2:
+        fehler("Aufruf: port-ermitteln <stack> [--zeigen]")
+    stack = sys.argv[1]
+    nur_zeigen = "--zeigen" in sys.argv
+    aus_einrichtung = "--aus-einrichtung" in sys.argv
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,30}", stack):
+        fehler("unzulaessiger Stackname")
+
+    marke = STACKS / stack / "panel.json"
+    if not marke.exists():
+        fehler("kein panel.json - nur ueber den Katalog installierte Server")
+    p = json.loads(marke.read_text())
+    regel = p.get("port_regel")
+    if not regel:
+        fehler("dieser Server braucht keine nachtraegliche Portermittlung")
+
+    # Es soll genau EINEN Weg geben, der einen Port veroeffentlicht.
+    #
+    # Das Eintragen des Ports oeffnet den Server nach aussen; das Beitrittspasswort
+    # setzt aber spiel-einrichtung. Wer dieses Werkzeug einzeln ausloest - der Knopf
+    # im Panel tut das -, wuerde die Reihenfolge umgehen und einen Server ohne
+    # Passwort erreichbar machen (am 08.09. bei ET: Legacy passiert). Statt das hier
+    # nachzubauen, uebergeben wir an spiel-einrichtung: die setzt erst das Passwort
+    # und ruft uns dann mit --aus-einrichtung zurueck. execv laesst keinen Rueckweg
+    # offen, an dem sich spaeter versehentlich ein zweiter Pfad bilden koennte.
+    # *One code path publishes ports, and only one. Called standalone (the panel
+    #  button), hand over to spiel-einrichtung, which sets the password first and
+    #  calls us back with --aus-einrichtung.*
+    if not aus_einrichtung and not nur_zeigen:
+        os.execv("/usr/local/bin/spiel-einrichtung",
+                 ["spiel-einrichtung", stack])
+
+    basis = next((b / stack for b in BASEN if (b / stack).is_dir()), None)
+    if not basis:
+        fehler("kein Datenverzeichnis")
+
+    datei, wert = finde_wert(basis, regel["datei"], regel["art"], regel["feld"])
+    if not datei:
+        print(f"warte\tKonfigurationsdatei {regel['datei']} gibt es noch nicht")
+        sys.exit(2)
+    if not wert:
+        print(f"warte\t{regel['feld']} steht noch in keiner Datei auf einem Port "
+              f"(zuletzt gesehen: {datei.name})")
+        sys.exit(2)
+
+    container = int(wert)
+    protokolle = regel.get("protokolle") or ["udp", "tcp"]
+    if nur_zeigen:
+        print(f"ok\t{datei.relative_to(basis)}\t{regel['feld']} = {container}")
+        return
+
+    # Kollision aufloesen: der Host-Port darf abweichen, der Container-Port nicht.
+    belegt = belegte_ports(stack)
+    host = container
+    while any((host, pr) in belegt for pr in protokolle):
+        host = max(ERSATZ_VON, host + 1)
+        if host > ERSATZ_BIS:
+            fehler("kein freier Ersatzport im Bereich "
+                   f"{ERSATZ_VON}-{ERSATZ_BIS}")
+    eintragen(stack, host, container, protokolle)
+
+    p["adresse_port"] = host
+    p["port_regel"] = None
+    p["port_ermittelt"] = {"container": container, "host": host,
+                           "quelle": str(datei.relative_to(basis)), "am": time.strftime("%Y-%m-%d %H:%M:%S")}
+    marke.write_text(json.dumps(p, indent=1, ensure_ascii=False) + "\n")
+    os.chmod(marke, 0o640)
+    shutil.chown(marke, "root", "panel")
+
+    # Erst mit dem Neustart wird der Port tatsaechlich veroeffentlicht.
+    subprocess.run(["docker", "compose", "up", "-d"], cwd=STACKS / stack,
+                   capture_output=True, timeout=300)
+    print(f"ok\t{stack} laeuft jetzt auf {host} (im Container {container})")
+
+
+
+if __name__ == "__main__":
+    main()
