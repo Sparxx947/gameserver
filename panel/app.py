@@ -82,6 +82,15 @@ def katalog() -> list[dict]:
         return []
 
 
+def kategorien_liste() -> dict:
+    """Schluessel -> Beschriftung, aus dem Katalog. Faellt der Eintrag aus, gibt
+    es eben keine Kategorieleiste - die Seite bleibt benutzbar."""
+    try:
+        return json.loads(KATALOG.read_text()).get("_kategorien", {})
+    except Exception:
+        return {}
+
+
 def stackinfo(name: str) -> dict:
     """Angaben zu einem ueber den Katalog installierten Server. Die von Hand
     gebauten Stacks haben keine panel.json - fuer sie greift ADRESSEN."""
@@ -210,6 +219,15 @@ nav{display:flex;gap:4px;flex:1;min-width:0;overflow:auto}
 .nv{padding:7px 12px;border-radius:7px;color:var(--d);text-decoration:none;font-size:14px;white-space:nowrap}
 .nv:hover{background:var(--k);color:var(--t)}
 .nv.hier{background:var(--k);color:var(--t);box-shadow:inset 0 -2px 0 var(--a)}
+/* Suchfeld und die beiden Filterleisten der Katalogseite. Bewusst ohne
+   JavaScript: die Seite laeuft unter default-src 'none'. */
+.suche{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 10px}
+.suche input[type=search]{flex:1;min-width:220px;padding:9px 12px;border-radius:8px;
+  border:1px solid var(--r);background:var(--k);color:var(--t);font-size:15px}
+.suche input[type=search]:focus{outline:2px solid var(--a);outline-offset:-1px}
+.leiste{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 10px}
+.leiste .nv{font-size:13px;padding:6px 10px}
+.leiste .nv .z{opacity:.65;margin-left:3px}
 .usr{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--d);flex:none}
 .usr b{color:var(--t)}
 .rolle{font-size:11px;background:var(--r);padding:2px 7px;border-radius:99px}
@@ -478,8 +496,49 @@ def katalogbild(request: Request, schluessel: str):
     return FileResponse(p) if p.is_file() else RedirectResponse("/spiele", 303)
 
 
+# ==========================================================================
+#  Katalogseite: suchen, filtern, sortieren
+# ==========================================================================
+# Alles ueber GET-Parameter und ein normales Formular - KEIN JavaScript. Die
+# Sicherheitsrichtlinie des Panels ist "default-src 'none'", ein Filter im
+# Browser waere schlicht tot. Serverseitig kostet das bei 154 Eintraegen nichts
+# messbares und funktioniert ausserdem mit der Zurueck-Taste, in einem
+# Lesezeichen und ohne JavaScript im Browser.
+# *Everything via GET parameters and a plain form - no JavaScript, because the
+#  panel runs under "default-src 'none'" where client-side filtering would simply
+#  be dead. Server-side costs nothing measurable at 154 entries and works with
+#  the back button and in a bookmark.*
+
+def katalog_filtern(spiele: list, q: str, kat: str, sortierung: str) -> list:
+    """Sucht, filtert und sortiert - in dieser Reihenfolge.
+
+    Gesucht wird in Name, Schluessel UND Kurzbeschreibung: wer "koop" eintippt,
+    meint eine Eigenschaft, keinen Titel. Gross- und Kleinschreibung spielt keine
+    Rolle, und mehrere Woerter muessen ALLE vorkommen (nicht irgendeines) - sonst
+    liefert "koop survival" mehr Treffer als "koop" allein, was niemand erwartet.
+    *Searches name, key and blurb: someone typing "koop" means a property, not a
+     title. Multiple words must all match - otherwise a longer query would return
+     more results than a shorter one, which nobody expects.*
+    """
+    raus = spiele
+    if kat:
+        raus = [g for g in raus if g.get("kategorie") == kat]
+    for wort in q.lower().split():
+        raus = [g for g in raus
+                if wort in g["name"].lower()
+                or wort in g["schluessel"].lower()
+                or wort in g.get("kurz", "").lower()]
+    if sortierung == "za":
+        raus = sorted(raus, key=lambda g: g["name"].lower(), reverse=True)
+    elif sortierung == "platte":
+        raus = sorted(raus, key=lambda g: (-g["platte_gb"], g["name"].lower()))
+    else:
+        raus = sorted(raus, key=lambda g: g["name"].lower())
+    return raus
+
+
 @app.get("/spiele", response_class=HTMLResponse)
-def spiele(request: Request, meldung: str = ""):
+def spiele(request: Request, meldung: str = "", q: str = "", kat: str = "", sort: str = "az"):
     s = angemeldet(request)
     if not s:
         return RedirectResponse("/login", 303)
@@ -495,8 +554,18 @@ def spiele(request: Request, meldung: str = ""):
             if len(t) >= 8:
                 frei_gb = (int(t[6]) - int(t[5])) // 1024
 
+    alle = katalog()
+    # Ein unbekannter Kategorieschluessel wuerde stumm alles wegfiltern. Lieber
+    # ignorieren als eine leere Seite ohne Erklaerung zeigen.
+    kategorien = kategorien_liste()
+    if kat and kat not in kategorien:
+        kat = ""
+    if sort not in ("az", "za", "platte"):
+        sort = "az"
+    gezeigt = katalog_filtern(alle, q, kat, sort)
+
     karten = []
-    for g in katalog():
+    for g in gezeigt:
         k = g["schluessel"]
         installiert = k in da
         bild = (f'<img src="/katalogbild/{k}" alt="">' if (KATALOGBILDER / f"{k}.jpg").is_file()
@@ -525,12 +594,64 @@ def spiele(request: Request, meldung: str = ""):
 <div class=akt>{knopf}</div></div></div>""")
 
     hinweis = f'<div class=m>{meldung}</div>' if meldung else ""
+
+    # --- Suchfeld, Kategorien, Sortierung ---------------------------------
+    # Die aktuelle Auswahl wandert als verstecktes Feld mit, damit eine Suche
+    # den Kategoriefilter nicht wegwirft und umgekehrt. Ohne das verliert man
+    # bei jedem Klick die halbe Auswahl und tippt sie neu.
+    # *The current selection travels along in hidden fields so a search does not
+    #  discard the category filter and vice versa.*
+    suchfeld = (f'<form method=get action=/spiele class=suche>'
+                f'<input type=hidden name=kat value="{esc(kat)}">'
+                f'<input type=hidden name=sort value="{esc(sort)}">'
+                f'<input type=search name=q value="{esc(q)}" placeholder="Name oder Stichwort…" '
+                f'autofocus>'
+                f'<button class=p>suchen</button>'
+                + (f'<a class=b href="/spiele?kat={esc(kat)}&sort={esc(sort)}">zurücksetzen</a>'
+                   if q else "")
+                + '</form>')
+
+    def verweis(neu_kat: str, beschriftung: str, anzahl: int) -> str:
+        aktiv = " hier" if neu_kat == kat else ""
+        return (f'<a class="nv{aktiv}" href="/spiele?q={quote(q)}&kat={quote(neu_kat)}'
+                f'&sort={esc(sort)}">{esc(beschriftung)} <span class=z>{anzahl}</span></a>')
+
+    # Die Zahl neben jeder Kategorie zaehlt MIT der Suche, aber ohne den
+    # Kategoriefilter: sie beantwortet "wie viele davon passen zu dem, was ich
+    # gerade suche". Eine Zahl, die den eigenen Filter mitzaehlt, waere in jeder
+    # Kategorie ausser der gewaehlten null.
+    # *Counts respect the search but not the category filter, answering "how many
+    #  of these match what I am looking for".*
+    kat_leiste = (verweis("", "alle", len(katalog_filtern(alle, q, "", sort)))
+                  + "".join(verweis(k, n, len(katalog_filtern(alle, q, k, sort)))
+                            for k, n in kategorien.items()
+                            if katalog_filtern(alle, "", k, sort)))
+
+    sort_leiste = "".join(
+        f'<a class="nv{" hier" if sort == s_ else ""}" '
+        f'href="/spiele?q={quote(q)}&kat={quote(kat)}&sort={s_}">{b}</a>'
+        for s_, b in (("az", "A → Z"), ("za", "Z → A"), ("platte", "größte zuerst")))
+
+    if gezeigt:
+        inhalt = f'<div class=g>{"".join(karten)}</div>'
+    else:
+        inhalt = ('<div class=m>Kein Treffer. '
+                  + (f'Gesucht wurde nach <b>{esc(q)}</b>' if q else "")
+                  + (f' in <b>{esc(kategorien.get(kat, kat))}</b>' if kat else "")
+                  + '. <a class=b href=/spiele>alles zeigen</a></div>')
+
     return HTMLResponse(KOPF + kopfleiste(s, "spiele") + RUMPF + hinweis
-        + f'<div class=m>{len(katalog())} Spiele im Katalog, {len(da)} Server angelegt. '
-          f'Frei auf der Platte: {frei_gb} GB. Die Installation legt Beitritts- und '
-          f'Adminpasswort an (unter „Zugangsdaten“ zu sehen) und begrenzt auf 4 Spieler. '
-          f'Der erste Start lädt das Spiel herunter — je nach Titel dauert das 5 bis 30 Minuten.</div>'
-        + f'<div class=g>{"".join(karten)}</div>' + FUSS)
+        + suchfeld
+        + f'<div class=leiste>{kat_leiste}</div>'
+        + f'<div class=leiste>{sort_leiste}</div>'
+        + f'<div class=m><b>{len(gezeigt)}</b> von {len(alle)} Spielen'
+          + (f' — gesucht nach „{esc(q)}“' if q else "")
+          + (f' in {esc(kategorien.get(kat, ""))}' if kat else "")
+          + f'. {len(da)} Server angelegt, {frei_gb} GB frei. '
+          f'Die Installation legt Beitritts- und Adminpasswort an (unter '
+          f'„Zugangsdaten“ zu sehen) und begrenzt auf 4 Spieler. Der erste Start '
+          f'lädt das Spiel herunter — je nach Titel 5 bis 30 Minuten.</div>'
+        + inhalt + FUSS)
 
 
 @app.post("/installieren")
