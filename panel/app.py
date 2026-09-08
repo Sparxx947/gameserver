@@ -1692,7 +1692,7 @@ def nutzer_liste(request: Request, neu: str = "", fehler: str = ""):
         f"""<h1 style=margin-top:28px;font-size:16px>Neuen Benutzer anlegen</h1>
 <form method=post action=/nutzer-anlegen>
 <input type=hidden name=csrf value="{s['csrf']}">
-<label>Name</label><input type=text name=name style=max-width:220px required pattern="[A-Za-z0-9]{1,20}" title="nur Buchstaben und Ziffern, höchstens 20 Zeichen">
+<label>Name</label><input type=text name=name style=max-width:220px required pattern="[A-Za-z0-9]{{1,20}}" title="nur Buchstaben und Ziffern, höchstens 20 Zeichen">
 <div class=z style=margin-top:-6px>nur Buchstaben und Ziffern, höchstens 20 Zeichen</div>
 <label>Passwort</label><input type=text name=passwort style=max-width:220px required minlength=10>
 <div class=z style=margin-top:-6px>mindestens 10 Zeichen</div>
