@@ -52,6 +52,8 @@ Datei.
 git clone <dieses-repo> gameserver && cd gameserver
 cp konfiguration.env.beispiel konfiguration.env
 $EDITOR konfiguration.env            # Domains, Adressen, Netze eintragen
+sudo sh -c "printf 'ANBIETER=cloudflare\nTOKEN=%s\n' '<tok>' > /etc/dns-gameserver.conf"
+sudo chmod 600 /etc/dns-gameserver.conf          # optional, aber dann macht 25 das DNS
 sudo install/einrichten.sh           # Stufen 10–50
 sudo install/60-spiele.sh teamspeak enshrouded palworld
 sudo install/70-dns.sh               # optional, braucht ein Cloudflare-Token

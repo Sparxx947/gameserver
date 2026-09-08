@@ -1,0 +1,609 @@
+#!/usr/bin/env python3
+"""dns-pflegen — legt die DNS-Namen der Spielserver beim DNS-Anbieter an und
+entfernt sie wieder.
+
+Jedes Spiel bekommt <name>.@@DNS_ZONE@@ als CNAME auf @@DNS_ZIEL@@ (der einzige
+Eintrag, der die oeffentliche IPv4 traegt). So haengt nur EIN Eintrag an der
+Adresse - zieht der Server um, ist genau einer zu aendern.
+
+Warum das Werkzeug nicht mehr cf-dns heisst: Es sprach ausschliesslich mit
+Cloudflare, und der Name sagte das auch. Sobald ein zweiter Anbieter dazukommt,
+waere er eine Luege - und zwar eine, die man erst bemerkt, wenn man einem
+Werkzeug namens "cf-dns" nicht zutraut, dass es Hetzner pflegt. Der Anbieter
+steht jetzt neben dem Token in der Konfigurationsdatei, weil beide zusammen
+gehoeren: ein Token hat immer die Form, die genau ein Anbieter versteht.
+
+*Why this is no longer called cf-dns: it spoke to Cloudflare only, and the name
+ said so. With a second provider that name becomes a lie - the kind one notices
+ only when nobody believes a tool called "cf-dns" maintains Hetzner. The
+ provider now sits next to the token, because the two belong together: a token
+ always has the shape that exactly one provider understands.*
+
+Drei Dinge, die hier leicht schiefgehen:
+
+1. NIE per dig oder Namensaufloesung pruefen, ob ein Eintrag existiert. In dieser
+   Zone steht ein Wildcard *.@@DNS_ZONE@@ - der beantwortet JEDEN erfundenen Namen
+   und zeigt dabei auf den falschen Server (@@FREMD_IPV4@@ statt auf uns). Eine
+   Pruefung per Namensaufloesung meldet deshalb immer "vorhanden". Gefragt wird
+   die API.
+
+2. Spielserver duerfen NICHT proxied sein. Cloudflares Proxy kann nur HTTP und
+   HTTPS; ein Spielport dahinter ist von aussen tot. Deshalb ueberall
+   proxied=false, und beim Anlegen wird gegengeprueft. Anbieter ohne Proxy
+   melden das ueber kennt_proxy = False, dann entfaellt die Pruefung.
+
+3. Die eigene oeffentliche IPv4 wird NICHT aus einer einzelnen Quelle
+   uebernommen. Siehe oeffentliche_ip().
+
+Anbieter und Token stehen in /etc/dns-gameserver.conf:
+
+  ANBIETER=cloudflare
+  TOKEN=...
+
+Die aeltere /etc/cloudflare-gameserver.conf (CF_TOKEN=...) wird weiter gelesen,
+damit vorhandene Installationen nicht stehenbleiben.
+
+  dns-pflegen setzen <name>      CNAME <name>.@@DNS_ZONE@@ -> @@DNS_ZIEL@@
+  dns-pflegen entfernen <name>
+  dns-pflegen liste
+  dns-pflegen pruefen            meldet Eintraege, die faelschlich proxied sind
+  dns-pflegen ziel-zeigen        misst die eigene IPv4 und vergleicht sie mit dem
+                                 A-Eintrag; aendert nichts, Rueckgabe 1 bei
+                                 Abweichung
+  dns-pflegen ziel-setzen        traegt die gemessene IPv4 als A-Eintrag ein
+                                 (das tut der Zeitgeber dns-ziel.timer regelmaessig)
+  dns-pflegen grundgeruest       legt DNS_ZIEL und PANEL_DOMAIN an, WENN sie
+                                 fehlen - und aendert nie einen vorhandenen Eintrag
+  dns-pflegen anbieter           zeigt, welcher Anbieter eingestellt ist
+"""
+import contextlib, ipaddress, json, re, socket, sys, urllib.request, urllib.error
+from pathlib import Path
+
+KONF = Path("/etc/dns-gameserver.conf")
+# Der alte Ort. Wird gelesen, aber nicht mehr geschrieben - eine Installation,
+# die schon laeuft, soll von einer Umbenennung nichts merken.
+# *The old location: still read, never written. A running install must not
+#  notice a rename.*
+KONF_ALT = Path("/etc/cloudflare-gameserver.conf")
+
+ZONE = "@@DNS_ZONE@@"
+ZIEL = "@@DNS_ZIEL@@"
+PANEL = "@@PANEL_DOMAIN@@"
+# Feste oeffentliche IPv4 - ODER das Wort "dynamic". Gebraucht wird sie nur von
+# grundgeruest(): im festen Betrieb steht die Adresse in konfiguration.env und
+# soll nicht gemessen werden, sonst traegt eine Maschine hinter fremdem Ausgang
+# die falsche ein.
+# *Only grundgeruest() needs this: in fixed mode the address is configured, not
+#  measured - otherwise a machine behind a different egress writes the wrong one.*
+FEST = "@@SERVER_IPV4@@"
+
+# Kurze Gueltigkeit fuer den einen Eintrag, der sich aendern kann. Die CNAMEs
+# der Spiele bleiben bei 300 s: sie aendern sich nie, und die Wartezeit nach
+# einem Adresswechsel wird ohnehin von diesem A-Eintrag begrenzt.
+# *Short TTL for the one record that moves; the game CNAMEs keep 300 s because
+#  they never change and the wait after an address change is bounded here.*
+ZIEL_TTL = 60
+SPIEL_TTL = 300
+
+# Voneinander unabhaengige Auskunftsstellen. Drei, damit eine Mehrheit moeglich
+# ist - siehe oeffentliche_ip().
+IP_QUELLEN = [
+    "https://cloudflare.com/cdn-cgi/trace",
+    "https://api.ipify.org",
+    "https://ipv4.icanhazip.com",
+]
+
+# 100.64.0.0/10 ist der Bereich fuer Provider-NAT (DS-Lite) UND der Bereich, aus
+# dem Tailscale seine Adressen vergibt. Beides muss hier auffallen: im ersten
+# Fall gibt es gar keine eigene oeffentliche IPv4, im zweiten ist die Anfrage
+# durch den Tunnel gegangen und misst den falschen Ausgang. Ohne diese Pruefung
+# landet eine 100.x im A-Eintrag und der Server ist von aussen tot.
+# *That range is both carrier NAT and Tailscale's. Either way the measurement is
+#  useless, and writing it into the A record kills reachability.*
+NAT_BEREICH = ipaddress.ip_network("100.64.0.0/10")
+
+
+def fehler(*t):
+    print("FEHLER:", *t, file=sys.stderr)
+    sys.exit(1)
+
+
+@contextlib.contextmanager
+def nur_ipv4():
+    """Erzwingt IPv4 fuer alles, was innerhalb laeuft. Zwei verschiedene Gruende:
+
+    * Die Cloudflare-API antwortet ueber IPv6 mit "Invalid API Token", obwohl der
+      Token stimmt.
+    * Die Auskunftsstellen fuer die eigene Adresse antworten ueber IPv6 mit der
+      IPv6-Adresse. In einen A-Eintrag gehoert die nicht: Cloudflare lehnt sie
+      ab, der alte Wert bleibt stehen, und die Ursache steht nur im Journal.
+      Gemessen wird deshalb genau das, was in den A-Eintrag gehoert.
+
+    *Forces IPv4: the API rejects the token over IPv6, and the address-echo
+     services would report the IPv6 address, which does not belong in an A
+     record.*"""
+    alt = socket.getaddrinfo
+    socket.getaddrinfo = lambda *args, **kw: [x for x in alt(*args, **kw) if x[0] == socket.AF_INET]
+    try:
+        yield
+    finally:
+        socket.getaddrinfo = alt
+
+
+# --- Konfiguration -----------------------------------------------------------
+
+def konfiguration() -> dict:
+    """Liest ANBIETER und TOKEN. Die alte Datei mit CF_TOKEN gilt weiter.
+
+    Fehlt die Angabe ANBIETER, ist es cloudflare: das war der einzige Anbieter,
+    als es die Angabe noch nicht gab. Eine Vorgabe, die den bisherigen Zustand
+    fortschreibt, ist die einzige, die niemanden ueberrascht.
+
+    *A missing ANBIETER means cloudflare - the only provider that existed before
+     the setting did. A default that continues the status quo surprises nobody.*
+    """
+    datei = KONF if KONF.exists() else KONF_ALT
+    if not datei.exists():
+        fehler(f"{KONF} fehlt - dort muessen ANBIETER=... und TOKEN=... stehen")
+    werte = {}
+    for z in datei.read_text().splitlines():
+        m = re.match(r"\s*(?:export\s+)?([A-Z_]+)\s*=\s*[\"']?([^\"'\s#]+)", z)
+        if m:
+            werte[m.group(1)] = m.group(2)
+    name = werte.get("ANBIETER", "cloudflare").lower()
+    # CF_TOKEN ist der alte Name derselben Sache.
+    schluessel = werte.get("TOKEN") or werte.get("CF_TOKEN")
+    if not schluessel:
+        fehler(f"kein TOKEN in {datei}")
+    if name not in ANBIETER:
+        fehler(f"unbekannter Anbieter {name!r} in {datei} - moeglich sind: "
+               + ", ".join(sorted(ANBIETER)))
+    return {"anbieter": name, "token": schluessel, "datei": datei}
+
+
+# --- Die Anbieter ------------------------------------------------------------
+
+class Anbieter:
+    """Alles, was ein DNS-Anbieter koennen muss - und nicht mehr.
+
+    Der Rest dieser Datei kennt keine einzige API. Er arbeitet nur mit
+    "Saetzen", und ein Satz ist immer dieselbe Form:
+
+        {"kennung": "...",      # was der Anbieter zum Aendern/Loeschen braucht
+         "typ": "A" | "CNAME",
+         "name": "spiel.beispiel.de",   # voller Name, ohne Punkt am Ende
+         "wert": "203.0.113.10",
+         "ttl": 300,
+         "proxy": False}        # nur bei Anbietern mit kennt_proxy
+
+    Ein neuer Anbieter ist damit diese sechs Methoden und ein Eintrag in
+    ANBIETER weiter unten. Was er NICHT entscheiden darf: welcher Eintrag
+    angelegt, geaendert oder in Ruhe gelassen wird - das steht weiter unten
+    einmal fuer alle, und genau deshalb kann ein Anbieter die Regeln nicht
+    versehentlich anders auslegen.
+
+    *Everything a DNS provider must do, and nothing more. The rest of this file
+     knows no API at all: it works with normalised records only. A new provider
+     is these six methods plus one entry in ANBIETER. What a provider must NOT
+     decide is which record gets created, changed or left alone - that is
+     written once, below, for all of them.*
+    """
+    name = "?"
+    kennt_proxy = False     # kennt der Anbieter einen vorgeschalteten HTTP-Proxy?
+
+    def __init__(self, token: str, zone: str):
+        self.token = token
+        self.zone = zone
+
+    def zone_id(self) -> str:
+        """Die Kennung der Zone beim Anbieter."""
+        raise NotImplementedError
+
+    def saetze(self, zid, name: str | None = None) -> list[dict]:
+        """Alle A- und CNAME-Saetze der Zone, oder die zu genau einem Namen."""
+        raise NotImplementedError
+
+    def anlegen(self, zid, satz: dict) -> None:
+        raise NotImplementedError
+
+    def aendern(self, zid, kennung: str, satz: dict) -> None:
+        raise NotImplementedError
+
+    def loeschen(self, zid, kennung: str) -> None:
+        raise NotImplementedError
+
+
+class Cloudflare(Anbieter):
+    """Cloudflare. Token: Zone / DNS / Bearbeiten, nur auf die eigene Zone."""
+    name = "cloudflare"
+    kennt_proxy = True
+    API = "https://api.cloudflare.com/client/v4"
+
+    def ruf(self, weg, methode="GET", daten=None):
+        k = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
+        leib = json.dumps(daten).encode() if daten is not None else None
+        a = urllib.request.Request(self.API + weg, data=leib, headers=k, method=methode)
+        with nur_ipv4():
+            try:
+                with urllib.request.urlopen(a, timeout=30) as r:
+                    d = json.loads(r.read())
+            except urllib.error.HTTPError as e:
+                try:
+                    d = json.loads(e.read())
+                except Exception:
+                    fehler(f"HTTP {e.code}")
+        if not d.get("success"):
+            fehler([m.get("message") for m in d.get("errors", [])] or "unbekannter Fehler")
+        return d
+
+    def _satz(self, r: dict) -> dict:
+        return {"kennung": r["id"], "typ": r["type"], "name": r["name"],
+                "wert": r["content"], "ttl": r.get("ttl", SPIEL_TTL),
+                "proxy": bool(r.get("proxied"))}
+
+    def _nutzlast(self, satz: dict) -> dict:
+        return {"type": satz["typ"], "name": satz["name"], "content": satz["wert"],
+                "ttl": satz.get("ttl", SPIEL_TTL), "proxied": satz.get("proxy", False)}
+
+    def zone_id(self) -> str:
+        d = self.ruf(f"/zones?name={self.zone}")
+        if not d.get("result"):
+            fehler("Zone nicht erreichbar oder Token ohne Recht auf", self.zone)
+        return d["result"][0]["id"]
+
+    def saetze(self, zid, name=None) -> list[dict]:
+        weg = f"/zones/{zid}/dns_records?per_page=200"
+        if name:
+            weg += f"&name={name}"
+        return [self._satz(r) for r in self.ruf(weg).get("result", [])
+                if r["type"] in ("A", "CNAME")]
+
+    def anlegen(self, zid, satz):
+        self.ruf(f"/zones/{zid}/dns_records", "POST", self._nutzlast(satz))
+
+    def aendern(self, zid, kennung, satz):
+        self.ruf(f"/zones/{zid}/dns_records/{kennung}", "PUT", self._nutzlast(satz))
+
+    def loeschen(self, zid, kennung):
+        self.ruf(f"/zones/{zid}/dns_records/{kennung}", "DELETE")
+
+
+# Ein neuer Anbieter kommt hier hinein - und sonst nirgends.
+# *A new provider is added here and nowhere else.*
+ANBIETER = {"cloudflare": Cloudflare}
+
+_A = None
+
+
+def anbieter() -> Anbieter:
+    """Der eingestellte Anbieter, einmal gebaut."""
+    global _A
+    if _A is None:
+        k = konfiguration()
+        _A = ANBIETER[k["anbieter"]](k["token"], ZONE)
+    return _A
+
+
+# --- Regeln, die fuer JEDEN Anbieter gelten ----------------------------------
+
+def eintrag(zid, name):
+    """Existiert der Eintrag WIRKLICH? Ueber die API, nicht ueber DNS - das
+    Wildcard in dieser Zone wuerde jede Namensabfrage bejahen."""
+    fqdn = f"{name}.{ZONE}"
+    for s in anbieter().saetze(zid, fqdn):
+        if s["name"] == fqdn:
+            return s
+    return None
+
+
+def eintrag_voll(zid, fqdn):
+    """Wie eintrag(), aber fuer einen vollstaendigen Namen. ZIEL und PANEL_DOMAIN
+    sind keine Spielnamen und haengen nicht zwangslaeufig direkt unter der Zone."""
+    for s in anbieter().saetze(zid, fqdn):
+        if s["name"] == fqdn:
+            return s
+    return None
+
+
+def pruefe_name(n):
+    if not re.fullmatch(r"[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?", n or ""):
+        fehler("unzulaessiger Name")
+
+
+def setzen(name):
+    pruefe_name(name)
+    a = anbieter()
+    zid = a.zone_id()
+    da = eintrag(zid, name)
+    soll = {"typ": "CNAME", "name": f"{name}.{ZONE}", "wert": ZIEL,
+            "ttl": SPIEL_TTL, "proxy": False}
+    if da:
+        if da["typ"] == "CNAME" and da["wert"] == ZIEL and not da["proxy"]:
+            print(f"ok\t{name}.{ZONE} steht bereits richtig")
+            return
+        a.aendern(zid, da["kennung"], soll)
+        tat = "geaendert"
+    else:
+        a.anlegen(zid, soll)
+        tat = "angelegt"
+    # Gegenprobe: wirklich da, wirklich nicht proxied?
+    n = eintrag(zid, name)
+    if not n or n["proxy"] or n["wert"] != ZIEL:
+        fehler(f"{name}.{ZONE} sieht nach dem Schreiben falsch aus: {n}")
+    print(f"ok\t{name}.{ZONE} {tat} -> {ZIEL} (dns-only)")
+
+
+def entfernen(name):
+    pruefe_name(name)
+    a = anbieter()
+    zid = a.zone_id()
+    da = eintrag(zid, name)
+    if not da:
+        print(f"ok\t{name}.{ZONE} gab es nicht")
+        return
+    if da["wert"] != ZIEL:
+        fehler(f"{name}.{ZONE} zeigt auf {da['wert']}, nicht auf {ZIEL} - "
+               f"das ist kein Spielserver-Eintrag, hier wird nichts geloescht")
+    a.loeschen(zid, da["kennung"])
+    print(f"ok\t{name}.{ZONE} entfernt")
+
+
+def liste(nur_pruefen=False):
+    a = anbieter()
+    zid = a.zone_id()
+    schlecht = 0
+    for s in sorted(a.saetze(zid), key=lambda x: x["name"]):
+        if s["typ"] == "CNAME" and s["wert"] == ZIEL:
+            p = "PROXY (falsch!)" if s["proxy"] else "dns-only"
+            if s["proxy"]:
+                schlecht += 1
+            if not nur_pruefen or s["proxy"]:
+                print(f"  {s['name']:<40} -> {s['wert']:<20} {p}")
+    if nur_pruefen:
+        if not a.kennt_proxy:
+            print(f"  {a.name} kennt keinen Proxy - nichts zu pruefen")
+            sys.exit(0)
+        print(f"  {schlecht} Eintrag/Eintraege faelschlich proxied")
+        sys.exit(1 if schlecht else 0)
+
+
+# --- Die eigene Adresse ------------------------------------------------------
+
+def abfragen(url: str) -> str | None:
+    """Eine Auskunftsstelle befragen. Gibt None zurueck, wenn dabei irgendetwas
+    nicht stimmt - eine unerreichbare Quelle ist kein Grund abzubrechen, solange
+    die anderen sich einig sind."""
+    try:
+        with nur_ipv4():
+            with urllib.request.urlopen(url, timeout=10) as r:
+                roh = r.read(4096).decode("utf-8", "replace")
+    except Exception as e:
+        print(f"hinweis\t{url}: {e}", file=sys.stderr)
+        return None
+    # Cloudflares /cdn-cgi/trace liefert Zeilen der Form "schluessel=wert", die
+    # anderen nur die nackte Adresse.
+    wert = roh.strip()
+    for z in roh.splitlines():
+        if z.startswith("ip="):
+            wert = z[3:].strip()
+            break
+    try:
+        return str(ipaddress.IPv4Address(wert))
+    except ValueError:
+        print(f"hinweis\t{url} lieferte keine IPv4: {wert[:60]!r}", file=sys.stderr)
+        return None
+
+
+def oeffentliche_ip() -> str:
+    """Die eigene oeffentliche IPv4, aus MEHREREN Quellen mit Mehrheitsentscheid.
+
+    Warum nicht eine einzelne Quelle: die Antwort wird ungeprueft in einen
+    DNS-Eintrag geschrieben, an dem jeder Spielserver und das Zertifikat des
+    Panels haengen. Eine Auskunftsstelle, die ausfaellt, umgeleitet wird oder
+    Unsinn liefert, wuerde dann alles auf einmal unerreichbar machen. Zwei
+    unabhaengige Quellen muessen sich einig sein, sonst wird nichts geschrieben -
+    das ist derselbe Gedanke wie der Kontrollwert beim Messen: ohne zweiten
+    Messpunkt untersucht man am Ende den Messpunkt statt das Ziel.
+
+    *Majority vote across independent sources. The answer is written into a DNS
+     record every game server and the panel certificate depend on; a single
+     source that fails, is redirected or answers nonsense would take all of it
+     down at once. Two independent sources must agree, otherwise nothing is
+     written.*"""
+    stimmen: dict[str, int] = {}
+    for url in IP_QUELLEN:
+        ip = abfragen(url)
+        if not ip:
+            continue
+        stimmen[ip] = stimmen.get(ip, 0) + 1
+        if stimmen[ip] >= 2:
+            break
+    mehrheit = [ip for ip, n in stimmen.items() if n >= 2]
+    if not mehrheit:
+        fehler("keine zwei Auskunftsstellen sind sich einig - gemessen:",
+               stimmen or "nichts", "- es wird nichts geschrieben")
+    ip = mehrheit[0]
+    adr = ipaddress.IPv4Address(ip)
+    if adr in NAT_BEREICH:
+        fehler(f"gemessen wurde {ip} aus {NAT_BEREICH} - das ist entweder "
+               "Provider-NAT (dann gibt es keine eigene oeffentliche IPv4 und "
+               "DynDNS kann nicht funktionieren) oder die Anfrage lief durch "
+               "Tailscale. Es wird nichts geschrieben.")
+    if not adr.is_global:
+        fehler(f"gemessen wurde {ip} - das ist keine oeffentliche Adresse. "
+               "Es wird nichts geschrieben.")
+    return ip
+
+
+def in_zone(fqdn: str) -> bool:
+    return fqdn == ZONE or fqdn.endswith("." + ZONE)
+
+
+def a_pflegen(zid, fqdn: str, ip: str, anlegen: bool) -> int:
+    """Sorgt dafuer, dass <fqdn> ein A-Eintrag auf <ip> ist. Rueckgabe: 1 wenn
+    etwas geaendert wurde, 0 wenn es schon stimmte.
+
+    Ein vorhandenes proxy bleibt stehen, ausser beim ZIEL: dort MUSS es aus
+    sein, weil die Spiel-CNAMEs darauf zeigen und hinter dem Proxy jeder
+    Spielport tot ist. Das Panel dagegen darf hinter dem Proxy stehen - es
+    spricht HTTPS."""
+    a = anbieter()
+    da = eintrag_voll(zid, fqdn)
+    proxy_erzwingen = (fqdn == ZIEL) and a.kennt_proxy
+    if da and da["typ"] == "CNAME":
+        # Ein CNAME folgt seinem Ziel von selbst. Ihn durch einen A-Eintrag zu
+        # ersetzen waere eine Entscheidung ueber fremdes Terrain.
+        print(f"ok\t{fqdn} ist ein CNAME auf {da['wert']} - folgt von selbst")
+        return 0
+    if da is None:
+        if not anlegen:
+            print(f"hinweis\t{fqdn} hat keinen Eintrag in {ZONE} - "
+                  "haendisch pruefen, ob das Zertifikat noch erneuert werden kann",
+                  file=sys.stderr)
+            return 0
+        a.anlegen(zid, {"typ": "A", "name": fqdn, "wert": ip,
+                        "ttl": ZIEL_TTL, "proxy": False})
+        tat = "angelegt"
+    else:
+        soll_proxy = False if proxy_erzwingen else da["proxy"]
+        if da["wert"] == ip and da["proxy"] == soll_proxy:
+            print(f"ok\t{fqdn} steht bereits auf {ip}")
+            return 0
+        a.aendern(zid, da["kennung"],
+                  {"typ": "A", "name": fqdn, "wert": ip,
+                   "ttl": ZIEL_TTL if proxy_erzwingen else da["ttl"],
+                   "proxy": soll_proxy})
+        tat = f"geaendert (vorher {da['wert']})"
+    # Gegenprobe an der API, nicht an der Namensaufloesung.
+    n = eintrag_voll(zid, fqdn)
+    if not n or n["typ"] != "A" or n["wert"] != ip:
+        fehler(f"{fqdn} sieht nach dem Schreiben falsch aus: {n}")
+    if proxy_erzwingen and n["proxy"]:
+        fehler(f"{fqdn} ist proxied - dahinter ist jeder Spielport tot")
+    print(f"ok\t{fqdn} {tat} -> {ip}")
+    return 1
+
+
+def a_anlegen(zid, fqdn: str, ip: str) -> int:
+    """Legt <fqdn> als A-Eintrag auf <ip> an, WENN es ihn noch nicht gibt.
+    Rueckgabe: 1 wenn angelegt, 0 wenn schon vorhanden.
+
+    Der Unterschied zu a_pflegen() ist die halbe Begruendung dieser Funktion:
+    hier wird nie etwas geaendert. Ein vorhandener Eintrag bleibt stehen, auch
+    wenn er woandershin zeigt - er gehoert dann einem Menschen, und E21 haelt
+    genau diese Grenze. Angelegt wird nur, was fehlt.
+
+    *The difference to a_pflegen() is half the point: this never changes
+     anything. An existing record stays, even pointing elsewhere - it then
+     belongs to a person, and E21 draws exactly that line.*
+    """
+    da = eintrag_voll(zid, fqdn)
+    if da is not None:
+        print(f"ok\t{fqdn} gibt es schon ({da['typ']} -> {da['wert']}) - nicht angefasst")
+        return 0
+    anbieter().anlegen(zid, {"typ": "A", "name": fqdn, "wert": ip,
+                             "ttl": ZIEL_TTL, "proxy": False})
+    # Gegenprobe an der API, nicht an der Namensaufloesung: der Wildcard der
+    # Zone wuerde jeden Namen bestaetigen.
+    # *Verified against the API, never by resolution: the zone's wildcard would
+    #  confirm any name.*
+    n = eintrag_voll(zid, fqdn)
+    if not n or n["typ"] != "A" or n["wert"] != ip:
+        fehler(f"{fqdn} sieht nach dem Anlegen falsch aus: {n}")
+    print(f"ok\t{fqdn} angelegt -> {ip}")
+    return 1
+
+
+def grundgeruest():
+    """Legt die beiden Eintraege an, die es geben MUSS, bevor Caddy in Stufe 40
+    sein Zertifikat holt: DNS_ZIEL und PANEL_DOMAIN.
+
+    Warum es das gibt: Die DNS-Stufe war Nummer 70 und lief nach Stufe 40. Auf
+    einer frischen Zone gab es damit genau einen Moment, in dem der einzige
+    Automatismus, der PANEL_DOMAIN haette anlegen koennen, noch nicht dran war -
+    und anlegen wollte er ihn ohnehin nie. Der Name war die letzte Handarbeit,
+    die eine sonst durchlaufende Einrichtung noch brauchte.
+
+    Angelegt wird nur, was fehlt (a_anlegen). Das Nachfuehren bleibt Sache von
+    ziel-setzen und damit des Zeitgebers: der laeuft unbeaufsichtigt alle fuenf
+    Minuten und darf deshalb keine Eintraege erfinden.
+
+    *Why this exists: the DNS stage ran after the certificate stage, so on a
+     fresh zone PANEL_DOMAIN was the last piece of handwork an otherwise
+     unattended install still needed. Only missing records are created; updating
+     stays with ziel-setzen and its unattended five-minute timer, which must
+     never invent records.*
+    """
+    if not in_zone(ZIEL):
+        fehler(f"{ZIEL} liegt nicht in der Zone {ZONE} - dieser Eintrag wird "
+               "nicht von hier verwaltet. Fuer DNS_ZIEL einen Namen INNERHALB "
+               f"von {ZONE} eintragen.")
+    # Im festen Betrieb steht die Adresse in der Konfiguration und wird NICHT
+    # gemessen: gemessen wuerde der Weg nach draussen, und der muss nicht der
+    # sein, unter dem die Maschine erreichbar ist.
+    ip = oeffentliche_ip() if FEST == "dynamic" else FEST
+    zid = anbieter().zone_id()
+    n = a_anlegen(zid, ZIEL, ip)
+    if PANEL != ZIEL:
+        if in_zone(PANEL):
+            n += a_anlegen(zid, PANEL, ip)
+        else:
+            print(f"hinweis\t{PANEL} liegt nicht in {ZONE} - dieser Name bleibt "
+                  "Handarbeit und muss auf diese Maschine zeigen, sonst bekommt "
+                  "das Panel kein Zertifikat", file=sys.stderr)
+    print(f"ok\t{n} Eintrag/Eintraege angelegt")
+
+
+def ziel_zeigen():
+    ip = oeffentliche_ip()
+    da = eintrag_voll(anbieter().zone_id(), ZIEL)
+    steht = da["wert"] if da else "(kein Eintrag)"
+    print(f"gemessen\t{ip}\neingetragen\t{steht}")
+    sys.exit(0 if da and da["wert"] == ip else 1)
+
+
+def ziel_setzen():
+    if not in_zone(ZIEL):
+        fehler(f"{ZIEL} liegt nicht in der Zone {ZONE} - dieser Eintrag wird "
+               "nicht von hier verwaltet. Fuer DNS_ZIEL einen Namen INNERHALB "
+               f"von {ZONE} eintragen.")
+    ip = oeffentliche_ip()
+    zid = anbieter().zone_id()
+    # Das ZIEL wird angelegt, wenn es fehlt: in diesem Betrieb gehoert es diesem
+    # Programm. Der Name des Panels dagegen wird nur nachgezogen, nie erfunden -
+    # er kann bewusst woanders stehen.
+    geaendert = a_pflegen(zid, ZIEL, ip, anlegen=True)
+    if PANEL != ZIEL and in_zone(PANEL):
+        geaendert += a_pflegen(zid, PANEL, ip, anlegen=False)
+    print(f"ok\t{geaendert} Eintrag/Eintraege geaendert")
+
+
+def anbieter_zeigen():
+    k = konfiguration()
+    a = anbieter()
+    print(f"anbieter\t{a.name}\nkonfig\t\t{k['datei']}\nzone\t\t{ZONE}")
+    print(f"proxy\t\t{'kennt der Anbieter' if a.kennt_proxy else 'kennt der Anbieter nicht'}")
+    print(f"moeglich\t{', '.join(sorted(ANBIETER))}")
+
+
+if __name__ == "__main__":
+    a = sys.argv[1:] or ["liste"]
+    if a[0] == "setzen" and len(a) == 2:
+        setzen(a[1])
+    elif a[0] == "entfernen" and len(a) == 2:
+        entfernen(a[1])
+    elif a[0] == "liste":
+        liste()
+    elif a[0] == "pruefen":
+        liste(nur_pruefen=True)
+    elif a[0] == "ziel-zeigen":
+        ziel_zeigen()
+    elif a[0] == "grundgeruest":
+        grundgeruest()
+    elif a[0] == "ziel-setzen":
+        ziel_setzen()
+    elif a[0] == "anbieter":
+        anbieter_zeigen()
+    else:
+        fehler("Aufruf: dns-pflegen setzen|entfernen <name> | liste | pruefen "
+               "| ziel-zeigen | ziel-setzen | grundgeruest | anbieter")

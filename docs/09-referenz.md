@@ -113,16 +113,24 @@ Ein Archiv je Spiel, Name `<spiel>-JJJJMMTT-HHMMSS`. `prune` je Präfix,
 anschließend `borg compact`. Rechte `0700 root` — die Datei enthält den Pfad zum
 Repositorium.
 
-### `cf-dns`
+### `dns-pflegen` (früher `cf-dns`)
 
 ```
-cf-dns setzen <name>        CNAME <name>.<zone> -> <ziel>, dns-only
-cf-dns entfernen <name>
-cf-dns liste
-cf-dns pruefen              meldet Einträge, die fälschlich proxied sind
-cf-dns ziel-zeigen          misst die eigene IPv4, vergleicht mit dem A-Eintrag
-cf-dns ziel-setzen          trägt die gemessene IPv4 als A-Eintrag ein
+dns-pflegen setzen <name>        CNAME <name>.<zone> -> <ziel>, dns-only
+dns-pflegen entfernen <name>
+dns-pflegen liste
+dns-pflegen pruefen              meldet Einträge, die fälschlich proxied sind
+dns-pflegen ziel-zeigen          misst die eigene IPv4, vergleicht mit dem A-Eintrag
+dns-pflegen ziel-setzen          trägt die gemessene IPv4 als A-Eintrag ein
+dns-pflegen grundgeruest         legt <ziel> und <panel> an, WENN sie fehlen —
+                            und ändert nie einen vorhandenen Eintrag
+dns-pflegen anbieter             zeigt den eingestellten Anbieter
 ```
+
+Der Anbieter steht in `/etc/dns-gameserver.conf` (`ANBIETER=`), die API-Kenntnis
+in genau einer Klasse. Umgesetzt ist **cloudflare**; ein weiterer Anbieter ist
+sechs Methoden und ein Eintrag in `ANBIETER` — die Regeln darüber, welcher
+Eintrag angelegt, geändert oder in Ruhe gelassen wird, stehen einmal für alle.
 
 Fragt **nur die API**, nie die Namensauflösung — ein Wildcard in der Zone würde
 jede Existenzprüfung per `dig` wertlos machen. Löscht nur Einträge, die
@@ -545,7 +553,8 @@ schon einmal dazu geführt, dass Aufrufe still fehlschlugen.
 | `/etc/caddy/Caddyfile` | `0644 root` | HTTPS, Vorschaltung, Kopfzeilen |
 | `/etc/fail2ban/jail.local` | `0644 root` | sshd-Jail, Ausnahmen |
 | `/etc/sudoers.d/panel` | `0440 root` | die eine Rechteerweiterung |
-| `/etc/cloudflare-gameserver.conf` | `0600 root` | `CF_TOKEN=…` |
+| `/etc/dns-gameserver.conf` | `0600 root` | `ANBIETER=…`, `TOKEN=…` |
+| `/etc/cloudflare-gameserver.conf` | `0600 root` | älterer Ort, wird noch gelesen |
 | `/root/.borg-passphrase` | `0600 root` | Schlüssel zur Sicherung |
 | `/opt/panel/app.py` | `0644 root` | die Oberfläche |
 | `/opt/panel/daten/nutzer.json` | `0600 panel` | Benutzer, Hashes, TOTP |
@@ -592,9 +601,9 @@ Alle in `konfiguration.env`, alle Pflicht:
 
 | Variable | Beispiel | Wo sie landet |
 |---|---|---|
-| `DNS_ZONE` | `beispiel.de` | `cf-dns`, `app.py`, Beitrittsadressen |
-| `DNS_ZIEL` | `gs.beispiel.de` | `cf-dns` (CNAME-Ziel, A-Eintrag) |
-| `PANEL_DOMAIN` | `panel.beispiel.de` | `Caddyfile`, `cf-dns` |
+| `DNS_ZONE` | `beispiel.de` | `dns-pflegen`, `app.py`, Beitrittsadressen |
+| `DNS_ZIEL` | `gs.beispiel.de` | `dns-pflegen` (CNAME-Ziel, A-Eintrag) |
+| `PANEL_DOMAIN` | `panel.beispiel.de` | `Caddyfile`, `dns-pflegen` |
 | `SERVER_IPV4` | `203.0.113.10` **oder** `dynamic` | schaltet `dns-ziel.timer` ein oder aus |
 | `WELT_NAME` | `meinserver` | Server- und Weltnamen in den Spielen |
 | `ADMIN_USER` | `admin` | `ttyd.service`, Benutzeranlage |
@@ -602,7 +611,7 @@ Alle in `konfiguration.env`, alle Pflicht:
 | `ADMIN_IP` | `203.0.113.1` | `ufw`-Regel auf Port 22 |
 | `BORG_REPO` | `ssh://borg@…/…` **oder** `aus` | `spiele-sicherung`, `panel-aktion`, `spiel-verwalten`, `app.py`; `aus` schaltet die Sicherung ab |
 | `BORG_TAILSCALE_IP` | `100.100.100.100` | Dokumentation, Prüfungen (bei `BORG_REPO=aus` ebenfalls `aus`) |
-| `FREMD_IPV4` | `198.51.100.10` | Kommentar in `cf-dns` (Wildcard-Ziel) |
+| `FREMD_IPV4` | `198.51.100.10` | Kommentar in `dns-pflegen` (Wildcard-Ziel) |
 
 Bleibt beim Einbau ein `@@PLATZHALTER@@` stehen, bricht die Einrichtung ab.
 

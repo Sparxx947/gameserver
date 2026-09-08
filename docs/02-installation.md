@@ -14,7 +14,7 @@ in Stufen; jede ist einzeln aufrufbar und mehrfach ausführbar.
 |---|---|
 | Debian 12, root | `. /etc/os-release; echo $VERSION_CODENAME` → `bookworm` |
 | Öffentliche IPv4 | `curl -s https://api.ipify.org` |
-| Panel-Name zeigt darauf | `host <PANEL_DOMAIN>` — **muss** die IPv4 liefern |
+| Panel-Name zeigt darauf | `host <PANEL_DOMAIN>` — oder Stufe 25 legt ihn an (s.u.) |
 | Tailscale verbunden | `tailscale status` (nur wenn übers Tailnet gesichert wird) |
 | Borg-Ziel erreichbar | `ssh borg@<ziel> true` |
 | Platz | mindestens 50 GB frei, besser 100 |
@@ -24,10 +24,23 @@ das Zertifikat über HTTP-01: Let's Encrypt ruft `http://<name>/.well-known/…`
 auf. Zeigt der Name noch nirgends hin oder ist Port 80 zu, scheitert das —
 und zwar mit Rate-Limits, die eine Wiederholung für Stunden sperren können.
 
+**Darum genügt es, den Cloudflare-Token vorher hinzulegen.** Liegt
+`/etc/dns-gameserver.conf` bereit, legt Stufe 25 `DNS_ZIEL` und
+`PANEL_DOMAIN` selbst an, bevor Stufe 40 an der Reihe ist — dann bleibt vom DNS
+nur die Zone selbst Handarbeit. Ohne Token überspringt sich die Stufe und sagt,
+was stattdessen von Hand zu tun ist.
+
+```bash
+printf 'ANBIETER=cloudflare\nTOKEN=%s\n' '<token>' > /etc/dns-gameserver.conf
+chmod 600 /etc/dns-gameserver.conf
+```
+
 > *The panel hostname must resolve publicly before stage 40. Caddy uses HTTP-01,
 > so Let's Encrypt fetches `http://<name>/.well-known/…`. If the name does not
 > resolve or port 80 is closed this fails — and hits rate limits that can block
-> retries for hours.*
+> retries for hours. Putting the Cloudflare token in place beforehand is enough:
+> stage 25 then creates both records before stage 40 runs. Without a token that
+> stage skips itself and says what to do by hand instead.*
 
 ---
 
@@ -59,7 +72,7 @@ leerer Wert an einer Stelle, an der niemand ihn sucht.
 ## Die Stufen
 
 ```bash
-sudo install/einrichten.sh          # 10 bis 50 der Reihe nach
+sudo install/einrichten.sh          # 10 bis 50 der Reihe nach (25 nur mit Token)
 sudo install/einrichten.sh 30-panel # oder eine einzelne Stufe
 ```
 
@@ -90,6 +103,29 @@ Oberfläche gibt es stattdessen die enge sudo-Brücke.
 > *Stage 20: Docker CE from upstream, because Debian's `docker.io` is too old
 > for the compose plugin. Nobody joins the `docker` group — socket access is
 > equivalent to root.*
+
+### 25 — DNS-Grundgerüst (übersprungen ohne Token)
+
+Legt bei Cloudflare an, was **vor** dem Zertifikat da sein muss: den A-Eintrag
+`DNS_ZIEL` und, wenn er innerhalb der Zone liegt, `PANEL_DOMAIN`.
+
+Angelegt wird ausschließlich, **was fehlt**. Ein vorhandener Eintrag bleibt
+unangetastet, auch wenn er woandershin zeigt — er gehört dann einem Menschen
+(siehe [E21](10-entscheidungen.md)). Das Nachführen bleibt Sache von
+`ziel-setzen` und des Zeitgebers aus Stufe 70.
+
+Ohne `/etc/dns-gameserver.conf` (oder den älteren Ort) wird die Stufe übersprungen, nicht
+abgebrochen: DNS von Hand zu pflegen ist ein zulässiger Betrieb. Nachholen
+lässt sie sich einzeln:
+
+```bash
+sudo install/einrichten.sh 25-dns-grundgeruest
+```
+
+> *Stage 25 creates what must exist before the certificate: the `DNS_ZIEL` A
+> record and `PANEL_DOMAIN` if it lies inside the zone. Only missing records are
+> created — an existing one is never touched, even pointing elsewhere. Skipped
+> without a token, since hand-maintained DNS is legitimate.*
 
 ### 30 — Panel
 
@@ -184,7 +220,7 @@ Gestartet wird von Hand oder über das Panel.
 
 ### 70 — DNS (optional)
 
-Braucht `/etc/cloudflare-gameserver.conf` mit einem Token, das **nur**
+Braucht `/etc/dns-gameserver.conf` mit `ANBIETER=` und einem Token, das **nur**
 `Zone / DNS / Bearbeiten` in der eigenen Zone darf. Nie der globale Schlüssel.
 
 Legt für jeden vorhandenen Stack einen CNAME auf `DNS_ZIEL` an und prüft

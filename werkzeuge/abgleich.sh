@@ -37,7 +37,8 @@ rendern() {
 
 # Paare "Repo-Datei : Serverpfad"
 PAARE=(
-  "bin/cf-dns:/usr/local/bin/cf-dns"
+  "bin/dns-pflegen:/usr/local/bin/dns-pflegen"
+  "bin/port-ermitteln:/usr/local/bin/port-ermitteln"
   "bin/katalog-vorpruefung:/usr/local/bin/katalog-vorpruefung"
   "bin/katalogbilder-holen:/usr/local/bin/katalogbilder-holen"
   "bin/konfig-datei:/usr/local/bin/konfig-datei"
@@ -225,7 +226,7 @@ fi
 # *In dynamic mode, does the A record still match the real address? Measured on
 #  the server: from here one would measure this machine's address instead.*
 if [ "$SERVER_IPV4" = "dynamic" ]; then
-  if ausgabe=$(ssh "$ZIEL" '/usr/local/bin/cf-dns ziel-zeigen' 2>&1); then
+  if ausgabe=$(ssh "$ZIEL" '/usr/local/bin/dns-pflegen ziel-zeigen' 2>&1); then
     gleich=$((gleich+1))
   else
     echo "  ABWEICHUNG            A-Eintrag und gemessene Adresse gehen auseinander"

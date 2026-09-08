@@ -7,7 +7,13 @@
 #  IP address: on a move there is a single record to change.*
 . "$(dirname "$0")/lib.sh"
 
-KONF=/etc/cloudflare-gameserver.conf
+KONF=/etc/dns-gameserver.conf
+KONF_ALT=/etc/cloudflare-gameserver.conf
+if [ -s "$KONF_ALT" ] && [ ! -s "$KONF" ]; then
+  # Aeltere Installation: die alte Datei bleibt gueltig, dns-pflegen liest sie.
+  # *Older install: the old file stays valid and dns-pflegen reads it.*
+  KONF="$KONF_ALT"
+fi
 if [ ! -s "$KONF" ]; then
   cat <<TEXT
 
@@ -20,7 +26,7 @@ if [ ! -s "$KONF" ]; then
       Never the global key.*
 
   2. Datei anlegen:
-       printf 'CF_TOKEN=%s\\n' '<token>' > $KONF
+       printf 'ANBIETER=cloudflare\\nTOKEN=%s\\n' '<token>' > $KONF
        chmod 600 $KONF
 
   3. Diese Stufe erneut aufrufen.
@@ -37,6 +43,15 @@ for u in dns-ziel.service dns-ziel.timer; do
 done
 systemctl daemon-reload
 
+# Der alte Name des Werkzeugs. Entfernt wird er ERST HIER und nicht in Stufe 25
+# oder 30: bis die Einheit oben neu eingesetzt ist, ruft dns-ziel.service noch
+# /usr/local/bin/cf-dns. Wer ihn frueher wegnimmt, bricht den Zeitgeber fuer die
+# Dauer der Aktualisierung - und zwar an einer Stelle, an der niemand sucht.
+# *Removed here and not earlier: until the unit above is replaced,
+#  dns-ziel.service still calls the old path. Removing it sooner breaks the
+#  timer for the duration of the upgrade, somewhere nobody would look.*
+rm -f /usr/local/bin/cf-dns
+
 if [ "$IP_DYNAMISCH" = "ja" ]; then
   # SERVER_IPV4=dynamic: der A-Eintrag gehoert ab hier diesem Programm. Deshalb
   # wird er auch angelegt, wenn er fehlt — anders als im festen Betrieb, wo er
@@ -48,7 +63,7 @@ if [ "$IP_DYNAMISCH" = "ja" ]; then
   #  it; in fixed mode it stays hand-made. Treating both alike would either
   #  overwrite foreign records or fail on the first run.*
   log "Adresse messen und A-Eintrag setzen"
-  cf-dns ziel-setzen || fehler "A-Eintrag ${DNS_ZIEL} konnte nicht gesetzt werden"
+  dns-pflegen ziel-setzen || fehler "A-Eintrag ${DNS_ZIEL} konnte nicht gesetzt werden"
   systemctl enable --now dns-ziel.timer
 else
   # Feste Adresse: der Zeitgeber bleibt aus. Er liegt trotzdem auf der Maschine,
@@ -63,16 +78,16 @@ else
   # automatisch angelegt.
   # *In fixed mode the A record must exist by hand: it is the only place holding
   #  the IP and is therefore deliberately not created automatically.*
-  cf-dns liste | head -20 || fehler "cf-dns kommt nicht an die API — Token pruefen"
+  dns-pflegen liste | head -20 || fehler "dns-pflegen kommt nicht an die API — Token pruefen"
 fi
 
 log "Vorhandene Spielserver eintragen"
 for d in /opt/stacks/*/; do
   s=$(basename "$d")
-  cf-dns setzen "$s" || warn "DNS fuer $s fehlgeschlagen"
+  dns-pflegen setzen "$s" || warn "DNS fuer $s fehlgeschlagen"
 done
 
 log "Gegenprobe: nichts darf proxied sein"
-cf-dns pruefen
+dns-pflegen pruefen
 
 log "Stufe 70 fertig."

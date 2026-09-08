@@ -182,7 +182,7 @@ Zieht der Server um, ist genau **ein** Eintrag zu ändern.
 | `203.0.113.10` (eine IPv4) | ein Mensch, von Hand | aus |
 | `dynamic` | der Server selbst, alle 5 Minuten | an |
 
-Bei `dynamic` misst `cf-dns ziel-setzen` die öffentliche IPv4 und schreibt sie
+Bei `dynamic` misst `dns-pflegen ziel-setzen` die öffentliche IPv4 und schreibt sie
 in den A-Eintrag. Die Spiel-CNAMEs zeigen weiterhin auf diesen einen Namen und
 folgen deshalb von allein — **kein CNAME wird angefasst**. Der A-Eintrag wird
 mit TTL 60 ausgeliefert, damit die Welt nach einem Adresswechsel schnell folgt;
@@ -195,6 +195,24 @@ ein CNAME auf `DNS_ZIEL` — dann folgt er ohne weiteres Zutun. Steht
 `ziel-setzen` ihn mit nach und lässt dabei ein gesetztes `proxied` in Ruhe: das
 Panel spricht HTTPS und darf hinter dem Cloudflare-Proxy stehen. Liegt der Name
 außerhalb der Zone, bleibt er Handarbeit; `ziel-setzen` sagt das dann auch.
+
+### Anlegen und Nachführen sind zweierlei
+
+`dns-pflegen` trennt beides bewusst:
+
+| Befehl | Legt an | Ändert | Wer ruft ihn |
+|---|---|---|---|
+| `grundgeruest` | ja, nur was fehlt | **nie** | Stufe 25, einmal bei der Einrichtung |
+| `ziel-setzen` | nur `DNS_ZIEL` bei `dynamic` | ja | `dns-ziel.timer`, alle 5 Minuten |
+
+Der Zeitgeber läuft unbeaufsichtigt und darf deshalb keine Namen erfinden —
+`grundgeruest` läuft genau einmal, auf ausdrücklichen Anstoß, und schreibt
+niemals einen bestehenden Eintrag um. Damit ist von Hand nur noch die Zone
+selbst anzulegen und der Token zu hinterlegen.
+
+> *Creating and updating are deliberately separate: `grundgeruest` creates only
+> what is missing and never rewrites an existing record; `ziel-setzen` updates
+> and belongs to the unattended timer, which must not invent names.*
 
 **Ein DNS-Name in `SERVER_IPV4` ergibt nichts** — auch kein DDNS-Name. Aus
 diesem Wert entsteht kein Eintrag; die Adresse trägt allein `DNS_ZIEL`. Bis
@@ -219,17 +237,17 @@ dahin wurde ein Name dort klaglos angenommen und wirkte nirgends. Heute bricht
 **1. Nie per `dig` prüfen, ob ein Eintrag existiert.** Steht in der Zone ein
 Wildcard `*.<zone>`, beantwortet er **jeden** erfundenen Namen — und zeigt dabei
 auf den falschen Server. Eine Prüfung per Namensauflösung meldet deshalb immer
-„vorhanden". `cf-dns` fragt ausschließlich die API.
+„vorhanden". `dns-pflegen` fragt ausschließlich die API.
 
 **2. Spielserver dürfen nicht `proxied` sein.** Cloudflares Proxy kann nur HTTP
 und HTTPS; ein Spielport dahinter ist von außen tot. Deshalb überall
 `proxied: false`, mit Gegenprobe nach dem Schreiben und einem eigenen Befehl
-`cf-dns pruefen`, der falsch gesetzte Einträge meldet.
+`dns-pflegen pruefen`, der falsch gesetzte Einträge meldet.
 
 **3. Die eigene Adresse nie aus einer einzelnen Quelle nehmen.** Sie wird
 ungeprüft in einen Eintrag geschrieben, an dem jeder Spielserver und das
 Zertifikat des Panels hängen. Eine Auskunftsstelle, die ausfällt, umgeleitet
-wird oder Unsinn liefert, nimmt dann alles auf einmal mit. `cf-dns` befragt drei
+wird oder Unsinn liefert, nimmt dann alles auf einmal mit. `dns-pflegen` befragt drei
 unabhängige Stellen und schreibt erst, wenn **zwei dieselbe Antwort geben** —
 derselbe Gedanke wie der Kontrollwert beim Messen. Zwei Antworten werden
 außerdem grundsätzlich verworfen: alles aus `100.64.0.0/10` (Provider-NAT oder
@@ -239,10 +257,10 @@ die in einem A-Eintrag nichts zu suchen hat.
 
 > *Three traps: never use `dig` to test whether a record exists — a wildcard in
 > the zone answers every made-up name, pointing at the wrong server, so a lookup
-> always reports "present". `cf-dns` asks the API only. Game records must never
+> always reports "present". `dns-pflegen` asks the API only. Game records must never
 > be proxied: Cloudflare's proxy speaks HTTP(S) only, so a game port behind it is
 > dead from outside. Hence `proxied: false` everywhere, verified after writing,
-> with `cf-dns pruefen` to report stragglers. And one's own address never comes
+> with `dns-pflegen pruefen` to report stragglers. And one's own address never comes
 > from a single source: it is written unchecked into the record every game server
 > and the panel certificate hang on, so three independent services are asked and
 > two must agree. Anything from `100.64.0.0/10` (carrier NAT or Tailscale) and
@@ -250,24 +268,36 @@ die in einem A-Eintrag nichts zu suchen hat.
 > over IPv6 these services answer with the IPv6 address, which has no place in an
 > A record.*
 
-### Der Token
+### Anbieter und Token
 
-`/etc/cloudflare-gameserver.conf`, `0600 root`:
+`/etc/dns-gameserver.conf`, `0600 root`:
 
 ```
-CF_TOKEN=<token>
+ANBIETER=cloudflare
+TOKEN=<token>
 ```
+
+Beides steht in **einer** Datei, weil es zusammengehört: ein Token hat immer
+genau die Form, die ein bestimmter Anbieter versteht. Fehlt `ANBIETER`, ist es
+`cloudflare` — der einzige Anbieter, den es gab, als die Angabe noch nicht
+existierte. Die ältere `/etc/cloudflare-gameserver.conf` mit `CF_TOKEN=` wird
+weiter gelesen, damit vorhandene Installationen nicht stehenbleiben.
+
+> *Both live in one file because they belong together: a token always has the
+> shape exactly one provider understands. A missing `ANBIETER` means cloudflare,
+> the only provider that existed before the setting did. The older file is still
+> read so existing installs keep working.*
 
 Berechtigung: **Zone / DNS / Bearbeiten**, Zonenressource **nur die eigene
 Zone**. Nie der globale API-Schlüssel — der darf alles im Konto, auch Zonen
 löschen und Abrechnungsdaten lesen.
 
-`cf-dns` erzwingt außerdem IPv4 (überschreibt `socket.getaddrinfo`): Der Zugriff
+`dns-pflegen` erzwingt außerdem IPv4 (überschreibt `socket.getaddrinfo`): Der Zugriff
 über IPv6 schlug in dieser Umgebung fehl, und der Fehler sah aus wie ein
 Token-Problem.
 
 > *The token needs Zone / DNS / Edit on your own zone only — never the global API
-> key, which can do anything in the account. `cf-dns` also forces IPv4 by
+> key, which can do anything in the account. `dns-pflegen` also forces IPv4 by
 > overriding `socket.getaddrinfo`: IPv6 access failed here in a way that looked
 > like a token problem.*
 

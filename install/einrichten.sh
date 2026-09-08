@@ -21,7 +21,12 @@
 # ======================================================================
 . "$(dirname "$0")/lib.sh"
 
-STUFEN=(10-basis 20-docker 30-panel 40-caddy-ttyd 50-sicherung)
+# 25 steht vor 40, weil Caddy dort das Zertifikat fuer PANEL_DOMAIN holt und
+# der Name dafuer schon aufloesen muss. Ohne Cloudflare-Token ueberspringt sich
+# die Stufe von selbst.
+# *25 precedes 40 because the panel certificate needs the name to resolve
+#  already. Without a Cloudflare token the stage skips itself.*
+STUFEN=(10-basis 20-docker 25-dns-grundgeruest 30-panel 40-caddy-ttyd 50-sicherung)
 
 if [ $# -gt 0 ]; then
   STUFEN=("$@")

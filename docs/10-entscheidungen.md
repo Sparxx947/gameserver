@@ -228,7 +228,7 @@ ausgelöst — ein Daueralarm, den man nach zwei Wochen nicht mehr liest.
 **Dagegen:** Beim Umzug wären alle zu ändern, und man vergisst einen.
 **Stattdessen:** `gs.<zone>` trägt die IP, alle Spiele sind CNAMEs darauf. Ein
 Eintrag beim Umzug.
-**Und:** `cf-dns` fragt nie die Namensauflösung, sondern immer die API — ein
+**Und:** `dns-pflegen` fragt nie die Namensauflösung, sondern immer die API — ein
 Wildcard in der Zone beantwortet jeden erfundenen Namen und machte jede Prüfung
 per `dig` wertlos.
 
@@ -292,7 +292,7 @@ einen fremden DDNS-Namen zeigen lassen.
 
 **Dagegen, erstens:** `SERVER_IPV4` ist gar kein Eintragspunkt. Aus dem Wert
 entstand nie ein DNS-Eintrag — er landete ausschließlich in Kommentaren von
-`cf-dns`. Ein Name dort wurde klaglos angenommen und tat nichts. Genau das ist
+`dns-pflegen`. Ein Name dort wurde klaglos angenommen und tat nichts. Genau das ist
 die schlimmste Sorte Einstellung: eine, die man für erledigt hält.
 
 **Dagegen, zweitens:** Ein fremder DDNS-Name als `DNS_ZIEL` würde zwar
@@ -309,12 +309,36 @@ einzige Quelle der Wahrheit, die Spiel-CNAMEs werden nicht angefasst, und
 `PANEL_DOMAIN` folgt als CNAME von allein oder wird als A-Eintrag innerhalb der
 Zone mitgezogen.
 
-**Und:** In diesem Betrieb legt `cf-dns` den A-Eintrag auch an, wenn er fehlt —
+**Und:** In diesem Betrieb legt `dns-pflegen` den A-Eintrag auch an, wenn er fehlt —
 anders als im festen Betrieb, wo er bewusst Handarbeit bleibt. Der Unterschied
 ist nicht Bequemlichkeit, sondern Eigentum: bei `dynamic` gehört der Eintrag dem
 Programm, sonst einem Menschen. Wer beides gleich behandelt, bekommt entweder
 einen Automatismus, der fremde Einträge überschreibt, oder einen dynamischen
 Betrieb, der beim ersten Lauf an einem fehlenden Eintrag scheitert.
+
+**Nachtrag (Stufe 25):** Die Grenze „das Programm besitzt `DNS_ZIEL` nur bei
+`dynamic`" hat einen Fall offengelassen: `PANEL_DOMAIN` wurde **nie** angelegt,
+und die DNS-Stufe lief als Nummer 70 ohnehin erst nach dem Zertifikat aus Stufe
+40. Auf einer frischen Zone war dieser eine Name damit die letzte Handarbeit,
+die eine sonst durchlaufende Einrichtung noch brauchte — und wenn er fehlte,
+stand im Journal ein gescheiterter ACME-Versuch, nicht der Grund dafür.
+
+`dns-pflegen grundgeruest` schließt das, ohne die Entscheidung umzudrehen: es legt
+an, was fehlt, und ändert **nie** einen vorhandenen Eintrag. Der Besitz wechselt
+damit nicht — wer einen Eintrag von Hand pflegt, behält ihn unangetastet, auch
+wenn er woandershin zeigt. Nachgeführt wird weiterhin nur bei `dynamic` und nur
+von `ziel-setzen`. Der Unterschied ist die Aufsicht: `grundgeruest` läuft einmal
+und auf ausdrücklichen Anstoß, der Zeitgeber unbeaufsichtigt alle fünf Minuten.
+Ein Automatismus dieser zweiten Sorte darf keine Namen erfinden.
+
+> *Addendum: the ownership line left one case open — `PANEL_DOMAIN` was never
+> created, and the DNS stage ran after the certificate stage, so on a fresh zone
+> that single name was the last piece of handwork an otherwise unattended
+> install still needed. `dns-pflegen grundgeruest` closes it without reversing the
+> decision: it creates what is missing and never changes an existing record, so
+> ownership does not move. What differs is supervision — it runs once, on
+> purpose; the timer runs unattended every five minutes and must not invent
+> names.*
 
 **Kosten:** Der Server hängt für die Messung an drei fremden Auskunftsstellen.
 Deshalb entscheidet die Mehrheit und nicht die erste Antwort, und Adressen aus
@@ -335,7 +359,7 @@ nicht einig, wird **nichts** geschrieben und der alte Eintrag bleibt stehen.
 > measures the public IPv4 every five minutes and writes it into the A record
 > that already exists. Cloudflare stays the single source of truth, no game CNAME
 > is touched, and the panel name follows as a CNAME or is carried along as an A
-> record inside the zone. In that mode `cf-dns` also creates the record when it
+> record inside the zone. In that mode `dns-pflegen` also creates the record when it
 > is missing, unlike fixed mode where it stays hand-made — the difference is
 > ownership, not convenience: treating both alike yields either an automation
 > that overwrites foreign records or a dynamic mode that fails on its first run.
@@ -393,6 +417,53 @@ der schon einmal aus einem anderen Grund passiert ist (siehe `panel.service`,
 > and writes it on every install and uninstall, and its absence would abort an
 > uninstall mid-way, leaving remnants behind — exactly the abort that has already
 > happened once for a different reason.*
+
+---
+
+## E24 — Der DNS-Anbieter ist eine Klasse, nicht ein Schalter im Ablauf
+
+**Naheliegend:** an den Stellen, die schreiben, nach dem Anbieter verzweigen —
+`if anbieter == "cloudflare": … else: …`.
+
+**Dagegen:** Dann steht die Frage „lege ich diesen Eintrag an, ändere ich ihn
+oder lasse ich ihn in Ruhe" einmal je Anbieter da. Genau diese Regeln tragen
+hier aber die Sicherheit: kein Spielport hinter einem Proxy, ein fremder Eintrag
+wird nie gelöscht, ein vorhandener nie überschrieben, und geprüft wird immer an
+der API statt an der Namensauflösung. Ein zweiter Anbieter wäre die zweite
+Gelegenheit, eine davon anders auszulegen — und niemand merkt es, weil beide
+Zweige „funktionieren".
+
+**Stattdessen:** Ein Anbieter kann sechs Dinge — Zone finden, Sätze holen,
+anlegen, ändern, löschen — und entscheidet nichts. Er liefert und nimmt immer
+dieselbe Form (`kennung`, `typ`, `name`, `wert`, `ttl`, `proxy`). Die Regeln
+stehen einmal darüber und kennen keine einzige API. Ein neuer Anbieter ist
+damit eine Klasse und ein Eintrag in `ANBIETER` — und er *kann* die Regeln nicht
+anders auslegen, weil er sie nicht sieht.
+
+**Kosten:** Eine Eigenheit, die nur ein Anbieter hat, muss durch die gemeinsame
+Form. Cloudflares `proxied` ist so ein Fall: es steht als `proxy` in jedem Satz
+und wird über `kennt_proxy` abgeschaltet, statt es zu verstecken. Das ist der
+ehrliche Preis — eine Naht, die so tut, als gäbe es keine Unterschiede, wäre
+dieselbe Falle eine Ebene höher.
+
+**Und:** Das Werkzeug heißt deshalb nicht mehr `cf-dns`. Ein Name, der einen
+Anbieter nennt, wäre nach dem ersten zweiten Anbieter falsch — und zwar so, dass
+man ihm nicht zutraut, was er kann. Der alte Name steht in `rueckbau.sh` unter
+`ALTLASTEN`: die Werkzeugliste wird aus `bin/` abgeleitet und kennt nur die
+Gegenwart, ein umbenanntes Werkzeug hätte sonst jeden Rückbau überlebt.
+
+> *Obvious: branch on the provider where records are written. Against: the rules
+> about creating, changing and leaving records alone are what carries the safety
+> here — no game port behind a proxy, never delete a foreign record, never
+> overwrite an existing one, always verify against the API. A second provider
+> would be a second chance to read one of them differently, and nobody notices
+> because both branches "work". Instead a provider does six things and decides
+> nothing; the rules sit above it and know no API. Cost: a provider-specific
+> trait must pass through the shared shape — Cloudflare's `proxied` travels as
+> `proxy` and is switched off via `kennt_proxy` rather than hidden. Hence the
+> rename away from `cf-dns`; the old name lives on in `rueckbau.sh` under
+> `ALTLASTEN`, because the tool list is derived from `bin/` and knows only the
+> present.*
 
 ---
 
