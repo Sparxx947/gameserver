@@ -265,6 +265,30 @@ Logo und keine Marke.
 > repository, while a self-made image may live here — deliberately carrying no
 > foreign logo or brand.*
 
+### `katalog-beschreibungen.py` (in `werkzeuge/`)
+
+```
+werkzeuge/katalog-beschreibungen.py [katalog.json] [--schreiben] [--pruefen]
+```
+
+Setzt das Feld `kurz` für Einträge, die dort nur ihren eigenen Namen tragen —
+"DayZ (LinuxGSM)" unter der Überschrift "DayZ". Das betraf **85 von 179**
+Einträgen: die Katalogkarte sagte zweimal dasselbe, die Textsuche gewann über
+`kurz` nichts, und der Untertitel der selbst gezeichneten Titelbilder war leer
+an Information.
+
+Die Sätze sind **selbst formuliert**, nicht aus dem Steam-Store übernommen:
+Store-Texte sind Werke Dritter, aus demselben Grund, aus dem Titelbilder zur
+Laufzeit geholt statt eingecheckt werden. Die Zuordnung steht einzeln im
+Werkzeug, wie in `katalog-kategorien.py`; Spiele ohne Eintrag werden beim Lauf
+benannt statt still ihren Namen zu behalten.
+
+> *Fills `kurz` for entries that carried only their own name — 85 of 179. The
+> sentences are written here rather than taken from the Steam store: store texts
+> are third-party works, the same reason artwork is fetched at runtime instead of
+> committed. Games without an entry are named on each run rather than quietly
+> keeping their name.*
+
 ### `eigene-bilder.py` (in `werkzeuge/`)
 
 ```

@@ -90,7 +90,7 @@
   {
    "schluessel": "ahl",
    "name": "Action Half-Life",
-   "kurz": "Action Half-Life (LinuxGSM)",
+   "kurz": "Half-Life-Mod mit realistischeren Waffen",
    "appid": 0,
    "image": "gameservermanagers/gameserver:ahl",
    "mem_gb": 2,
@@ -129,7 +129,7 @@
   {
    "schluessel": "ahl2",
    "name": "Action: Source",
-   "kurz": "Action: Source (LinuxGSM)",
+   "kurz": "Action Half-Life auf der Source-Engine",
    "appid": 977050,
    "image": "gameservermanagers/gameserver:ahl2",
    "mem_gb": 2,
@@ -353,7 +353,7 @@
   {
    "schluessel": "ark",
    "name": "ARK: Survival Evolved",
-   "kurz": "ARK: Survival Evolved (LinuxGSM)",
+   "kurz": "Survival mit zähmbaren Dinosauriern",
    "appid": 346110,
    "image": "gameservermanagers/gameserver:ark",
    "mem_gb": 8,
@@ -393,7 +393,7 @@
   {
    "schluessel": "arma3",
    "name": "ARMA 3",
-   "kurz": "ARMA 3 (LinuxGSM)",
+   "kurz": "Militärsimulation mit großen Karten",
    "appid": 107410,
    "image": "gameservermanagers/gameserver:arma3",
    "mem_gb": 8,
@@ -432,7 +432,7 @@
   {
    "schluessel": "armar",
    "name": "Arma Reforger",
-   "kurz": "Arma Reforger (LinuxGSM)",
+   "kurz": "Arma auf der Enfusion-Engine",
    "appid": 1874880,
    "image": "gameservermanagers/gameserver:armar",
    "mem_gb": 2,
@@ -632,7 +632,7 @@
   {
    "schluessel": "bb",
    "name": "BrainBread",
-   "kurz": "BrainBread (LinuxGSM)",
+   "kurz": "Half-Life-Mod: Koop gegen Zombiehorden",
    "appid": 0,
    "image": "gameservermanagers/gameserver:bb",
    "mem_gb": 2,
@@ -671,7 +671,7 @@
   {
    "schluessel": "bb2",
    "name": "BrainBread 2",
-   "kurz": "BrainBread 2 (LinuxGSM)",
+   "kurz": "Koop-Shooter gegen Zombies, Source-Engine",
    "appid": 346330,
    "image": "gameservermanagers/gameserver:bb2",
    "mem_gb": 2,
@@ -710,7 +710,7 @@
   {
    "schluessel": "bd",
    "name": "Base Defense",
-   "kurz": "Base Defense (LinuxGSM)",
+   "kurz": "Koop-Mod: Basis gegen Wellen verteidigen",
    "appid": 632730,
    "image": "gameservermanagers/gameserver:bd",
    "mem_gb": 2,
@@ -749,7 +749,7 @@
   {
    "schluessel": "bf1942",
    "name": "Battlefield 1942",
-   "kurz": "Battlefield 1942 (LinuxGSM)",
+   "kurz": "Zweiter Weltkrieg mit Fahrzeugen, 2002",
    "appid": 0,
    "image": "gameservermanagers/gameserver:bf1942",
    "mem_gb": 2,
@@ -793,7 +793,7 @@
   {
    "schluessel": "bfv",
    "name": "Battlefield: Vietnam",
-   "kurz": "Battlefield: Vietnam (LinuxGSM)",
+   "kurz": "Vietnamkrieg mit Fahrzeugen und Hubschraubern",
    "appid": 0,
    "image": "gameservermanagers/gameserver:bfv",
    "mem_gb": 2,
@@ -837,7 +837,7 @@
   {
    "schluessel": "bmdm",
    "name": "Black Mesa: Deathmatch",
-   "kurz": "Black Mesa: Deathmatch (LinuxGSM)",
+   "kurz": "Deathmatch im Black-Mesa-Neubau",
    "appid": 0,
    "image": "gameservermanagers/gameserver:bmdm",
    "mem_gb": 2,
@@ -876,7 +876,7 @@
   {
    "schluessel": "bo",
    "name": "Ballistic Overkill",
-   "kurz": "Ballistic Overkill (LinuxGSM)",
+   "kurz": "Schneller Arena-Shooter, kurze Runden",
    "appid": 0,
    "image": "gameservermanagers/gameserver:bo",
    "mem_gb": 2,
@@ -919,7 +919,7 @@
   {
    "schluessel": "bs",
    "name": "Blade Symphony",
-   "kurz": "Blade Symphony (LinuxGSM)",
+   "kurz": "Schwertkampf mit gezielten Schlägen",
    "appid": 225600,
    "image": "gameservermanagers/gameserver:bs",
    "mem_gb": 2,
@@ -958,7 +958,7 @@
   {
    "schluessel": "btl",
    "name": "BATTALION: Legacy",
-   "kurz": "BATTALION: Legacy (LinuxGSM)",
+   "kurz": "Zweiter Weltkrieg, Nachfolger von Battalion",
    "appid": 489940,
    "image": "gameservermanagers/gameserver:btl",
    "mem_gb": 2,
@@ -998,7 +998,7 @@
   {
    "schluessel": "cc",
    "name": "Codename CURE",
-   "kurz": "Codename CURE (LinuxGSM)",
+   "kurz": "Koop-Shooter gegen Infizierte, bis 4",
    "appid": 355180,
    "image": "gameservermanagers/gameserver:cc",
    "mem_gb": 2,
@@ -1114,7 +1114,7 @@
   {
    "schluessel": "cod",
    "name": "Call of Duty",
-   "kurz": "Call of Duty (LinuxGSM)",
+   "kurz": "Zweiter Weltkrieg, Mehrspieler von 2003",
    "appid": 2620,
    "image": "gameservermanagers/gameserver:cod",
    "mem_gb": 2,
@@ -1153,7 +1153,7 @@
   {
    "schluessel": "cod2",
    "name": "Call of Duty 2",
-   "kurz": "Call of Duty 2 (LinuxGSM)",
+   "kurz": "Zweiter Weltkrieg, Nachfolger von 2005",
    "appid": 2630,
    "image": "gameservermanagers/gameserver:cod2",
    "mem_gb": 2,
@@ -1192,7 +1192,7 @@
   {
    "schluessel": "cod4",
    "name": "Call of Duty 4",
-   "kurz": "Call of Duty 4 (LinuxGSM)",
+   "kurz": "Modern Warfare, Mehrspieler von 2007",
    "appid": 0,
    "image": "gameservermanagers/gameserver:cod4",
    "mem_gb": 2,
@@ -1231,7 +1231,7 @@
   {
    "schluessel": "coduo",
    "name": "Call of Duty: United Offensive",
-   "kurz": "Call of Duty: United Offensive (LinuxGSM)",
+   "kurz": "Erweiterung des ersten Call of Duty",
    "appid": 2640,
    "image": "gameservermanagers/gameserver:coduo",
    "mem_gb": 2,
@@ -1270,7 +1270,7 @@
   {
    "schluessel": "codwaw",
    "name": "Call of Duty: World at War",
-   "kurz": "Call of Duty: World at War (LinuxGSM)",
+   "kurz": "Pazifik und Ostfront, mit Zombie-Modus",
    "appid": 10090,
    "image": "gameservermanagers/gameserver:codwaw",
    "mem_gb": 2,
@@ -1532,7 +1532,7 @@
   {
    "schluessel": "cs",
    "name": "Counter-Strike 1.6",
-   "kurz": "Counter-Strike 1.6 (LinuxGSM)",
+   "kurz": "Der Klassiker: Terroristen gegen GSG 9",
    "appid": 0,
    "image": "gameservermanagers/gameserver:cs",
    "mem_gb": 2,
@@ -1571,7 +1571,7 @@
   {
    "schluessel": "cs2",
    "name": "Counter-Strike 2",
-   "kurz": "Counter-Strike 2 (LinuxGSM)",
+   "kurz": "Counter-Strike auf der Source-2-Engine",
    "appid": 730,
    "image": "gameservermanagers/gameserver:cs2",
    "mem_gb": 8,
@@ -1610,7 +1610,7 @@
   {
    "schluessel": "cscz",
    "name": "Counter-Strike: Condition Zero",
-   "kurz": "Counter-Strike: Condition Zero (LinuxGSM)",
+   "kurz": "Counter-Strike mit Einzelspieler-Kampagne",
    "appid": 80,
    "image": "gameservermanagers/gameserver:cscz",
    "mem_gb": 2,
@@ -1649,7 +1649,7 @@
   {
    "schluessel": "csgo",
    "name": "Counter-Strike: Global Offensive",
-   "kurz": "Counter-Strike: Global Offensive (LinuxGSM)",
+   "kurz": "Counter-Strike vor der Source-2-Fassung",
    "appid": 0,
    "image": "gameservermanagers/gameserver:csgo",
    "mem_gb": 8,
@@ -1688,7 +1688,7 @@
   {
    "schluessel": "css",
    "name": "Counter-Strike: Source",
-   "kurz": "Counter-Strike: Source (LinuxGSM)",
+   "kurz": "Counter-Strike auf der Source-Engine",
    "appid": 240,
    "image": "gameservermanagers/gameserver:css",
    "mem_gb": 2,
@@ -1765,7 +1765,7 @@
   {
    "schluessel": "dab",
    "name": "Double Action: Boogaloo",
-   "kurz": "Double Action: Boogaloo (LinuxGSM)",
+   "kurz": "Stunt-Shooter mit Zeitlupe, Hongkong-Stil",
    "appid": 317360,
    "image": "gameservermanagers/gameserver:dab",
    "mem_gb": 2,
@@ -1918,7 +1918,7 @@
   {
    "schluessel": "dayz",
    "name": "DayZ",
-   "kurz": "DayZ (LinuxGSM)",
+   "kurz": "Survival in der Zombie-Apokalypse",
    "appid": 221100,
    "image": "gameservermanagers/gameserver:dayz",
    "mem_gb": 8,
@@ -1990,7 +1990,7 @@
   {
    "schluessel": "dmc",
    "name": "Deathmatch Classic",
-   "kurz": "Deathmatch Classic (LinuxGSM)",
+   "kurz": "Quake-Deathmatch auf der Half-Life-Engine",
    "appid": 40,
    "image": "gameservermanagers/gameserver:dmc",
    "mem_gb": 2,
@@ -2029,7 +2029,7 @@
   {
    "schluessel": "dod",
    "name": "Day of Defeat",
-   "kurz": "Day of Defeat (LinuxGSM)",
+   "kurz": "Zweiter Weltkrieg, Klassen und Frontlinie",
    "appid": 30,
    "image": "gameservermanagers/gameserver:dod",
    "mem_gb": 2,
@@ -2068,7 +2068,7 @@
   {
    "schluessel": "dodr",
    "name": "Day of Dragons",
-   "kurz": "Day of Dragons (LinuxGSM)",
+   "kurz": "Survival als Drache, Aufzucht und Flug",
    "appid": 1088090,
    "image": "gameservermanagers/gameserver:dodr",
    "mem_gb": 2,
@@ -2147,7 +2147,7 @@
   {
    "schluessel": "dys",
    "name": "Dystopia",
-   "kurz": "Dystopia (LinuxGSM)",
+   "kurz": "Cyberpunk-Teamshooter mit Implantaten",
    "appid": 0,
    "image": "gameservermanagers/gameserver:dys",
    "mem_gb": 2,
@@ -2224,7 +2224,7 @@
   {
    "schluessel": "em",
    "name": "Empires Mod",
-   "kurz": "Empires Mod (LinuxGSM)",
+   "kurz": "Team-Shooter mit Kommandant und Basisbau",
    "appid": 17740,
    "image": "gameservermanagers/gameserver:em",
    "mem_gb": 2,
@@ -2263,7 +2263,7 @@
   {
    "schluessel": "etl",
    "name": "ET: Legacy",
-   "kurz": "ET: Legacy (LinuxGSM)",
+   "kurz": "Freier Nachbau von Wolfenstein: ET",
    "appid": 0,
    "image": "gameservermanagers/gameserver:etl",
    "mem_gb": 2,
@@ -2605,7 +2605,7 @@
   {
    "schluessel": "hcu",
    "name": "HYPERCHARGE: Unboxed",
-   "kurz": "HYPERCHARGE: Unboxed (LinuxGSM)",
+   "kurz": "Koop gegen Spielzeugroboter, bis 4",
    "appid": 523660,
    "image": "gameservermanagers/gameserver:hcu",
    "mem_gb": 2,
@@ -2645,7 +2645,7 @@
   {
    "schluessel": "hldms",
    "name": "Half-Life Deathmatch: Source",
-   "kurz": "Half-Life Deathmatch: Source (LinuxGSM)",
+   "kurz": "Half-Life-Deathmatch auf Source",
    "appid": 360,
    "image": "gameservermanagers/gameserver:hldms",
    "mem_gb": 2,
@@ -2725,7 +2725,7 @@
   {
    "schluessel": "hz",
    "name": "Humanitz",
-   "kurz": "Humanitz (LinuxGSM)",
+   "kurz": "Survival-Koop in der Zombie-Apokalypse",
    "appid": 1766060,
    "image": "gameservermanagers/gameserver:hz",
    "mem_gb": 8,
@@ -2879,7 +2879,7 @@
   {
    "schluessel": "ios",
    "name": "IOSoccer",
-   "kurz": "IOSoccer (LinuxGSM)",
+   "kurz": "Fußball im Team, ein Spieler pro Position",
    "appid": 673560,
    "image": "gameservermanagers/gameserver:ios",
    "mem_gb": 2,
@@ -2918,7 +2918,7 @@
   {
    "schluessel": "jbep3",
    "name": "Jabroni Brawl: Episode 3",
-   "kurz": "Jabroni Brawl: Episode 3 (LinuxGSM)",
+   "kurz": "Chaotischer Deathmatch-Mod, viele Modi",
    "appid": 869480,
    "image": "gameservermanagers/gameserver:jbep3",
    "mem_gb": 2,
@@ -2957,7 +2957,7 @@
   {
    "schluessel": "jc2",
    "name": "Just Cause 2",
-   "kurz": "Just Cause 2 (LinuxGSM)",
+   "kurz": "Just Cause 2 im Mehrspieler-Modus",
    "appid": 8190,
    "image": "gameservermanagers/gameserver:jc2",
    "mem_gb": 2,
@@ -3000,7 +3000,7 @@
   {
    "schluessel": "jc3",
    "name": "Just Cause 3",
-   "kurz": "Just Cause 3 (LinuxGSM)",
+   "kurz": "Just Cause 3 im Mehrspieler-Modus",
    "appid": 225540,
    "image": "gameservermanagers/gameserver:jc3",
    "mem_gb": 2,
@@ -3043,7 +3043,7 @@
   {
    "schluessel": "jk2",
    "name": "Jedi Knight II: Jedi Outcast",
-   "kurz": "Jedi Knight II: Jedi Outcast (LinuxGSM)",
+   "kurz": "Lichtschwert-Duelle im Star-Wars-Universum",
    "appid": 0,
    "image": "gameservermanagers/gameserver:jk2",
    "mem_gb": 2,
@@ -3165,7 +3165,7 @@
   {
    "schluessel": "l4d2",
    "name": "Left 4 Dead 2",
-   "kurz": "Left 4 Dead 2 (LinuxGSM)",
+   "kurz": "Koop gegen Zombiehorden, vier Überlebende",
    "appid": 550,
    "image": "gameservermanagers/gameserver:l4d2",
    "mem_gb": 2,
@@ -3361,7 +3361,7 @@
   {
    "schluessel": "mcv",
    "name": "Military Conflict: Vietnam",
-   "kurz": "Military Conflict: Vietnam (LinuxGSM)",
+   "kurz": "Vietnamkrieg im Stil älterer Shooter",
    "appid": 1012110,
    "image": "gameservermanagers/gameserver:mcv",
    "mem_gb": 2,
@@ -3831,7 +3831,7 @@
   {
    "schluessel": "mohaa",
    "name": "Medal of Honor: Allied Assault",
-   "kurz": "Medal of Honor: Allied Assault (LinuxGSM)",
+   "kurz": "Zweiter Weltkrieg, Mehrspieler von 2002",
    "appid": 0,
    "image": "gameservermanagers/gameserver:mohaa",
    "mem_gb": 2,
@@ -3943,7 +3943,7 @@
   {
    "schluessel": "nd",
    "name": "Nuclear Dawn",
-   "kurz": "Nuclear Dawn (LinuxGSM)",
+   "kurz": "Team-Shooter mit Kommandant, Source",
    "appid": 17710,
    "image": "gameservermanagers/gameserver:nd",
    "mem_gb": 2,
@@ -4059,7 +4059,7 @@
   {
    "schluessel": "nmrih",
    "name": "No More Room in Hell",
-   "kurz": "No More Room in Hell (LinuxGSM)",
+   "kurz": "Koop-Survival gegen Zombies, sehr zäh",
    "appid": 224260,
    "image": "gameservermanagers/gameserver:nmrih",
    "mem_gb": 2,
@@ -4098,7 +4098,7 @@
   {
    "schluessel": "ns",
    "name": "Natural Selection",
-   "kurz": "Natural Selection (LinuxGSM)",
+   "kurz": "Marines gegen Aliens, ein Spieler führt",
    "appid": 0,
    "image": "gameservermanagers/gameserver:ns",
    "mem_gb": 2,
@@ -4137,7 +4137,7 @@
   {
    "schluessel": "ns2",
    "name": "Natural Selection 2",
-   "kurz": "Natural Selection 2 (LinuxGSM)",
+   "kurz": "Marines gegen Aliens, Bau und Kommandant",
    "appid": 4920,
    "image": "gameservermanagers/gameserver:ns2",
    "mem_gb": 2,
@@ -4176,7 +4176,7 @@
   {
    "schluessel": "ns2c",
    "name": "NS2: Combat",
-   "kurz": "NS2: Combat (LinuxGSM)",
+   "kurz": "Natural Selection 2 ohne Aufbauteil",
    "appid": 310110,
    "image": "gameservermanagers/gameserver:ns2c",
    "mem_gb": 2,
@@ -4215,7 +4215,7 @@
   {
    "schluessel": "ohd",
    "name": "Operation: Harsh Doorstop",
-   "kurz": "Operation: Harsh Doorstop (LinuxGSM)",
+   "kurz": "Freier taktischer Shooter, große Karten",
    "appid": 736590,
    "image": "gameservermanagers/gameserver:ohd",
    "mem_gb": 8,
@@ -4255,7 +4255,7 @@
   {
    "schluessel": "onset",
    "name": "Onset",
-   "kurz": "Onset (LinuxGSM)",
+   "kurz": "Freies Open-World-Rollenspiel mit Skripten",
    "appid": 1105810,
    "image": "gameservermanagers/gameserver:onset",
    "mem_gb": 2,
@@ -4397,7 +4397,7 @@
   {
    "schluessel": "opfor",
    "name": "Opposing Force",
-   "kurz": "Opposing Force (LinuxGSM)",
+   "kurz": "Half-Life aus Sicht der Soldaten",
    "appid": 0,
    "image": "gameservermanagers/gameserver:opfor",
    "mem_gb": 2,
@@ -4436,7 +4436,7 @@
   {
    "schluessel": "pc",
    "name": "Project Cars",
-   "kurz": "Project Cars (LinuxGSM)",
+   "kurz": "Rennsimulation mit vielen Klassen",
    "appid": 234630,
    "image": "gameservermanagers/gameserver:pc",
    "mem_gb": 2,
@@ -4479,7 +4479,7 @@
   {
    "schluessel": "pc2",
    "name": "Project Cars 2",
-   "kurz": "Project Cars 2 (LinuxGSM)",
+   "kurz": "Rennsimulation, Nachfolger mit mehr Strecken",
    "appid": 378860,
    "image": "gameservermanagers/gameserver:pc2",
    "mem_gb": 2,
@@ -4638,7 +4638,7 @@
   {
    "schluessel": "pvr",
    "name": "Pavlov VR",
-   "kurz": "Pavlov VR (LinuxGSM)",
+   "kurz": "VR-Shooter mit Such-und-Zerstör-Modus",
    "appid": 0,
    "image": "gameservermanagers/gameserver:pvr",
    "mem_gb": 2,
@@ -4677,7 +4677,7 @@
   {
    "schluessel": "q2",
    "name": "Quake 2",
-   "kurz": "Quake 2 (LinuxGSM)",
+   "kurz": "Quake 2 mit Deathmatch und Koop",
    "appid": 0,
    "image": "gameservermanagers/gameserver:q2",
    "mem_gb": 2,
@@ -4716,7 +4716,7 @@
   {
    "schluessel": "q3",
    "name": "Quake 3: Arena",
-   "kurz": "Quake 3: Arena (LinuxGSM)",
+   "kurz": "Reine Arena-Deathmatches, sehr schnell",
    "appid": 0,
    "image": "gameservermanagers/gameserver:q3",
    "mem_gb": 2,
@@ -4755,7 +4755,7 @@
   {
    "schluessel": "q4",
    "name": "Quake 4",
-   "kurz": "Quake 4 (LinuxGSM)",
+   "kurz": "Quake 4, Nachfolger mit Strogg-Kampagne",
    "appid": 2210,
    "image": "gameservermanagers/gameserver:q4",
    "mem_gb": 2,
@@ -4832,7 +4832,7 @@
   {
    "schluessel": "qw",
    "name": "Quake World",
-   "kurz": "Quake World (LinuxGSM)",
+   "kurz": "QuakeWorld: Quake 1 fürs Netz optimiert",
    "appid": 0,
    "image": "gameservermanagers/gameserver:qw",
    "mem_gb": 2,
@@ -4907,7 +4907,7 @@
   {
    "schluessel": "ricochet",
    "name": "Ricochet",
-   "kurz": "Ricochet (LinuxGSM)",
+   "kurz": "Wurfscheiben-Duelle auf schwebenden Feldern",
    "appid": 0,
    "image": "gameservermanagers/gameserver:ricochet",
    "mem_gb": 2,
@@ -4946,7 +4946,7 @@
   {
    "schluessel": "ro",
    "name": "Red Orchestra: Ostfront 41-45",
-   "kurz": "Red Orchestra: Ostfront 41-45 (LinuxGSM)",
+   "kurz": "Ostfront, ohne Fadenkreuz und sehr tödlich",
    "appid": 1200,
    "image": "gameservermanagers/gameserver:ro",
    "mem_gb": 2,
@@ -4990,7 +4990,7 @@
   {
    "schluessel": "rtcw",
    "name": "Return to Castle Wolfenstein",
-   "kurz": "Return to Castle Wolfenstein (LinuxGSM)",
+   "kurz": "Wolfenstein-Mehrspieler, Klassen und Ziele",
    "appid": 9010,
    "image": "gameservermanagers/gameserver:rtcw",
    "mem_gb": 2,
@@ -5072,7 +5072,7 @@
   {
    "schluessel": "rw",
    "name": "Rising World",
-   "kurz": "Rising World (LinuxGSM)",
+   "kurz": "Aufbau und Erkundung in Voxelwelten",
    "appid": 324080,
    "image": "gameservermanagers/gameserver:rw",
    "mem_gb": 2,
@@ -5116,7 +5116,7 @@
   {
    "schluessel": "samp",
    "name": "San Andreas Multiplayer",
-   "kurz": "San Andreas Multiplayer (LinuxGSM)",
+   "kurz": "GTA San Andreas im Mehrspieler-Modus",
    "appid": 0,
    "image": "gameservermanagers/gameserver:samp",
    "mem_gb": 2,
@@ -5155,7 +5155,7 @@
   {
    "schluessel": "sbots",
    "name": "StickyBots",
-   "kurz": "StickyBots (LinuxGSM)",
+   "kurz": "Roboter-Arena mit Haftgeschossen",
    "appid": 889400,
    "image": "gameservermanagers/gameserver:sbots",
    "mem_gb": 2,
@@ -5233,7 +5233,7 @@
   {
    "schluessel": "scpslsm",
    "name": "SCP: Secret Laboratory ServerMod",
-   "kurz": "SCP: Secret Laboratory ServerMod (LinuxGSM)",
+   "kurz": "SCP: Secret Laboratory mit Server-Mod",
    "appid": 0,
    "image": "gameservermanagers/gameserver:scpslsm",
    "mem_gb": 2,
@@ -5272,7 +5272,7 @@
   {
    "schluessel": "sfc",
    "name": "SourceForts Classic",
-   "kurz": "SourceForts Classic (LinuxGSM)",
+   "kurz": "Teamshooter mit baubaren Festungen",
    "appid": 0,
    "image": "gameservermanagers/gameserver:sfc",
    "mem_gb": 2,
@@ -5311,7 +5311,7 @@
   {
    "schluessel": "sof2",
    "name": "Soldier Of Fortune 2: Gold Edition",
-   "kurz": "Soldier Of Fortune 2: Gold Edition (LinuxGSM)",
+   "kurz": "Taktischer Shooter mit Trefferzonen",
    "appid": 0,
    "image": "gameservermanagers/gameserver:sof2",
    "mem_gb": 2,
@@ -5350,7 +5350,7 @@
   {
    "schluessel": "sol",
    "name": "Soldat",
-   "kurz": "Soldat (LinuxGSM)",
+   "kurz": "2D-Shooter mit Seilhaken, schnelle Runden",
    "appid": 638490,
    "image": "gameservermanagers/gameserver:sol",
    "mem_gb": 2,
@@ -5513,7 +5513,7 @@
   {
    "schluessel": "squad44",
    "name": "Squad 44",
-   "kurz": "Squad 44 (LinuxGSM)",
+   "kurz": "Taktischer Shooter im Zweiten Weltkrieg",
    "appid": 736220,
    "image": "gameservermanagers/gameserver:squad44",
    "mem_gb": 8,
@@ -5553,7 +5553,7 @@
   {
    "schluessel": "st",
    "name": "Stationeers",
-   "kurz": "Stationeers (LinuxGSM)",
+   "kurz": "Raumstationen bauen, harte Physik",
    "appid": 544550,
    "image": "gameservermanagers/gameserver:st",
    "mem_gb": 2,
@@ -5984,7 +5984,7 @@
   {
    "schluessel": "tf2c",
    "name": "Team Fortress 2 Classified",
-   "kurz": "Team Fortress 2 Classified (LinuxGSM)",
+   "kurz": "Team Fortress 2 mit eigenen Klassen",
    "appid": 3545060,
    "image": "gameservermanagers/gameserver:tf2c",
    "mem_gb": 2,
@@ -6023,7 +6023,7 @@
   {
    "schluessel": "tfc",
    "name": "Team Fortress Classic",
-   "kurz": "Team Fortress Classic (LinuxGSM)",
+   "kurz": "Klassenbasierter Teamshooter, neun Klassen",
    "appid": 20,
    "image": "gameservermanagers/gameserver:tfc",
    "mem_gb": 2,
@@ -6140,7 +6140,7 @@
   {
    "schluessel": "ti",
    "name": "The Isle",
-   "kurz": "The Isle (LinuxGSM)",
+   "kurz": "Als Dinosaurier überleben, Nahrungskette",
    "appid": 376210,
    "image": "gameservermanagers/gameserver:ti",
    "mem_gb": 8,
@@ -6179,7 +6179,7 @@
   {
    "schluessel": "ts",
    "name": "The Specialists",
-   "kurz": "The Specialists (LinuxGSM)",
+   "kurz": "Shooter mit Zeitlupe im Hongkong-Stil",
    "appid": 0,
    "image": "gameservermanagers/gameserver:ts",
    "mem_gb": 2,
@@ -6218,7 +6218,7 @@
   {
    "schluessel": "tu",
    "name": "Tower Unite",
-   "kurz": "Tower Unite (LinuxGSM)",
+   "kurz": "Virtuelles Wohnzimmer mit Minispielen",
    "appid": 394690,
    "image": "gameservermanagers/gameserver:tu",
    "mem_gb": 8,
@@ -6333,7 +6333,7 @@
   {
    "schluessel": "ut",
    "name": "Unreal Tournament",
-   "kurz": "Unreal Tournament (LinuxGSM)",
+   "kurz": "Unreal Tournament, Arena-Deathmatch",
    "appid": 0,
    "image": "gameservermanagers/gameserver:ut",
    "mem_gb": 2,
@@ -6372,7 +6372,7 @@
   {
    "schluessel": "ut2k4",
    "name": "Unreal Tournament 2004",
-   "kurz": "Unreal Tournament 2004 (LinuxGSM)",
+   "kurz": "Arena-Shooter mit Fahrzeugen und Onslaught",
    "appid": 0,
    "image": "gameservermanagers/gameserver:ut2k4",
    "mem_gb": 2,
@@ -6415,7 +6415,7 @@
   {
    "schluessel": "ut3",
    "name": "Unreal Tournament 3",
-   "kurz": "Unreal Tournament 3 (LinuxGSM)",
+   "kurz": "Unreal Tournament 3 mit Warfare-Modus",
    "appid": 0,
    "image": "gameservermanagers/gameserver:ut3",
    "mem_gb": 2,
@@ -6455,7 +6455,7 @@
   {
    "schluessel": "ut99",
    "name": "Unreal Tournament 99",
-   "kurz": "Unreal Tournament 99 (LinuxGSM)",
+   "kurz": "Der erste Unreal Tournament von 1999",
    "appid": 0,
    "image": "gameservermanagers/gameserver:ut99",
    "mem_gb": 2,
@@ -6613,7 +6613,7 @@
   {
    "schluessel": "vs",
    "name": "Vampire Slayer",
-   "kurz": "Vampire Slayer (LinuxGSM)",
+   "kurz": "Menschen gegen Vampire, Half-Life-Mod",
    "appid": 3043210,
    "image": "gameservermanagers/gameserver:vs",
    "mem_gb": 2,
@@ -6652,7 +6652,7 @@
   {
    "schluessel": "wet",
    "name": "Wolfenstein: Enemy Territory",
-   "kurz": "Wolfenstein: Enemy Territory (LinuxGSM)",
+   "kurz": "Achsenmächte gegen Alliierte, Klassen",
    "appid": 1873030,
    "image": "gameservermanagers/gameserver:wet",
    "mem_gb": 2,
@@ -6695,7 +6695,7 @@
   {
    "schluessel": "wf",
    "name": "Warfork",
-   "kurz": "Warfork (LinuxGSM)",
+   "kurz": "Arena-Shooter im Stil von Quake 3",
    "appid": 671610,
    "image": "gameservermanagers/gameserver:wf",
    "mem_gb": 2,
@@ -6871,7 +6871,7 @@
   {
    "schluessel": "zmr",
    "name": "Zombie Master: Reborn",
-   "kurz": "Zombie Master: Reborn (LinuxGSM)",
+   "kurz": "Ein Spieler steuert die Zombies",
    "appid": 0,
    "image": "gameservermanagers/gameserver:zmr",
    "mem_gb": 2,
@@ -6910,7 +6910,7 @@
   {
    "schluessel": "zps",
    "name": "Zombie Panic! Source",
-   "kurz": "Zombie Panic! Source (LinuxGSM)",
+   "kurz": "Menschen gegen Zombies, Rundenmodus",
    "appid": 17500,
    "image": "gameservermanagers/gameserver:zps",
    "mem_gb": 2,
