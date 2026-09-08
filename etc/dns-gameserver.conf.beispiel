@@ -1,0 +1,32 @@
+# Anbieter und Token fuer dns-pflegen. Nach /etc/dns-gameserver.conf kopieren,
+# Werte einsetzen, chmod 600.
+#
+# Anbieter und Token stehen zusammen in EINER Datei, weil sie zusammengehoeren:
+# ein Token hat immer genau die Form, die ein bestimmter Anbieter versteht. Sie
+# an zwei Orten zu fuehren hiesse, zwei Stellen auseinanderlaufen zu lassen.
+#
+# *Provider and token live in one file because they belong together: a token
+#  always has the shape exactly one provider understands.*
+
+# Moegliche Anbieter: cloudflare
+# Fehlt die Zeile, ist es cloudflare - das war der einzige Anbieter, als es die
+# Angabe noch nicht gab.
+ANBIETER=cloudflare
+
+# Berechtigung des Tokens im Cloudflare-Dashboard:
+#   Zone / DNS / Bearbeiten
+#   Zonenressource: NUR die eigene Zone
+#
+# NIE der globale API-Schluessel: der darf alles im Konto, auch Zonen loeschen
+# und Abrechnungsdaten lesen. Ein Token mit diesem Zuschnitt kann im
+# schlimmsten Fall DNS-Eintraege einer Zone aendern - mehr nicht.
+#
+# *Scoped token: Zone / DNS / Edit, restricted to your own zone. Never the
+#  global API key, which can do anything in the account. At worst this token
+#  can change DNS records in one zone.*
+TOKEN=hier-den-token-einsetzen
+
+# Die aeltere /etc/cloudflare-gameserver.conf mit CF_TOKEN=... wird weiter
+# gelesen, damit vorhandene Installationen nicht stehenbleiben.
+# *The older file with CF_TOKEN=... is still read so existing installs keep
+#  working.*

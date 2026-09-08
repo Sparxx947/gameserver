@@ -294,15 +294,15 @@ PY
     # DNS-Namen anlegen, wenn der Cloudflare-Zugang eingerichtet ist. Ein
     # fehlender Zugang ist kein Grund, die Installation als gescheitert zu
     # melden - das Spiel laeuft auch ueber die IP-Adresse.
-    if [ -f /etc/cloudflare-gameserver.conf ]; then
-      /usr/local/bin/cf-dns setzen "$s" >/dev/null 2>&1 || true
+    if [ -f /etc/dns-gameserver.conf ] || [ -f /etc/cloudflare-gameserver.conf ]; then
+      /usr/local/bin/dns-pflegen setzen "$s" >/dev/null 2>&1 || true
     fi
     ;;
   deinstallieren)
     s="${2:-}"; pruefe_stack "$s"
     [ -f "/opt/stacks/$s/panel.json" ] || fehler "Dieser Server wurde nicht ueber den Katalog installiert und laesst sich hier nicht entfernen."
-    if [ -f /etc/cloudflare-gameserver.conf ]; then
-      /usr/local/bin/cf-dns entfernen "$s" >/dev/null 2>&1 || true
+    if [ -f /etc/dns-gameserver.conf ] || [ -f /etc/cloudflare-gameserver.conf ]; then
+      /usr/local/bin/dns-pflegen entfernen "$s" >/dev/null 2>&1 || true
     fi
     /usr/local/bin/spiel-verwalten deinstallieren "$s"
     ;;
@@ -367,10 +367,10 @@ PY
     was="${2:-}"; n="${3:-}"
     case "$was" in setzen|entfernen|liste|pruefen) ;; *) fehler "unbekannte DNS-Aktion" ;; esac
     if [ "$was" = "liste" ] || [ "$was" = "pruefen" ]; then
-      /usr/local/bin/cf-dns "$was"
+      /usr/local/bin/dns-pflegen "$was"
     else
       pruefe_stack "$n"
-      /usr/local/bin/cf-dns "$was" "$n"
+      /usr/local/bin/dns-pflegen "$was" "$n"
     fi
     ;;
   *) fehler "unbekannte Aktion" ;;

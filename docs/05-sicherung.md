@@ -183,7 +183,7 @@ kann, verliert den Fortschritt der Sitzung.
    cd / && borg extract "$REPO::config-20260906-040000"
    ```
 4. Je Spiel den letzten Stand auspacken (siehe oben).
-5. Container starten, DNS mit `cf-dns setzen <name>` neu eintragen.
+5. Container starten, DNS mit `dns-pflegen setzen <name>` neu eintragen.
 
 > *Total loss: rebuild stages 10–50, restore the passphrase from its off-host
 > copy, extract the `config-*` archive for the compose files, extract each game's

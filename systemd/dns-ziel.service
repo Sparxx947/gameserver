@@ -9,11 +9,11 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/cf-dns ziel-setzen
+ExecStart=/usr/local/bin/dns-pflegen ziel-setzen
 # Bewusst ohne Haertungsoptionen. Der Dienst laeuft als root und ruft KEIN sudo,
 # die Falle aus dem Panel-Dienst (NoNewPrivileges implizit durch LockPersonality
 # & Co.) greift hier also nicht. Aufgenommen wird trotzdem nichts, was nicht
-# nachgemessen ist: gebraucht werden nur /etc/cloudflare-gameserver.conf lesen
+# nachgemessen ist: gebraucht werden nur /etc/dns-gameserver.conf lesen
 # und ausgehendes HTTPS.
 # *Deliberately unhardened: runs as root, calls no sudo, and needs only to read
 #  the token file and speak outbound HTTPS.*

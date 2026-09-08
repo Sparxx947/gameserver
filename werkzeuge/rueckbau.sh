@@ -78,6 +78,16 @@ schritt() {   # schritt <beschreibung> <befehl>
 EINHEITEN=(); for u in "$REPO"/systemd/*; do EINHEITEN+=("$(basename "$u")"); done
 # ttyd kommt von GitHub und nicht aus bin/, liegt aber am selben Ort.
 WERKZEUGE=(ttyd); for w in "$REPO"/bin/*; do WERKZEUGE+=("$(basename "$w")"); done
+# Namen, die frueher einmal eingebaut wurden und heute nicht mehr in bin/ stehen.
+# Die Liste oben wird aus dem Repositorium abgeleitet - ein umbenanntes Werkzeug
+# steht dort nicht mehr und ueberlebte deshalb jeden Rueckbau. Das ist genau die
+# Drift, gegen die dieses Skript gebaut wurde, nur eine Ebene tiefer: die
+# Ableitung kennt die Gegenwart, nicht die Geschichte.
+# *Tools that were installed under a former name: the derived list above knows
+#  the present, not the history, so a renamed tool would survive every teardown -
+#  the very drift this script exists to prevent, one level down.*
+ALTLASTEN=(cf-dns)          # heisst seit dem Anbieter-Umbau dns-pflegen
+WERKZEUGE+=("${ALTLASTEN[@]}")
 
 echo "== Bestandsaufnahme auf $ZIEL =="
 STACKS=$(fern "ls -1 /opt/stacks 2>/dev/null" || true)
@@ -146,9 +156,9 @@ echo "== Rueckbau =="
 if [ "$MIT_DNS" -eq 1 ]; then
   while read -r s; do
     [ -n "$s" ] || continue
-    schritt "DNS-Name entfernen: $s" "/usr/local/bin/cf-dns entfernen '$s'"
+    schritt "DNS-Name entfernen: $s" "/usr/local/bin/dns-pflegen entfernen '$s'"
   done <<<"$STACKS"
-  schritt "Cloudflare-Token entfernen" "rm -f /etc/cloudflare-gameserver.conf"
+  schritt "DNS-Token entfernen" "rm -f /etc/dns-gameserver.conf /etc/cloudflare-gameserver.conf"
 fi
 
 # 2. Letzte Sicherung, BEVOR Spielstaende verschwinden. Schlaegt sie fehl, wird
