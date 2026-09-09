@@ -729,7 +729,7 @@ def bild(request: Request, stack: str):
 
 
 @app.get("/", response_class=HTMLResponse)
-def uebersicht(request: Request, meldung: str = ""):
+def uebersicht(request: Request, meldung: str = "", bearbeiten: str = ""):
     s = angemeldet(request)
     if not s:
         return RedirectResponse("/login", 303)
@@ -805,7 +805,23 @@ def uebersicht(request: Request, meldung: str = ""):
         # *Only for admins, and only for stacks without panel.json - catalogue
         #  games have their own path.*
         if ist_admin(s) and not pi:
-            verweise += f'<a class="b x" href="/entfernen-fragen/{name}">entfernen</a>'
+            # Loeschen liegt hinter einem eigenen Schritt. Vorher stand
+            # "entfernen" in derselben Reihe wie "Protokoll" und "Einstellungen":
+            # drei harmlose Knoepfe und einer, der 21 GB loescht. Die
+            # Rueckfrageseite faengt einen Fehlgriff ab, aber der Knopf soll gar
+            # nicht erst danebenliegen.
+            #
+            # Serverseitig ueber einen Parameter, nicht mit JavaScript: die
+            # Uebersicht laeuft unter "default-src 'none'", und diese Lockerung
+            # gilt nur fuer /login, /konto und /passkey.js - sie soll sich nicht
+            # ausbreiten.
+            # *Deletion sits behind its own step, server-side rather than in
+            #  JavaScript: the overview runs under default-src 'none'.*
+            if bearbeiten == name:
+                verweise += (f'<a class="b x" href="/entfernen-fragen/{name}">entfernen</a>'
+                             f'<a class=b href="/">fertig</a>')
+            else:
+                verweise += f'<a class=b href="/?bearbeiten={name}">bearbeiten</a>'
         # Aktualisieren ist ein eigenes Formular, kein Verweis: es aendert etwas
         # und braucht deshalb das CSRF-Merkmal. Die Sicherung davor erzwingt
         # panel-aktion, nicht die Oberflaeche - eine Schutzmassnahme, die man
@@ -900,7 +916,12 @@ def uebersicht(request: Request, meldung: str = ""):
             # Platzhalter gleicher Hoehe, damit gestoppte Server das Raster
             # nicht zerreissen.
             last = '<div class="last z" style="display:flex;align-items:center">nicht aktiv</div>'
-        karten.append(f"""<div class=c>{bild_html}<div class=cb>
+        # Die entsperrte Karte wird hervorgehoben - ein Modus, den man nicht
+        # sieht, ist selbst eine Falle.
+        # *The unlocked card is highlighted: a mode you cannot see is a trap.*
+        rahmen = (' style="outline:2px solid var(--y);outline-offset:2px"'
+                  if bearbeiten == name else "")
+        karten.append(f"""<div class=c{rahmen}>{bild_html}<div class=cb>
 <div class=n>{name} <span class="s {'on' if an else 'off'}">{'läuft' if an else 'gestoppt'}</span></div>
 {adresse}
 {last}
