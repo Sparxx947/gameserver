@@ -1,14 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Spieleserver">
-<rect x="1" y="1" width="30" height="30" rx="8" fill="#5b9dd9"/>
-<g fill="#e6e8ec">
-<rect x="4.5" y="10.5" width="23" height="11" rx="4.6"/>
-<path d="M6.5 19.5 4.8 25.5h4.8L11 20.4z"/>
-<path d="M25.5 19.5l1.7 6h-4.8L21 20.4z"/>
-</g>
-<g fill="#5b9dd9">
-<rect x="8.0" y="15.0" width="6.2" height="2.2" rx="0.9"/>
-<rect x="9.8" y="13.2" width="2.6" height="5.8" rx="0.9"/>
-<circle cx="21.4" cy="14.6" r="1.7"/>
-<circle cx="24.2" cy="17.4" r="1.7"/>
-</g>
-</svg>
+<svg viewBox="0 0 32 32" width="32" height="32" xmlns="http://www.w3.org/2000/svg" aria-hidden=true><rect x=1 y=1 width=30 height=30 rx=8 fill="#3f9c6d"/><path d="M1 6h30v6.5H1z" fill="#4caf7d" opacity=".45"/><path d="M1 19h30v6.5H1z" fill="#4caf7d" opacity=".45"/><path d="M5.0 16.0H27.0" stroke="#eef1f4" stroke-width=2.2 stroke-linecap="round"/><circle cx="16" cy="16.0" r="5.4" fill="none" stroke="#eef1f4" stroke-width=2.2/><circle cx="16" cy="16.0" r="1.4" fill="#eef1f4"/></svg>
