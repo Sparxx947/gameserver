@@ -824,7 +824,13 @@ def uebersicht(request: Request, meldung: str = ""):
                 f'kann und niemand spielt">'
                 f'auto {"an" if auto else "aus"}</button></form>')
         if darf_verwalten(s):
-            aktualisieren_knopf = (
+            # "+=", NICHT "=": Hier stand eine Zuweisung, und die warf den
+            # Auto-Schalter von oben weg - er wurde gebaut und im selben Atemzug
+            # ueberschrieben. Auf der Karte war davon nichts zu sehen, und jeder
+            # Block sieht fuer sich betrachtet richtig aus.
+            # *"+=", not "=": an assignment here discarded the auto switch built
+            #  a few lines above - created and overwritten in the same breath.*
+            aktualisieren_knopf += (
                 f'<form method=post action=/aktualisieren style=display:contents>'
                 f'<input type=hidden name=csrf value="{s["csrf"]}">'
                 f'<input type=hidden name=stack value="{name}">'
