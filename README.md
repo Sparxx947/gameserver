@@ -1,4 +1,6 @@
-# gameserver
+# Platzwart
+
+*Der Platzwart bespielt den Platz nicht — er hält ihn instand.*
 
 Vollständiger Bausatz für einen selbst gehosteten **Spieleserver mit Weboberfläche**:
 Docker-Serverstacks, ein Panel mit Zwei-Faktor-Anmeldung, ein Katalog von 179

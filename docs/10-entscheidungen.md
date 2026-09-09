@@ -516,3 +516,47 @@ Gate wieder veröffentlicht worden.
 > with the standalone tool handing over via `execv` instead of acting itself. The
 > gate is the actual protection — reversing the order alone would only have moved
 > the bug, since setup still found no password field in the id-Tech format.*
+
+---
+
+## E24 — Das Projekt heißt Platzwart
+
+`gameserver` beschreibt die Gattung, nicht dieses Projekt — und es beschreibt
+ausgerechnet das, was hier **nicht** drinsteckt.
+
+**Warum der Name trägt:** Der Platzwart bespielt den Platz nicht, er hält ihn
+instand: Linien kreiden, Netz prüfen, abends abschließen. Das ist genau der
+Inhalt von `werkzeuge/` — `abgleich.sh` ändert ausdrücklich nichts,
+`vollstaendigkeit.sh` prüft, `aufraeumen.sh` räumt, `rueckbau.sh` baut ab. Kein
+einziges Werkzeug hier ist zum Spielen da.
+
+Der Doppelsinn trägt zweimal: **warten** heißt instand halten *und* abwarten —
+`port-ermitteln` hat dafür den Rückgabewert `2 = warte`, weil manche Spiele ihren
+Port erst nach dem ersten Start verraten. Und **Platz** ist der Sportplatz wie
+der Plattenplatz, den `RESERVE_GB = 10` freihält.
+
+**Was dagegen sprach:** Deutsch, außerhalb des Sprachraums undurchsichtig, neun
+Buchstaben. Die Alternative wäre **Ludus** gewesen (lateinisch *Spiel* und
+*Schule*) — international lesbar, aber ohne den Bezug zur Instandhaltung, der
+den Namen hier überhaupt erst richtig macht.
+
+**Was sich ändert und was nicht:** Der Titel der Oberfläche, das Zeichen (siehe
+`werkzeuge/logo.py` — die Mitte eines Spielfelds) und die Überschrift des
+Repositoriums. **Nicht** geändert werden die Werkzeugnamen (`spiel-verwalten`,
+`dns-pflegen`, …), das SSH-Ziel `gameserver` — das ist die Maschine, nicht das
+Projekt — und **nicht die WebAuthn-`RP_ID`**: An ihr hängen die vorhandenen
+Passkeys, eine Änderung machte sie allesamt ungültig. Geändert wurde nur der
+Anzeigename daneben.
+
+Bereits eingerichtete Authenticator-Einträge behalten ihren alten Namen. Das ist
+kosmetisch und kein Fehler: Der Aussteller steht in der `otpauth://`-URI, die nur
+bei der Einrichtung gelesen wird.
+
+> *`gameserver` names the genre, not this project — and names precisely what is
+> not in it. A groundskeeper does not play on the pitch, he keeps it usable, which
+> is exactly what `werkzeuge/` does: compare, check, tidy, tear down. The German
+> "warten" carries both maintaining and waiting, which `port-ermitteln`'s exit
+> code 2 does too. Against it: German, opaque abroad. The alternative, Ludus, is
+> internationally readable but loses the maintenance connection that makes the
+> name fit. Tool names, the SSH target and above all the WebAuthn RP_ID stay —
+> existing passkeys are bound to the latter.*
