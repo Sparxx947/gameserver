@@ -26,7 +26,8 @@ import qrcode.image.svg
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError, InvalidHashError
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, Response
+from fastapi.responses import (HTMLResponse, RedirectResponse, FileResponse,
+                               Response, StreamingResponse)
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 
 # Eigenes Datenverzeichnis: /opt/panel selbst gehoert root, damit die App
@@ -1578,12 +1579,110 @@ def archive(request: Request, stack: str):
             continue
         name, zeit = z.split("\t", 1)
         knopf = (f'<a class=b href="/restore-fragen/{stack}/{name}">zurückspielen</a>'
+                 f'<a class=b href="/holen-fragen/{stack}/{name}">herunterladen</a>'
                  if darf_verwalten(s) else '<span class=z>nur Admin</span>')
         zeilen.append(f"<tr><td><code>{name}</code></td><td>{zeit}</td><td style=text-align:right>{knopf}</td></tr>")
     return HTMLResponse(KOPF + kopfleiste(s) + RUMPF + f"<h1>Sicherungen: {stack}</h1>"
         f"<div class=d><a class=b href=/>zurück zur Übersicht</a></div>"
         f"<table><tr><th>Archiv</th><th>Zeitpunkt</th><th></th></tr>"
         f"{''.join(zeilen) or '<tr><td colspan=3>noch keine</td></tr>'}</table>" + FUSS)
+
+
+@app.get("/holen-fragen/{stack}/{archiv}", response_class=HTMLResponse)
+def holen_fragen(request: Request, stack: str, archiv: str):
+    """Zwischenseite mit der GROESSE. Ein Verweis, der sich als 2,1 GB
+    herausstellt, ist auf einer getakteten Verbindung eine boese Ueberraschung,
+    und ein abgebrochener Download liefert ein tar, das aussieht wie eine
+    Sicherung und keine ist.
+
+    Die Groesse wird nur HIER geholt, nicht je Zeile in der Archivliste - das
+    waere ein borg-Aufruf pro Zeile, und die Liste hat schnell Dutzende.
+    *Fetched here rather than per row, which would be one borg call per line.*
+    """
+    s = angemeldet(request)
+    if not darf_verwalten(s):
+        return RedirectResponse("/", 303)
+    if not SICHERUNG_AN:
+        return sicherung_aus_seite(s)
+    rc, roh = aktion("archiv-groesse", stack, archiv, timeout=180)
+    try:
+        bytes_ = int(roh.strip() or 0)
+    except ValueError:
+        bytes_ = 0
+    groesse = (f"{bytes_/1073741824:.1f} GB" if bytes_ > 1073741824
+               else f"{bytes_/1048576:.0f} MB" if bytes_ else "unbekannt")
+    return HTMLResponse(KOPF + kopfleiste(s) + RUMPF
+        + "<h1>Sicherung herunterladen</h1>"
+        + f'<table><tr><th>Server</th><td>{esc(stack)}</td></tr>'
+          f'<tr><th>Archiv</th><td><code>{esc(archiv)}</code></td></tr>'
+          f'<tr><th>Größe</th><td><b>{groesse}</b> als <code>.tar</code></td></tr></table>'
+        + '<div class=m>Die Datei entsteht direkt aus der Sicherung, ohne '
+          'Zwischenspeicher auf dem Server. Ein <b>abgebrochener</b> Download '
+          'liefert ein unvollständiges Archiv — bei großen Ständen also besser '
+          'nicht zwischendurch die Verbindung wechseln.</div>'
+        + '<div class=warn>Das Archiv enthält die Konfigurationsdateien des '
+          'Servers und damit auch das <b>Beitrittspasswort</b>. Es gehört an '
+          'einen Ort, der so geschützt ist wie dieses Panel.</div>'
+        + f'<div class=m><a class="b p" href="/archiv-holen/{esc(stack)}/{esc(archiv)}">'
+          f'herunterladen ({groesse})</a> '
+          f'<a class=b href="/archive/{esc(stack)}">zurück</a></div>' + FUSS)
+
+
+@app.get("/archiv-holen/{stack}/{archiv}")
+def archiv_holen(request: Request, stack: str, archiv: str):
+    """Ein Sicherungsarchiv als tar herunterladen.
+
+    Durchgereicht als STROM, nicht als Datei: "borg extract" nach /tmp und dann
+    packen braeuchte den Platz doppelt und scheiterte an den grossen Staenden
+    (Valheim allein 2,16 GB). "export-tar -" schreibt direkt auf stdout.
+
+    Fuer "verwalten" und "admin", nicht fuer "bedienen": Ein Spielstandarchiv
+    enthaelt die Konfigurationsdateien des Servers, und darin steht das
+    Beitrittspasswort. Dieselbe Grenze wie bei den Zugangsdaten.
+
+    *Streamed rather than staged: extracting to /tmp and packing would need the
+     space twice and fail on the larger saves. The archive holds the server's
+     config files and with them the join password, so this follows the
+     credentials boundary, not the start/stop one.*
+    """
+    s = angemeldet(request)
+    if not darf_verwalten(s):
+        return RedirectResponse("/", 303)
+    if not SICHERUNG_AN:
+        return sicherung_aus_seite(s)
+
+    protokoll(s, "Sicherung heruntergeladen", stack, "ok", archiv=archiv)
+    p = subprocess.Popen(AKTION + ["archiv-strom", stack, archiv],
+                         stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+
+    def strom():
+        # 256 kB je Block: gross genug, dass der Durchsatz nicht an der
+        # Blockgroesse haengt, klein genug, dass nichts Nennenswertes im
+        # Speicher steht.
+        try:
+            while True:
+                stueck = p.stdout.read(262144)
+                if not stueck:
+                    break
+                yield stueck
+        finally:
+            # Bricht der Browser ab, muss borg mit - sonst laeuft der Prozess
+            # weiter und haelt eine Sperre auf dem Repository.
+            # *If the browser aborts, borg must go too, or it keeps running and
+            #  holds a lock on the repository.*
+            if p.poll() is None:
+                p.terminate()
+                try:
+                    p.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    p.kill()
+            if p.stdout:
+                p.stdout.close()
+
+    return StreamingResponse(
+        strom(), media_type="application/x-tar",
+        headers={"Content-Disposition": f'attachment; filename="{archiv}.tar"',
+                 "Cache-Control": "no-store"})
 
 
 @app.get("/restore-fragen/{stack}/{archiv}", response_class=HTMLResponse)

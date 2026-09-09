@@ -221,6 +221,43 @@ Der letzte Stand liegt in `/opt/panel/daten/netzstand.json`.
 
 ---
 
+## Sicherung herunterladen `/holen-fragen/{stack}/{archiv}`
+
+Auf der Seite `Sicherungen` steht neben *zurückspielen* jetzt *herunterladen*.
+Der Klick führt erst auf eine Zwischenseite mit der **Größe** — ein Verweis, der
+sich als 2,1 GB herausstellt, ist auf einer getakteten Verbindung eine böse
+Überraschung.
+
+**Durchgereicht als Strom, nicht als Datei.** `borg export-tar … -` schreibt das
+Archiv direkt auf die Standardausgabe, und die Oberfläche reicht es in 256-kB-
+Blöcken weiter. Erst nach `/tmp` zu entpacken und dann zu packen bräuchte den
+Platz doppelt und scheiterte an den großen Ständen — Valheim allein ist 2,16 GB
+über 1033 Dateien.
+
+**Kein Zeitlimit auf der Übertragung.** Ein 2-GB-Download dauert über eine
+Hausleitung Minuten; die übliche 60-Sekunden-Grenze schnitte mitten in einer
+Datei ab, und heraus käme ein tar, das aussieht wie eine Sicherung und keine ist.
+Begrenzt wird über die angezeigte Größe, nicht über die Zeit.
+
+**Bricht der Browser ab, endet auch `borg`.** Sonst liefe der Prozess weiter und
+hielte eine Sperre auf dem Repository — nachgemessen: nach einem Abbruch bei
+1 MB von 2,1 GB blieb kein Prozess zurück und die Archivliste war sofort wieder
+abrufbar.
+
+**Für `verwalten` und `admin`, nicht für `bedienen`.** Ein Spielstandarchiv
+enthält die Konfigurationsdateien des Servers und damit das Beitrittspasswort —
+dieselbe Grenze wie bei den Zugangsdaten. Die Zwischenseite sagt das auch.
+
+> *Downloads stream straight from Borg rather than being staged: extracting to
+> `/tmp` and packing would need the space twice and fail on the larger saves.
+> There is no timeout on the transfer, because cutting a 2 GB download mid-file
+> yields a tar that looks like a backup and is not; the size is shown beforehand
+> instead. If the browser aborts, borg is terminated with it, or it would keep a
+> lock on the repository — verified. The archive holds the server's config and
+> therefore the join password, so it follows the credentials boundary.*
+
+---
+
 ## Von Hand gebaute Server entfernen `/entfernen-fragen/{stack}`
 
 Die Katalogdeinstallation verlangt eine `panel.json` und weist alles andere ab —

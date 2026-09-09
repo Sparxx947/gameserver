@@ -116,6 +116,43 @@ case "${1:-}" in
     timeout 120 borg list --glob-archives "$s-*" --format "{archive}{TAB}{time}{NL}" "$REPO" 2>/dev/null \
       || fehler "Repository nicht erreichbar"
     ;;
+  archiv-groesse)
+    # Wie gross waere der Download? Gehoert VOR den Klick: ein Verweis, der sich
+    # als 2 GB herausstellt, ist auf einer getakteten Verbindung eine boese
+    # Ueberraschung.
+    s="${2:-}"; a="${3:-}"; pruefe_stack "$s"; pruefe_archiv "$s" "$a"
+    sicherung_an
+    export BORG_PASSPHRASE=$(cat /root/.borg-passphrase)
+    export BORG_RSH="ssh -o BatchMode=yes -o ConnectTimeout=15"
+    timeout 120 borg info --json "$REPO::$a" 2>/dev/null \
+      | python3 -c "
+import json,sys
+try:
+    d = json.load(sys.stdin)['archives'][0]['stats']
+    print(d['original_size'])
+except Exception:
+    print(0)
+" || echo 0
+    ;;
+  archiv-strom)
+    # Das Archiv als tar auf stdout - ohne Zwischendatei.
+    #
+    # "borg extract" nach /tmp und dann packen braeuchte den Platz doppelt und
+    # scheiterte an den grossen Staenden (Valheim allein 2,16 GB). "export-tar -"
+    # schreibt direkt einen Strom, den die Oberflaeche durchreicht.
+    #
+    # KEIN timeout: Ein 2-GB-Download dauert ueber eine Hausleitung Minuten, und
+    # ein Abbruch mittendrin liefert ein abgeschnittenes tar - eine Datei, die
+    # aussieht wie eine Sicherung und keine ist. Begrenzt wird ueber die Groesse,
+    # die vorher angezeigt wird, nicht ueber die Zeit.
+    # *No timeout: cutting a 2 GB transfer mid-file yields a truncated tar that
+    #  looks like a backup and is not.*
+    s="${2:-}"; a="${3:-}"; pruefe_stack "$s"; pruefe_archiv "$s" "$a"
+    sicherung_an
+    export BORG_PASSPHRASE=$(cat /root/.borg-passphrase)
+    export BORG_RSH="ssh -o BatchMode=yes -o ConnectTimeout=15"
+    exec borg export-tar "$REPO::$a" - 2>/dev/null
+    ;;
   restore)
     s="${2:-}"; a="${3:-}"; pruefe_stack "$s"; pruefe_archiv "$s" "$a"
     sicherung_an
