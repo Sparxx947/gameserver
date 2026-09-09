@@ -325,6 +325,39 @@ benannt statt still ihren Namen zu behalten.
 > committed. Games without an entry are named on each run rather than quietly
 > keeping their name.*
 
+### `logo.py` (in `werkzeuge/`)
+
+```
+werkzeuge/logo.py [--schreiben] [--vorschau]
+```
+
+Erzeugt das Zeichen des Panels aus **einer** Beschreibung: `favicon.svg`,
+`favicon.ico`, `apple-touch-icon.png` und die Zeile `LOGO = …` für `app.py`.
+`--vorschau` legt ein Blatt in 24, 32, 48, 64 und 128 px auf dem
+Panelhintergrund ab — den Größen, in denen das Zeichen wirklich vorkommt.
+
+**Warum ein Werkzeug und keine vier Dateien:** Das Zeichen erscheint an vier
+Stellen. Wer sie einzeln pflegt, hat nach der ersten Änderung vier Fassungen, von
+denen drei alt sind. Die Formen stehen deshalb einmal als Zahlen; SVG und
+Rasterbilder entstehen daraus. `app.py` trägt einen Hinweis, dass die Zeile
+erzeugt und nicht von Hand zu ändern ist.
+
+**Das Motiv** ist die Mitte eines Spielfelds — Mittellinie, Anstoßkreis,
+Anstoßpunkt. Das Projekt soll *Platzwart* heißen, und ein Platzwart hält den
+Platz bereit, damit andere darauf spielen können.
+
+Der erste Entwurf hatte zusätzlich die Seitenlinien des ganzen Feldes. In der
+Vorschau nebeneinander war das bei **24 px ein Klumpen**: drei Elemente auf so
+wenig Fläche heben sich gegenseitig auf. Deshalb nur noch drei Linien, und die
+Mittellinie läuft bis an den Rand.
+
+> *Generates the panel's mark from one description — SVG, ICO, PNG and the inline
+> line for `app.py` — because four separately maintained files means three stale
+> ones after the first change. `--vorschau` renders it at the sizes it actually
+> appears in. The motif is the centre of a pitch: the project is to be called
+> Platzwart, a groundskeeper who keeps the pitch ready for others to play on. An
+> earlier draft included the full touchlines and turned into a blob at 24 px.*
+
 ### `eigene-bilder.py` (in `werkzeuge/`)
 
 ```
