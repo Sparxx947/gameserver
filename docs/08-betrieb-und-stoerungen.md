@@ -219,6 +219,18 @@ nicht.
 Grenze oberhalb von 20 GB — bei 24 GB Gesamtspeicher und rund 8 GB für die
 übrigen Server geht das im Parallelbetrieb nicht auf.
 
+**Nachtrag 2026-09-09: `restart: on-failure:3` war die falsche Wahl.** Die
+Absicht war richtig — nach dem 32-fachen Neustart am 06.09. sollte er nicht mehr
+von selbst hochkommen. Nur erreicht `on-failure` das Gegenteil: Ein per
+`docker stop` beendeter Container endet mit SIGTERM, also **Exit 143**, und das
+ist für Docker ein *non-zero exit*, mithin ein „failure". Beim nächsten Hochfahren
+der Maschine startet der Daemon ihn deshalb wieder.
+
+Genau das geschah beim Neustart um 14:17: StarRupture kam von selbst hoch,
+wuchs mit den gemessenen ~152 MiB/s, und **Palworld endete mit Exit 137** — dem
+OOM-Killer. Der Wert steht jetzt auf `restart: "no"`, dem einzigen, der wirklich
+„startet nie von selbst" bedeutet. Von Hand starten geht weiterhin.
+
 ### Palworld hat ein Speicherleck
 
 Bekanntes Problem des Spiels, nicht des Aufbaus. Umgangen durch einen Timer, der
@@ -292,6 +304,38 @@ Alle Container stehen auf `restart: unless-stopped` und kommen von allein zurüc
 > own, except StarRupture.*
 
 ---
+
+### Warum die Server danach wiederkommen
+
+`panel-aktion neustart` hält die Container vor dem Reboot an, damit die Spiele
+ihre Stände schreiben. Das ist richtig — hat aber einen Nebeneffekt, der am
+2026-09-09 **zweimal** dazu führte, dass nach dem Neustart **kein einziger**
+Server zurückkam:
+
+`docker compose stop` ist ein **ausdrückliches** Anhalten, und genau das schaltet
+`restart: unless-stopped` ab. Die Regel bedeutet „starte wieder, außer es wurde
+ausdrücklich angehalten", und Docker merkt sich das über den Neustart hinweg.
+
+Deshalb schreibt `panel-aktion` die Liste der laufenden Stacks vor dem Anhalten
+nach `/var/lib/spiele-wiederanlauf`, und die Einheit
+`spiele-wiederanlauf.service` startet sie nach `docker.service` wieder. Die Liste
+liegt in `/var/lib` und nicht in `/tmp` — **`/tmp` ist nach einem Neustart leer**,
+also genau dann, wenn die Liste gebraucht wird.
+
+Aufgeräumt wird sie **nach** dem Lauf, nicht vorher: Bricht er mittendrin ab,
+steht sie beim nächsten Hochfahren noch da, und ein zweiter Durchlauf überspringt,
+was schon läuft.
+
+Nachgewiesen am dritten Neustart desselben Tages: alle drei Server kamen nach
+rund 30 Sekunden von selbst zurück, StarRupture blieb aus, Exit-Code 0, Liste
+weggeräumt.
+
+> *Stopping the containers before a reboot is right — the games must write their
+> saves — but an explicit stop is exactly what disables `unless-stopped`, and
+> Docker remembers that across the reboot, so nothing came back. The running
+> stacks are therefore recorded in `/var/lib` (not `/tmp`, which is empty after a
+> reboot) and restarted by a unit ordered after `docker.service`. The list is
+> removed after the run, so an interrupted run still has it next boot.*
 
 ## Alte Kopien wegräumen
 

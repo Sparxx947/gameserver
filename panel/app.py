@@ -1779,8 +1779,8 @@ Alle Verbindungen brechen ab, auch diese Oberfläche ist ein bis zwei Minuten we
 <p style=font-size:14px>Vorher werden alle laufenden Container <b>sauber angehalten</b>,
 damit die Spiele ihre Stände schreiben.{" Läuft gerade eine Sicherung, wird der Neustart abgebrochen — ein unterbrochener Borg-Lauf hinterlässt eine Sperre, die man von Hand lösen muss." if SICHERUNG_AN else ""}</p>
 <p style=font-size:14px>Läuft gerade: <b>{laufende.strip() or "nichts"}</b><br>
-<span class=z>Nach dem Neustart kommen nur die Server von selbst wieder hoch, die auf
-„unless-stopped" stehen. StarRupture bleibt bewusst aus.</span></p>
+<span class=z>Diese Server werden nach dem Hochfahren <b>wieder gestartet</b> — genau
+diese und keine anderen. StarRupture bleibt bewusst aus.</span></p>
 <form method=post action=/neustart><input type=hidden name=csrf value="{s['csrf']}">
 <button class=x>Ja, Maschine neu starten</button></form> <a class=b href=/>Abbrechen</a>""" + FUSS)
 

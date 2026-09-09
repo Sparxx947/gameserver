@@ -1,0 +1,26 @@
+[Unit]
+# Startet nach einem Neustart die Spieleserver wieder, die vorher liefen.
+#
+# Warum es das braucht: "panel-aktion neustart" haelt die Container vor dem
+# Reboot bewusst an, damit die Spiele ihre Staende schreiben. Ein "docker compose
+# stop" ist aber ein AUSDRUECKLICHES Anhalten, und genau das schaltet
+# "restart: unless-stopped" ab — die Regel bedeutet "starte wieder, ausser es
+# wurde ausdruecklich angehalten". Docker merkt sich das ueber den Neustart
+# hinweg, und danach kam kein einziger Server von selbst zurueck (zweimal
+# gemessen am 2026-09-09).
+#
+# *"panel-aktion neustart" stops the containers on purpose so the games write
+#  their saves. But an explicit stop is exactly what disables unless-stopped, and
+#  Docker remembers it across the reboot — so nothing came back.*
+Description=Nach dem Neustart die vorher laufenden Spieleserver wieder starten
+Requires=docker.service
+After=docker.service network-online.target
+ConditionPathExists=/var/lib/spiele-wiederanlauf
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+ExecStart=/usr/local/bin/spiele-wiederanlauf
+
+[Install]
+WantedBy=multi-user.target

@@ -543,6 +543,7 @@ Notausgang `GAMESERVER_KEIN_GATE=1`.
 
 | Unit | Zeitpunkt | Zweck |
 |---|---|---|
+| `spiele-wiederanlauf.service` | beim Hochfahren | startet die Server wieder, die `panel-aktion neustart` vorher angehalten hat |
 | `panel.service` | dauerhaft | Weboberfläche, `User=panel`, uvicorn auf `127.0.0.1:8099` |
 | `ttyd.service` | dauerhaft | Webterminal, `User=<admin>`, `127.0.0.1:7681` |
 | `spiele-sicherung.timer` | `*:0/15`, ±60 s | Sicherung laufender Spiele (aus bei `BORG_REPO=aus`) |
