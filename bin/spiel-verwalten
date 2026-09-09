@@ -23,6 +23,9 @@ ZUGAENGE = Path("/opt/panel/daten/zugangsdaten.json")
 STACKS = Path("/opt/stacks")
 SPIELE = Path("/srv/games")
 AUSSCHLUSS = Path("/etc/borg-ausschluss.txt")
+# Welche Stacks sich nachts selbst aktualisieren duerfen. Geschrieben wird die
+# Liste von panel-aktion (auto-update), geraeumt hier beim Entfernen.
+AUTOUPDATE = Path("/var/lib/spiele-autoupdate.liste")
 # Die Ausschlussliste wird auch ohne Sicherung gepflegt: sie steht hier und in
 # Stufe 50 unabhaengig vom Schalter, damit die Bloecke je Spiel nicht
 # auseinanderlaufen, wenn die Sicherung spaeter eingeschaltet wird.
@@ -189,6 +192,37 @@ def ausschluss_setzen(s: str, muster: list):
 def ausschluss_entfernen_text(text: str, s: str) -> str:
     return re.sub(rf"^# >>> panel:{re.escape(s)}\b.*?^# <<< panel:{re.escape(s)}\n",
                   "", text, flags=re.S | re.M)
+
+
+def autoupdate_entfernen(s: str):
+    """Den Stack aus der Auto-Update-Liste nehmen.
+
+    Warum das hier steht und nicht in panel-aktion: Beide Entfernwege muessen
+    es tun, und zwei Stellen, die dieselbe Aufraeumarbeit kennen, laufen
+    frueher oder spaeter auseinander - beim Ausschlussblock daneben ist es
+    genau deshalb auch nur eine.
+
+    Das Fehlerbild, gegen das hier gebaut wird, ist nicht der uebrig gebliebene
+    Eintrag selbst: `spiele-autoupdate` ueberspringt Namen ohne Verzeichnis. Es
+    ist der Rueckweg. Wird spaeter ein Server unter demselben Namen angelegt,
+    aktualisiert er sich ab der ersten Nacht von selbst, ohne dass jemand den
+    Schalter angefasst haette - und die Oberflaeche zeichnet ihn zu Recht als
+    "an", weil die Liste das sagt. Aus "aus per Voreinstellung" wird damit
+    stillschweigend "an, wegen eines Servers, den es nicht mehr gibt".
+    Gemessen am 2026-09-09: starrupture stand nach dem Entfernen weiter drin.
+
+    *Why here and not in panel-aktion: both removal paths need it, and two
+     places knowing the same cleanup drift apart - which is why the exclusion
+     block next to it is also written once. The failure is not the stale entry
+     itself (spiele-autoupdate skips names without a directory) but the way
+     back: a server later created under the same name updates itself from the
+     first night, with nobody having touched the switch.*
+    """
+    if not AUTOUPDATE.exists():
+        return
+    zeilen = [z for z in AUTOUPDATE.read_text().splitlines() if z.strip() != s]
+    AUTOUPDATE.write_text("".join(z + "\n" for z in zeilen))
+    AUTOUPDATE.chmod(0o600)
 
 
 # Selbst gezeichnete Titelbilder fuer Spiele ohne Steam-Eintrag. Erzeugt mit
@@ -364,6 +398,7 @@ def deinstallieren(s: str):
     AUSSCHLUSS.write_text(ausschluss_entfernen_text(AUSSCHLUSS.read_text(), s))
     (BILDER / f"{s}.jpg").unlink(missing_ok=True)
     zugang_entfernen(s)
+    autoupdate_entfernen(s)
     if SICHERUNG_AN:
         print(f"ok\t{s} entfernt. Die Sicherungen im Borg-Repository bleiben erhalten.")
     else:
@@ -423,6 +458,7 @@ def fremd_entfernen(s: str):
     #    (FOUNDRYs serverfiles zum Beispiel).
     if AUSSCHLUSS.exists():
         AUSSCHLUSS.write_text(ausschluss_entfernen_text(AUSSCHLUSS.read_text(), s))
+    autoupdate_entfernen(s)
 
     print(f"ok\t{s} entfernt\t" + ", ".join(geloescht)
           + ". Die Sicherungen im Borg-Repository bleiben erhalten.")
