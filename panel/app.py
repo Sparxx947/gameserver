@@ -458,7 +458,16 @@ KOPF = """<!doctype html><html lang=de><head><meta charset=utf-8>
    Leiste hat deshalb eine eigene Hintergrundfarbe und ist nicht darauf angewiesen. */
 .hd{position:sticky;top:0;z-index:10;background:rgba(20,22,26,.92);
   backdrop-filter:blur(8px);border-bottom:1px solid var(--r)}
-.hdi{max-width:1000px;margin:0 auto;padding:0 16px;height:56px;
+/* Die Kopfleiste ist so breit wie der BREITE Inhalt (.w.breit), nicht wie der
+   schmale. Bei 1000px lief die Navigation ueber, sobald "Mein Konto" und
+   "Protokoll" dazukamen: acht Punkte brauchen rund 654px, Marke und Nutzerblock
+   noch einmal 317px, macht mit Abstaenden etwa 1043px. "nav" hat
+   "overflow:auto", also erschien statt eines Umbruchs ein Schiebebalken quer
+   durch das Menue.
+   *The header spans the wide content width, not the narrow one: at 1000px the
+    nav overflowed once two more items were added, and overflow:auto turned that
+    into a sideways scrollbar instead of a wrap.* */
+.hdi{max-width:2400px;margin:0 auto;padding:0 16px;height:56px;
   display:flex;align-items:center;gap:20px}
 .marke{font-weight:700;letter-spacing:.02em;display:flex;align-items:center;gap:8px;flex:none}
 .marke .logo{width:24px;height:24px;flex:none;display:block}
@@ -739,7 +748,15 @@ def uebersicht(request: Request):
 {adresse}
 {last}
 <div class=akt>{aktionen}</div></div></div>""")
-    return HTMLResponse(KOPF + kopfleiste(s, "start") + RUMPF + f"{systemleiste}<div class=g>{''.join(karten)}</div>"
+    # Breit wie die Katalogseite: die Uebersicht stand als einzige Seite mit
+    # Kacheln in einer 1000px-Spalte, waehrend der Katalog danebenlag und die
+    # ganze Breite nutzte. Das Raster selbst bleibt unveraendert
+    # (minmax(300px,1fr)) - die Karten behalten ihre Groesse und stehen nur zu
+    # mehreren nebeneinander.
+    # *Wide like the catalogue page. The grid itself is unchanged, so the cards
+    #  keep their size and simply sit more per row.*
+    return HTMLResponse(KOPF + kopfleiste(s, "start") + '<div class="w breit">'
+        + f"{systemleiste}<div class=g>{''.join(karten)}</div>"
         + ("<div class=m>Sicherungen laufen alle 15 Minuten für jeden laufenden Server "
            "(Großvater-Vater-Sohn: 2 Tage alle 15 min, 14 Tage täglich, 8 Wochen, 12 Monate).</div>"
            if SICHERUNG_AN else
