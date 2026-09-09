@@ -303,6 +303,52 @@ lassen. Und ein falsches Token muss eine Meldung ergeben, keine leere Liste.
 > non-JSON bodies and pagination. Verify against a real zone with the sequence
 > above, including the two cases that must fail.*
 
+#### Die Abnahme als ein Befehl
+
+Die Reihenfolge oben von Hand durchzugehen sind neun Schritte, von denen
+**zwei fehlschlagen müssen** — und ein Schritt, der nicht fehlschlägt obwohl er
+soll, fällt beim Ablesen nicht auf. Deshalb steht sie als Programm da:
+
+```bash
+werkzeuge/dns-abnahme.sh --selbsttest          # ohne Zone, ohne Netz
+werkzeuge/dns-abnahme.sh --anbieter hetzner --zone beispiel.de \
+                         --ip 203.0.113.10 --token-datei ~/.hetzner-token
+```
+
+Es installiert nichts. Aus `bin/dns-pflegen` entsteht in einem temporären
+Verzeichnis eine Wegwerf-Fassung mit den Werten des Laufs; `/etc/dns-gameserver.conf`
+wird **nicht** angefasst. Jeder Eintrag, den der Lauf anlegt, trägt einen
+zufälligen Präfix `abnahme-<8 hex>-…`, kann also keinen vorhandenen treffen, und
+wird am Ende wieder entfernt — auch wenn ein Schritt scheitert.
+
+Zwei Dinge, die es bewusst **nicht** tut:
+
+* **Den Token in `argv` nehmen.** Argumente stehen für jeden Benutzer der
+  Maschine in der Prozessliste. Der Token kommt aus einer Datei oder aus
+  `DNS_ABNAHME_TOKEN` und wird nirgends ausgegeben.
+* **Die beiden A-Einträge löschen**, die `grundgeruest` anlegt. `dns-pflegen`
+  kennt dafür keinen Befehl, weil es A-Einträge grundsätzlich nicht löscht
+  (E21). Das Skript nennt sie am Ende beim Namen, damit sie nicht liegen
+  bleiben.
+
+Den „fremden Eintrag", der sich nicht löschen lassen darf, erzeugt es ohne eine
+einzige anbieterspezifische Zeile: Es rendert eine **zweite** Fassung mit einem
+anderen `DNS_ZIEL`. Aus deren Sicht zeigt derselbe CNAME woandershin — und genau
+das ist der Fall, den `entfernen` verweigern muss.
+
+> *Running the sequence by hand is nine steps, two of which must fail — and a
+> step that fails to fail is not noticed when read off a screen, so it is a
+> program instead. It installs nothing: a throwaway rendering of `dns-pflegen`
+> in a temp directory, never touching `/etc/dns-gameserver.conf`. Every record
+> it creates carries a random `abnahme-<8 hex>` prefix, so it cannot collide
+> with a real one, and is removed afterwards even when a step fails. It
+> deliberately does not take the token in `argv` (arguments are world-readable
+> in the process list) and does not delete the two A records `grundgeruest`
+> creates — `dns-pflegen` never deletes A records (E21) — but names them at the
+> end. The "foreign record" that must refuse deletion is produced without a
+> single provider-specific line: a second rendering with a different `DNS_ZIEL`,
+> from whose point of view the same CNAME points elsewhere.*
+
 ---
 
 **Ein DNS-Name in `SERVER_IPV4` ergibt nichts** — auch kein DDNS-Name. Aus
