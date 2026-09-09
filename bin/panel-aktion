@@ -375,6 +375,25 @@ case "${1:-}" in
     chmod 600 "$liste"
     echo "ok	auto-update fuer $s: $wert"
     ;;
+  fremd-entfernen)
+    # Fuer Stacks OHNE panel.json - die von Hand gebauten. Eigene Aktion mit
+    # eigener Pruefung; die Katalogdeinstallation bleibt unangetastet.
+    #
+    # Nur fuer Administratoren, anders als "deinstallieren", das "verwalten"
+    # benutzen darf: Diese Stacks hat niemand ueber den Katalog angelegt, es gibt
+    # keinen Katalogeintrag, aus dem man sie wiederherstellen koennte, und
+    # StarRupture allein sind 22 GB.
+    # *Admin only, unlike the catalogue removal: nobody created these through the
+    #  catalogue, there is no entry to restore them from.*
+    s="${2:-}"; pruefe_stack "$s"
+    [ -f "/opt/stacks/$s/panel.json" ] && fehler "Dieser Server kam aus dem Katalog - dafuer ist 'deinstallieren' zustaendig."
+    /usr/local/bin/spiel-verwalten fremd-entfernen "$s"
+    ;;
+  groesse)
+    # Wieviel wuerde geloescht? Gehoert VOR die Rueckfrage.
+    s="${2:-}"; pruefe_stack "$s"
+    /usr/local/bin/spiel-verwalten groesse "$s"
+    ;;
   auto-update-liste)
     # Welche Stacks sind freigeschaltet? Fuer die Oberflaeche, damit sie den
     # Schalter richtig herum zeichnet.

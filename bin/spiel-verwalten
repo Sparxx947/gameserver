@@ -370,6 +370,80 @@ def deinstallieren(s: str):
         print(f"ok\t{s} entfernt. Es gab keine Sicherung - der Stand ist weg.")
 
 
+def fremd_entfernen(s: str):
+    """Einen von Hand gebauten Stack entfernen - einen ohne panel.json.
+
+    Bewusst ein EIGENER Weg und nicht die gelockerte Katalogroutine: die liest
+    panel.json fuer die Ausschlussliste, entfernt DNS-Namen und raeumt
+    Katalogzustand ab - alles Dinge, die es hier nicht gibt. Eine Pruefung
+    wegzunehmen, damit ein zweiter Fall durchpasst, macht aus zwei klaren
+    Ablaeufen einen unklaren.
+
+    Der Anlass: StarRupture belegt 22 GB, laeuft nachweislich nicht, und war nur
+    ueber SSH loszuwerden. Ebenso foundry, satisfactory und windrose.
+
+    *Deliberately a separate path rather than a loosened catalogue routine: that
+     one reads panel.json, removes DNS names and clears catalogue state, none of
+     which exists here. Removing a check so a second case fits turns two clear
+     paths into one unclear one.*
+    """
+    verz = STACKS / s
+    if not verz.is_dir():
+        fehler(f"{s}: kein Stackverzeichnis")
+    if (verz / "panel.json").exists():
+        fehler(f"{s} wurde ueber den Katalog installiert - dafuer ist "
+               f"'deinstallieren' zustaendig, nicht dieser Weg.")
+
+    # 1. Letzte Sicherung. Schlaegt sie fehl, wird NICHTS geloescht - dieselbe
+    #    Regel wie bei der Katalogdeinstallation. Ohne Sicherung gibt es keinen
+    #    Rueckweg, und 22 GB Spielstand sind nicht "mal eben" wiederhergestellt.
+    if SICHERUNG_AN:
+        r = subprocess.run(["/usr/local/bin/spiele-sicherung", "--nur", s],
+                           capture_output=True, text=True, timeout=1800)
+        if r.returncode != 0:
+            fehler("letzte Sicherung fehlgeschlagen - es wurde nichts geloescht: "
+                   + (r.stderr.strip()[:200] or "unbekannter Grund"))
+
+    # 2. Container und Netz weg
+    subprocess.run(["docker", "compose", "down"], cwd=verz, capture_output=True,
+                   timeout=300)
+
+    # 3. Datenverzeichnisse - aus der compose.yaml, nicht aus panel.json.
+    #    datenpfade() liest ohnehin die compose.yaml und begrenzt auf
+    #    /srv/games/, taugt also fuer beide Faelle.
+    geloescht = []
+    for v in [Path(x.split(":")[0]) for x in datenpfade(s)]:
+        if str(v).startswith("/srv/games/") and v.exists():
+            shutil.rmtree(v, ignore_errors=True)
+            geloescht.append(str(v))
+    shutil.rmtree(verz, ignore_errors=True)
+    geloescht.append(str(verz))
+
+    # 4. Ausschlussliste bereinigen - auch handgebaute Stacks stehen dort
+    #    (FOUNDRYs serverfiles zum Beispiel).
+    if AUSSCHLUSS.exists():
+        AUSSCHLUSS.write_text(ausschluss_entfernen_text(AUSSCHLUSS.read_text(), s))
+
+    print(f"ok\t{s} entfernt\t" + ", ".join(geloescht)
+          + ". Die Sicherungen im Borg-Repository bleiben erhalten.")
+
+
+def stackgroesse(s: str) -> str:
+    """Wieviel wird geloescht? Gehoert VOR die Rueckfrage: 22 GB zu loeschen und
+    56 KB zu loeschen sind verschiedene Entscheidungen."""
+    gesamt = 0
+    pfade = [Path(x.split(":")[0]) for x in datenpfade(s)] + [STACKS / s]
+    for p in pfade:
+        if not p.exists():
+            continue
+        r = subprocess.run(["du", "-sb", str(p)], capture_output=True, text=True)
+        try:
+            gesamt += int(r.stdout.split()[0])
+        except (ValueError, IndexError):
+            pass
+    return f"{gesamt / 1073741824:.1f} GB" if gesamt > 1073741824 else f"{gesamt / 1048576:.0f} MB"
+
+
 def datenpfade(s: str) -> list:
     f = STACKS / s / "compose.yaml"
     if not f.exists():
@@ -388,6 +462,10 @@ if __name__ == "__main__":
                   f"{'installiert' if s in da else 'frei'}\t{g['passwort']['art']}\t{g['hinweis']}")
     elif a == "installieren" and len(sys.argv) == 3:
         installieren(sys.argv[2])
+    elif a == "fremd-entfernen" and len(sys.argv) == 3:
+        fremd_entfernen(sys.argv[2])
+    elif a == "groesse" and len(sys.argv) == 3:
+        print(stackgroesse(sys.argv[2]))
     elif a == "deinstallieren" and len(sys.argv) == 3:
         deinstallieren(sys.argv[2])
     else:

@@ -799,6 +799,13 @@ def uebersicht(request: Request, meldung: str = ""):
             anz = konfigzahlen().get(name)
             zusatz = f" ({anz})" if isinstance(anz, int) and anz else ""
             verweise += f'<a class=b href="/dateien/{name}">Konfigdateien{zusatz}</a>'
+        # Entfernen-Weg fuer von Hand gebaute Stacks. Nur Administratoren, und
+        # nur wenn es KEINE panel.json gibt - die Katalogspiele haben ihren
+        # eigenen Weg ueber die Spieleseite.
+        # *Only for admins, and only for stacks without panel.json - catalogue
+        #  games have their own path.*
+        if ist_admin(s) and not pi:
+            verweise += f'<a class="b x" href="/entfernen-fragen/{name}">entfernen</a>'
         # Aktualisieren ist ein eigenes Formular, kein Verweis: es aendert etwas
         # und braucht deshalb das CSRF-Merkmal. Die Sicherung davor erzwingt
         # panel-aktion, nicht die Oberflaeche - eine Schutzmassnahme, die man
@@ -1200,6 +1207,55 @@ Konfiguration, DNS-Name und die Zugangsdaten dieses Servers.<br><br>
 <input type=hidden name=stack value="{stack}">
 <button class=x>ja, entfernen</button></form>
 <a class=b href=/spiele>abbrechen</a></div>""" + FUSS)
+
+
+@app.get("/entfernen-fragen/{stack}", response_class=HTMLResponse)
+def entfernen_fragen(request: Request, stack: str):
+    """Rueckfrage vor dem Entfernen eines von Hand gebauten Stacks.
+
+    Die GROESSE steht vor dem Klick, nicht danach: 22 GB zu loeschen und 56 KB zu
+    loeschen sind verschiedene Entscheidungen, und die Seite soll sagen, welche
+    davon hier ansteht.
+    """
+    s = angemeldet(request)
+    if not s or not ist_admin(s):
+        return RedirectResponse("/login", 303)
+    if stackinfo(stack):
+        return RedirectResponse(f"/deinstallieren-fragen/{stack}", 303)
+    _, groesse = aktion("groesse", stack, timeout=120)
+    warn = ("" if SICHERUNG_AN else
+            '<div class=warn><b>Die Sicherung ist abgeschaltet.</b> Es wird '
+            '<b>keine</b> Endsicherung angelegt — nach dem Löschen ist der Stand '
+            'unwiederbringlich weg.</div>')
+    return HTMLResponse(KOPF + kopfleiste(s) + RUMPF
+        + f"<h1>{esc(stack)} wirklich entfernen?</h1>"
+        + '<div class=warn>Dieser Server wurde <b>nicht über den Katalog</b> '
+          'angelegt. Es gibt keinen Katalogeintrag, aus dem er sich neu '
+          'installieren ließe — nur die Sicherung.</div>'
+        + f'<table><tr><th>Server</th><td><b>{esc(stack)}</b></td></tr>'
+          f'<tr><th>Wird gelöscht</th><td><b>{esc(groesse.strip())}</b> '
+          f'(Spieldaten und Stackverzeichnis)</td></tr></table>'
+        + warn
+        + ('<div class=m>Vor dem Löschen wird eine <b>Endsicherung</b> angelegt. '
+           'Schlägt sie fehl, wird nichts gelöscht. Die vorhandenen Sicherungen im '
+           'Borg-Repository bleiben erhalten.</div>' if SICHERUNG_AN else "")
+        + f'<form method=post action=/fremd-entfernen style=margin-top:16px>'
+          f'<input type=hidden name=csrf value="{s["csrf"]}">'
+          f'<input type=hidden name=stack value="{esc(stack)}">'
+          f'<button class=x>Ja, {esc(stack)} entfernen</button></form> '
+          f'<a class=b href="/">Abbrechen</a>' + FUSS)
+
+
+@app.post("/fremd-entfernen")
+def fremd_entfernen(request: Request, csrf: str = Form(""), stack: str = Form("")):
+    s = pruefe(request, csrf)
+    if not s or not ist_admin(s):
+        return RedirectResponse("/login", 303)
+    rc, aus = aktion("fremd-entfernen", stack, timeout=1800)
+    protokoll(s, "Von Hand gebauten Server entfernt", stack,
+              "ok" if rc == 0 else "fehlgeschlagen", meldung=aus.strip()[:200])
+    m = aus.strip().split("\t")[-1] if rc == 0 else f"Nicht entfernt: {aus.strip()[:250]}"
+    return RedirectResponse(f"/?meldung={quote(m)}", 303)
 
 
 @app.post("/deinstallieren")

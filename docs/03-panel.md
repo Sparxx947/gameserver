@@ -221,6 +221,39 @@ Der letzte Stand liegt in `/opt/panel/daten/netzstand.json`.
 
 ---
 
+## Von Hand gebaute Server entfernen `/entfernen-fragen/{stack}`
+
+Die Katalogdeinstallation verlangt eine `panel.json` und weist alles andere ab —
+das schützt die von Hand gebauten Stacks davor, von einer Routine gelöscht zu
+werden, die nichts über sie weiß. Nur ließen sie sich damit **gar nicht** mehr
+entfernen, außer über SSH. StarRupture allein sind **21,1 GB**.
+
+Deshalb ein **eigener Weg**, keine gelockerte Prüfung: Die Katalogroutine liest
+`panel.json` für die Ausschlussliste, entfernt DNS-Namen und räumt Katalogzustand
+ab — alles Dinge, die es hier nicht gibt. Eine Prüfung wegzunehmen, damit ein
+zweiter Fall durchpasst, macht aus zwei klaren Abläufen einen unklaren.
+
+**Nur für `admin`**, anders als die Katalogdeinstallation, die `verwalten`
+benutzen darf: Diese Stacks hat niemand über den Katalog angelegt, es gibt keinen
+Eintrag, aus dem sie sich neu installieren ließen — nur die Sicherung.
+
+**Die Größe steht vor dem Klick**, nicht danach. 21,1 GB zu löschen und 56 KB zu
+löschen sind verschiedene Entscheidungen, und die Seite sagt, welche ansteht.
+
+Vor dem Löschen läuft eine **Endsicherung**; schlägt sie fehl, wird nichts
+gelöscht. Ist die Sicherung ganz abgeschaltet, steht das als Warnung auf der
+Seite — **vor** dem Klick, nicht als Meldung hinterher.
+
+> *Catalogue removal requires a `panel.json` and refuses everything else, which
+> protects hand-built stacks from a routine that knows nothing about them — but
+> also made them unremovable except over SSH. Hence a separate path rather than a
+> loosened check: the catalogue routine reads `panel.json`, removes DNS names and
+> clears catalogue state, none of which exists here. Admin only, since there is no
+> catalogue entry to reinstall from. The size is shown before the click, and a
+> final backup runs first; if it fails, nothing is deleted.*
+
+---
+
 ## Aktualisieren und Sammelsteuerung
 
 **Aktualisieren** holt eine neue Fassung des Images und startet den Server damit
