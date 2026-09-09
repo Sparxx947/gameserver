@@ -233,6 +233,21 @@ Deshalb ein **eigener Weg**, keine gelockerte Prüfung: Die Katalogroutine liest
 ab — alles Dinge, die es hier nicht gibt. Eine Prüfung wegzunehmen, damit ein
 zweiter Fall durchpasst, macht aus zwei klaren Abläufen einen unklaren.
 
+**Der Knopf liegt hinter einem eigenen Schritt.** Auf der Karte steht zunächst
+nur **bearbeiten**; erst danach erscheint **entfernen** — und zwar nur auf
+*dieser* Karte, alle anderen bleiben gesperrt. Die entsperrte Karte bekommt einen
+gelben Rahmen, denn ein Modus, den man nicht sieht, ist selbst eine Falle.
+**fertig** führt zurück.
+
+Vorher stand `entfernen` in derselben Reihe wie `Protokoll`, `Einstellungen` und
+`Konfigdateien`: drei harmlose Knöpfe und einer, der 21 GB löscht. Die
+Rückfrageseite fängt einen Fehlgriff ab, aber der Knopf sollte gar nicht erst
+danebenliegen.
+
+Umgesetzt **serverseitig** über einen Parameter, nicht mit JavaScript: Die
+Übersicht läuft unter `default-src 'none'`, und die Lockerung für Passkeys gilt
+nur für `/login`, `/konto` und `/passkey.js` — sie soll sich nicht ausbreiten.
+
 **Nur für `admin`**, anders als die Katalogdeinstallation, die `verwalten`
 benutzen darf: Diese Stacks hat niemand über den Katalog angelegt, es gibt keinen
 Eintrag, aus dem sie sich neu installieren ließen — nur die Sicherung.
