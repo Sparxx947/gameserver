@@ -40,6 +40,13 @@ gerufen brauchte die Aktion 13,2 s, gesammelt 2,0 s (gemessen 2026-09-06).
 > costs ~1.9 s regardless of count — per-container calls took 13.2 s versus 2.0 s
 > batched.*
 
+### `panel-aktion logs <stack> [zeilen]`
+
+Die letzten Zeilen aus `docker logs`, mit Zeitstempeln, `2>&1` (die meisten
+Spieleserver schreiben auf stderr). Die Zeilenzahl wird **hier** begrenzt, nicht
+in der Oberfläche: 1 bis 2000, alles darüber wird auf 2000 gekappt, alles
+Nichtnumerische abgewiesen. Ein unbegrenztes `--tail` wäre ein Selbstangriff.
+
 ### `spiel-verwalten`
 
 ```
