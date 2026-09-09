@@ -127,6 +127,39 @@ gelöscht, damit auch ein zweiter Aufruf aus dem Verlauf nichts mehr zeigt.
 
 ---
 
+## Serverprotokoll `/logs/{stack}`
+
+Die letzten Zeilen aus `docker logs`, mit Zeitstempeln, pro Server. Erreichbar
+über den Knopf **Protokoll** auf der Serverkarte — **auch bei gestoppten
+Servern**, denn gerade dann will man wissen, warum.
+
+**Warum es das gibt:** Die Rolle `verwalten` darf Spiele installieren und
+entfernen, aber das Webterminal bleibt `admin` vorbehalten. Ohne diese Seite wäre
+sie halb blind — installieren ja, nachsehen warum es nicht startet nein. Die
+einzige Antwort wäre „frag einen Administrator" gewesen, und das hebt die
+Delegation wieder auf.
+
+**Drei Grenzen:**
+
+| | |
+|---|---|
+| Zeilenzahl | wird in `panel-aktion` begrenzt (1–2000), nicht in der Oberfläche — ein unbegrenztes `--tail` auf einen tagelang laufenden Container wäre ein Selbstangriff auf das Panel |
+| Ausgabe | wird **escaped**; im Log steht beliebiger Text aus dem Spielserver, einschließlich allem, was Spieler in den Chat geschrieben haben |
+| Rolle | `verwalten` und `admin`, **nicht** `bedienen`: manche Server schreiben ihre Konfiguration beim Start ins Log, Beitrittspasswort eingeschlossen — die Seite folgt damit derselben Grenze wie die Zugangsdaten |
+
+Leer und nicht abrufbar sind zwei verschiedene Meldungen. Ohne diesen Unterschied
+sucht man den Fehler an der falschen Stelle.
+
+> *The last lines of `docker logs` per server, also for stopped ones — that is
+> when it matters most. It exists because the `verwalten` role may install
+> servers but has no terminal, so without it that role could install a server and
+> not see why it fails. The line count is bounded server-side, the output is
+> escaped (arbitrary text from the game, player chat included), and the page
+> follows the credentials permission rather than the start/stop one, because some
+> servers echo their join password on start.*
+
+---
+
 ## Protokoll `/protokoll`
 
 Wer hat wann was getan. Nur für `admin` — die Seite nennt Benutzernamen und

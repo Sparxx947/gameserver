@@ -265,6 +265,28 @@ case "${1:-}" in
     systemctl reboot
     echo "ok"
     ;;
+  logs)
+    # Die letzten Zeilen aus "docker logs". Eigene Aktion mit eigener Pruefung -
+    # keine gelockerte bestehende, wie in CLAUDE.md verlangt.
+    #
+    # Die Zeilenzahl wird HIER begrenzt, nicht in der Oberflaeche: ein
+    # unbegrenztes --tail auf einen Container, der seit Tagen laeuft, waere ein
+    # Selbstangriff auf das Panel. Zahl oder nichts, hoechstens 2000.
+    # *The line count is bounded here, not in the UI: an unbounded --tail on a
+    #  long-running container would be a denial of service against the panel.*
+    s="${2:-}"; n="${3:-200}"; pruefe_stack "$s"
+    # Die Meldung nennt genau das, was gepruefte wurde: "99999" IST eine Zahl,
+    # nur eine zu grosse. Eine Meldung, die etwas anderes behauptet, schickt den
+    # Suchenden in die falsche Richtung.
+    # *The message says what was actually checked: 99999 is a number, just too
+    #  large a one.*
+    [[ "$n" =~ ^[0-9]+$ ]] || fehler "Zeilenzahl muss eine Zahl sein, war: ${n:0:20}"
+    [ "$n" -ge 1 ]    2>/dev/null || n=200
+    [ "$n" -le 2000 ] 2>/dev/null || n=2000
+    # Laeuft der Container nicht mehr, gibt es trotzdem Logs - gerade dann sind
+    # sie interessant. 2>&1, weil die meisten Spieleserver auf stderr schreiben.
+    docker logs --timestamps --tail "$n" "$s" 2>&1 || fehler "keine Logs fuer $s"
+    ;;
   laufende-vorher)
     # Welche Server laufen gerade? Fuer die Rueckfrage vor dem Neustart.
     docker ps --format "{{.Names}}" | sort | tr "\n" " "

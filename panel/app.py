@@ -681,6 +681,9 @@ def uebersicht(request: Request):
         verweise = (f'<a class=b href="/archive/{name}">Sicherungen</a>'
                     if SICHERUNG_AN else "")
         if darf_verwalten(s):
+            # Auch fuer gestoppte Server: dann sind die Logs am wichtigsten.
+            # *Also for stopped servers - that is when the log matters most.*
+            verweise += f'<a class=b href="/logs/{name}">Protokoll</a>'
             verweise += f'<a class=b href="/konfig/{name}">Einstellungen</a>'
             # Die Zahl kommt aus konfigzahlen.json (von spiel-einrichtung alle
             # zwei Minuten gepflegt). Ein eigener Aufruf je Server waere hier zu
@@ -2246,6 +2249,61 @@ async def passkey_anmelden_fertig(request: Request):
                  httponly=True, secure=True, samesite="strict", max_age=SITZUNG_MAXALTER)
     a.delete_cookie("pk_anmelden")
     return a
+
+
+@app.get("/logs/{stack}", response_class=HTMLResponse)
+def logs(request: Request, stack: str, n: int = 200):
+    """Die letzten Zeilen aus "docker logs".
+
+    Fuer "verwalten" und "admin", nicht fuer "bedienen": Manche Spieleserver
+    schreiben ihre Konfiguration beim Start ins Log, Beitrittspasswort
+    eingeschlossen. Wer die Zugangsdaten ohnehin sehen darf, sieht hier nichts
+    Neues; wer nur starten und stoppen darf, soll sie nicht auf diesem Umweg
+    bekommen.
+    *Some servers echo their config on start, join password included, so this
+     matches the credentials permission rather than the start/stop one.*
+    """
+    s = angemeldet(request)
+    if not darf_verwalten(s):
+        return RedirectResponse("/", 303)
+    n = max(50, min(n, 2000))
+    rc, aus = aktion("logs", stack, str(n), timeout=60)
+
+    if rc != 0:
+        inhalt = f'<div class=warn>{esc(aus.strip()[:400]) or "Keine Logs abrufbar."}</div>'
+    elif not aus.strip():
+        # Leer ist nicht dasselbe wie "nicht abrufbar" - ohne diesen Unterschied
+        # sucht man den Fehler an der falschen Stelle.
+        # *Empty is not the same as unavailable.*
+        inhalt = ('<div class=m>Der Container hat nichts protokolliert. '
+                  'Das ist kein Fehler — manche Server schreiben erst beim ersten '
+                  'Start etwas, andere nur bei Problemen.</div>')
+    else:
+        # ESCAPEN, immer: hier steht beliebiger Text aus dem Spielserver, samt
+        # allem, was Spieler in den Chat geschrieben haben.
+        # *Escaped without exception: this is arbitrary text from the game server,
+        #  including whatever players typed into chat.*
+        zeilen = aus.rstrip().splitlines()
+        inhalt = ('<pre style="background:var(--k);padding:14px;border-radius:8px;'
+                  'white-space:pre-wrap;word-break:break-word;font-size:12.5px;'
+                  'line-height:1.5;max-height:70vh;overflow:auto;margin:0">'
+                  + esc("\n".join(zeilen)) + "</pre>")
+        inhalt += (f'<div class=z style=margin-top:8px>{len(zeilen)} Zeilen, '
+                   f'die neuesten unten.</div>')
+
+    stufen = "".join(
+        f'<a class="b{" p" if m == n else ""}" href="/logs/{esc(stack)}?n={m}">{m}</a> '
+        for m in (50, 200, 500, 2000))
+    return HTMLResponse(KOPF + kopfleiste(s) + '<div class="w breit">'
+        + f"<h1>Protokoll: {esc(stack)}</h1>"
+        + f'<div class=z style=margin-bottom:10px>Ausgabe des Containers '
+          f'<code>{esc(stack)}</code>, mit Zeitstempeln. Auch dann vorhanden, wenn '
+          f'der Server gerade nicht läuft — gerade dann ist sie interessant.</div>'
+        + f'<div style=margin-bottom:12px>Zeilen: {stufen}</div>'
+        + inhalt
+        + f'<div class=m><a class=b href="/logs/{esc(stack)}?n={n}">neu laden</a> '
+          f'<a class=b href="/">zurück zur Übersicht</a></div>'
+        + "</div>" + FUSS)
 
 
 @app.get("/protokoll", response_class=HTMLResponse)
