@@ -127,6 +127,47 @@ gelöscht, damit auch ein zweiter Aufruf aus dem Verlauf nichts mehr zeigt.
 
 ---
 
+## Aktualisieren und Sammelsteuerung
+
+**Aktualisieren** holt eine neue Fassung des Images und startet den Server damit
+neu. Der Knopf steht auf jeder Karte, für `verwalten` und `admin`.
+
+**Die Sicherung davor ist Bedingung, nicht Schritt.** Ein Update kann einen
+Spielstand unbrauchbar machen — ein neuer Serverstand, der einen alten Spielstand
+liest, ist genau der Fall, in dem „dann spiele ich eben zurück" auch wirklich
+funktionieren muss. Scheitert die Sicherung, unterbleibt das Update. Ist die
+Sicherung ganz abgeschaltet (`BORG_REPO=aus`), wird gar nicht erst aktualisiert.
+
+Erzwungen wird das in `panel-aktion`, nicht in der Oberfläche: Eine Schutzmaßnahme,
+die ein anderer Aufrufweg umgeht, ist keine.
+
+**Zwei verschiedene Antworten:** „schon aktuell" und „aktualisiert". Verglichen
+wird die **Image-ID**, nicht die JSON-Ausgabe von `docker compose images` — die
+enthält `LastTagTime`, und der Zeitstempel ändert sich bei jedem `pull`, auch
+wenn dasselbe Image erneut geholt wurde. Der erste Anlauf meldete deshalb immer
+„aktualisiert", und ein Knopf, der immer dasselbe sagt, wird nicht mehr gelesen.
+
+**Ein gestoppter Server bleibt gestoppt.** Er wird nicht kurz gestartet, um die
+neue Fassung zu übernehmen — das Image ist geholt und greift beim nächsten Start.
+Der erste Anlauf startete ihn und hielt ihn wieder an; er kam mit **Exit 137**
+zurück, also hart abgeschossen, weil er auf SIGTERM noch nicht ansprechbar war.
+
+**Sammelsteuerung** oben auf der Übersicht: *alle laufenden anhalten* und
+*zuletzt laufende starten*. Beide nutzen dieselbe Liste unter
+`/var/lib/spiele-wiederanlauf`, die auch der Neustart schreibt — kein zweiter
+Zustand, der auseinanderlaufen kann. Ohne Liste sagt „starten" das auch, statt zu
+raten.
+
+> *Updating pulls a new image and restarts the server with it. The backup
+> beforehand is a precondition, not a step: if it fails, or if backups are off
+> entirely, the update does not happen — enforced in `panel-aktion`, because a
+> safeguard another entry point bypasses is not one. "Already current" and
+> "updated" are distinguished by image ID, not by the JSON output, which carries
+> a timestamp that changes on every pull. A stopped server stays stopped rather
+> than being briefly started, which returned exit 137 on the first attempt.*
+
+---
+
 ## Serverprotokoll `/logs/{stack}`
 
 Die letzten Zeilen aus `docker logs`, mit Zeitstempeln, pro Server. Erreichbar
