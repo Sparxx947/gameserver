@@ -1,0 +1,43 @@
+#!/bin/bash
+# spiele-wiederanlauf — startet nach einem Neustart die Server, die vorher liefen.
+#
+# "panel-aktion neustart" schreibt die Liste der laufenden Stacks nach
+# /var/lib/spiele-wiederanlauf und haelt sie dann an. Diese Datei ist der einzige
+# Grund, warum sie hinterher wiederkommen: ein "docker compose stop" schaltet
+# "restart: unless-stopped" ab, und Docker merkt sich das ueber den Neustart.
+#
+# /var/lib und nicht /tmp — /tmp ist nach einem Neustart leer, und eine Liste,
+# die den Neustart nicht ueberlebt, waere zu genau dem Zeitpunkt weg, zu dem sie
+# gebraucht wird.
+#
+# *The list is why they come back at all: an explicit stop disables
+#  unless-stopped and Docker remembers that across a reboot. It lives in /var/lib
+#  because /tmp is empty after a reboot — exactly when the list is needed.*
+set -uo pipefail
+LISTE=/var/lib/spiele-wiederanlauf
+[ -s "$LISTE" ] || exit 0
+
+fehler=0
+while read -r s; do
+  [ -n "$s" ] || continue
+  # Nur was es noch gibt, und nur was nicht schon laeuft.
+  [ -d "/opt/stacks/$s" ] || { logger -t wiederanlauf "$s: Stack gibt es nicht mehr"; continue; }
+  if docker ps --format '{{.Names}}' | grep -qx "$s"; then
+    logger -t wiederanlauf "$s: laeuft bereits"
+    continue
+  fi
+  if ( cd "/opt/stacks/$s" && docker compose up -d >/dev/null 2>&1 ); then
+    logger -t wiederanlauf "$s: gestartet"
+  else
+    logger -t wiederanlauf "$s: START FEHLGESCHLAGEN"
+    fehler=1
+  fi
+done < "$LISTE"
+
+# Die Liste NACH dem Lauf wegraeumen, nicht vorher: bricht der Lauf mittendrin
+# ab, steht sie beim naechsten Start noch da. Ein zweiter Durchlauf schadet
+# nicht, er ueberspringt, was schon laeuft.
+# *Removed after the run, not before: if the run breaks off, the list is still
+#  there next boot, and a second pass skips whatever is already running.*
+rm -f "$LISTE"
+exit $fehler

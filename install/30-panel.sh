@@ -36,7 +36,7 @@ log "Python-Umgebung"
 /opt/panel/venv/bin/pip install -q -r "$REPO/panel/requirements.txt"
 
 log "Werkzeuge nach /usr/local/bin"
-for w in dns-pflegen compose-feld katalog-vorpruefung katalogbilder-holen konfig-datei panel-aktion port-ermitteln spiel-einrichtung spiel-verwalten; do
+for w in dns-pflegen compose-feld katalog-vorpruefung katalogbilder-holen konfig-datei panel-aktion port-ermitteln spiel-einrichtung spiel-verwalten spiele-wiederanlauf; do
   einsetzen "$REPO/bin/$w" "/usr/local/bin/$w" 0755 root:root
 done
 einsetzen "$REPO/etc/spiele-katalog.json" /etc/spiele-katalog.json 0644 root:root
@@ -75,8 +75,14 @@ log "Dienste"
 einsetzen "$REPO/systemd/panel.service" /etc/systemd/system/panel.service
 einsetzen "$REPO/systemd/spiel-einrichtung.service" /etc/systemd/system/spiel-einrichtung.service
 einsetzen "$REPO/systemd/spiel-einrichtung.timer"   /etc/systemd/system/spiel-einrichtung.timer
+einsetzen "$REPO/systemd/spiele-wiederanlauf.service" /etc/systemd/system/spiele-wiederanlauf.service
 systemctl daemon-reload
 systemctl enable --now panel.service spiel-einrichtung.timer
+# Nur "enable", nicht "--now": Die Einheit soll beim naechsten HOCHFAHREN laufen,
+# nicht jetzt. Sie ist ohnehin an eine Liste gebunden, die es gerade nicht gibt.
+# *enable without --now: it belongs to the next boot, and it is bound to a list
+#  that does not exist right now anyway.*
+systemctl enable spiele-wiederanlauf.service
 
 # --- Erster Zugang ----------------------------------------------------
 # Wird NUR beim ersten Lauf angelegt. Das Passwort steht danach einmal auf dem

@@ -238,7 +238,25 @@ case "${1:-}" in
     if pgrep -f "[b]org (create|prune|compact)" >/dev/null 2>&1; then
       fehler "Es laeuft gerade eine Sicherung. Neustart abgebrochen."
     fi
-    # Container sauber anhalten, damit die Spiele ihre Staende schreiben.
+    # Erst MERKEN, was laeuft, dann anhalten.
+    #
+    # Das Anhalten ist richtig - die Spiele sollen ihre Staende schreiben. Es hat
+    # aber einen Nebeneffekt, der zweimal am 2026-09-09 dazu fuehrte, dass nach
+    # dem Neustart KEIN Server zurueckkam: "docker compose stop" ist ein
+    # AUSDRUECKLICHES Anhalten, und genau das schaltet "restart: unless-stopped"
+    # ab. Die Regel heisst "starte wieder, ausser es wurde ausdruecklich
+    # angehalten", und Docker merkt sich das ueber den Neustart hinweg.
+    #
+    # Die Liste geht nach /var/lib, nicht nach /tmp: /tmp ist nach dem Neustart
+    # leer - also genau dann, wenn die Liste gebraucht wird. spiele-wiederanlauf
+    # liest sie beim naechsten Hochfahren und raeumt sie danach weg.
+    #
+    # *Stopping is right - the games must write their saves. But an explicit stop
+    #  is exactly what disables unless-stopped, and Docker remembers that across
+    #  the reboot, so nothing came back. The list goes to /var/lib because /tmp is
+    #  empty after a reboot, which is precisely when it is needed.*
+    docker ps --format "{{.Names}}" | sort > /var/lib/spiele-wiederanlauf
+    chmod 600 /var/lib/spiele-wiederanlauf
     for d in /opt/stacks/*/; do
       n=$(basename "$d")
       docker ps --format "{{.Names}}" | grep -qx "$n" && ( cd "$d" && docker compose stop >/dev/null 2>&1 )
