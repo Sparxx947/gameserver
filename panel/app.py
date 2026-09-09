@@ -743,6 +743,11 @@ def uebersicht(request: Request, meldung: str = ""):
             rein, raus = teil[4].split("/", 1)
             gemessen[teil[0]] = _bytes(rein) + _bytes(raus)
     raten = verkehr_rate(gemessen)
+    # Einmal fuer alle Karten holen, nicht je Karte einmal: ein Aufruf ueber die
+    # sudo-Bruecke kostet spuerbar, und die Antwort ist fuer jede Karte dieselbe.
+    # *Fetched once for all cards, not per card.*
+    _, au_roh = aktion("auto-update-liste", timeout=30)
+    auto_an = {z.strip() for z in au_roh.splitlines() if z.strip()}
     karten, systemleiste, kerne = [], "", 6
     for z in aus.splitlines():
         if z.startswith("SYSTEM\t"):
@@ -802,12 +807,13 @@ def uebersicht(request: Request, meldung: str = ""):
         #  token. The backup is enforced in panel-aktion, not here - a safeguard
         #  that another entry point bypasses is not one.*
         aktualisieren_knopf = ""
-        # Nur fuer Katalogspiele: der Schalter lebt in der panel.json, und die
-        # von Hand gebauten Stacks haben keine.
-        # *Only for catalogue games: the switch lives in panel.json, which the
-        #  hand-built stacks do not have.*
-        if darf_verwalten(s) and pi:
-            auto = bool(pi.get("auto_update"))
+        # Fuer JEDEN Server, auch die von Hand gebauten. Der Schalter lag zuerst
+        # in der panel.json und erreichte damit einen von acht - ausgerechnet
+        # Palworld und Enshrouded, die laufend Patches bekommen, waren aussen vor.
+        # *For every server, hand-built ones included: keyed on its own list
+        #  rather than panel.json, which reached one server out of eight.*
+        if darf_verwalten(s):
+            auto = name in auto_an
             aktualisieren_knopf += (
                 f'<form method=post action=/auto-update style=display:contents>'
                 f'<input type=hidden name=csrf value="{s["csrf"]}">'

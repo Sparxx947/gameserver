@@ -133,8 +133,13 @@ Ein Schalter je Server auf der Karte: **auto an** / **auto aus**. Aus per
 Voreinstellung, und es gibt **keinen globalen Schalter** — eine Automatik, die
 alles auf einmal betrifft, ist genau die, die man später nicht mehr zuordnen kann.
 
-Nur für Katalogspiele: Der Schalter lebt in der `panel.json`, und die von Hand
-gebauten Stacks haben keine.
+Für **jeden** Server, auch die von Hand gebauten. Der Schalter lag zunächst in
+der `panel.json` — und erreichte damit **einen von acht**, weil nur über den
+Katalog installierte Stacks eine haben. Ausgerechnet Palworld und Enshrouded, die
+laufend Patches bekommen, waren außen vor. Die `panel.json` beschreibt, *was der
+Katalog installiert hat*; ob ein Server sich nachts selbst aktualisiert, hat
+damit nichts zu tun. Die Freischaltung steht deshalb in
+`/var/lib/spiele-autoupdate.liste`, eine Zeile je Server.
 
 Nachts um 05:15 (±30 min) geht `spiele-autoupdate` die freigeschalteten Server
 durch. **Vier Bedingungen, jede einzeln geprüft und einzeln protokolliert:**

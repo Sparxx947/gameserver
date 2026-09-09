@@ -44,17 +44,20 @@ done
 log() { echo "$*"; logger -t autoupdate "$*"; }
 
 # --- Wer ist freigeschaltet? ------------------------------------------------
+# Eine eigene Liste, nicht die panel.json: die haben nur ueber den Katalog
+# installierte Stacks, und damit erreichte der Schalter einen von acht Servern.
+# *A list of its own rather than panel.json, which only catalogue-installed
+#  stacks have - that reached one server out of eight.*
+LISTE=/var/lib/spiele-autoupdate.liste
 kandidaten=()
-for f in /opt/stacks/*/panel.json; do
-    [ -e "$f" ] || continue
-    s=$(basename "$(dirname "$f")")
-    an=$(python3 -c "
-import json,sys
-try: print('1' if json.load(open('$f')).get('auto_update') else '0')
-except Exception: print('0')
-" 2>/dev/null)
-    [ "$an" = "1" ] && kandidaten+=("$s")
-done
+if [ -s "$LISTE" ]; then
+    while read -r s; do
+        [ -n "$s" ] || continue
+        # Nur was es noch gibt: ein entfernter Server soll die Liste nicht
+        # jede Nacht mit einer Fehlermeldung fuellen.
+        [ -d "/opt/stacks/$s" ] && kandidaten+=("$s")
+    done < "$LISTE"
+fi
 
 if [ ${#kandidaten[@]} -eq 0 ]; then
     log "Kein Server ist für automatische Updates freigeschaltet."
