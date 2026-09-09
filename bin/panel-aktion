@@ -351,27 +351,34 @@ case "${1:-}" in
     fi
     ;;
   auto-update)
-    # Schalter je Server, in der panel.json. Bewusst KEIN globaler Schalter:
-    # eine Automatik, die alles auf einmal betrifft, ist genau die, die man
-    # spaeter nicht mehr zuordnen kann.
-    # *Deliberately no global switch: an automation that affects everything at
-    #  once is the one nobody can attribute afterwards.*
+    # Der Schalter liegt in EINER EIGENEN Liste, nicht in der panel.json.
+    #
+    # Erster Anlauf schrieb ihn in die panel.json - und erreichte damit genau
+    # einen von acht Servern, weil nur ueber den Katalog installierte Stacks
+    # eine haben. Ausgerechnet Palworld und Enshrouded, die laufend Patches
+    # bekommen, waren aussen vor. Die panel.json beschreibt, WAS der Katalog
+    # installiert hat; ob ein Server sich nachts selbst aktualisieren soll, hat
+    # damit nichts zu tun.
+    # *The first attempt stored this in panel.json and reached one server out of
+    #  eight, since only catalogue-installed stacks have that file. panel.json
+    #  describes what the catalogue installed; whether a server updates itself at
+    #  night has nothing to do with where it came from.*
     s="${2:-}"; wert="${3:-}"; pruefe_stack "$s"
     case "$wert" in an|aus) ;; *) fehler "nur 'an' oder 'aus'" ;; esac
-    marke="/opt/stacks/$s/panel.json"
-    [ -f "$marke" ] || fehler "Dieser Server wurde nicht ueber den Katalog installiert - fuer ihn gibt es keine Einstellung."
-    python3 - "$marke" "$wert" <<'PY'
-import json, os, sys, shutil
-pfad, wert = sys.argv[1], sys.argv[2]
-d = json.loads(open(pfad).read())
-d["auto_update"] = (wert == "an")
-tmp = pfad + ".neu"
-open(tmp, "w").write(json.dumps(d, indent=1, ensure_ascii=False) + "\n")
-os.chmod(tmp, 0o640); shutil.chown(tmp, "root", "panel")
-os.replace(tmp, pfad)          # atomar - eine halb geschriebene panel.json
-                               # waere schlimmer als eine ungeaenderte
-PY
+    liste=/var/lib/spiele-autoupdate.liste
+    touch "$liste"; chmod 600 "$liste"
+    # Erst herausnehmen, dann ggf. wieder hinein: so steht jeder Stack hoechstens
+    # einmal drin, egal wie oft geschaltet wurde.
+    tmp=$(mktemp); grep -vFx "$s" "$liste" > "$tmp" 2>/dev/null || true
+    [ "$wert" = "an" ] && echo "$s" >> "$tmp"
+    sort -u "$tmp" > "$liste"; rm -f "$tmp"
+    chmod 600 "$liste"
     echo "ok	auto-update fuer $s: $wert"
+    ;;
+  auto-update-liste)
+    # Welche Stacks sind freigeschaltet? Fuer die Oberflaeche, damit sie den
+    # Schalter richtig herum zeichnet.
+    [ -f /var/lib/spiele-autoupdate.liste ] && cat /var/lib/spiele-autoupdate.liste || true
     ;;
   alle-anhalten)
     # Alles anhalten, was laeuft - und sich merken, WAS lief. Ohne diese Liste
