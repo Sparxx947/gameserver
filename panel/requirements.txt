@@ -1,8 +1,8 @@
 annotated-doc==0.0.5
 annotated-types==0.8.0
 anyio==4.15.1
-argon2-cffi-bindings==26.1.0
 argon2-cffi==25.1.0
+argon2-cffi-bindings==26.1.0
 cbor2==6.1.4
 cffi==2.1.1
 click==8.5.0
@@ -28,8 +28,8 @@ PyYAML==6.0.3
 qrcode==8.2
 setuptools==83.0.0
 starlette==1.6.0
-typing-inspection==0.4.4
 typing_extensions==4.16.0
+typing-inspection==0.4.4
 uvicorn==0.52.4
 uvloop==0.22.1
 watchfiles==1.2.0
