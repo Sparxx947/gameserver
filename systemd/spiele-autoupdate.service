@@ -1,0 +1,8 @@
+[Unit]
+Description=Freigeschaltete Spieleserver aktualisieren
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/spiele-autoupdate

@@ -802,6 +802,21 @@ def uebersicht(request: Request, meldung: str = ""):
         #  token. The backup is enforced in panel-aktion, not here - a safeguard
         #  that another entry point bypasses is not one.*
         aktualisieren_knopf = ""
+        # Nur fuer Katalogspiele: der Schalter lebt in der panel.json, und die
+        # von Hand gebauten Stacks haben keine.
+        # *Only for catalogue games: the switch lives in panel.json, which the
+        #  hand-built stacks do not have.*
+        if darf_verwalten(s) and pi:
+            auto = bool(pi.get("auto_update"))
+            aktualisieren_knopf += (
+                f'<form method=post action=/auto-update style=display:contents>'
+                f'<input type=hidden name=csrf value="{s["csrf"]}">'
+                f'<input type=hidden name=stack value="{name}">'
+                f'<input type=hidden name=wert value="{"aus" if auto else "an"}">'
+                f'<button class="b{" y" if auto else ""}" '
+                f'title="Nächtlich neue Fassungen holen — nur wenn gesichert werden '
+                f'kann und niemand spielt">'
+                f'auto {"an" if auto else "aus"}</button></form>')
         if darf_verwalten(s):
             aktualisieren_knopf = (
                 f'<form method=post action=/aktualisieren style=display:contents>'
@@ -1511,6 +1526,20 @@ def aktualisieren(request: Request, csrf: str = Form(""), stack: str = Form(""))
               "ok" if rc == 0 else "fehlgeschlagen", ergebnis_art=art or "—")
     m = (teile[2] if rc == 0 and len(teile) > 2 else
          f"Nicht aktualisiert: {aus.strip()[:220]}")
+    return RedirectResponse(f"/?meldung={quote(m)}", 303)
+
+
+@app.post("/auto-update")
+def auto_update_schalten(request: Request, csrf: str = Form(""),
+                         stack: str = Form(""), wert: str = Form("")):
+    s = pruefe(request, csrf)
+    if not darf_verwalten(s):
+        return RedirectResponse("/", 303)
+    rc, aus = aktion("auto-update", stack, wert, timeout=30)
+    protokoll(s, "Automatische Updates umgestellt", stack,
+              "ok" if rc == 0 else "fehlgeschlagen", auf=wert)
+    m = (f"Automatische Updates für {stack}: {wert}." if rc == 0
+         else f"Nicht umgestellt: {aus.strip()[:200]}")
     return RedirectResponse(f"/?meldung={quote(m)}", 303)
 
 

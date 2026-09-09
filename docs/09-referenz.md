@@ -550,6 +550,7 @@ Notausgang `GAMESERVER_KEIN_GATE=1`.
 
 | Unit | Zeitpunkt | Zweck |
 |---|---|---|
+| `spiele-autoupdate.timer` | täglich 05:15, ±30 min | freigeschaltete Server aktualisieren (`Persistent=false`) |
 | `spiele-wiederanlauf.service` | beim Hochfahren | startet die Server wieder, die `panel-aktion neustart` vorher angehalten hat |
 | `panel.service` | dauerhaft | Weboberfläche, `User=panel`, uvicorn auf `127.0.0.1:8099` |
 | `ttyd.service` | dauerhaft | Webterminal, `User=<admin>`, `127.0.0.1:7681` |
