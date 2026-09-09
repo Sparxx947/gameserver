@@ -199,6 +199,35 @@ if ! python3 werkzeuge/katalog-doku.py --pruefen 2>&1 | sed 's/^/  /'; then
   fehler=1
 fi
 
+# --- 8. Entscheidungsnummern: keine doppelt, keine ins Leere ----------------
+# Am 2026-09-09 wurde E24 zweimal vergeben. Der Grund ist eine Falle, die beim
+# naechsten Mal genauso aussieht: die Ueberschriften in 10-entscheidungen.md
+# stehen NICHT in ihrer Reihenfolge - E24 liegt oberhalb von E23, weil sie
+# frueher geschrieben wurde und in der Mitte landete. Wer ans Ende anhaengt und
+# auf die letzte Ueberschrift sieht, liest E23 und haelt E24 fuer frei.
+# Zugleich geprueft: jede aus der Doku heraus genannte Nummer muss es geben -
+# ein Verweis auf eine geloeschte oder umnummerierte Entscheidung fuehrt den
+# Leser sonst ins Nichts, und genau dafuer sind die Verweise da.
+# *E24 was assigned twice: the headings are not in numeric order, so appending
+#  at the end and looking at the last one reads E23 and takes E24 for free.
+#  Also checked: every E<n> referenced from the docs must exist.*
+echo "== Entscheidungsnummern eindeutig und aufloesbar? =="
+D=docs/10-entscheidungen.md
+doppelt=$(grep -oE '^## E[0-9]+' "$D" | grep -oE 'E[0-9]+' | sort | uniq -d)
+if [ -n "$doppelt" ]; then
+  echo "  DOPPELT vergeben: $(tr '\n' ' ' <<<"$doppelt")"
+  echo "  Achtung: die Ueberschriften stehen nicht in numerischer Reihenfolge —"
+  echo "  die naechste freie Nummer ist die hoechste, nicht die letzte."
+  fehler=1
+fi
+vorhanden=$(grep -oE '^## E[0-9]+' "$D" | grep -oE 'E[0-9]+' | sort -u)
+# Nur Verweise aus der Doku: im Code steht "E23" auch mal als Teil eines Wortes.
+while read -r v; do
+  grep -qx "$v" <<<"$vorhanden" \
+    || { echo "  Verweis auf $v, aber es gibt keine solche Entscheidung"; fehler=1; }
+done < <(grep -rhoE '\bE[0-9]{1,2}\b' docs/*.md CLAUDE.md README.md 2>/dev/null \
+         | sort -u)
+
 echo
 [ $fehler -eq 0 ] && echo "vollstaendig." || echo "UNVOLLSTAENDIG — siehe oben."
 exit $fehler

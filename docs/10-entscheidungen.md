@@ -519,7 +519,7 @@ Gate wieder veröffentlicht worden.
 
 ---
 
-## E24 — Das Projekt heißt Platzwart
+## E25 — Das Projekt heißt Platzwart
 
 `gameserver` beschreibt die Gattung, nicht dieses Projekt — und es beschreibt
 ausgerechnet das, was hier **nicht** drinsteckt.
