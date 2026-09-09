@@ -89,7 +89,7 @@ jeder **gültige** Stack wäre abgewiesen worden.
 | | |
 |---|---|
 | Faktor 1 | Passwort, Argon2id |
-| Faktor 2 | TOTP, verpflichtend, nicht abschaltbar |
+| Faktor 2 | TOTP, verpflichtend, nicht abschaltbar — oder ein Wiederherstellungscode |
 | Sitzung | 8 h, signiertes Cookie, `HttpOnly` `Secure` `SameSite=strict` |
 | CSRF | eigenes Token je Sitzung, bei jedem Schreibzugriff mit `hmac.compare_digest` |
 | Sperre | 5 Fehlversuche je IP → 15 min |
@@ -213,6 +213,102 @@ abgetippt, und manche Spiele filtern Sonderzeichen still weg.
 > root, not by granting the `panel` user access. Passwords are per server, never
 > shared, and avoid look-alike characters and punctuation: they get read aloud
 > and typed by hand, and some games silently strip special characters.*
+
+---
+
+## Wiederherstellungscodes
+
+Zehn Einmalcodes, erzeugt in dem Moment, in dem der Benutzer seinen zweiten
+Faktor bestätigt, **einmal** angezeigt, danach nur noch gehasht vorhanden. Sie
+treten an die Stelle der sechs Ziffern — **nicht** an die des Passworts.
+
+**Warum es sie braucht:** TOTP ist Pflicht. Wer sein Gerät verlor, kam bisher nur
+über „ein Administrator setzt den zweiten Faktor zurück" wieder herein. Bei genau
+einem Administrator ist das keine Wiederherstellung, sondern eine Aussperrung.
+
+**Die Zahlen sind nicht geraten:**
+
+| Vorgabe | Quelle | hier |
+|---|---|---|
+| ≥ 64 Bit Zufall | NIST SP 800-63B-4 §4.2.1.1 | **93,3 Bit** |
+| gehasht speichern, unter 112 Bit gesalzenes Passwort-Hash-Verfahren | OWASP ASVS 5.0.0 V6.5.2 | Argon2id |
+| Einmalgebrauch | NIST §3.1.2 | Code wird **entfernt**, nicht markiert |
+| Rate-Limiting Pflicht | NIST §3.2.2 | 5 Fehlversuche je IP → 15 min (bestand schon) |
+
+16 Zeichen aus dem Alphabet von E19 (57 Zeichen ohne `0/O` und `1/l/I`) ergeben
+5,83 × 16 = 93,3 Bit. Angezeigt werden sie in Vierergruppen, weil sie ausgedruckt
+und abgetippt werden.
+
+**Vier Entscheidungen im Detail:**
+
+1. **Erzeugt bei der Bestätigung, nicht beim Anlegen des Kontos.** So sieht der
+   Benutzer sie selbst und der Administrator nie — dieselbe Überlegung wie beim
+   TOTP-Geheimnis.
+2. **Der verbrauchte Code wird gelöscht, nicht als benutzt markiert.** Ein
+   Einmalcode, der noch in der Datei steht, wird früher oder später doch
+   akzeptiert.
+3. **Die Form entscheidet, welcher Weg geprüft wird.** Sechs Ziffern sind ein
+   TOTP, 16 Zeichen ein Wiederherstellungscode. Sonst liefen bei jedem vertippten
+   TOTP zehn Argon2-Prüfungen mit — rund eine Sekunde.
+4. **Ein Zurücksetzen des zweiten Faktors entwertet die Codes.** Sie gehören zum
+   alten Faktor; blieben sie liegen, wäre das Zurücksetzen keines.
+
+Die Einlösung steht **im Protokoll**, mitsamt der Zahl der verbleibenden Codes:
+Es ist der eine Weg hinein, der ohne den zweiten Faktor im üblichen Sinne
+auskommt. Unter „Mein Konto" sieht jeder seinen Vorrat und kann neue erzeugen;
+die Benutzerliste zeigt ihn für alle, damit ein leerer Vorrat auffällt, bevor
+jemand davorsteht.
+
+> *Ten single-use codes, generated when the user confirms their second factor,
+> shown once, stored hashed. 16 characters from the 57-character look-alike-free
+> alphabet is 93.3 bits — above NIST's 64-bit minimum, below the ASVS 112-bit
+> threshold, hence Argon2id. The redeemed code is deleted rather than flagged; a
+> reset of the second factor invalidates the codes; and the input shape decides
+> which path is checked, so Argon2 does not run on every mistyped TOTP.*
+
+---
+
+## Warum nicht E-Mail-Codes
+
+Naheliegend wäre, den zweiten Faktor per Mail zu schicken. **NIST SP 800-63B-4
+§3.1.3.1 verbietet das ausdrücklich:** „Email **SHALL NOT** be used for
+out-of-band authentication" — abfangbar unterwegs und auf Zwischenservern,
+umleitbar per DNS-Spoofing, und oft schon mit dem Passwort allein erreichbar.
+
+Das PCI SSC nennt den Kern: Wer sein Mailkonto mit demselben Passwort öffnet, für
+den sind die beiden Faktoren nicht unabhängig — es ist „a usage of *something you
+know* twice". Die EBA lässt Mail-Codes nur gelten, wenn das Postfach ausschließlich
+über ein registriertes Gerät erreichbar ist; ENISA und CISA führen sie als
+„letzten Ausweg".
+
+Praktisch kommt hinzu: Die Maschine hat keinen Mailversand.
+
+> *Email as a second factor is explicitly forbidden by NIST SP 800-63B-4 §3.1.3.1.
+> PCI SSC names the core problem: if the mailbox opens with the same password, the
+> factors are not independent — "'something you know' twice". The machine has no
+> mail transport either.*
+
+---
+
+## Was ein Wiederherstellungscode nicht behebt
+
+TOTP beruht auf einem **geteilten Geheimnis**: Server und Gerät kennen dieselbe
+Zeichenkette. Das BSI bewertet TOTP-Apps deshalb in zwei von vier Szenarien
+genauso schlecht wie E-Mail-TANs (Bewertungstabellen „IT-Sicherheit", Version 1.1,
+05/2026):
+
+| Szenario | TOTP | Passkeys/FIDO2 |
+|---|---|---|
+| Echtzeit-Phishing | **Schlecht** | **Gut** |
+| Leak beim Dienst | **Schlecht** | **Gut** |
+
+Ein Hardware-Token ändert daran nichts — er ist nur ein anderes Behältnis für
+dasselbe Geheimnis. Wirklich besser ist allein ein Verfahren mit Domainbindung
+und ohne serverseitiges Geheimnis.
+
+> *TOTP rests on a shared secret, which is why the BSI rates TOTP apps as poorly
+> as email in two of four scenarios. A hardware token changes nothing about that —
+> it is merely a different container for the same secret.*
 
 ---
 
