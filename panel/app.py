@@ -822,7 +822,12 @@ def uebersicht(request: Request, meldung: str = ""):
                 f'<button class="b{" y" if auto else ""}" '
                 f'title="Nächtlich neue Fassungen holen — nur wenn gesichert werden '
                 f'kann und niemand spielt">'
-                f'auto {"an" if auto else "aus"}</button></form>')
+                # "autoupdate", nicht "auto": neben einem Knopf "aktualisieren"
+                # sagt "auto" nicht, WAS automatisch geschieht - es koennte
+                # genauso gut den Neustart oder die Sicherung meinen.
+                # *"auto" alone does not say what is automatic, next to a button
+                #  labelled "aktualisieren".*
+                f'autoupdate {"an" if auto else "aus"}</button></form>')
         if darf_verwalten(s):
             # "+=", NICHT "=": Hier stand eine Zuweisung, und die warf den
             # Auto-Schalter von oben weg - er wurde gebaut und im selben Atemzug
