@@ -14,7 +14,7 @@ Sicherheitsentwurf:
     neu starten — keine Passwoerter, keine Wiederherstellung, keine
     Benutzerverwaltung, keine Konfigurationsaenderung.
 """
-import hmac, json, os, secrets, string, subprocess, time
+import base64, hmac, json, os, secrets, string, subprocess, time
 import re
 from html import escape as esc
 from urllib.parse import quote
@@ -280,6 +280,65 @@ def code_einloesen(name: str, eingabe: str) -> bool:
         speichern(d)
         return True
     return False
+
+
+# --- Passkeys (WebAuthn) -----------------------------------------------------
+#
+# TOTP beruht auf einem GETEILTEN Geheimnis: Server und Geraet kennen dieselbe
+# Zeichenkette. Sie laesst sich in Echtzeit abphishen und sie liegt beim Dienst.
+# Das BSI bewertet TOTP-Apps deshalb in zwei von vier Szenarien genauso schlecht
+# wie E-Mail-TANs (Bewertungstabellen "IT-Sicherheit", 1.1, 05/2026). Ein
+# Passkey hat kein serverseitiges Geheimnis und ist an die Domain gebunden - eine
+# nachgebaute Anmeldeseite bekommt schlicht keine Signatur.
+#
+# Hier ist er ein ZWEITER Faktor neben TOTP, kein Ersatz: Das Passwort bleibt
+# Faktor 1, und wer keinen Passkey einrichtet, meldet sich unveraendert mit den
+# sechs Ziffern an.
+#
+# *TOTP rests on a shared secret; a passkey has no server-side secret and is
+#  bound to the domain, so a look-alike login page gets no signature. Here it is
+#  an alternative second factor, not a replacement.*
+try:
+    from webauthn import (generate_registration_options, verify_registration_response,
+                          generate_authentication_options, verify_authentication_response,
+                          options_to_json, base64url_to_bytes)
+    from webauthn.helpers.structs import (AuthenticatorSelectionCriteria,
+                                          UserVerificationRequirement,
+                                          PublicKeyCredentialDescriptor)
+    PASSKEY_MOEGLICH = True
+except ImportError:
+    # Die Bibliothek fehlt: TOTP funktioniert weiter, die Passkey-Wege melden
+    # sich sauber ab. Ein Panel, das wegen eines fehlenden Zusatzes gar nicht
+    # mehr startet, waere der schlechtere Tausch.
+    # *Missing library: TOTP keeps working and the passkey routes decline. A
+    #  panel that refuses to start over an optional extra is the worse trade.*
+    PASSKEY_MOEGLICH = False
+
+# Die oeffentliche Herkunft, nicht die interne. Die App laeuft hinter Caddy auf
+# 127.0.0.1:8099 - wuerde sie sich selbst als Herkunft eintragen, passte die
+# Signatur des Browsers nie.
+# *The public origin, not the internal one: the app runs behind Caddy, and a
+#  signature made for the public origin never matches 127.0.0.1.*
+RP_ID = "@@PANEL_DOMAIN@@"
+RP_HERKUNFT = f"https://{RP_ID}"
+RP_NAME = "Spieleserver @@WELT_NAME@@"
+
+
+def bytes_zu_b64url(b: bytes) -> str:
+    """base64url OHNE Auffuellzeichen - so schreibt WebAuthn seine Kennungen, und
+    so kommen sie auch aus dem Browser zurueck. Mit "=" am Ende faende der
+    Vergleich in anmelden-fertig den passenden Schluessel nicht."""
+    return base64.urlsafe_b64encode(b).decode().rstrip("=")
+
+
+def passkeys_von(name: str) -> list:
+    return (laden()["nutzer"].get(name) or {}).get("passkeys") or []
+
+
+def passkey_speichern(name: str, eintrag: dict) -> None:
+    d = laden()
+    d["nutzer"][name].setdefault("passkeys", []).append(eintrag)
+    speichern(d)
 
 
 # --- Protokoll: wer hat wann was getan ---------------------------------------
@@ -702,6 +761,16 @@ def favicon_svg():
                         headers={"Cache-Control": "public, max-age=86400"})
 
 
+@app.get("/passkey.js")
+def passkey_js():
+    """Das einzige JavaScript des Panels. Als eigene Datei, damit die
+    Sicherheitsrichtlinie mit "script-src 'self'" auskommt und kein
+    'unsafe-inline' braucht."""
+    return FileResponse(Path("/opt/panel/statisch/passkey.js"),
+                        media_type="text/javascript",
+                        headers={"Cache-Control": "no-store"})
+
+
 @app.get("/apple-touch-icon.png")
 def apple_icon():
     return FileResponse(BILDER / "apple-touch-icon.png", media_type="image/png",
@@ -975,10 +1044,12 @@ def login_form(request: Request, fehler: str = ""):
 <form method=post action=/login>
 <label>Benutzer</label><input type=text name=nutzer autocomplete=username autofocus>
 <label>Passwort</label><input type=password name=passwort autocomplete=current-password>
-<label>Einmalcode (6 Ziffern)</label><input type=text name=code inputmode=numeric autocomplete=one-time-code>
+<label>Einmalcode (6 Ziffern) oder Wiederherstellungscode</label><input type=text name=code inputmode=text autocomplete=one-time-code>
 <div style=margin-top:16px><button class=p style=width:100%>Anmelden</button></div>
+<button type=button class=b style="width:100%;margin-top:10px" data-passkey=anmelden hidden>mit Passkey anmelden</button>
+<div id=pk-meldung></div>
 {f'<div class=f>{fehler}</div>' if fehler else ''}
-</form></div>""" + FUSS)
+</form><script src="/passkey.js" defer></script></div>""" + FUSS)
 
 
 @app.post("/login")
@@ -1921,6 +1992,21 @@ def konto(request: Request, meldung: str = ""):
         return RedirectResponse("/login", 303)
     n = laden()["nutzer"].get(s["nutzer"]) or {}
     rest = len(n.get("codes") or [])
+    pk = n.get("passkeys") or []
+    if pk:
+        zeilen = "".join(
+            f'<tr><td>angelegt {esc(p.get("angelegt", "?"))}</td>'
+            f'<td class=z><code>{esc(p["id"][:14])}…</code></td>'
+            f'<td style=text-align:right><form method=post action=/passkey-loeschen>'
+            f'<input type=hidden name=csrf value="{s["csrf"]}">'
+            f'<input type=hidden name=id value="{esc(p["id"])}">'
+            f'<button class=x>entfernen</button></form></td></tr>' for p in pk)
+        pk_liste = f"<table><tr><th>Passkey</th><th>Kennung</th><th></th></tr>{zeilen}</table>"
+    else:
+        pk_liste = ('<div class=m>Noch kein Passkey hinterlegt.</div>'
+                    if PASSKEY_MOEGLICH else
+                    '<div class=warn>Passkeys sind auf diesem Server nicht eingerichtet '
+                    '(die Bibliothek <code>webauthn</code> fehlt).</div>')
     warn = ""
     if rest == 0:
         warn = ('<div class=warn><b>Du hast keine Wiederherstellungscodes.</b> '
@@ -1938,10 +2024,211 @@ def konto(request: Request, meldung: str = ""):
 <form method=post action=/codes-neu style=margin-top:18px>
 <input type=hidden name=csrf value="{s['csrf']}">
 <button class=y>neue Wiederherstellungscodes erzeugen</button></form>
+
+<h1 style=margin-top:30px;font-size:16px>Passkeys</h1>
+<div class=z style=margin-bottom:10px>Ein Passkey tritt an die Stelle der sechs Ziffern.
+Er liegt in deinem Gerät — Windows Hello, Touch ID, Android oder ein Sicherheitsschlüssel —
+und wird mit Fingerabdruck, Gesicht oder Geräte-PIN freigegeben. <b>Es gibt kein
+Geheimnis, das dieser Server kennt</b>, und er funktioniert nur auf dieser Adresse:
+eine nachgebaute Anmeldeseite bekommt schlicht keine Antwort.</div>
+{pk_liste}
+<button type=button class=p data-passkey=anlegen data-csrf="{s['csrf']}" hidden>Passkey auf diesem Gerät anlegen</button>
+<div id=pk-meldung></div>
+<noscript><div class=warn>Passkeys brauchen JavaScript — es gibt dafür keinen anderen Weg.
+Ohne JavaScript funktionieren Passwort, Einmalcode und Wiederherstellungscodes
+unverändert.</div></noscript>
+<script src="/passkey.js" defer></script>
 <div class=m>Ein Wiederherstellungscode tritt an die Stelle der sechs Ziffern aus der
 App — das Passwort brauchst du weiterhin. Jeder Code funktioniert genau einmal.
 <b>Beim Erzeugen verlieren alle bisherigen Codes ihre Gültigkeit</b>, und die neue
 Liste wird nur ein einziges Mal angezeigt.</div>""" + FUSS)
+
+
+# --- Passkey: Anlegen (angemeldet) -------------------------------------------
+
+@app.post("/passkey/anlegen-start")
+def passkey_anlegen_start(request: Request, csrf: str = Form("")):
+    s = pruefe(request, csrf)
+    if not s:
+        return Response(status_code=401)
+    if not PASSKEY_MOEGLICH:
+        return Response("Passkeys sind auf diesem Server nicht eingerichtet.", status_code=501)
+    vorhanden = [PublicKeyCredentialDescriptor(id=base64url_to_bytes(p["id"]))
+                 for p in passkeys_von(s["nutzer"])]
+    opt = generate_registration_options(
+        rp_id=RP_ID, rp_name=RP_NAME,
+        user_name=s["nutzer"], user_display_name=s["nutzer"],
+        # Schon hinterlegte Schluessel ausschliessen, sonst legt derselbe
+        # Sicherheitsschluessel stillschweigend einen zweiten Eintrag an.
+        exclude_credentials=vorhanden,
+        authenticator_selection=AuthenticatorSelectionCriteria(
+            user_verification=UserVerificationRequirement.PREFERRED),
+    )
+    a = Response(options_to_json(opt), media_type="application/json")
+    # Die Challenge muss den Weg zurueck ueberleben, ohne dass der Server sie
+    # sich merkt. Signiert und kurzlebig, wie das Einrichtungs-Token - und an
+    # den Benutzer gebunden, damit sie nicht in einer fremden Sitzung gilt.
+    # *The challenge survives the round trip signed and short-lived rather than
+    #  in server state, bound to the user so it cannot be replayed elsewhere.*
+    a.set_cookie("pk_anlegen",
+                 einrichtung.dumps({"nutzer": s["nutzer"],
+                                    "challenge": bytes_zu_b64url(opt.challenge)}),
+                 httponly=True, secure=True, samesite="strict", max_age=300)
+    return a
+
+
+@app.post("/passkey/anlegen-fertig")
+async def passkey_anlegen_fertig(request: Request):
+    s = angemeldet(request)
+    if not s:
+        return Response(status_code=401)
+    if not PASSKEY_MOEGLICH:
+        return Response(status_code=501)
+    keks = request.cookies.get("pk_anlegen")
+    if not keks:
+        return Response("Sitzung abgelaufen, bitte neu versuchen.", status_code=400)
+    try:
+        merk = einrichtung.loads(keks, max_age=300)
+    except BadSignature:
+        return Response("Sitzung abgelaufen, bitte neu versuchen.", status_code=400)
+    if merk.get("nutzer") != s["nutzer"]:
+        return Response(status_code=400)
+    try:
+        antwort = await request.json()
+        erg = verify_registration_response(
+            credential=antwort,
+            expected_challenge=base64url_to_bytes(merk["challenge"]),
+            expected_origin=RP_HERKUNFT, expected_rp_id=RP_ID)
+    except Exception as e:
+        protokoll(s, "Passkey anlegen fehlgeschlagen", s["nutzer"], "abgelehnt",
+                  grund=type(e).__name__)
+        return Response(f"Nicht angenommen: {type(e).__name__}", status_code=400)
+
+    passkey_speichern(s["nutzer"], {
+        "id": bytes_zu_b64url(erg.credential_id),
+        "pubkey": bytes_zu_b64url(erg.credential_public_key),
+        "zaehler": erg.sign_count,
+        "angelegt": time.strftime("%Y-%m-%d %H:%M:%S%z"),
+    })
+    protokoll(s, "Passkey angelegt", s["nutzer"], "ok",
+              anzahl=len(passkeys_von(s["nutzer"])))
+    a = Response(status_code=204)
+    a.delete_cookie("pk_anlegen")
+    return a
+
+
+@app.post("/passkey-loeschen")
+def passkey_loeschen(request: Request, csrf: str = Form(""), id: str = Form("")):
+    s = pruefe(request, csrf)
+    if not s:
+        return RedirectResponse("/login", 303)
+    d = laden()
+    n = d["nutzer"].get(s["nutzer"]) or {}
+    vorher = len(n.get("passkeys") or [])
+    n["passkeys"] = [p for p in (n.get("passkeys") or []) if p["id"] != id]
+    speichern(d)
+    if len(n["passkeys"]) != vorher:
+        protokoll(s, "Passkey entfernt", s["nutzer"], "ok", verbleibend=len(n["passkeys"]))
+    return RedirectResponse("/konto?meldung=" + quote("Passkey entfernt."), 303)
+
+
+# --- Passkey: Anmelden --------------------------------------------------------
+
+@app.post("/passkey/anmelden-start")
+def passkey_anmelden_start(request: Request, nutzer: str = Form(""),
+                           passwort: str = Form("")):
+    """Das PASSWORT bleibt Faktor 1. Der Passkey tritt an die Stelle der sechs
+    Ziffern, nicht an die des Passworts - sonst waere aus zwei Faktoren einer
+    geworden, ohne dass es jemand entschieden haette."""
+    ip = request.client.host if request.client else "?"
+    if gesperrt(ip):
+        return Response("Zu viele Fehlversuche.", status_code=429)
+    if not PASSKEY_MOEGLICH:
+        return Response(status_code=501)
+    n = laden()["nutzer"].get(nutzer)
+    passwort_ok = False
+    if n:
+        try:
+            hasher.verify(n["passwort_hash"], passwort)
+            passwort_ok = True
+        except (VerifyMismatchError, InvalidHashError):
+            passwort_ok = False
+    # Bewusst dieselbe Antwort fuer "kein solcher Benutzer", "falsches Passwort"
+    # und "keine Passkeys hinterlegt": sonst verraet diese Route, welche Konten
+    # es gibt und welche einen Passkey haben.
+    # *Deliberately one answer for all three cases, so this route does not reveal
+    #  which accounts exist or which have a passkey.*
+    liste = (n or {}).get("passkeys") or []
+    if not passwort_ok or not liste:
+        fehlversuche.setdefault(ip, []).append(time.time())
+        protokoll({"nutzer": nutzer or "—", "rolle": "—"},
+                  "Passkey-Anmeldung fehlgeschlagen", "", "abgelehnt", ip=ip)
+        return Response("Anmeldung fehlgeschlagen.", status_code=401)
+
+    opt = generate_authentication_options(
+        rp_id=RP_ID,
+        allow_credentials=[PublicKeyCredentialDescriptor(id=base64url_to_bytes(p["id"]))
+                           for p in liste],
+        user_verification=UserVerificationRequirement.PREFERRED)
+    a = Response(options_to_json(opt), media_type="application/json")
+    a.set_cookie("pk_anmelden",
+                 einrichtung.dumps({"nutzer": nutzer,
+                                    "challenge": bytes_zu_b64url(opt.challenge)}),
+                 httponly=True, secure=True, samesite="strict", max_age=300)
+    return a
+
+
+@app.post("/passkey/anmelden-fertig")
+async def passkey_anmelden_fertig(request: Request):
+    ip = request.client.host if request.client else "?"
+    if gesperrt(ip):
+        return Response(status_code=429)
+    if not PASSKEY_MOEGLICH:
+        return Response(status_code=501)
+    keks = request.cookies.get("pk_anmelden")
+    if not keks:
+        return Response(status_code=400)
+    try:
+        merk = einrichtung.loads(keks, max_age=300)
+    except BadSignature:
+        return Response(status_code=400)
+    name = merk.get("nutzer")
+    d = laden()
+    n = d["nutzer"].get(name)
+    if not n:
+        return Response(status_code=400)
+    try:
+        antwort = await request.json()
+        roh_id = antwort.get("id") or antwort.get("rawId")
+        eintrag = next(p for p in (n.get("passkeys") or []) if p["id"] == roh_id)
+        erg = verify_authentication_response(
+            credential=antwort,
+            expected_challenge=base64url_to_bytes(merk["challenge"]),
+            expected_origin=RP_HERKUNFT, expected_rp_id=RP_ID,
+            credential_public_key=base64url_to_bytes(eintrag["pubkey"]),
+            credential_current_sign_count=eintrag.get("zaehler", 0))
+    except Exception as e:
+        fehlversuche.setdefault(ip, []).append(time.time())
+        protokoll({"nutzer": name or "—", "rolle": "—"},
+                  "Passkey-Anmeldung fehlgeschlagen", "", "abgelehnt",
+                  ip=ip, grund=type(e).__name__)
+        return Response("Anmeldung fehlgeschlagen.", status_code=401)
+
+    # Der Signaturzaehler steigt bei jeder Nutzung. Ihn zurueckzuschreiben ist
+    # der Hinweis auf einen geklonten Schluessel - py_webauthn wirft, wenn er
+    # nicht gewachsen ist, und der Fehlerpfad oben faengt das ab.
+    # *The signature counter is how a cloned authenticator becomes visible.*
+    eintrag["zaehler"] = erg.new_sign_count
+    speichern(d)
+    fehlversuche.pop(ip, None)
+    protokoll({"nutzer": name, "rolle": n.get("rolle", "?")},
+              "Mit Passkey angemeldet", "", "ok", ip=ip)
+    a = Response(status_code=204)
+    a.set_cookie("sitzung", signierer.dumps({"nutzer": name,
+                                             "csrf": secrets.token_urlsafe(24)}),
+                 httponly=True, secure=True, samesite="strict", max_age=SITZUNG_MAXALTER)
+    a.delete_cookie("pk_anmelden")
+    return a
 
 
 @app.get("/protokoll", response_class=HTMLResponse)
