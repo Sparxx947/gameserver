@@ -70,6 +70,36 @@ python3 -c "import json;json.load(open('etc/spiele-katalog.json'))" 2>/dev/null 
 # *Braces in f-strings: {1,20} in an HTML attribute is an expression to Python and
 #  renders as a tuple. The syntax check passes it, so the rendered output is what
 #  gets checked here.*
+# Eine Variable, die erst mit "" beginnt, dann mit += gefuellt und danach mit =
+# ueberschrieben wird, verliert alles Vorherige. Am 2026-09-09 verschwand so der
+# Auto-Update-Schalter von der Karte: gebaut und drei Zeilen spaeter weggeworfen.
+# Jeder Block sah fuer sich betrachtet richtig aus.
+# *A variable seeded with "", filled with += and then reassigned with = loses
+#  everything before it. That is how the auto-update button vanished from the
+#  card: built and discarded three lines later.*
+echo "== Wird ein aufgebauter HTML-Schnipsel spaeter ueberschrieben? =="
+python3 - <<'PRUEF' || fehler=1
+import re, sys
+t = open("panel/app.py").read()
+schlecht = []
+for name in set(re.findall(r'^\s*(\w+) = ""\s*$', t, re.M)):
+    # Reihenfolge der Zuweisungen an diese Variable einsammeln
+    vorkommen = [(m.start(), m.group(1))
+                 for m in re.finditer(rf'^\s*{name} (\+?=)', t, re.M)]
+    plus_gesehen = False
+    for pos, art in vorkommen:
+        if art == "+=":
+            plus_gesehen = True
+        elif plus_gesehen and art == "=":
+            zeile = t[:pos].count("\n") + 1
+            schlecht.append(f"Zeile {zeile}: {name} wird mit = ueberschrieben, "
+                            f"nachdem es mit += gefuellt wurde")
+            break
+if schlecht:
+    print("  " + "\n  ".join(schlecht))
+    sys.exit(1)
+PRUEF
+
 echo "== Keine ausgewerteten Klammern im HTML? =="
 python3 - <<'PRUEF' || fehler=1
 import re, sys
