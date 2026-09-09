@@ -1,5 +1,5 @@
 [Unit]
-Description=Spieleserver-Panel (Weboberflaeche)
+Description=Platzwart - Weboberflaeche des Spieleservers
 After=network-online.target docker.service
 Wants=network-online.target
 

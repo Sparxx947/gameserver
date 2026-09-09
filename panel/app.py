@@ -1,4 +1,4 @@
-"""Spieleserver-Panel — Weboberflaeche fuer den gameserver.
+"""Platzwart — Weboberflaeche fuer den Spieleserver.
 
 Sicherheitsentwurf:
   * Laeuft als unprivilegierter Nutzer "panel" und spricht NIE direkt mit Docker
@@ -402,7 +402,12 @@ except ImportError:
 #  signature made for the public origin never matches 127.0.0.1.*
 RP_ID = "@@PANEL_DOMAIN@@"
 RP_HERKUNFT = f"https://{RP_ID}"
-RP_NAME = "Spieleserver @@WELT_NAME@@"
+# Nur der ANZEIGENAME. Die RP_ID darueber bleibt unangetastet - an ihr
+# haengen bestehende Passkeys, eine Aenderung machte sie alle ungueltig.
+# Bereits eingerichtete Authenticator-Eintraege behalten ihren alten Namen;
+# das ist kosmetisch, kein Fehler.
+# *Display name only. The RP_ID above stays: existing passkeys are bound to it.*
+RP_NAME = "Platzwart @@WELT_NAME@@"
 
 
 def bytes_zu_b64url(b: bytes) -> str:
@@ -521,7 +526,7 @@ def gesperrt(ip: str) -> int:
 
 
 KOPF = """<!doctype html><html lang=de><head><meta charset=utf-8>
-<meta name=viewport content="width=device-width,initial-scale=1"><title>Spieleserver</title><link rel=icon href="/favicon.svg" type="image/svg+xml"><link rel="alternate icon" href="/favicon.ico" sizes="48x48 32x32 16x16"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name=viewport content="width=device-width,initial-scale=1"><title>Platzwart</title><link rel=icon href="/favicon.svg" type="image/svg+xml"><link rel="alternate icon" href="/favicon.ico" sizes="48x48 32x32 16x16"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <style>
 :root{color-scheme:dark;--bg:#14161a;--k:#1d2026;--r:#2b303a;--t:#e6e8ec;--d:#9aa1ad;--a:#5b9dd9;--g:#4caf7d;--x:#d9534f;--y:#d9a441}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--t);font:15px/1.5 system-ui,sans-serif}
@@ -718,7 +723,7 @@ def kopfleiste(s: dict, hier: str = "") -> str:
     nav = "".join(f'<a class="nv{" hier" if k == hier else ""}" href="{u}">{t}</a>'
                   for u, t, k in punkte)
     return (f'<div class=hd><div class=hdi>'
-            f'<div class=marke>{LOGO}<span>Spieleserver</span></div>'
+            f'<div class=marke>{LOGO}<span>Platzwart</span></div>'
             f'<nav>{nav}</nav>'
             f'<div class=usr><b>{s["nutzer"]}</b><span class=rolle>{s["rolle"]}</span>'
             f'<a class=b href=/abmelden>abmelden</a></div>'
@@ -1303,7 +1308,7 @@ def login_form(request: Request, fehler: str = ""):
     # ohne Kopfleiste stuende sonst nur ein nacktes Formular da.
     return HTMLResponse(KOPF + RUMPF + f"""<div class=card>
 <div style="text-align:center;margin-bottom:6px">{LOGO.replace('class=logo', 'class=logo style="width:56px;height:56px;display:inline-block"')}</div>
-<h1 style="text-align:center">Spieleserver</h1>
+<h1 style="text-align:center">Platzwart</h1>
 <form method=post action=/login>
 <label>Benutzer</label><input type=text name=nutzer autocomplete=username autofocus>
 <label>Passwort</label><input type=password name=passwort autocomplete=current-password>
@@ -1401,7 +1406,7 @@ def qr(request: Request):
     if not name:
         return RedirectResponse("/login", 303)
     n = laden()["nutzer"][name]
-    uri = pyotp.TOTP(n["totp"]).provisioning_uri(name=name, issuer_name="Spieleserver @@WELT_NAME@@")
+    uri = pyotp.TOTP(n["totp"]).provisioning_uri(name=name, issuer_name="Platzwart @@WELT_NAME@@")
     bild = qrcode.make(uri, image_factory=qrcode.image.svg.SvgPathImage, box_size=11, border=2)
     from io import BytesIO
     puffer = BytesIO()
