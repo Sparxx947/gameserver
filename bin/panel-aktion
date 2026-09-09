@@ -77,13 +77,20 @@ case "${1:-}" in
     swap=$(free -m | awk "/^Swap/ {print \$3 \"/\" \$2}")
     printf "SYSTEM\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "$mben" "$mges" "$load" "$kerne" "$pben" "$pges" "$swap"
     laufende=$(docker ps --format "{{.Names}}")
-    werte=$(docker stats --no-stream --format "{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}" 2>/dev/null)
+      # NetIO kommt aus DEMSELBEN Aufruf - ein Feld mehr kostet nichts, ein
+      # zweiter Aufruf haette 1,9 s gekostet. Der Wert ist kumulativ seit dem
+      # Start des Containers; die Rate bildet die Oberflaeche aus der Differenz
+      # zweier Abrufe. Hier wird gemessen, nicht gerechnet.
+      # *NetIO comes from the same call - one more field costs nothing, a second
+      #  call would cost 1.9 s. Cumulative since container start; the panel
+      #  derives the rate from the difference between two polls.*
+    werte=$(docker stats --no-stream --format "{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}" 2>/dev/null)
     for s in $(stacks); do
       if grep -qx "$s" <<<"$laufende"; then
         z=$(grep -P "^$s\t" <<<"$werte" | head -1)
-        printf "%s\tlaeuft\t%s\t%s\n" "$s" "$(cut -f2 <<<"$z")" "$(cut -f3 <<<"$z")"
+        printf "%s\tlaeuft\t%s\t%s\t%s\n" "$s" "$(cut -f2 <<<"$z")" "$(cut -f3 <<<"$z")" "$(cut -f4 <<<"$z")"
       else
-        printf "%s\tgestoppt\t-\t-\n" "$s"
+        printf "%s\tgestoppt\t-\t-\t-\n" "$s"
       fi
     done
     ;;

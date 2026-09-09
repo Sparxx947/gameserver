@@ -282,6 +282,86 @@ def code_einloesen(name: str, eingabe: str) -> bool:
     return False
 
 
+# --- Aktivität: was tut sich auf einem Server gerade? -------------------------
+#
+# Die naheliegende Anzeige waere eine Spielerzahl. Die gibt es aber nicht:
+# gemessen am 2026-09-09 antwortet Palworld auf keine Steam-Abfrage (weder 27015
+# noch 8211), TeamSpeak spricht ein eigenes Protokoll, Enshrouded ein drittes.
+# Jedes Spiel braeuchte einen eigenen Weg, und fuer die meisten der 179
+# Katalogspiele gaebe es gar keinen.
+#
+# Der Netzverkehr ist dagegen fuer JEDEN Container da und kommt aus demselben
+# "docker stats", das die Oberflaeche ohnehin abruft. Er beantwortet die Frage,
+# um die es wirklich geht - "kann ich neu starten oder ist jemand drauf?" - ohne
+# eine Zahl zu erfinden, die es nicht gibt. Deshalb heisst die Anzeige "Verkehr"
+# und nicht "Spieler".
+#
+# *The obvious display would be a player count, but there is none: measured,
+#  Palworld answers no Steam query, TeamSpeak speaks its own protocol, Enshrouded
+#  a third. Network traffic exists for every container and comes from the same
+#  docker stats call, and it answers the question that actually matters - "can I
+#  restart, or is somebody on?" - without inventing a number.*
+NETZSTAND = Path("/opt/panel/daten/netzstand.json")
+
+
+def _bytes(text: str) -> float:
+    """"106kB" -> 106000. Docker schreibt kB/MB/GB dezimal, KiB/MiB/GiB binaer."""
+    m = re.match(r"([\d.]+)\s*([kKMGT]?i?)B", text.strip())
+    if not m:
+        return 0.0
+    zahl, einheit = float(m.group(1)), m.group(2)
+    faktor = {"": 1, "k": 1e3, "K": 1e3, "M": 1e6, "G": 1e9, "T": 1e12,
+              "Ki": 1024, "Mi": 1024**2, "Gi": 1024**3, "Ti": 1024**4}
+    return zahl * faktor.get(einheit, 1)
+
+
+def verkehr_rate(gemessen: dict) -> dict:
+    """Bytes je Sekunde seit dem letzten Abruf, je Server.
+
+    Der Wert aus "docker stats" ist kumulativ seit dem Start des Containers -
+    als Anzeige waere er wertlos ("171 kB" sagt nichts darueber, ob gerade jemand
+    spielt). Gebraucht wird die AENDERUNG, also zwei Messungen und die Zeit
+    dazwischen.
+
+    Faellt der Zaehler (Container neu gestartet), wird der Eintrag verworfen
+    statt eine negative Rate zu zeigen: ein Neustart ist kein Verkehr.
+    *The counter is cumulative since container start, so the change is what
+     matters. A falling counter means a restart, not negative traffic.*
+    """
+    jetzt = time.time()
+    try:
+        alt = json.loads(NETZSTAND.read_text())
+    except (OSError, ValueError):
+        alt = {}
+    raten, neu = {}, {"zeit": jetzt, "werte": gemessen}
+    spanne = jetzt - float(alt.get("zeit", 0) or 0)
+    # Unter 2 s ist die Differenz Rauschen, ueber 15 min sagt sie nichts mehr
+    # ueber "gerade".
+    if 2 <= spanne <= 900:
+        for name, summe in gemessen.items():
+            vorher = (alt.get("werte") or {}).get(name)
+            if vorher is None or summe < vorher:
+                continue
+            raten[name] = (summe - vorher) / spanne
+    try:
+        NETZSTAND.write_text(json.dumps(neu))
+    except OSError:
+        pass          # Kein Grund, die Uebersicht scheitern zu lassen
+    return raten
+
+
+def verkehr_text(bps: float | None) -> str:
+    """Kurz und ehrlich. Ohne Vergleichswert steht da nichts - eine leere Angabe
+    ist besser als eine erfundene."""
+    if bps is None:
+        return ""
+    if bps < 1500:
+        return '<span class=z>ruhig</span>'
+    if bps < 1e6:
+        return f'<span class=z>Verkehr {bps/1e3:.0f} kB/s</span>'
+    return f'<span class=z>Verkehr {bps/1e6:.1f} MB/s</span>'
+
+
 # --- Passkeys (WebAuthn) -----------------------------------------------------
 #
 # TOTP beruht auf einem GETEILTEN Geheimnis: Server und Geraet kennen dieselbe
@@ -654,6 +734,15 @@ def uebersicht(request: Request, meldung: str = ""):
     if not s:
         return RedirectResponse("/login", 303)
     rc, aus = aktion("status", timeout=60)
+    # Erst alle Netzzaehler einsammeln, dann die Raten bilden: eine gemeinsame
+    # Zeitspanne fuer alle Server, statt je Karte eine eigene.
+    gemessen = {}
+    for z in aus.splitlines():
+        teil = z.split("\t")
+        if len(teil) >= 5 and teil[1] == "laeuft" and "/" in teil[4]:
+            rein, raus = teil[4].split("/", 1)
+            gemessen[teil[0]] = _bytes(rein) + _bytes(raus)
+    raten = verkehr_rate(gemessen)
     karten, systemleiste, kerne = [], "", 6
     for z in aus.splitlines():
         if z.startswith("SYSTEM\t"):
@@ -678,6 +767,7 @@ def uebersicht(request: Request, meldung: str = ""):
             continue
         name, zustand, cpu, mem = t[0], t[1], t[2], t[3]
         an = zustand == "laeuft"
+        verkehr = verkehr_text(raten.get(name)) if an else ""
         bild_html = (f'<img src="/bild/{name}" alt="">' if (BILDER / f"{name}.jpg").is_file()
                      else f'<div class=ph>{name[:2].upper()}</div>')
         knoepfe = []
@@ -765,6 +855,7 @@ def uebersicht(request: Request, meldung: str = ""):
                     + balken("Speicher", 100 * benutzt / grenze if grenze else 0,
                              f"{benutzt/1073741824:.1f}/{grenze/1073741824:.0f} GB")
                     + balken("CPU", cpu_wert / kerne, f"{cpu_wert:.0f}%")
+                    + (f'<div style=margin-top:4px>{verkehr}</div>' if verkehr else "")
                     + '</div>')
         else:
             # Platzhalter gleicher Hoehe, damit gestoppte Server das Raster
