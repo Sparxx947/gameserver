@@ -146,7 +146,7 @@ durch. **Vier Bedingungen, jede einzeln geprüft und einzeln protokolliert:**
 
 | | |
 |---|---|
-| **freigeschaltet** | `auto_update` in der `panel.json` |
+| **freigeschaltet** | der Server steht in `/var/lib/spiele-autoupdate.liste` |
 | **sicherbar** | die Sicherung erzwingt `panel-aktion`; scheitert sie, unterbleibt das Update |
 | **ruhig** | unter 4 kB/s Netzverkehr, gemessen über 20 s — ein Update mitten in einem Spielabend ist schlimmer als eines, das eine Nacht später kommt |
 | **wirklich neu** | `panel-aktion` meldet selbst, ob etwas geholt wurde |
@@ -164,6 +164,24 @@ Palworld-Neustart.
 **Das Fehlerbild, gegen das hier gebaut wurde:** ein Update, das still einen
 Spielstand bricht und erst Tage später auffällt — dann ist die Sicherung von
 davor längst durch die Rotation gefallen.
+
+**Wird ein Server entfernt, fällt er aus der Liste** — beide Entfernwege tun das
+über denselben Helfer in `spiel-verwalten`, neben der Bereinigung der
+Borg-Ausschlüsse. Das war zunächst nicht so, und der übrig gebliebene Eintrag ist
+nicht das eigentliche Problem: `spiele-autoupdate` überspringt Namen ohne
+Verzeichnis. Das Problem ist der Rückweg. Wird später ein Server unter *demselben
+Namen* angelegt, aktualisiert er sich ab der ersten Nacht von selbst, ohne dass
+jemand den Schalter angefasst hätte — und die Oberfläche zeichnet ihn zu Recht
+als „an", weil die Liste das sagt. Aus „aus per Voreinstellung" wird damit
+stillschweigend „an, wegen eines Servers, den es nicht mehr gibt". Gemessen am
+2026-09-09: `starrupture` stand nach dem Entfernen weiter drin.
+
+> *Removing a server takes it out of the list; both removal paths do it through
+> one helper, next to the Borg-exclusion cleanup. The stale entry itself is
+> harmless — `spiele-autoupdate` skips names without a directory — but the way
+> back is not: a server later created under the same name updates itself from
+> the first night with nobody having touched the switch, and the panel draws it
+> as on, correctly, because the list says so.*
 
 > *A switch per server, off by default, with no global one. Four conditions,
 > each checked and logged separately: enabled, backup possible, quiet (under
