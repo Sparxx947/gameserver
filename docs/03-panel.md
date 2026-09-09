@@ -127,6 +127,51 @@ gelöscht, damit auch ein zweiter Aufruf aus dem Verlauf nichts mehr zeigt.
 
 ---
 
+## „Verkehr", nicht „Spieler"
+
+Auf der Karte eines laufenden Servers steht, wie viel Netzverkehr er gerade hat —
+`ruhig`, `Verkehr 45 kB/s`, `Verkehr 3.4 MB/s`.
+
+**Warum keine Spielerzahl?** Weil es sie nicht gibt. Gemessen am 2026-09-09:
+
+| Server | Steam-Abfrage (A2S) |
+|---|---|
+| Palworld | keine Antwort, weder auf 27015 noch auf 8211 |
+| TeamSpeak | eigenes Protokoll |
+| Enshrouded | antwortet, aber in einem dritten Format |
+
+Jedes Spiel bräuchte einen eigenen Weg, und für die meisten der 179
+Katalogspiele gäbe es gar keinen. Der Netzverkehr dagegen ist für **jeden**
+Container da und kommt aus demselben `docker stats`, das die Übersicht ohnehin
+abruft — ein Feld mehr, kein zweiter Aufruf.
+
+Er beantwortet die Frage, um die es wirklich geht: *Kann ich neu starten, oder
+ist gerade jemand drauf?* Deshalb heißt die Anzeige **Verkehr** und nicht
+**Spieler** — sie behauptet nicht, was sie nicht weiß.
+
+**Drei Fälle, in denen bewusst nichts angezeigt wird:**
+
+* **Erster Abruf.** Der Wert aus `docker stats` ist kumulativ seit dem Start des
+  Containers; ohne Vergleichswert gibt es keine Rate. Eine leere Angabe ist
+  besser als eine erfundene.
+* **Der Zähler fällt.** Das heißt Container-Neustart, nicht negativer Verkehr —
+  der Eintrag wird verworfen.
+* **Der letzte Abruf ist über 15 Minuten her.** Dann sagt die Differenz nichts
+  mehr über „gerade".
+
+Der letzte Stand liegt in `/opt/panel/daten/netzstand.json`.
+
+> *The card shows current network traffic, not a player count — because there is
+> no player count: Palworld answers no Steam query, TeamSpeak speaks its own
+> protocol, Enshrouded a third, and most of the 179 catalogue games would have no
+> way at all. Traffic exists for every container and comes from the same
+> `docker stats` call. It answers the question that matters — can I restart, or
+> is somebody on — without claiming to know something it does not. Nothing is
+> shown on the first poll, when the counter falls (a restart), or when the last
+> poll is more than 15 minutes old.*
+
+---
+
 ## Aktualisieren und Sammelsteuerung
 
 **Aktualisieren** holt eine neue Fassung des Images und startet den Server damit
