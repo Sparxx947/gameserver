@@ -1,0 +1,18 @@
+[Unit]
+# Nachts, wenn erfahrungsgemaess niemand spielt. Das Zeitfenster ist die erste
+# von vier Bedingungen — die zweite ist der gemessene Netzverkehr, denn "nachts"
+# ist eine Annahme und keine Messung.
+# *Nightly, when nobody usually plays. The window is the first of four conditions;
+#  the second is measured traffic, because "at night" is an assumption.*
+Description=Spieleserver-Updates, naechtlich
+
+[Timer]
+OnCalendar=*-*-* 05:15
+RandomizedDelaySec=1800
+# Nicht nachholen: Ein verpasstes Update soll nicht beim naechsten Hochfahren
+# mitten am Tag losgehen — dieselbe Ueberlegung wie beim Palworld-Neustart.
+# *Not persistent: a missed update must not fire mid-day on the next boot.*
+Persistent=false
+
+[Install]
+WantedBy=timers.target

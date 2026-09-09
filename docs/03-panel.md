@@ -127,6 +127,50 @@ gelöscht, damit auch ein zweiter Aufruf aus dem Verlauf nichts mehr zeigt.
 
 ---
 
+## Automatisch aktualisieren
+
+Ein Schalter je Server auf der Karte: **auto an** / **auto aus**. Aus per
+Voreinstellung, und es gibt **keinen globalen Schalter** — eine Automatik, die
+alles auf einmal betrifft, ist genau die, die man später nicht mehr zuordnen kann.
+
+Nur für Katalogspiele: Der Schalter lebt in der `panel.json`, und die von Hand
+gebauten Stacks haben keine.
+
+Nachts um 05:15 (±30 min) geht `spiele-autoupdate` die freigeschalteten Server
+durch. **Vier Bedingungen, jede einzeln geprüft und einzeln protokolliert:**
+
+| | |
+|---|---|
+| **freigeschaltet** | `auto_update` in der `panel.json` |
+| **sicherbar** | die Sicherung erzwingt `panel-aktion`; scheitert sie, unterbleibt das Update |
+| **ruhig** | unter 4 kB/s Netzverkehr, gemessen über 20 s — ein Update mitten in einem Spielabend ist schlimmer als eines, das eine Nacht später kommt |
+| **wirklich neu** | `panel-aktion` meldet selbst, ob etwas geholt wurde |
+
+Ein **gestoppter** Server wird ohne Verkehrsprüfung aktualisiert: Da ist niemand
+drauf, und es bewegt sich kein Spielstand — der beste Zeitpunkt überhaupt.
+
+Ein **fallender Zähler** bedeutet Container-Neustart, nicht Ruhe: Der Server
+wird übersprungen.
+
+Der Timer ist `Persistent=false`. Ein verpasstes Update soll nicht beim nächsten
+Hochfahren mitten am Tag losgehen — dieselbe Überlegung wie beim
+Palworld-Neustart.
+
+**Das Fehlerbild, gegen das hier gebaut wurde:** ein Update, das still einen
+Spielstand bricht und erst Tage später auffällt — dann ist die Sicherung von
+davor längst durch die Rotation gefallen.
+
+> *A switch per server, off by default, with no global one. Four conditions,
+> each checked and logged separately: enabled, backup possible, quiet (under
+> 4 kB/s measured over 20 s), and something actually new. A stopped server is
+> updated without the traffic check — nobody is on it and no save is moving. A
+> falling counter means a restart, not quiet. The timer is not persistent, so a
+> missed run does not fire mid-day. The failure mode designed against: an update
+> that silently breaks a save and surfaces days later, once the backup predating
+> it has rotated out.*
+
+---
+
 ## „Verkehr", nicht „Spieler"
 
 Auf der Karte eines laufenden Servers steht, wie viel Netzverkehr er gerade hat —

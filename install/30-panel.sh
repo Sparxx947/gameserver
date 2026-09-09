@@ -36,7 +36,7 @@ log "Python-Umgebung"
 /opt/panel/venv/bin/pip install -q -r "$REPO/panel/requirements.txt"
 
 log "Werkzeuge nach /usr/local/bin"
-for w in dns-pflegen compose-feld katalog-vorpruefung katalogbilder-holen konfig-datei panel-aktion port-ermitteln spiel-einrichtung spiel-verwalten spiele-wiederanlauf; do
+for w in dns-pflegen compose-feld katalog-vorpruefung katalogbilder-holen konfig-datei panel-aktion port-ermitteln spiel-einrichtung spiel-verwalten spiele-wiederanlauf spiele-autoupdate; do
   einsetzen "$REPO/bin/$w" "/usr/local/bin/$w" 0755 root:root
 done
 einsetzen "$REPO/etc/spiele-katalog.json" /etc/spiele-katalog.json 0644 root:root
@@ -76,6 +76,8 @@ einsetzen "$REPO/systemd/panel.service" /etc/systemd/system/panel.service
 einsetzen "$REPO/systemd/spiel-einrichtung.service" /etc/systemd/system/spiel-einrichtung.service
 einsetzen "$REPO/systemd/spiel-einrichtung.timer"   /etc/systemd/system/spiel-einrichtung.timer
 einsetzen "$REPO/systemd/spiele-wiederanlauf.service" /etc/systemd/system/spiele-wiederanlauf.service
+einsetzen "$REPO/systemd/spiele-autoupdate.service" /etc/systemd/system/spiele-autoupdate.service
+einsetzen "$REPO/systemd/spiele-autoupdate.timer"   /etc/systemd/system/spiele-autoupdate.timer
 systemctl daemon-reload
 systemctl enable --now panel.service spiel-einrichtung.timer
 # Nur "enable", nicht "--now": Die Einheit soll beim naechsten HOCHFAHREN laufen,
@@ -83,6 +85,12 @@ systemctl enable --now panel.service spiel-einrichtung.timer
 # *enable without --now: it belongs to the next boot, and it is bound to a list
 #  that does not exist right now anyway.*
 systemctl enable spiele-wiederanlauf.service
+# Der Timer laeuft, die Automatik ist trotzdem aus: er findet nur Server, die in
+# ihrer panel.json ausdruecklich freigeschaltet sind. Ohne Freischaltung
+# passiert nichts.
+# *The timer runs but the automation is off: it only finds servers explicitly
+#  enabled in their panel.json.*
+systemctl enable --now spiele-autoupdate.timer
 
 # --- Erster Zugang ----------------------------------------------------
 # Wird NUR beim ersten Lauf angelegt. Das Passwort steht danach einmal auf dem

@@ -1,0 +1,132 @@
+#!/bin/bash
+# spiele-autoupdate — aktualisiert die Server, die dafür freigeschaltet sind.
+#
+# Wird vom Timer gerufen. Aus per Voreinstellung: Ein Server wird nur angefasst,
+# wenn in seiner panel.json "auto_update": true steht. Es gibt keinen globalen
+# Schalter — eine Automatik, die alles auf einmal betrifft, ist genau die, die
+# man später nicht mehr zuordnen kann.
+#
+# Vier Bedingungen, jede einzeln geprüft und einzeln gemeldet:
+#
+#   1. Freigeschaltet?      auto_update in der panel.json
+#   2. Sicherung möglich?   sonst gibt es keinen Rückweg, wenn das Update den
+#                           Spielstand unbrauchbar macht
+#   3. Ruhig?               kein nennenswerter Netzverkehr — ein Update mitten
+#                           in einem Spielabend ist schlimmer als ein Update,
+#                           das eine Nacht später kommt
+#   4. Wirklich neu?        panel-aktion sagt selbst, ob es etwas geholt hat
+#
+# Das Fehlerbild, gegen das hier gebaut wird: ein Update, das still einen
+# Spielstand bricht und Tage später auffällt — dann ist die Sicherung von davor
+# längst durch die Rotation gefallen.
+#
+# *Off by default, per server, no global switch. Four conditions, each checked
+#  and reported separately. The failure mode designed against: an update that
+#  silently breaks a save and is noticed days later, when the backup predating it
+#  has rotated out.*
+#
+#   spiele-autoupdate [--trocken] [--jetzt]
+#
+# Exit: 0 = durch, 1 = mindestens ein Update fehlgeschlagen.
+set -uo pipefail
+
+RUHE_BYTES="${AU_RUHE_BYTES:-4000}"     # unter 4 kB/s gilt ein Server als ruhig
+MESSDAUER="${AU_MESSDAUER:-20}"         # Sekunden zwischen den zwei Messungen
+TROCKEN=0; JETZT=0
+for a in "$@"; do
+    case "$a" in
+        --trocken) TROCKEN=1 ;;
+        --jetzt)   JETZT=1 ;;
+        -h|--help) sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    esac
+done
+
+log() { echo "$*"; logger -t autoupdate "$*"; }
+
+# --- Wer ist freigeschaltet? ------------------------------------------------
+kandidaten=()
+for f in /opt/stacks/*/panel.json; do
+    [ -e "$f" ] || continue
+    s=$(basename "$(dirname "$f")")
+    an=$(python3 -c "
+import json,sys
+try: print('1' if json.load(open('$f')).get('auto_update') else '0')
+except Exception: print('0')
+" 2>/dev/null)
+    [ "$an" = "1" ] && kandidaten+=("$s")
+done
+
+if [ ${#kandidaten[@]} -eq 0 ]; then
+    log "Kein Server ist für automatische Updates freigeschaltet."
+    exit 0
+fi
+log "Freigeschaltet: ${kandidaten[*]}"
+
+# --- Ist es gerade ruhig? ---------------------------------------------------
+# Zwei Messungen mit Abstand. Ein einzelner Wert aus "docker stats" ist kumulativ
+# seit dem Start des Containers und sagt über "jetzt" nichts.
+# *Two measurements: a single docker stats value is cumulative since container
+#  start and says nothing about "now".*
+messen() {
+    docker stats --no-stream --format "{{.Name}}	{{.NetIO}}" 2>/dev/null \
+      | awk -F'\t' '{split($2,a,"/"); print $1"\t"a[1]a[2]}'
+}
+inbytes() {
+    python3 -c "
+import re,sys
+t=sys.argv[1]
+s=0
+for m in re.finditer(r'([\d.]+)\s*([kKMGT]?i?)B', t):
+    z=float(m.group(1)); e=m.group(2)
+    s+=z*{'':1,'k':1e3,'K':1e3,'M':1e6,'G':1e9,'T':1e12,
+          'Ki':1024,'Mi':1024**2,'Gi':1024**3,'Ti':1024**4}.get(e,1)
+print(int(s))
+" "$1" 2>/dev/null || echo 0
+}
+
+declare -A vorher
+while IFS=$'\t' read -r n w; do [ -n "$n" ] && vorher["$n"]=$(inbytes "$w"); done < <(messen)
+[ $JETZT -eq 1 ] || sleep "$MESSDAUER"
+declare -A nachher
+while IFS=$'\t' read -r n w; do [ -n "$n" ] && nachher["$n"]=$(inbytes "$w"); done < <(messen)
+
+fehler=0
+for s in "${kandidaten[@]}"; do
+    # --- läuft er überhaupt? -------------------------------------------------
+    if ! docker ps --format "{{.Names}}" | grep -qx "$s"; then
+        # Ein gestoppter Server hat keine Spieler und keinen Spielstand in
+        # Bewegung - der beste Zeitpunkt überhaupt.
+        log "$s: gestoppt, wird aktualisiert"
+    else
+        v="${vorher[$s]:-0}"; n="${nachher[$s]:-0}"
+        if [ "$n" -lt "$v" ]; then
+            log "$s: Zähler gefallen (Neustart?) - übersprungen"
+            continue
+        fi
+        rate=$(( (n - v) / (JETZT == 1 ? 1 : MESSDAUER) ))
+        if [ "$rate" -ge "$RUHE_BYTES" ]; then
+            log "$s: $((rate/1000)) kB/s Verkehr - da ist jemand drauf, übersprungen"
+            continue
+        fi
+        log "$s: ruhig ($((rate)) B/s), wird aktualisiert"
+    fi
+
+    if [ $TROCKEN -eq 1 ]; then
+        log "$s: Trockenlauf - nicht aktualisiert"
+        continue
+    fi
+
+    # panel-aktion erzwingt die Sicherung und meldet selbst, ob etwas Neues kam.
+    # Hier wird nichts davon nachgebaut: zwei Stellen, die dieselbe Regel kennen,
+    # laufen früher oder später auseinander.
+    # *panel-aktion enforces the backup and reports what happened; none of that is
+    #  reimplemented here.*
+    if aus=$(/usr/local/bin/panel-aktion aktualisieren "$s" 2>&1); then
+        log "$s: $(printf %s "$aus" | tail -1 | cut -f2-)"
+    else
+        log "$s: FEHLGESCHLAGEN - $(printf %s "$aus" | tail -1)"
+        fehler=1
+    fi
+done
+
+exit $fehler
