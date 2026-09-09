@@ -105,6 +105,13 @@ Ohne diesen Weg wäre man nach zehn Einlösungen wieder da, wo man ohne Codes wa
 Bei drei oder weniger verbleibenden Codes steht eine Warnung auf der Seite, bei
 null eine deutliche.
 
+Dort werden auch **Passkeys** verwaltet: anlegen, auflisten, entfernen. Ein
+Passkey tritt an die Stelle der sechs Ziffern und liegt im Gerät des Benutzers —
+Windows Hello, Touch ID, Android oder ein Sicherheitsschlüssel. Der Knopf dafür
+ist zunächst verborgen und wird erst sichtbar, wenn der Browser WebAuthn
+beherrscht; ohne JavaScript steht dort stattdessen ein `<noscript>`-Hinweis, dass
+Passwort, Einmalcode und Wiederherstellungscodes unverändert funktionieren.
+
 Die neue Liste erscheint auf `/codes` — **einmal**. Sie reist in einem eigens
 signierten, 15 Minuten gültigen Cookie dorthin: nicht im Sitzungscookie, das acht
 Stunden lebt und bei jeder Anfrage mitgeht, und nicht in der URL, wo sie im

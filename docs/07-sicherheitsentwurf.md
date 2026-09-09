@@ -89,7 +89,7 @@ jeder **gültige** Stack wäre abgewiesen worden.
 | | |
 |---|---|
 | Faktor 1 | Passwort, Argon2id |
-| Faktor 2 | TOTP, verpflichtend, nicht abschaltbar — oder ein Wiederherstellungscode |
+| Faktor 2 | TOTP, ein **Passkey** oder ein Wiederherstellungscode — abschaltbar ist keiner |
 | Sitzung | 8 h, signiertes Cookie, `HttpOnly` `Secure` `SameSite=strict` |
 | CSRF | eigenes Token je Sitzung, bei jedem Schreibzugriff mit `hmac.compare_digest` |
 | Sperre | 5 Fehlversuche je IP → 15 min |
@@ -287,6 +287,71 @@ Praktisch kommt hinzu: Die Maschine hat keinen Mailversand.
 > PCI SSC names the core problem: if the mailbox opens with the same password, the
 > factors are not independent — "'something you know' twice". The machine has no
 > mail transport either.*
+
+---
+
+## Passkeys — und die eine Lockerung, die sie kosten
+
+Ein Passkey ist der zweite Faktor **ohne geteiltes Geheimnis**. Der private
+Schlüssel verlässt das Gerät nie, der Server kennt nur den öffentlichen. Und er
+ist an die Domain gebunden: Eine nachgebaute Anmeldeseite unter einer anderen
+Adresse bekommt schlicht keine Signatur — deshalb bewertet das BSI Passkeys bei
+Echtzeit-Phishing mit „Gut", TOTP mit „Schlecht".
+
+Hier ist er ein **zusätzlicher** zweiter Faktor, kein Ersatz. Das Passwort bleibt
+Faktor 1, und wer keinen Passkey einrichtet, meldet sich unverändert mit den
+sechs Ziffern an.
+
+### Der Preis: JavaScript auf drei Seiten
+
+WebAuthn ist ausschließlich über `navigator.credentials` erreichbar. Einen Weg
+ohne JavaScript gibt es nicht und wird es nicht geben: Der W3C-Antrag dafür
+(w3c/webauthn#1255) wurde im **Februar 2025 ohne Ersatz geschlossen**, mit der
+Begründung, zwei Wege zum selben Ziel seien der größere Albtraum.
+
+Das Panel lief mit `default-src 'none'` — gar kein Skript. Diese Zeile ist jetzt
+für **drei Pfade** gelockert: `/login`, `/konto`, `/passkey.js`.
+
+Vier Dinge halten die Lockerung klein:
+
+| | |
+|---|---|
+| **Nur drei Pfade** | Die Übersicht, die Spieleseiten, die Zugangsdaten und das Protokoll behalten `default-src 'none'` — nachgemessen an den ausgelieferten Kopfzeilen, nicht an der Konfiguration |
+| **Kein `'unsafe-inline'`, kein `'unsafe-eval'`** | `script-src 'self'` allein. Das Skript liegt als eigene Datei; inline stünde es nicht |
+| **`nosniff`** | Ein ausgeliefertes Titelbild kann nicht als Skript durchgehen |
+| **Die Datei gehört root** | `/opt/panel/statisch/passkey.js` ist `0644 root:root` — der Dienst kann Code, den er ausliefert, nicht überschreiben. Dieselbe Überlegung wie bei `app.py` |
+
+### Sechs Entscheidungen im Ablauf
+
+1. **Die öffentliche Herkunft ist maßgeblich**, nicht `127.0.0.1`. Die App läuft
+   hinter Caddy; eine Signatur für die öffentliche Adresse passte sonst nie.
+2. **Die Challenge liegt in einem signierten, fünf Minuten gültigen Cookie**,
+   nicht im Serverzustand — dasselbe Muster wie beim Einrichtungs-Token — und ist
+   an den Benutzer gebunden, damit sie nicht in einer fremden Sitzung gilt.
+3. **Das Passwort wird vor der Challenge geprüft.** Sonst wäre aus zwei Faktoren
+   einer geworden, ohne dass es jemand entschieden hätte.
+4. **Eine Antwort für drei Fälle.** „Kein solcher Benutzer", „falsches Passwort"
+   und „kein Passkey hinterlegt" ergeben denselben 401. Sonst verriete diese
+   Route, welche Konten existieren und welche einen Passkey haben.
+5. **Der Signaturzähler wird zurückgeschrieben.** Wächst er nicht, ist das der
+   Hinweis auf einen geklonten Authenticator; `py_webauthn` wirft dann.
+6. **Fehlt die Bibliothek, startet das Panel trotzdem.** TOTP läuft weiter, die
+   Passkey-Wege melden sich sauber ab. Ein Panel, das wegen eines optionalen
+   Zusatzes nicht mehr hochkommt, wäre der schlechtere Tausch.
+
+`Permissions-Policy` braucht nichts: `publickey-credentials-get` steht
+standardmäßig auf `self`, und das Panel wird nirgends eingebettet
+(`frame-ancestors 'none'`).
+
+> *A passkey is a second factor without a shared secret: the private key never
+> leaves the device and it is bound to the domain, so a look-alike login page
+> gets no signature. The price is JavaScript, which WebAuthn cannot do without —
+> the W3C closed that request in February 2025. The relaxation covers three paths
+> only, with `script-src 'self'` and no unsafe-inline, and was verified against
+> the headers actually served rather than the configuration. The public origin is
+> authoritative, the challenge travels signed rather than in server state, the
+> password is checked first so two factors do not become one, and all three
+> failure cases share one answer so the route reveals nothing.*
 
 ---
 

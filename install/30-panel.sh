@@ -18,6 +18,14 @@ cp "$REPO"/panel/bilder/favicon.svg "$REPO"/panel/bilder/favicon.ico \
 # spiel-verwalten greift darauf zurueck, wenn Steam nichts liefert.
 # *Self-drawn artwork for games with no Steam entry; the installer falls back
 #  to these.*
+# Das einzige JavaScript des Panels (Passkeys). Gehoert root, nicht panel:
+# der Dienst darf seinen eigenen ausgelieferten Code nicht ueberschreiben
+# koennen - dieselbe Ueberlegung wie bei /opt/panel/app.py.
+# *The panel's only JavaScript. Owned by root so the service cannot overwrite
+#  code it serves - the same reasoning as for app.py.*
+install -d -m 0755 -o root -g root /opt/panel/statisch
+install -m 0644 -o root -g root "$REPO/panel/statisch/passkey.js" /opt/panel/statisch/passkey.js
+
 install -d -m 0755 -o panel -g panel /opt/panel/bilder/eigene
 cp "$REPO"/panel/bilder/eigene/*.jpg /opt/panel/bilder/eigene/ 2>/dev/null || true
 chown -R panel:panel /opt/panel/bilder

@@ -49,6 +49,41 @@
 		reverse_proxy 127.0.0.1:7681
 	}
 
+	# --- Anmeldung und Konto: die einzigen Seiten mit JavaScript ----------
+	#
+	# WebAuthn (Passkeys) ist ausschliesslich ueber navigator.credentials
+	# erreichbar - es gibt keinen Weg ohne JavaScript, und es wird auch keinen
+	# geben: der W3C-Antrag dafuer (w3c/webauthn#1255) wurde im Februar 2025
+	# ohne Ersatz geschlossen.
+	#
+	# Deshalb hier, und NUR hier, "script-src 'self'" statt "default-src 'none'".
+	# Drei Dinge halten die Lockerung klein:
+	#   * Sie gilt fuer drei Pfade, nicht fuer das Panel.
+	#   * KEIN 'unsafe-inline' und kein 'unsafe-eval'. Das Skript liegt als
+	#     eigene Datei unter /passkey.js; inline stuende es nicht.
+	#   * 'self' laesst nur Dateien dieser Herkunft zu. Zusammen mit dem
+	#     nosniff-Header oben kann kein ausgeliefertes Titelbild als Skript
+	#     durchgehen.
+	# connect-src braucht es fuer die fetch-Aufrufe an die eigenen Endpunkte.
+	#
+	# *WebAuthn is reachable only through navigator.credentials; the W3C request
+	#  for a JS-free path was closed in February 2025 with no replacement. Hence
+	#  script-src 'self' here and nowhere else - three paths, no unsafe-inline,
+	#  no unsafe-eval, the script in its own file.*
+	@passkey path /login /konto /passkey.js
+	handle @passkey {
+		header {
+			Strict-Transport-Security "max-age=31536000; includeSubDomains"
+			X-Content-Type-Options "nosniff"
+			X-Frame-Options "DENY"
+			Referrer-Policy "no-referrer"
+			Content-Security-Policy "default-src 'none'; script-src 'self'; connect-src 'self'; style-src 'unsafe-inline'; img-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
+			Cache-Control "no-store, no-cache, must-revalidate"
+			-Server
+		}
+		reverse_proxy 127.0.0.1:8099
+	}
+
 	# --- Panel -----------------------------------------------------------
 	handle {
 		header {
