@@ -95,6 +95,31 @@ niedrigsten Niveaus.
 
 ---
 
+## Mein Konto `/konto`
+
+Für **jede** Rolle erreichbar — es geht um den eigenen Zugang, nicht um die
+Verwaltung anderer. Zeigt Benutzername, Rolle und den Vorrat an
+Wiederherstellungscodes, und erlaubt neue zu erzeugen.
+
+Ohne diesen Weg wäre man nach zehn Einlösungen wieder da, wo man ohne Codes war.
+Bei drei oder weniger verbleibenden Codes steht eine Warnung auf der Seite, bei
+null eine deutliche.
+
+Die neue Liste erscheint auf `/codes` — **einmal**. Sie reist in einem eigens
+signierten, 15 Minuten gültigen Cookie dorthin: nicht im Sitzungscookie, das acht
+Stunden lebt und bei jeder Anfrage mitgeht, und nicht in der URL, wo sie im
+Verlauf und in jedem Log stünde. Nach dem Anzeigen wird das Cookie sofort
+gelöscht, damit auch ein zweiter Aufruf aus dem Verlauf nichts mehr zeigt.
+
+> *Reachable for every role, since it concerns one's own access. Shows the
+> remaining recovery codes and allows generating new ones — without that, ten
+> redemptions would put the user back where they started. The new list is shown
+> once, travelling in a separately signed 15-minute cookie rather than the
+> eight-hour session cookie or the URL, and the cookie is dropped immediately
+> after rendering.*
+
+---
+
 ## Protokoll `/protokoll`
 
 Wer hat wann was getan. Nur für `admin` — die Seite nennt Benutzernamen und

@@ -580,6 +580,7 @@ schon einmal dazu geführt, dass Aufrufe still fehlschlugen.
 | `/opt/panel/app.py` | `0644 root` | die Oberfläche |
 | `/opt/panel/daten/nutzer.json` | `0600 panel` | Benutzer, Hashes, TOTP |
 | `/opt/panel/daten/zugangsdaten.json` | `0600 panel` | selbst gepflegte Zugänge |
+| `/opt/panel/daten/nutzer.json` … Feld `codes` | `0600 panel` | Wiederherstellungscodes, Argon2id-Hashes, je 93,3 Bit |
 | `/opt/panel/daten/audit.jsonl` | `0644 panel` | Protokoll: wer hat wann was getan (Rotation bei 4 MB nach `.jsonl.1`) |
 | `/opt/stacks/<n>/compose.yaml` | `0600 root` | Serverdefinition mit Passwörtern |
 | `/opt/stacks/<n>/panel.json` | `0640 root:panel` | Anzeigedaten |

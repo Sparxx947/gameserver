@@ -14,7 +14,7 @@ Sicherheitsentwurf:
     neu starten — keine Passwoerter, keine Wiederherstellung, keine
     Benutzerverwaltung, keine Konfigurationsaenderung.
 """
-import hmac, json, os, secrets, subprocess, time
+import hmac, json, os, secrets, string, subprocess, time
 import re
 from html import escape as esc
 from urllib.parse import quote
@@ -206,6 +206,80 @@ ROLLEN = ("admin", "verwalten", "bedienen")
 def darf_verwalten(s: dict | None) -> bool:
     """Spiele installieren, entfernen, konfigurieren, wiederherstellen."""
     return bool(s and s.get("rolle") in ("admin", "verwalten"))
+
+
+# --- Wiederherstellungscodes -------------------------------------------------
+#
+# TOTP ist Pflicht und nicht abschaltbar. Wer sein Geraet verliert, kam bisher
+# nur ueber "ein Administrator setzt den zweiten Faktor zurueck" wieder herein -
+# bei genau einem Administrator ist das keine Wiederherstellung, sondern eine
+# Aussperrung.
+#
+# Zehn Einmalcodes, erzeugt wenn der Benutzer seinen zweiten Faktor bestaetigt,
+# EINMAL angezeigt, danach nur noch gehasht vorhanden. Sie treten an die Stelle
+# des TOTP-Codes, nicht an die des Passworts.
+#
+# Die Zahlen sind nicht geraten:
+#   * NIST SP 800-63B-4 §4.2.1.1 verlangt mindestens 64 Bit aus einem geeigneten
+#     Zufallsgenerator, gehashte Speicherung und Einmalgebrauch.
+#   * OWASP ASVS 5.0.0 V6.5.2 zieht die Grenze bei 112 Bit: darunter ist ein
+#     GESALZENES Passwort-Hash-Verfahren Pflicht, darueber genuegt ein schneller
+#     Hash.
+#   * Das Alphabet aus E19 (57 Zeichen ohne 0/O und 1/l/I) traegt 5,83 Bit je
+#     Zeichen. 16 Zeichen sind 93,3 Bit - ueber dem NIST-Minimum, unter der
+#     ASVS-Schwelle, also Argon2id. Das ist ohnehin da.
+#
+# *TOTP is mandatory here, so losing the device meant losing the account: with a
+#  single administrator, "an admin resets it" is a lockout, not a recovery path.
+#  Ten single-use codes, shown once, stored hashed. 16 characters from the 57-
+#  character look-alike-free alphabet is 93.3 bits - above the NIST minimum of 64,
+#  below the ASVS threshold of 112, hence Argon2id.*
+CODE_ANZAHL = 10
+CODE_LAENGE = 16
+CODE_ZEICHEN = "".join(c for c in string.ascii_letters + string.digits if c not in "0O1lI")
+
+
+def code_erzeugen() -> str:
+    return "".join(secrets.choice(CODE_ZEICHEN) for _ in range(CODE_LAENGE))
+
+
+def code_lesbar(c: str) -> str:
+    """In Vierergruppen - diese Codes werden ausgedruckt und abgetippt."""
+    return "-".join(c[i:i + 4] for i in range(0, len(c), 4))
+
+
+def codes_neu() -> tuple:
+    """(Klartextliste zum EINMALIGEN Anzeigen, Hashliste zum Speichern)."""
+    klar = [code_erzeugen() for _ in range(CODE_ANZAHL)]
+    return klar, [hasher.hash(c) for c in klar]
+
+
+def code_einloesen(name: str, eingabe: str) -> bool:
+    """Prueft einen Wiederherstellungscode und verbraucht ihn.
+
+    Der verbrauchte Code wird aus der Datei ENTFERNT, nicht als benutzt markiert:
+    ein Einmalcode, der noch dasteht, wird frueher oder spaeter doch akzeptiert.
+    *The redeemed code is removed rather than flagged: a single-use code that is
+     still on file eventually gets accepted again.*
+    """
+    eingabe = eingabe.replace("-", "").replace(" ", "")
+    if len(eingabe) != CODE_LAENGE:
+        return False
+    d = laden()
+    n = d["nutzer"].get(name)
+    if not n:
+        return False
+    rest = list(n.get("codes") or [])
+    for h in rest:
+        try:
+            hasher.verify(h, eingabe)
+        except (VerifyMismatchError, InvalidHashError):
+            continue
+        rest.remove(h)
+        n["codes"] = rest
+        speichern(d)
+        return True
+    return False
 
 
 # --- Protokoll: wer hat wann was getan ---------------------------------------
@@ -465,7 +539,7 @@ LOGO = ('<svg class=logo viewBox="0 0 32 32" aria-hidden=true><rect x=1 y=1 widt
 def kopfleiste(s: dict, hier: str = "") -> str:
     """Kopfleiste mit Navigation. "hier" markiert die aktuelle Seite — ohne diese
     Rueckmeldung weiss man auf Unterseiten nicht, wo man steht."""
-    punkte = [("/", "Übersicht", "start")]
+    punkte = [("/", "Übersicht", "start"), ("/konto", "Mein Konto", "konto")]
     # Zwei Stufen: was die SPIELE betrifft, sieht auch "verwalten"; was die
     # Maschine und die Benutzer betrifft, bleibt bei "admin". Die Navigation
     # blendet nur aus — die Entscheidung sitzt in jeder Route selbst.
@@ -930,9 +1004,19 @@ def login(request: Request, nutzer: str = Form(""), passwort: str = Form(""), co
         a.set_cookie("einrichtung", marke, httponly=True, secure=True,
                      samesite="strict", max_age=EINRICHTUNG_MAXALTER)
         return a
-    ok = False
+    # TOTP oder Wiederherstellungscode. Die FORM entscheidet, welcher Weg geprueft
+    # wird: sechs Ziffern sind ein TOTP, 16 Zeichen aus dem Alphabet ein
+    # Wiederherstellungscode. Damit laeuft Argon2 nicht bei jedem falsch
+    # getippten TOTP-Code mit - zehn Argon2-Pruefungen kosten rund eine Sekunde.
+    # *The shape decides which path is checked, so Argon2 does not run on every
+    #  mistyped TOTP code.*
+    ok = per_code = False
     if passwort_ok:
-        ok = pyotp.TOTP(n["totp"]).verify(code, valid_window=1)
+        blank = code.replace("-", "").replace(" ", "")
+        if len(blank) == CODE_LAENGE and not blank.isdigit():
+            ok = per_code = code_einloesen(nutzer, blank)
+        else:
+            ok = pyotp.TOTP(n["totp"]).verify(code, valid_window=1)
     if not ok:
         fehlversuche.setdefault(ip, []).append(time.time())
         # Auch der GESCHEITERTE Versuch gehoert ins Protokoll - nach einem
@@ -946,7 +1030,16 @@ def login(request: Request, nutzer: str = Form(""), passwort: str = Form(""), co
                   "Anmeldung fehlgeschlagen", "", "abgelehnt", ip=ip)
         return login_form(request, "Anmeldung fehlgeschlagen.")
     fehlversuche.pop(ip, None)
-    protokoll({"nutzer": nutzer, "rolle": n.get("rolle", "?")}, "Angemeldet", "", "ok", ip=ip)
+    if per_code:
+        # Der Verbrauch eines Codes gehoert ins Protokoll: es ist der eine Weg
+        # hinein, der ohne den zweiten Faktor im ueblichen Sinne auskommt.
+        # *Redeeming a code belongs in the log: it is the one way in that does
+        #  not use the second factor as normally understood.*
+        rest = len(laden()["nutzer"][nutzer].get("codes") or [])
+        protokoll({"nutzer": nutzer, "rolle": n.get("rolle", "?")},
+                  "Mit Wiederherstellungscode angemeldet", "", "ok", ip=ip, verbleibend=rest)
+    else:
+        protokoll({"nutzer": nutzer, "rolle": n.get("rolle", "?")}, "Angemeldet", "", "ok", ip=ip)
     antwort = RedirectResponse("/", 303)
     antwort.set_cookie("sitzung", signierer.dumps({"nutzer": nutzer, "csrf": secrets.token_urlsafe(24)}),
                        httponly=True, secure=True, samesite="strict", max_age=SITZUNG_MAXALTER)
@@ -991,22 +1084,43 @@ def einrichten_form(request: Request, fehler: str = ""):
     geheim = laden()["nutzer"][name]["totp"]
     return HTMLResponse(KOPF + RUMPF + f"""<div class=card style=max-width:420px>
 <h1>Zwei-Faktor einrichten</h1>
-<p style=font-size:14px;color:var(--d)>Hallo <b>{name}</b>. Damit die Anmeldung
-sicher ist, brauchst du eine Authenticator-App — etwa <b>Microsoft Authenticator</b>,
-Google Authenticator, Aegis oder 2FAS.
-Scanne den Code und gib danach die sechs Ziffern ein, die die App anzeigt.</p>
+<p style=font-size:14px;color:var(--d)>Hallo <b>{name}</b>. Für die Anmeldung brauchst
+du etwas, das alle 30 Sekunden einen sechsstelligen Code erzeugt. Scanne dazu den
+Code unten und gib danach die sechs Ziffern ein.</p>
 <div style="background:#fff;padding:10px;border-radius:10px;display:flex;justify-content:center;margin:14px 0">
 <img src="/qr" alt="QR-Code" style="width:210px;height:210px"></div>
 <p style=font-size:12px;color:var(--d)>Geht das Scannen nicht, trage dieses Geheimnis
 von Hand ein:<br><code style=word-break:break-all>{geheim}</code></p>
+<details style="margin:10px 0;font-size:13px">
+<summary style="cursor:pointer;color:var(--a)">Ich möchte keine App auf dem Handy</summary>
+<div style="color:var(--d);margin-top:8px;line-height:1.55">
+Musst du auch nicht. Das Geheimnis oben passt in <b>alles</b>, was TOTP beherrscht:
+<ul style=margin:8px 0;padding-left:18px>
+<li><b>Passwortmanager auf dem PC</b> — <b>KeePassXC</b> kann es kostenlos und
+    rein lokal. Auch ein selbst betriebenes <b>Vaultwarden</b> beherrscht es.
+    Beim gehosteten Bitwarden ist es dagegen kostenpflichtig.</li>
+<li><b>Ein eigenes kleines Gerät</b> statt des Handys — der
+    <b>Reiner SCT Authenticator</b> (rund 45 €) hat eine Kamera, scannt den Code
+    oben genau wie eine App und speichert bis zu 60 Konten. Es braucht keine
+    Verbindung nach außen.</li>
+<li><b>Ein Schlüsselanhänger-Token</b> (etwa Token2, ab rund 20 €) geht auch —
+    bei den günstigen Modellen ist das Geheimnis aber ab Werk fest vergeben, sie
+    können <i>dieses</i> hier nicht übernehmen. Dafür braucht es die
+    programmierbaren Modelle.</li>
+</ul>
+Nach dem Bestätigen bekommst du außerdem <b>Wiederherstellungscodes</b> zum
+Ausdrucken — damit kommst du auch dann herein, wenn das Gerät gerade nicht
+greifbar ist.
+</div></details>
 <form method=post action=/einrichten>
 <label>Code aus der App</label>
 <input type=text name=code inputmode=numeric autocomplete=one-time-code autofocus>
 <div style=margin-top:14px><button class=p style=width:100%>Bestätigen und anmelden</button></div>
 {f'<div class=f>{fehler}</div>' if fehler else ''}
 </form>
-<p style=font-size:12px;color:var(--d);margin-top:14px>Der Code wird nur dieses eine Mal
-angezeigt. Verlierst du das Gerät, muss ein Administrator den zweiten Faktor zurücksetzen.</p>
+<p style=font-size:12px;color:var(--d);margin-top:14px>Das Geheimnis wird nur dieses eine
+Mal angezeigt. Gleich danach bekommst du deine Wiederherstellungscodes — drucke sie aus,
+dann bist du auch ohne das Gerät nicht ausgesperrt.</p>
 </div>""" + FUSS)
 
 
@@ -1024,14 +1138,69 @@ def einrichten(request: Request, code: str = Form("")):
         return einrichten_form(request, "Code stimmt nicht. Uhrzeit des Geräts prüfen.")
     fehlversuche.pop(ip, None)
     d["nutzer"][name]["totp_bestaetigt"] = True
+    # Wiederherstellungscodes JETZT erzeugen, nicht beim Anlegen des Kontos: so
+    # sieht sie der Benutzer selbst und nie der Administrator - dieselbe
+    # Ueberlegung wie beim TOTP-Geheimnis (siehe docs/07, "Das TOTP-Geheimnis
+    # sieht niemand").
+    # *Generated here rather than at account creation, so the user sees them and
+    #  the administrator never does - the same reasoning as for the TOTP secret.*
+    klar, hashes = codes_neu()
+    d["nutzer"][name]["codes"] = hashes
     speichern(d)
     protokoll({"nutzer": name, "rolle": d["nutzer"][name].get("rolle", "?")},
-              "Zweiten Faktor eingerichtet", "", "ok", ip=ip)
-    a = RedirectResponse("/", 303)
+              "Zweiten Faktor eingerichtet", "", "ok", ip=ip, codes=len(hashes))
+    a = RedirectResponse("/codes", 303)
     a.set_cookie("sitzung", signierer.dumps({"nutzer": name, "csrf": secrets.token_urlsafe(24)}),
                  httponly=True, secure=True, samesite="strict", max_age=SITZUNG_MAXALTER)
+    # Die Codes reisen EINMAL in einem kurzlebigen, eigens signierten Keks zur
+    # Anzeigeseite. Nicht im Sitzungscookie: das lebt acht Stunden und geht bei
+    # jeder Anfrage mit. Nicht in der URL: das landete im Verlauf und im Log.
+    # *They travel once in a short-lived, separately signed cookie: not in the
+    #  session cookie, which lives eight hours and rides along on every request,
+    #  and not in the URL, which would land in history and logs.*
+    a.set_cookie("codes", einrichtung.dumps({"nutzer": name, "codes": klar}),
+                 httponly=True, secure=True, samesite="strict", max_age=900)
     a.delete_cookie("einrichtung")
     return a
+
+
+@app.get("/codes", response_class=HTMLResponse)
+def codes_zeigen(request: Request):
+    """Zeigt die Wiederherstellungscodes GENAU EINMAL, direkt nach der
+    Einrichtung. Danach sind sie nur noch gehasht vorhanden und niemand - auch
+    kein Administrator - kann sie noch einmal ausgeben."""
+    s = angemeldet(request)
+    if not s:
+        return RedirectResponse("/login", 303)
+    keks = request.cookies.get("codes")
+    if not keks:
+        return RedirectResponse("/", 303)
+    try:
+        d = einrichtung.loads(keks, max_age=900)
+    except BadSignature:
+        return RedirectResponse("/", 303)
+    if d.get("nutzer") != s["nutzer"]:
+        return RedirectResponse("/", 303)
+
+    liste = "".join(f"<div>{esc(code_lesbar(c))}</div>" for c in d.get("codes", []))
+    antwort = HTMLResponse(KOPF + kopfleiste(s) + RUMPF + f"""<h1>Wiederherstellungscodes</h1>
+<div class=warn><b>Diese Liste wird nur dieses eine Mal angezeigt.</b> Drucke sie aus
+oder schreibe sie ab und lege sie dorthin, wo du wichtige Papiere aufbewahrst.
+Danach sind die Codes nur noch verschlüsselt gespeichert — auch ein Administrator
+kann sie nicht mehr sichtbar machen.</div>
+<div style="font-family:ui-monospace,monospace;font-size:17px;line-height:2;
+            background:var(--k);padding:16px 20px;border-radius:10px;
+            display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));margin:14px 0">
+{liste}</div>
+<div class=m>Jeder Code funktioniert <b>einmal</b> und tritt an die Stelle der sechs
+Ziffern aus der App — das Passwort brauchst du weiterhin. Sie sind für den Fall
+gedacht, dass dein Gerät verloren geht oder du gerade keinen Zugriff darauf hast.</div>
+<div class=m><a class=b href="/">weiter zur Übersicht</a></div>""" + FUSS)
+    # Den Keks sofort wieder wegnehmen: ein zweiter Aufruf der Seite - auch aus
+    # dem Verlauf - soll nichts mehr zeigen.
+    # *Cleared immediately, so a second visit shows nothing, history included.*
+    antwort.delete_cookie("codes")
+    return antwort
 
 
 @app.get("/abmelden")
@@ -1674,7 +1843,17 @@ def nutzer_liste(request: Request, neu: str = "", fehler: str = ""):
         knoepfe += ("<span class=z>(eigenes Konto)</span>" if name == s["nutzer"] else
                     f'<form method=post action=/nutzer-loeschen><input type=hidden name=csrf value="{s["csrf"]}">'
                     f'<input type=hidden name=name value="{name}"><button class=x>löschen</button></form>')
+        # Der Codevorrat gehoert in die Uebersicht: geht er zur Neige, faellt es
+        # sonst erst auf, wenn jemand ausgesperrt vor der Anmeldung steht.
+        # *The remaining codes belong here; otherwise a depleted list is noticed
+        #  only when somebody is already locked out.*
+        rest = len(n.get("codes") or [])
+        vorrat = (f'<span class="s off">keine</span>' if rest == 0 and fertig
+                  else f'<span class="s on">{rest}</span>' if rest > 3
+                  else f'<span class="s off">{rest}</span>' if fertig
+                  else '<span class=z>—</span>')
         zeilen.append(f"<tr><td><b>{name}</b></td><td>{n['rolle']}</td><td>{mfa}</td>"
+                      f"<td>{vorrat}</td>"
                       f"<td style=text-align:right>{knoepfe}</td></tr>")
     # Eine still abgewiesene Eingabe ist die schlechteste Rueckmeldung: die Seite
     # sieht danach genauso aus wie vorher, und niemand weiss, ob etwas passiert
@@ -1688,7 +1867,7 @@ def nutzer_liste(request: Request, neu: str = "", fehler: str = ""):
                   "den QR-Code für die Authenticator-App bekommt der Benutzer bei seiner "
                   "<b>ersten Anmeldung</b> selbst angezeigt. Du siehst das Geheimnis nie.</div>")
     return HTMLResponse(KOPF + kopfleiste(s, "nutzer") + RUMPF + f"<h1>Benutzer</h1>{frisch}"
-        f"<table><tr><th>Name</th><th>Rolle</th><th>Zwei-Faktor</th><th></th></tr>{''.join(zeilen)}</table>"
+        f"<table><tr><th>Name</th><th>Rolle</th><th>Zwei-Faktor</th><th>Codes</th><th></th></tr>{''.join(zeilen)}</table>"
         f"""<h1 style=margin-top:28px;font-size:16px>Neuen Benutzer anlegen</h1>
 <form method=post action=/nutzer-anlegen>
 <input type=hidden name=csrf value="{s['csrf']}">
@@ -1709,6 +1888,60 @@ Konfigurationsdateien ändern, Zugangsdaten sehen{" und Sicherungen zurückspiel
 also alles rund um die <b>Spieleserver</b>. Nicht dabei: Benutzerverwaltung, Webterminal,
 Neustart der Maschine und das Protokoll.<br>
 <b>admin</b> darf alles, auch die Maschine und die Benutzer.</div>""" + FUSS)
+
+
+@app.post("/codes-neu")
+def codes_neu_erzeugen(request: Request, csrf: str = Form("")):
+    """Neue Wiederherstellungscodes fuer das EIGENE Konto. Jeder darf das, nicht
+    nur Administratoren: ohne diesen Weg waere man nach zehn Einloesungen wieder
+    da, wo man ohne Codes war."""
+    s = pruefe(request, csrf)
+    if not s:
+        return RedirectResponse("/login", 303)
+    d = laden()
+    if s["nutzer"] not in d["nutzer"]:
+        return RedirectResponse("/", 303)
+    klar, hashes = codes_neu()
+    d["nutzer"][s["nutzer"]]["codes"] = hashes
+    speichern(d)
+    protokoll(s, "Wiederherstellungscodes neu erzeugt", s["nutzer"], anzahl=len(hashes))
+    a = RedirectResponse("/codes", 303)
+    a.set_cookie("codes", einrichtung.dumps({"nutzer": s["nutzer"], "codes": klar}),
+                 httponly=True, secure=True, samesite="strict", max_age=900)
+    return a
+
+
+@app.get("/konto", response_class=HTMLResponse)
+def konto(request: Request, meldung: str = ""):
+    """Das eigene Konto: wie viele Wiederherstellungscodes noch da sind, und der
+    Weg zu neuen. Bewusst fuer JEDE Rolle erreichbar - es geht um den eigenen
+    Zugang, nicht um die Verwaltung anderer."""
+    s = angemeldet(request)
+    if not s:
+        return RedirectResponse("/login", 303)
+    n = laden()["nutzer"].get(s["nutzer"]) or {}
+    rest = len(n.get("codes") or [])
+    warn = ""
+    if rest == 0:
+        warn = ('<div class=warn><b>Du hast keine Wiederherstellungscodes.</b> '
+                'Geht dein Gerät verloren, kommst du ohne fremde Hilfe nicht mehr '
+                'herein. Erzeuge jetzt welche.</div>')
+    elif rest <= 3:
+        warn = (f'<div class=warn>Nur noch <b>{rest}</b> Wiederherstellungscodes übrig. '
+                'Erzeuge rechtzeitig neue — die alten verlieren dabei ihre Gültigkeit.</div>')
+    return HTMLResponse(KOPF + kopfleiste(s, "konto") + RUMPF + f"""<h1>Mein Konto</h1>
+<table><tr><th>Benutzer</th><td><b>{esc(s["nutzer"])}</b></td></tr>
+<tr><th>Rolle</th><td>{esc(s["rolle"])}</td></tr>
+<tr><th>Wiederherstellungscodes</th><td><b>{rest}</b> von {CODE_ANZAHL} übrig</td></tr></table>
+{warn}
+{f'<div class=m>{esc(meldung)}</div>' if meldung else ''}
+<form method=post action=/codes-neu style=margin-top:18px>
+<input type=hidden name=csrf value="{s['csrf']}">
+<button class=y>neue Wiederherstellungscodes erzeugen</button></form>
+<div class=m>Ein Wiederherstellungscode tritt an die Stelle der sechs Ziffern aus der
+App — das Passwort brauchst du weiterhin. Jeder Code funktioniert genau einmal.
+<b>Beim Erzeugen verlieren alle bisherigen Codes ihre Gültigkeit</b>, und die neue
+Liste wird nur ein einziges Mal angezeigt.</div>""" + FUSS)
 
 
 @app.get("/protokoll", response_class=HTMLResponse)
@@ -1815,8 +2048,15 @@ def mfa_zuruecksetzen(request: Request, csrf: str = Form(""), name: str = Form("
     if name in d["nutzer"]:
         d["nutzer"][name]["totp"] = pyotp.random_base32()
         d["nutzer"][name]["totp_bestaetigt"] = False
+        # Die alten Wiederherstellungscodes MUESSEN mit weg. Sie gehoeren zum
+        # alten zweiten Faktor; blieben sie liegen, waere das Zuruecksetzen
+        # keines - wer die Liste hat, kaeme weiterhin herein.
+        # *The old recovery codes must go with it: they belong to the old second
+        #  factor, and leaving them would make the reset meaningless.*
+        alt_anzahl = len(d["nutzer"][name].get("codes") or [])
+        d["nutzer"][name]["codes"] = []
         speichern(d)
-        protokoll(s, "Zweiter Faktor zurueckgesetzt", name)
+        protokoll(s, "Zweiter Faktor zurueckgesetzt", name, entwertete_codes=alt_anzahl)
     return RedirectResponse("/nutzer", 303)
 
 
