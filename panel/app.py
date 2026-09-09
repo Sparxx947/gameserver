@@ -516,8 +516,17 @@ nav{display:flex;gap:4px;flex:1;min-width:0;overflow:auto}
 .akt{display:flex;gap:6px;margin-top:auto;flex-wrap:wrap}
 .akt form.steuer{display:flex;gap:6px;width:100%}
 .akt form.steuer button{flex:1}
-.akt .verweise{display:flex;gap:6px;width:100%}
-.akt .verweise .b{flex:1}
+/* Die Verweise duerfen umbrechen. Ohne flex-wrap wurden sie stattdessen
+   gestaucht: mit "Protokoll" sind es bis zu vier Knoepfe in einer 300px breiten
+   Karte, und "flex:1" verteilt die Breite gleichmaessig, bis die Beschriftung
+   nicht mehr lesbar ist. Mit Umbruch bekommt jede Zeile ihre Breite; die
+   Mindestbreite verhindert, dass zwei Knoepfe sich eine Zeile teilen, in die
+   sie nicht passen.
+   *The links may wrap. Without flex-wrap they were squeezed instead: with
+    "Protokoll" there can be four buttons in a 300px card, and flex:1 divides the
+    width evenly until the labels are unreadable.* */
+.akt .verweise{display:flex;gap:6px;width:100%;flex-wrap:wrap}
+.akt .verweise .b{flex:1 1 auto;min-width:104px;text-align:center}
 /* Knoepfe und Links muessen GLEICH aussehen. Buttons erben die Schrift des
    Dokuments nicht von selbst (deshalb font:inherit) und bringen eigene
    Innenabstaende und Zeilenhoehen mit — daher feste Hoehe und inline-flex,
@@ -640,7 +649,7 @@ def bild(request: Request, stack: str):
 
 
 @app.get("/", response_class=HTMLResponse)
-def uebersicht(request: Request):
+def uebersicht(request: Request, meldung: str = ""):
     s = angemeldet(request)
     if not s:
         return RedirectResponse("/login", 303)
@@ -695,10 +704,25 @@ def uebersicht(request: Request):
             anz = konfigzahlen().get(name)
             zusatz = f" ({anz})" if isinstance(anz, int) and anz else ""
             verweise += f'<a class=b href="/dateien/{name}">Konfigdateien{zusatz}</a>'
+        # Aktualisieren ist ein eigenes Formular, kein Verweis: es aendert etwas
+        # und braucht deshalb das CSRF-Merkmal. Die Sicherung davor erzwingt
+        # panel-aktion, nicht die Oberflaeche - eine Schutzmassnahme, die man
+        # durch einen anderen Aufrufweg umgehen kann, ist keine.
+        # *Updating is a form, not a link: it changes something and needs the CSRF
+        #  token. The backup is enforced in panel-aktion, not here - a safeguard
+        #  that another entry point bypasses is not one.*
+        aktualisieren_knopf = ""
+        if darf_verwalten(s):
+            aktualisieren_knopf = (
+                f'<form method=post action=/aktualisieren style=display:contents>'
+                f'<input type=hidden name=csrf value="{s["csrf"]}">'
+                f'<input type=hidden name=stack value="{name}">'
+                f'<button class=b title="Neue Fassung holen — sichert vorher">'
+                f'aktualisieren</button></form>')
         aktionen = (f'<form method=post action=/aktion class=steuer>'
                     f'<input type=hidden name=csrf value="{s["csrf"]}">'
                     f'<input type=hidden name=stack value="{name}">{"".join(knoepfe)}</form>'
-                    f'<div class=verweise>{verweise}</div>')
+                    f'<div class=verweise>{verweise}{aktualisieren_knopf}</div>')
         host, port, hinweis = adresse_von(name)
         adresse = (f'<div class=z><code>{host}{":" + str(port) if port else ""}</code><br>{hinweis}</div>'
                    if host else "")
@@ -758,8 +782,20 @@ def uebersicht(request: Request):
     # mehreren nebeneinander.
     # *Wide like the catalogue page. The grid itself is unchanged, so the cards
     #  keep their size and simply sit more per row.*
+    hinweis = f'<div class=m>{esc(meldung)}</div>' if meldung else ""
+    # Sammelknoepfe nur fuer die Rolle, die Server ohnehin starten und anhalten
+    # darf, und nur wenn es ueberhaupt Server gibt.
+    sammel = ""
+    if darf_verwalten(s) and karten:
+        sammel = (f'<div style="display:flex;gap:6px;margin:0 0 14px;flex-wrap:wrap">'
+                  f'<form method=post action=/alle><input type=hidden name=csrf value="{s["csrf"]}">'
+                  f'<input type=hidden name=was value=anhalten>'
+                  f'<button class=y>alle laufenden anhalten</button></form>'
+                  f'<form method=post action=/alle><input type=hidden name=csrf value="{s["csrf"]}">'
+                  f'<input type=hidden name=was value=starten>'
+                  f'<button class=b>zuletzt laufende starten</button></form></div>')
     return HTMLResponse(KOPF + kopfleiste(s, "start") + '<div class="w breit">'
-        + f"{systemleiste}<div class=g>{''.join(karten)}</div>"
+        + hinweis + f"{systemleiste}{sammel}<div class=g>{''.join(karten)}</div>"
         + ("<div class=m>Sicherungen laufen alle 15 Minuten für jeden laufenden Server "
            "(Großvater-Vater-Sohn: 2 Tage alle 15 min, 14 Tage täglich, 8 Wochen, 12 Monate).</div>"
            if SICHERUNG_AN else
@@ -1368,6 +1404,38 @@ nur, wenn er vorher lief.</div>
 <input type=hidden name=stack value="{stack}"><input type=hidden name=archiv value="{archiv}">
 <button class=x>Ja, diesen Stand einspielen</button></form>
 <a class=b href="/archive/{stack}">Abbrechen</a>""" + FUSS)
+
+
+@app.post("/aktualisieren")
+def aktualisieren(request: Request, csrf: str = Form(""), stack: str = Form("")):
+    """Neue Fassung des Images holen. Die Sicherung davor ist Bedingung, nicht
+    Schritt — scheitert sie, unterbleibt das Update (siehe panel-aktion)."""
+    s = pruefe(request, csrf)
+    if not darf_verwalten(s):
+        return RedirectResponse("/", 303)
+    rc, aus = aktion("aktualisieren", stack, timeout=1800)
+    teile = aus.strip().split("\t")
+    art = teile[1] if len(teile) > 2 else ""
+    protokoll(s, "Server aktualisiert", stack,
+              "ok" if rc == 0 else "fehlgeschlagen", ergebnis_art=art or "—")
+    m = (teile[2] if rc == 0 and len(teile) > 2 else
+         f"Nicht aktualisiert: {aus.strip()[:220]}")
+    return RedirectResponse(f"/?meldung={quote(m)}", 303)
+
+
+@app.post("/alle")
+def alle_steuern(request: Request, csrf: str = Form(""), was: str = Form("")):
+    """Alles anhalten oder die zuletzt laufenden wieder starten."""
+    s = pruefe(request, csrf)
+    if not darf_verwalten(s):
+        return RedirectResponse("/", 303)
+    if was not in ("anhalten", "starten"):
+        return RedirectResponse("/", 303)
+    rc, aus = aktion(f"alle-{was}", timeout=900)
+    protokoll(s, f"Alle Server {'angehalten' if was == 'anhalten' else 'gestartet'}",
+              "", "ok" if rc == 0 else "fehlgeschlagen", meldung=aus.strip()[:120])
+    m = aus.strip().split("\t")[-1] if rc == 0 else f"Fehlgeschlagen: {aus.strip()[:200]}"
+    return RedirectResponse(f"/?meldung={quote(m)}", 303)
 
 
 @app.post("/restore", response_class=HTMLResponse)

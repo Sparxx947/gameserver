@@ -287,6 +287,88 @@ case "${1:-}" in
     # sie interessant. 2>&1, weil die meisten Spieleserver auf stderr schreiben.
     docker logs --timestamps --tail "$n" "$s" 2>&1 || fehler "keine Logs fuer $s"
     ;;
+  aktualisieren)
+    # Neue Fassung des Images holen und den Server damit neu starten.
+    #
+    # Die Sicherung ist BEDINGUNG, nicht Schritt: Ein Update kann einen
+    # Spielstand unbrauchbar machen - ein neuer Serverstand, der einen alten
+    # Spielstand liest, ist genau der Fall, in dem "dann spiele ich eben zurueck"
+    # auch wirklich funktionieren muss. Scheitert die Sicherung, unterbleibt das
+    # Update. Umgekehrt waere es ein Update ohne Rueckweg.
+    # *The backup is a precondition, not a step: if it fails, the update does not
+    #  happen. The other way round is an update with no way back.*
+    s="${2:-}"; pruefe_stack "$s"
+    # Dieselbe Pruefung wie bei den Archivwegen: der Wert selbst ist der Schalter
+    # (siehe E22). Ist die Sicherung abgeschaltet, gibt es keinen Rueckweg - dann
+    # wird auch nicht aktualisiert.
+    if [ "$REPO" != "aus" ]; then
+      /usr/local/bin/spiele-sicherung --nur "$s" >/dev/null 2>&1 \
+        || fehler "Sicherung fehlgeschlagen - Update unterblieben. Ohne Rueckweg wird nicht aktualisiert."
+    else
+      fehler "Die Sicherung ist abgeschaltet (BORG_REPO=aus). Ohne Rueckweg wird nicht aktualisiert."
+    fi
+    cd "/opt/stacks/$s" || fehler "kein Stackverzeichnis"
+    # "pull" sagt selbst, ob es etwas geholt hat. Diese Unterscheidung gehoert in
+    # die Antwort: ein Knopf, der immer "fertig" meldet, wird nicht mehr gelesen.
+    # *"Already current" and "updated" are different answers; a button that always
+    #  says "done" stops being read.*
+    # Verglichen wird die IMAGE-ID, nicht die JSON-Ausgabe: die enthaelt
+    # "LastTagTime", und der Zeitstempel aendert sich bei JEDEM pull - auch wenn
+    # dasselbe Image erneut geholt wurde. Damit meldete der erste Anlauf immer
+    # "aktualisiert", und ein Knopf, der immer dasselbe sagt, wird nicht mehr
+    # gelesen. Die sha256-ID aendert sich nur bei einem echten Wechsel;
+    # nachgemessen ueber einen erneuten pull hinweg.
+    # *The image ID, not the JSON: that carries LastTagTime, which changes on
+    #  every pull even when nothing new arrived.*
+    vorher=$(docker compose images -q 2>/dev/null | sort | tr -d "\n")
+    aus=$(docker compose pull 2>&1) || fehler "Abholen fehlgeschlagen: $(printf %s "$aus" | tail -2 | tr "\n" " ")"
+    nachher=$(docker compose images -q 2>/dev/null | sort | tr -d "\n")
+    if [ "$vorher" = "$nachher" ]; then
+      echo "ok	schon aktuell	$s war bereits auf der neuesten Fassung"
+      exit 0
+    fi
+    # Ein Server, der vorher AUS war, wird nicht angefasst: das Image ist geholt,
+    # beim naechsten Start greift es von selbst. Der erste Anlauf startete ihn
+    # kurz und hielt ihn wieder an - der Container kam mit Exit 137 zurueck, also
+    # hart gekillt, weil er auf SIGTERM noch nicht ansprechbar war. Ein
+    # Spieleserver, der drei Sekunden laeuft und dann abgeschossen wird, ist
+    # genau die Art Nebenwirkung, die man einem Update nicht zumuten will.
+    # *A server that was off is left alone: the image is pulled and takes effect
+    #  on the next start. The first attempt started it briefly and stopped it
+    #  again, which returned exit 137 - killed before it could handle SIGTERM.*
+    if docker ps --format "{{.Names}}" | grep -qx "$s"; then
+      docker compose up -d >/dev/null 2>&1 || fehler "Neustart nach dem Update fehlgeschlagen"
+      echo "ok	aktualisiert	$s laeuft jetzt auf der neuen Fassung"
+    else
+      echo "ok	aktualisiert	Neue Fassung fuer $s geholt - sie greift beim naechsten Start"
+    fi
+    ;;
+  alle-anhalten)
+    # Alles anhalten, was laeuft - und sich merken, WAS lief. Ohne diese Liste
+    # waere "alle wieder starten" ein Raten.
+    docker ps --format "{{.Names}}" | sort > /var/lib/spiele-wiederanlauf
+    chmod 600 /var/lib/spiele-wiederanlauf
+    n=0
+    while read -r s; do
+      [ -n "$s" ] || continue
+      [ -d "/opt/stacks/$s" ] || continue
+      ( cd "/opt/stacks/$s" && docker compose stop >/dev/null 2>&1 ) && n=$((n+1))
+    done < /var/lib/spiele-wiederanlauf
+    echo "ok	$n Server angehalten"
+    ;;
+  alle-starten)
+    # Genau die wieder starten, die zuletzt liefen - dieselbe Liste, die auch der
+    # Neustart benutzt. Kein zweiter Zustand, der auseinanderlaufen kann.
+    [ -s /var/lib/spiele-wiederanlauf ] || fehler "Keine Liste vorhanden - es wurde nichts gemeinsam angehalten."
+    n=0
+    while read -r s; do
+      [ -n "$s" ] || continue
+      [ -d "/opt/stacks/$s" ] || continue
+      ( cd "/opt/stacks/$s" && docker compose up -d >/dev/null 2>&1 ) && n=$((n+1))
+    done < /var/lib/spiele-wiederanlauf
+    rm -f /var/lib/spiele-wiederanlauf
+    echo "ok	$n Server gestartet"
+    ;;
   laufende-vorher)
     # Welche Server laufen gerade? Fuer die Rueckfrage vor dem Neustart.
     docker ps --format "{{.Names}}" | sort | tr "\n" " "
