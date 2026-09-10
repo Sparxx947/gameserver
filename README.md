@@ -270,3 +270,26 @@ Damit laufen zwei bis drei Spielserver gleichzeitig bequem.
 > Tailscale), and a scoped Cloudflare token. For scale: the documented machine
 > has 6 vCPU, 23.5 GiB RAM and a 200 GB SSD, which comfortably runs two to three
 > game servers at once.*
+
+---
+
+## Lizenz
+
+**MIT** — siehe [`LICENSE`](LICENSE). Benutzen, ändern, weitergeben, auch
+gewerblich; einzige Bedingung ist, dass der Lizenztext mitgeht. Ohne
+Gewährleistung: Das hier beschreibt eine Maschine, die jemand betreibt, und
+niemand haftet dafür, was sie auf einer anderen tut.
+
+MIT und nicht etwas anderes hat einen Grund aus diesem Repositorium: 85 der
+179 Katalogeinträge sind aus **[LinuxGSM](https://github.com/GameServerManagers/LinuxGSM)**
+abgeleitet, und LinuxGSM steht ebenfalls unter MIT. Dieselbe Lizenz heißt,
+dass niemand je eine Verträglichkeitsfrage klären muss. Was von dort stammt
+und was hier entstanden ist, steht einzeln in [`NOTICE`](NOTICE).
+
+> *MIT (see `LICENSE`): use, modify and redistribute, commercially too, as long
+> as the licence text travels along, and without warranty — this describes a
+> machine somebody runs, and nobody is liable for what it does on a different
+> one. MIT rather than something else for a reason that comes from this
+> repository: 85 of the 179 catalogue entries derive from LinuxGSM, which is
+> MIT as well, so nobody ever has to work out compatibility. `NOTICE` lists
+> item by item what came from there and what originated here.*

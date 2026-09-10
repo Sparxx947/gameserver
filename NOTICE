@@ -1,0 +1,51 @@
+Platzwart — Herkunft fremder Bestandteile
+Platzwart — provenance of third-party material
+
+Dieses Repositorium steht unter der MIT-Lizenz (siehe LICENSE). Die folgenden
+Bestandteile stammen von anderen; die MIT-Lizenz verlangt dafuer keine eigene
+Datei, aber die Herkunft stand bisher nirgends, wo ein Leser sie sucht.
+
+*This repository is MIT licensed (see LICENSE). The material below comes from
+ elsewhere. MIT requires no separate file for it, but the provenance was not
+ stated anywhere a reader would look.*
+
+--------------------------------------------------------------------------
+LinuxGSM — https://github.com/GameServerManagers/LinuxGSM  (MIT License)
+
+85 der 179 Katalogeintraege in etc/spiele-katalog.json sind aus LinuxGSMs
+Datei lgsm/data/serverlist.csv abgeleitet: uebernommen wurden der Kuerzel
+(z. B. "ahl") und der Spielname (z. B. "Action Half-Life"). Erzeugt von
+werkzeuge/katalog-lgsm.py.
+
+NICHT von dort stammen und sind hier entstanden: Ports, Speicher- und
+Plattenbedarf, Umgebungsvariablen, Passwortwege, Kurzbeschreibungen
+(werkzeuge/katalog-beschreibungen.py) und die Titelbilder
+(werkzeuge/titelbild.py).
+
+Reine Fakten wie Spielname und Kuerzel sind kaum schutzfaehig; die Nennung
+steht hier, weil sie richtig ist und drei Zeilen kostet.
+
+*85 of the 179 catalogue entries derive from LinuxGSM's serverlist.csv: the
+ short key and the game name. Ports, memory and disk requirements, environment,
+ password handling, descriptions and artwork originate here.*
+
+--------------------------------------------------------------------------
+Container-Abbilder Dritter / third-party container images
+
+Der Katalog verweist auf Abbilder von gameservermanagers (LinuxGSM),
+ich777 und mornedhels. Diese Abbilder werden zur Laufzeit geholt und liegen
+NICHT in diesem Repositorium; es nennt nur ihre Namen. Fuer ihre Inhalte
+gelten die Bedingungen ihrer jeweiligen Anbieter.
+
+*The catalogue references images that are pulled at runtime and are not part of
+ this repository, which only names them.*
+
+--------------------------------------------------------------------------
+Titelbilder aus Steam / Steam artwork
+
+Werden zur Laufzeit von Steam geholt und bewusst NICHT eingecheckt (Werke
+Dritter). Siehe .gitignore und docs/04-spielekatalog.md. Die 64 Bilder unter
+panel/bilder/eigene/ sind selbst erzeugt.
+
+*Fetched at runtime and deliberately not committed; the 64 images under
+ panel/bilder/eigene/ are self-generated.*
