@@ -414,6 +414,33 @@ if [ "$SELBSTTEST" -eq 1 ]; then
   exit $schlecht
 fi
 
+# --- Dieselbe Verdrahtungspruefung, aber bei JEDEM Lauf ----------------------
+# --selbsttest prueft das schon, und zwar an genau dieser Stelle - es fangt den
+# Fehler also. Gemessen am 2026-09-10 mit in_bytes() versuchsweise hinter der
+# Schleife:
+#
+#   spiele-sicherung --selbsttest  ->  FEHLER  in_bytes() ist hier NICHT definiert
+#   spiele-sicherung --nur teamspeak ->  Sicherung abgeschlossen
+#
+# Der Selbsttest sieht es. Der echte Lauf im selben Zustand meldet weiter Erfolg.
+# Und das Fehlerbild, gegen das hier gebaut wird, ist genau "hastige Aenderung,
+# danach kein Selbsttest" - beide Vorfaelle desselben Tages waren das.
+#
+# Sechs declare-Aufrufe kosten nichts und machen aus dem stillen Erfolg ein
+# Abbrechen mit Rueckgabewert 3.
+#
+# *--selbsttest already checks this, at exactly this position, so it does catch
+#  it. But the real run in the same state still reports success - and the failure
+#  we guard against is "hasty edit, no self-test", which is what both incidents
+#  of that day were.*
+for helfer in melden in_bytes laeuft pruefe_plausibel befund_leer; do
+  declare -F "$helfer" >/dev/null && continue
+  echo "ABBRUCH: $helfer() ist an dieser Stelle noch nicht definiert." >&2
+  echo "  Die Funktion steht hinter der Schleife, die sie ruft. Bash definiert" >&2
+  echo "  erst beim Ausfuehren - der Lauf wuerde sonst Erfolg melden und nichts tun." >&2
+  exit 3
+done
+
 for d in /srv/games/*/ /srv/dienste/*/; do
   [ -d "$d" ] || continue
   name=$(basename "$d")
