@@ -306,6 +306,68 @@ die Prüfungen, die es gab, hätten es nicht gesagt.
 > `teamspeak`, whose data legitimately sits unchanged for days; a rule that flags
 > it gets muted and takes the real findings with it.*
 
+### Nachprüfbar, nicht nur nachgewiesen
+
+Die Belege für diese drei Prüfungen standen zunächst als Prosa in
+geschlossenen Pull Requests. Gute Belege — aber niemand konnte sie nachfahren,
+und die nächste Änderung an dieser Datei ließe sich nicht dagegen messen. Das
+ist das Skript, das entscheidet, ob das Netz echt ist; es ist das letzte, das
+unprüfbar sein darf.
+
+```bash
+spiele-sicherung --selbsttest
+```
+
+Dafür ist die **Entscheidung von der Wirkung getrennt**: `entscheide()` bekommt
+Zahlen und gibt eines von vier Wörtern zurück — `leer`, `eingebrochen`, `still`
+oder nichts. Keine Meldung, kein `docker inspect`, keine Zustandsdatei. Vorher
+war die Frage „was würde das bei 2047 Byte entscheiden?" nur mit einem
+Borg-Repositorium, einem laufenden Container und einer Zustandsdatei zu
+beantworten — also gar nicht.
+
+Der Selbsttest braucht **weder root noch ein Repositorium**: Die Passphrase wird
+erst gelesen, wenn wirklich gesichert wird. Ein Selbsttest, der root verlangt,
+läuft nur dort, wo man ihn am wenigsten braucht — nicht auf dem Rechner, auf dem
+die Änderung entsteht.
+
+Fünfzehn Fälle, darunter **beide Grenzwerte jeder Schwelle** (51200 und 51199,
+2048 und 2047), die Rangfolge (`leer` schlägt `still`), die Ausnahmeliste und
+zum Schluss die Gegenprobe, dass **alle vier Ausgänge überhaupt vorkommen** —
+eine Prüfung, die für jede Eingabe dasselbe meldet, prüft nichts.
+
+### Was der Selbsttest nicht sehen kann
+
+Er läuft, wenn alle Funktionen definiert sind. Genau der Fehler, der dieser
+Datei am 2026-09-10 **zweimal** passiert ist, ist damit für ihn unsichtbar: eine
+Funktion, die *hinter* der Schleife steht, die sie ruft. Bash definiert erst beim
+Ausführen; dahinter gibt es ein `command not found` auf stderr, und der Lauf
+macht kommentarlos weiter — mit Rückgabewert 0 und der Zeile „Sicherung
+abgeschlossen".
+
+Dagegen steht eine **Wache unmittelbar vor der Schleife**, die bei jedem Lauf
+prüft, ob die sechs gebrauchten Funktionen an dieser Stelle schon existieren:
+
+```
+ABBRUCH: in_bytes ist an dieser Stelle noch nicht definiert - die
+  Funktion steht hinter der Schleife, die sie ruft.
+```
+
+Nachgewiesen, indem `in_bytes()` versuchsweise wieder nach hinten geschoben
+wurde: Rückgabewert **3** statt eines stillen Erfolgs.
+
+> *The evidence for these three checks was prose in closed pull requests: good
+> evidence, but not re-runnable, and this is the script that decides whether the
+> safety net is real. The decision is now separate from the effect —
+> `entscheide()` takes numbers and returns one of four words, with no messaging,
+> no `docker inspect` and no state file. It needs neither root nor a repository:
+> the passphrase is read only when actually backing up, since a self-test
+> requiring root runs only where it is least needed. Fifteen cases, both boundary
+> values of every threshold, the precedence, the exemption list, and a final
+> counter-check that all four outcomes actually occur. What it cannot see is the
+> ordering trap that bit this file twice in one day — it runs when everything is
+> defined — so a guard sits immediately before the loop and checks on every run,
+> exiting 3 instead of succeeding silently.*
+
 ### Einmal am Tag, nicht alle drei Stunden
 
 Diese beiden Meldungen gehen mit einer Ruhezeit von **einem Tag** hinaus. Der

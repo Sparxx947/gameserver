@@ -30,20 +30,33 @@ REPO="@@BORG_REPO@@"
 #  Returns 0 on purpose: spiel-verwalten aborts an uninstall when this fails,
 #  and nothing is broken here. The missing safety net is stated on the
 #  confirmation page instead — before the click, not after.*
-if [ "$REPO" = "aus" ]; then
-  echo "Sicherung ist abgeschaltet (BORG_REPO=aus) - es wird nichts gesichert." >&2
-  exit 0
-fi
+case " $* " in
+  *" --selbsttest "*) ;;      # der Selbsttest prueft die Entscheidung, nicht das Repositorium
+  *)
+    if [ "$REPO" = "aus" ]; then
+      echo "Sicherung ist abgeschaltet (BORG_REPO=aus) - es wird nichts gesichert." >&2
+      exit 0
+    fi ;;
+esac
 
-export BORG_PASSPHRASE=$(cat /root/.borg-passphrase)
+# Die Passphrase erst lesen, wenn wirklich gesichert wird: Der Selbsttest
+# braucht sie nicht, und einer, der root verlangt, laeuft nur dort, wo man ihn
+# am wenigsten braucht - nicht auf dem Rechner, auf dem die Aenderung entsteht.
+# *Read only when actually backing up: a self-test requiring root runs only
+#  where it is least needed, not on the machine where the change is written.*
+case " $* " in
+  *" --selbsttest "*) ;;
+  *) export BORG_PASSPHRASE=$(cat /root/.borg-passphrase) ;;
+esac
 export BORG_RSH="ssh -o BatchMode=yes -o ConnectTimeout=15"
 ZEIT=$(date +%Y%m%d-%H%M%S)
 
-ALLE=0; NUR=""
+ALLE=0; NUR=""; SELBSTTEST=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --alle) ALLE=1; shift ;;
     --nur) NUR="$2"; shift 2 ;;
+    --selbsttest) SELBSTTEST=1; shift ;;
     *) echo "Unbekannt: $1" >&2; exit 1 ;;
   esac
 done
@@ -192,6 +205,36 @@ melden() { /usr/local/bin/platzwart-melden "$@" 2>/dev/null || true; }
 # *A day, not the usual three hours: this runs every 15 minutes, and eight
 #  messages a day about a long-known problem stop being read. The failed-
 #  backup message keeps the short window - that one is urgent.*
+# --- Die ENTSCHEIDUNG, ohne Nebenwirkungen ----------------------------------
+# Getrennt von pruefe_plausibel(), damit sie pruefbar ist, ohne ein
+# Borg-Repositorium, einen laufenden Container und eine Zustandsdatei zu
+# brauchen. Vorher war die Frage "was wuerde das bei 2047 Byte entscheiden?"
+# nur mit dem ganzen Apparat zu beantworten - und damit gar nicht (Issue #147,
+# MajorMaxdom).
+#
+# Gibt genau eines aus: leer | eingebrochen | still | (nichts)
+#
+# *Separated so it can be checked without a borg repository, a running container
+#  and a state file. "What would this decide for 2047 bytes" was previously only
+#  answerable with the whole apparatus, i.e. not at all.*
+entscheide() {   # entscheide <bytes> <vorher> <neu> <still_h> <laufzeit_h> <ausgenommen:0|1>
+  local zahl="$1" vorher="$2" neu="$3" still_h="$4" laufzeit_h="$5" aus="$6"
+  if [ "$zahl" -lt "$MIN_BYTES" ]; then
+    echo leer; return
+  fi
+  if [ -n "$vorher" ] && [ "$vorher" -ge "$MIN_BYTES" ] \
+     && [ $((zahl * 100)) -lt $((vorher * EINBRUCH_ANTEIL)) ]; then
+    echo eingebrochen; return
+  fi
+  # Etwas Neues dazugekommen? Dann ist die Stille vorbei, egal wie alt sie war.
+  [ -n "$neu" ] && [ "$neu" -ge "$NEU_SCHWELLE" ] && return
+  [ "$aus" = "1" ] && return
+  if [ "$still_h" -ge "$STILL_STUNDEN" ] && [ "$laufzeit_h" -ge "$STILL_STUNDEN" ]; then
+    echo still
+  fi
+}
+
+
 pruefe_plausibel() {   # pruefe_plausibel <name> <bytes> <neu_bytes>
   local name="$1" zahl="$2" neu="${3:-}" vorher="" seit="" jetzt
   [ -n "$zahl" ] || return 0
@@ -200,54 +243,43 @@ pruefe_plausibel() {   # pruefe_plausibel <name> <bytes> <neu_bytes>
     vorher=$(grep -E "^$name " "$ZAEHLER" 2>/dev/null | awk '{print $2}')
     seit=$(grep -E "^$name " "$ZAEHLER" 2>/dev/null | awk '{print $3}')
   }
+  [ -n "$seit" ] || seit="$jetzt"
 
-  if [ "$zahl" -lt "$MIN_BYTES" ]; then
-    PLATZWART_MELDEN_RUHE_MIN=1440 melden stoerung "Sicherung von $name ist praktisch leer" \
+  # Laufzeit des Containers: "Laeuft seit gestern und hat nichts geschrieben"
+  # ist eine Aussage; "wurde vor zehn Minuten gestartet" ist keine, egal wie alt
+  # der Spielstand ist.
+  local start laufzeit_h=0 still_h ausgenommen=0
+  start=$(docker inspect "$name" --format '{{.State.StartedAt}}' 2>/dev/null)
+  [ -n "$start" ] && laufzeit_h=$(( (jetzt - $(date -d "$start" +%s 2>/dev/null || echo "$jetzt")) / 3600 ))
+  still_h=$(( (jetzt - seit) / 3600 ))
+  grep -qw "$name" <<<"$OHNE_ALTERSPRUEFUNG" && ausgenommen=1
+
+  case "$(entscheide "$zahl" "$vorher" "$neu" "$still_h" "$laufzeit_h" "$ausgenommen")" in
+    leer)
+      PLATZWART_MELDEN_RUHE_MIN=1440 melden stoerung "Sicherung von $name ist praktisch leer" \
 "Das Archiv enthaelt $((zahl / 1024)) kB. Eine Sicherung, die nichts einfaengt,
 meldet trotzdem Erfolg - der Rueckgabewert sagt nur, dass das Archiv entstanden
 ist, nicht dass etwas drin steht.
 
-Nachsehen mit:  panel-aktion archive $name"
-  elif [ -n "$vorher" ] && [ "$vorher" -ge "$MIN_BYTES" ] \
-       && [ $((zahl * 100)) -lt $((vorher * EINBRUCH_ANTEIL)) ]; then
-    PLATZWART_MELDEN_RUHE_MIN=1440 melden stoerung "Sicherung von $name eingebrochen" \
+Nachsehen mit:  panel-aktion archive $name" ;;
+    eingebrochen)
+      PLATZWART_MELDEN_RUHE_MIN=1440 melden stoerung "Sicherung von $name eingebrochen" \
 "Vorher $((vorher / 1024)) kB, jetzt $((zahl / 1024)) kB. Das ist unter $EINBRUCH_ANTEIL Prozent.
 
 Wenn dort nicht gerade etwas geloescht wurde, faengt die Sicherung seit diesem
-Lauf weniger ein, als sie soll."
-  fi
-
-  # --- Hat sich seit Tagen nichts geaendert? -------------------------------
-  # Der Zeitpunkt der letzten echten Aenderung wird gespeichert, nicht die Zahl
-  # der stillen Laeufe: Ein Neustart des Zeitgebers wuerde einen Zaehler
-  # zuruecksetzen und die Stille von vorn beginnen lassen.
-  # *The moment of the last real change is stored, not a count of quiet runs:
-  #  restarting the timer would reset a counter and start the silence over.*
-  if [ -n "$neu" ] && [ "$neu" -ge "$NEU_SCHWELLE" ]; then
-    seit="$jetzt"
-  else
-    [ -n "$seit" ] || seit="$jetzt"
-    if ! grep -qw "$name" <<<"$OHNE_ALTERSPRUEFUNG"; then
-      local still_h=$(( (jetzt - seit) / 3600 ))
-      # Der Container muss auch SO LANGE schon laufen. "Laeuft seit gestern und
-      # hat nichts geschrieben" ist eine Aussage; "wurde vor zehn Minuten
-      # gestartet" ist keine, egal wie alt der Spielstand ist.
-      # *The container must have been up that long too: "running since yesterday
-      #  and wrote nothing" is a statement, "started ten minutes ago" is not.*
-      local start laufzeit_h=0
-      start=$(docker inspect "$name" --format '{{.State.StartedAt}}' 2>/dev/null)
-      [ -n "$start" ] && laufzeit_h=$(( (jetzt - $(date -d "$start" +%s 2>/dev/null || echo "$jetzt")) / 3600 ))
-      if [ "$still_h" -ge "$STILL_STUNDEN" ] && [ "$laufzeit_h" -ge "$STILL_STUNDEN" ]; then
-        PLATZWART_MELDEN_RUHE_MIN=1440 melden stoerung "$name schreibt seit $still_h Stunden nichts" \
+Lauf weniger ein, als sie soll." ;;
+    still)
+      PLATZWART_MELDEN_RUHE_MIN=1440 melden stoerung "$name schreibt seit $still_h Stunden nichts" \
 "Der Server laeuft seit $laufzeit_h Stunden, und seit $still_h Stunden kam in der
 Sicherung nichts Neues dazu. Das Archiv ist gross genug und faellt nicht - es ist
 nur eine treue Kopie eines Standes, der sich nicht mehr aendert.
 
 Zwei Bilder passen dazu: Das Spiel pausiert, wenn niemand drauf ist (FOUNDRY und
-Satisfactory haben so einen Schalter), oder es kommt nicht mehr zum Schreiben."
-      fi
-    fi
-  fi
+Satisfactory haben so einen Schalter), oder es kommt nicht mehr zum Schreiben." ;;
+  esac
+
+  # Die Stille beginnt neu, sobald etwas Neues dazukam.
+  [ -n "$neu" ] && [ "$neu" -ge "$NEU_SCHWELLE" ] && seit="$jetzt"
 
   # Zahl merken - erst NACH der Pruefung, sonst vergleicht der naechste Lauf
   # gegen den eingebrochenen Wert und schweigt.
@@ -257,6 +289,7 @@ Satisfactory haben so einen Schalter), oder es kommt nicht mehr zum Schreiben."
   sort -o "$ZAEHLER" "$tmp" 2>/dev/null && chmod 600 "$ZAEHLER"
   rm -f "$tmp"
 }
+
 
 sichere() {   # sichere <name> <pfad>
   local name="$1" pfad="$2" aus
@@ -283,6 +316,86 @@ sichere() {   # sichere <name> <pfad>
 }
 
 laeuft() { docker ps --format "{{.Names}}" | grep -qx "$1"; }
+
+# --- Selbsttest -------------------------------------------------------------
+# Die Belege fuer diese drei Pruefungen standen als Prosa in geschlossenen Pull
+# Requests (#140, #141, #145). Gute Belege - aber niemand konnte sie nachfahren,
+# und die naechste Aenderung an dieser Datei liesse sich nicht dagegen messen
+# (Issue #147). Das ist das Skript, das entscheidet, ob das Netz echt ist; es
+# ist das letzte, das unpruefbar sein darf.
+#
+# *The evidence for these three checks was prose in closed pull requests. Good
+#  evidence, but not re-runnable - and this is the script that decides whether
+#  the safety net is real.*
+if [ "$SELBSTTEST" -eq 1 ]; then
+  schlecht=0
+  probe() {   # probe <titel> <bytes> <vorher> <neu> <still_h> <laufzeit_h> <aus> <erwartet>
+    local ist; ist=$(entscheide "$2" "$3" "$4" "$5" "$6" "$7")
+    ist=${ist:-nichts}
+    if [ "$ist" = "$8" ]; then printf '  ok      %s\n' "$1"
+    else printf '  FEHLER  %s -> %s (erwartet %s)\n' "$1" "$ist" "$8"; schlecht=$((schlecht+1)); fi
+  }
+  echo "== Untergrenze (findet ein Archiv, das nie etwas fing) =="
+  probe "13 kB, erster Lauf - der FOUNDRY-Fall"   13440      ""      639    0  0 0 leer
+  probe "258 kB - satisfactory mit vier .sav"     258370     ""      639    0  0 0 nichts
+  probe "genau an der Grenze: 51200 B"            51200      ""      99999  0  0 0 nichts
+  probe "knapp darunter: 51199 B"                 51199      ""      99999  0  0 0 leer
+  echo
+  echo "== Einbruch (findet, was Inhalt hatte und verliert) =="
+  probe "2,43 GB -> 500 MB, unter 25 Prozent"     500000000  2430000000 99999 0 0 0 eingebrochen
+  probe "2,43 GB -> 2,2 GB, normales Schwanken"   2200000000 2430000000 99999 0 0 0 nichts
+  probe "Vorgaenger war selbst winzig"            60000      13440      99999 0 0 0 nichts
+  echo
+  echo "== Alter (findet ein Netz, das AUFGEHOERT hat zu fangen) =="
+  probe "26 h still, Server 26 h auf"             999999     999999  639   26 26 0 still
+  probe "26 h still, gerade neu gestartet"        999999     999999  639   26  1 0 nichts
+  probe "26 h alt, aber 180 kB neu"               999999     999999  181310 26 26 0 nichts
+  probe "10 h still - unter der Frist"            999999     999999  639   10 26 0 nichts
+  probe "genau an der Schwelle: 2048 B neu"       999999     999999  2048  26 26 0 nichts
+  probe "knapp darunter: 2047 B neu"              999999     999999  2047  26 26 0 still
+  probe "ausgenommen (teamspeak)"                 999999     999999  639   26 26 1 nichts
+  echo
+  echo "== Rangfolge: leer schlaegt alles =="
+  probe "13 kB UND 26 h still"                    13440      999999  639   26 26 0 leer
+  echo
+  # Und die Gegenprobe zur Gegenprobe: Eine Pruefung, die fuer JEDE Eingabe
+  # dasselbe meldet, prueft nichts. Hier wird gezaehlt, dass wirklich alle vier
+  # Ausgaenge vorkommen.
+  # *A check reporting the same for every input checks nothing: all four outcomes
+  #  must actually occur.*
+  if [ "$(entscheide 13440 "" 639 0 0 0)" = "leer" ] \
+     && [ "$(entscheide 500000000 2430000000 99999 0 0 0)" = "eingebrochen" ] \
+     && [ "$(entscheide 999999 999999 639 26 26 0)" = "still" ] \
+     && [ -z "$(entscheide 258370 "" 639 0 0 0)" ]; then
+    echo "  ok      alle vier Ausgaenge kommen vor (leer, eingebrochen, still, nichts)"
+  else
+    echo "  FEHLER  nicht alle Ausgaenge erreichbar"; schlecht=$((schlecht+1))
+  fi
+  echo
+  [ $schlecht -eq 0 ] && echo "Selbsttest bestanden." || echo "Selbsttest: $schlecht Abweichung(en)."
+  exit $((schlecht > 0))
+fi
+
+# --- Wache: sind die Funktionen hier ueberhaupt schon da? -------------------
+# Bash definiert eine Funktion erst, wenn ihre Zeile AUSGEFUEHRT wird. Steht sie
+# hinter dieser Schleife, gibt es ein "command not found" auf stderr, und der
+# Lauf macht kommentarlos weiter - mit Rueckgabewert 0 und der Zeile "Sicherung
+# abgeschlossen". Am 2026-09-10 ist das ZWEIMAL in dieser Datei passiert
+# (in_bytes und melden, siehe #143), und beide Male sah der Lauf gesund aus.
+#
+# Der Selbsttest kann das nicht sehen - er laeuft, wenn alles definiert ist.
+# Diese drei Zeilen koennen es, und zwar bei jedem Lauf.
+#
+# *Bash defines a function when its line runs. Behind this loop it becomes
+#  "command not found" while the run reports success. That happened twice in
+#  this file in one day. The self-test cannot see it - it runs when everything
+#  is defined. These three lines can, on every run.*
+for fn in in_bytes melden entscheide pruefe_plausibel sichere laeuft; do
+  declare -F "$fn" >/dev/null \
+    || { echo "ABBRUCH: $fn ist an dieser Stelle noch nicht definiert - die" >&2
+         echo "  Funktion steht hinter der Schleife, die sie ruft." >&2
+         exit 3; }
+done
 
 for d in /srv/games/*/ /srv/dienste/*/; do
   [ -d "$d" ] || continue
