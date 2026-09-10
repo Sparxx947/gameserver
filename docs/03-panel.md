@@ -129,7 +129,8 @@ gelöscht, damit auch ein zweiter Aufruf aus dem Verlauf nichts mehr zeigt.
 
 ## Automatisch aktualisieren
 
-Ein Schalter je Server auf der Karte: **auto an** / **auto aus**. Aus per
+Ein Schalter je Server, auf dessen Einstellungsseite (Karte → **Einstellungen**):
+**autoupdate an** / **autoupdate aus**. Aus per
 Voreinstellung, und es gibt **keinen globalen Schalter** — eine Automatik, die
 alles auf einmal betrifft, ist genau die, die man später nicht mehr zuordnen kann.
 
@@ -292,7 +293,8 @@ Sieben Server belegen im Leerlauf 12,1 GiB, und die Summe ihrer Grenzen ist
 doppelt so groß wie der Arbeitsspeicher der Maschine. Ein Server, auf dem
 niemand ist, muss nicht laufen.
 
-Der Schalter steht **auf jeder Karte** (`leerlauf an` / `leerlauf aus`), aus per
+Der Schalter steht auf der **Einstellungsseite** jedes Servers (`leerlauf an` /
+`leerlauf aus`), aus per
 Voreinstellung, je Server — dieselbe Regel wie beim Auto-Update, und aus
 demselben Grund: Eine Automatik, die alles auf einmal betrifft, ist die, die man
 später nicht mehr zuordnen kann.
@@ -744,20 +746,17 @@ Deshalb ein **eigener Weg**, keine gelockerte Prüfung: Die Katalogroutine liest
 ab — alles Dinge, die es hier nicht gibt. Eine Prüfung wegzunehmen, damit ein
 zweiter Fall durchpasst, macht aus zwei klaren Abläufen einen unklaren.
 
-**Der Knopf liegt hinter einem eigenen Schritt.** Auf der Karte steht zunächst
-nur **bearbeiten**; erst danach erscheint **entfernen** — und zwar nur auf
-*dieser* Karte, alle anderen bleiben gesperrt. Die entsperrte Karte bekommt einen
-gelben Rahmen, denn ein Modus, den man nicht sieht, ist selbst eine Falle.
-**fertig** führt zurück.
+**Der Knopf steht nicht neben harmlosen.** Er liegt auf der Einstellungsseite des
+Servers in einem eigenen, rot überschriebenen Abschnitt **Entfernen**, abgesetzt
+und als letzter — und dahinter folgt weiterhin die Rückfrageseite.
 
-Vorher stand `entfernen` in derselben Reihe wie `Protokoll`, `Einstellungen` und
-`Konfigdateien`: drei harmlose Knöpfe und einer, der 21 GB löscht. Die
-Rückfrageseite fängt einen Fehlgriff ab, aber der Knopf sollte gar nicht erst
-danebenliegen.
-
-Umgesetzt **serverseitig** über einen Parameter, nicht mit JavaScript: Die
-Übersicht läuft unter `default-src 'none'`, und die Lockerung für Passkeys gilt
-nur für `/login`, `/konto` und `/passkey.js` — sie soll sich nicht ausbreiten.
+Zuerst stand `entfernen` auf der Karte in derselben Reihe wie `Protokoll`,
+`Einstellungen` und `Konfigdateien`: drei harmlose Knöpfe und einer, der 21 GB
+löscht. Danach lag er hinter einem eigenen Schritt **bearbeiten**, der die Karte
+gelb umrahmte. Seit die Karte nur noch drei Knöpfe trägt (#161), gibt es diesen
+Modus nicht mehr — er war eine Behelfslösung dafür, dass der Knopf auf der Karte
+stand, und die ist entfallen. Von der Karte bis zum Löschen sind es jetzt drei
+Seiten statt zwei.
 
 **Nur für `admin`**, anders als die Katalogdeinstallation, die `verwalten`
 benutzen darf: Diese Stacks hat niemand über den Katalog angelegt, es gibt keinen
@@ -783,7 +782,8 @@ Seite — **vor** dem Klick, nicht als Meldung hinterher.
 ## Aktualisieren und Sammelsteuerung
 
 **Aktualisieren** holt eine neue Fassung des Images und startet den Server damit
-neu. Der Knopf steht auf jeder Karte, für `verwalten` und `admin`.
+neu. Der Knopf steht auf der Einstellungsseite jedes Servers, für `verwalten`
+und `admin`.
 
 **Die Sicherung davor ist Bedingung, nicht Schritt.** Ein Update kann einen
 Spielstand unbrauchbar machen — ein neuer Serverstand, der einen alten Spielstand
@@ -824,8 +824,8 @@ raten.
 ## Serverprotokoll `/logs/{stack}`
 
 Die letzten Zeilen aus `docker logs`, mit Zeitstempeln, pro Server. Erreichbar
-über den Knopf **Protokoll** auf der Serverkarte — **auch bei gestoppten
-Servern**, denn gerade dann will man wissen, warum.
+über **Einstellungen** → **Protokoll** — **auch bei gestoppten Servern**, denn
+gerade dann will man wissen, warum.
 
 **Warum es das gibt:** Die Rolle `verwalten` darf Spiele installieren und
 entfernen, aber das Webterminal bleibt `admin` vorbehalten. Ohne diese Seite wäre
@@ -897,15 +897,57 @@ erscheint als solche, statt übersprungen zu werden.
 ### Übersicht `/`
 
 Kennzahlen der Maschine (Last, Speicher, Platte) und je Server eine Karte mit
-Titelbild, Zustand, Speicherverbrauch, Beitrittsadresse und den Knöpfen.
+Titelbild, Zustand, Speicherverbrauch, Beitrittsadresse und **drei Knöpfen**:
+`anhalten`, `neu starten` und `Einstellungen` — bei einem gestoppten Server
+`starten` und `Einstellungen`.
 
 Ist bei einem Katalogspiel die Passwort-Einrichtung noch offen oder gescheitert,
 steht das als Warnung auf der Karte. Ohne diesen Hinweis liefe ein Server im
 schlimmsten Fall **ohne Beitrittspasswort** und niemand würde es merken.
 
 > *Overview: machine metrics plus one card per server with artwork, state, memory
-> use, join address and controls. A pending or failed password setup is shown as
-> a warning — without it a server could silently run with no join password.*
+> use, join address and three controls — stop, restart, settings (start and
+> settings when stopped). A pending or failed password setup is shown as a
+> warning — without it a server could silently run with no join password.*
+
+### Einstellungen eines Servers `/server/<stack>`
+
+Alles, was nicht Anhalten oder Neustarten ist (#161). Vorher trug eine Karte bis
+zu **elf** Knöpfe (bei `admin` auf einem von Hand gebauten Server) — die zwei,
+die man täglich braucht, gingen darin unter.
+
+| Abschnitt | Inhalt | Rolle |
+|---|---|---|
+| Betrieb | `autoupdate`, `leerlauf`, `jetzt aktualisieren` | verwalten, admin |
+| Einstellen | `Konfiguration` (`/konfig`), `Konfigdateien` (`/dateien`) | verwalten, admin |
+| | `Mods` | admin |
+| Daten | `Sicherungen` | alle, sofern die Sicherung an ist |
+| | `Protokoll` | verwalten, admin |
+| Entfernen | `Server entfernen …` — nur für von Hand gebaute Server | admin |
+
+**Jede Bedingung ist wörtlich die, die vorher auf der Karte stand.** Einen
+Knopf auf eine andere Seite zu verschieben ist genau der Moment, in dem eine
+Prüfung verloren geht; deshalb ist das für alle drei Rollen nachgeprüft worden,
+und `bedienen` sieht dort genau das, was es vorher auf der Karte sah. Der Knopf
+`Einstellungen` erscheint nur, wenn die Seite für die Rolle etwas zeigt — ein
+Knopf, hinter dem nichts liegt, ist schlimmer als keiner.
+
+**Nach einem Klick bleibt man auf der Seite.** `autoupdate`, `leerlauf` und
+`aktualisieren` schicken ein verstecktes Feld `zurueck=server` mit; die Antwort
+leitet dann auf `/server/<stack>` statt auf die Übersicht. Das Ziel ist fest:
+entweder die Einstellungsseite **genau dieses** Servers oder die Übersicht,
+und der Name muss dieselbe Regel erfüllen wie in `panel-aktion`. Ein frei
+wählbares Rückziel wäre eine offene Weiterleitung. Aus demselben Grund führt
+„zurück" auf den Unterseiten (Konfiguration, Konfigdateien, Mods, Sicherungen,
+Protokoll, Entfernen-Rückfrage) jetzt zur Einstellungsseite, nicht zwei Ebenen
+hoch.
+
+> *Everything other than stop and restart lives here. Each control appears
+> under exactly the condition it had on the card — moving a control to another
+> page is precisely when a check gets lost — and the card only links here if
+> the page has something for the role. After a toggle you stay on the page via
+> a fixed return target (this server's settings page or the overview, never a
+> free URL, which would be an open redirect).*
 
 ### Spiele `/spiele`
 
@@ -1172,6 +1214,7 @@ her. Details in [05-sicherung.md](05-sicherung.md).
 | GET | `/qr` | — | QR-Code (nur mit Einrichtungs-Token) |
 | GET | `/abmelden` | beide | Sitzung beenden |
 | POST | `/aktion` | beide | starten / anhalten / neu starten |
+| GET | `/server/{stack}` | alle (Inhalt je Rolle) | Einstellungen eines Servers |
 | GET | `/bild/{stack}` | beide | Titelbild eines Servers |
 | GET | `/katalogbild/{schluessel}` | admin | Titelbild aus dem Katalog |
 | GET | `/spiele` | admin | Katalog |

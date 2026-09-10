@@ -137,7 +137,7 @@ nur Namen dieser Form, und nur solche, die mit dem angefragten Stack beginnen.
 
 ### Über die Oberfläche
 
-`Übersicht` → Karte des Servers → `Archive` → Stand wählen → Rückfrage
+`Übersicht` → Karte des Servers → `Einstellungen` → `Sicherungen` → Stand wählen → Rückfrage
 bestätigen. Der Server wird angehalten, das Archiv ausgepackt, der Server wieder
 gestartet — sofern er vorher lief.
 

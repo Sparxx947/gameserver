@@ -53,6 +53,10 @@ AKTION = ["/usr/bin/sudo", "-n", "/usr/local/bin/panel-aktion"]
 #  for something that does not exist, and so the missing safety net is visible.
 #  A silently disabled backup is more dangerous than none: people rely on it.*
 SICHERUNG_AN = "@@BORG_REPO@@" != "aus"
+# Dieselbe Regel wie in panel-aktion (dort "unzulaessiger Name"). Hier gebraucht,
+# wo ein Stackname in eine Weiterleitung oder einen Verweis wandert.
+# *Same rule as panel-aktion; used where a stack name goes into a redirect or link.*
+STACK_RE = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?")
 SITZUNG_MAXALTER = 8 * 3600
 SPERRE_AB, SPERRE_DAUER = 5, 15 * 60
 
@@ -731,7 +735,7 @@ nav{display:flex;gap:4px;flex:1;min-width:0;overflow:auto}
    Umbruch sieht aus wie ein Fehler, zwei geordnete Reihen nicht. */
 .akt{display:flex;gap:6px;margin-top:auto;flex-wrap:wrap}
 .akt form.steuer{display:flex;gap:6px;width:100%}
-.akt form.steuer button{flex:1}
+.akt form.steuer button,.akt form.steuer .b{flex:1}
 /* Die Verweise duerfen umbrechen. Ohne flex-wrap wurden sie stattdessen
    gestaucht: mit "Protokoll" sind es bis zu vier Knoepfe in einer 300px breiten
    Karte, und "flex:1" verteilt die Breite gleichmaessig, bis die Beschriftung
@@ -742,6 +746,15 @@ nav{display:flex;gap:4px;flex:1;min-width:0;overflow:auto}
     "Protokoll" there can be four buttons in a 300px card, and flex:1 divides the
     width evenly until the labels are unreadable.* */
 .akt .verweise{display:flex;gap:6px;width:100%;flex-wrap:wrap}
+/* Einstellungsseite eines Servers (#161): Abschnitte statt einer Knopfreihe,
+   das Entfernen abgesetzt am Ende. */
+.einst{margin:18px 0 26px}
+.einst .abschnitt{margin-bottom:22px}
+.einst h2{font-size:13px;font-weight:600;color:var(--d);margin:0 0 8px;letter-spacing:.3px}
+.einst .verweise{display:flex;gap:6px;flex-wrap:wrap}
+.einst .z{margin-top:8px}
+.einst .gefahr{border-top:1px solid var(--r);padding-top:16px;margin-top:30px}
+.einst .gefahr h2{color:var(--x)}
 .akt .verweise .b{flex:1 1 auto;min-width:104px;text-align:center}
 /* Knoepfe und Links muessen GLEICH aussehen. Buttons erben die Schrift des
    Dokuments nicht von selbst (deshalb font:inherit) und bringen eigene
@@ -871,7 +884,7 @@ def bild(request: Request, stack: str):
 
 
 @app.get("/", response_class=HTMLResponse)
-def uebersicht(request: Request, meldung: str = "", bearbeiten: str = ""):
+def uebersicht(request: Request, meldung: str = ""):
     s = angemeldet(request)
     if not s:
         return RedirectResponse("/login", 303)
@@ -887,13 +900,6 @@ def uebersicht(request: Request, meldung: str = "", bearbeiten: str = ""):
     raten = verkehr_rate(gemessen)
     spieler = spielerstand()
     verl = verlauf()
-    # Einmal fuer alle Karten holen, nicht je Karte einmal: ein Aufruf ueber die
-    # sudo-Bruecke kostet spuerbar, und die Antwort ist fuer jede Karte dieselbe.
-    # *Fetched once for all cards, not per card.*
-    _, au_roh = aktion("auto-update-liste", timeout=30)
-    auto_an = {z.strip() for z in au_roh.splitlines() if z.strip()}
-    _, sl_roh = aktion("schlaf-liste", timeout=30)
-    schlaf_an = {z.strip() for z in sl_roh.splitlines() if z.strip()}
     karten, systemleiste, kerne = [], "", 6
     for z in aus.splitlines():
         if z.startswith("SYSTEM\t"):
@@ -940,113 +946,19 @@ def uebersicht(request: Request, meldung: str = "", bearbeiten: str = ""):
         else:
             knoepfe.append(f'<button class=p name=was value=start>starten</button>')
         pi = stackinfo(name)
-        verweise = (f'<a class=b href="/archive/{name}">Sicherungen</a>'
-                    if SICHERUNG_AN else "")
-        if darf_verwalten(s):
-            # Auch fuer gestoppte Server: dann sind die Logs am wichtigsten.
-            # *Also for stopped servers - that is when the log matters most.*
-            verweise += f'<a class=b href="/logs/{name}">Protokoll</a>'
-            verweise += f'<a class=b href="/konfig/{name}">Einstellungen</a>'
-            # Die Zahl kommt aus konfigzahlen.json (von spiel-einrichtung alle
-            # zwei Minuten gepflegt). Ein eigener Aufruf je Server waere hier zu
-            # teuer, und panel.json scheidet aus: die von Hand gebauten Stacks
-            # haben gar keine.
-            # *From konfigzahlen.json, refreshed every two minutes; a per-server
-            #  call would be too expensive and panel.json does not exist for the
-            #  hand-built stacks.*
-            anz = konfigzahlen().get(name)
-            zusatz = f" ({anz})" if isinstance(anz, int) and anz else ""
-            verweise += f'<a class=b href="/dateien/{name}">Konfigdateien{zusatz}</a>'
-        # Entfernen-Weg fuer von Hand gebaute Stacks. Nur Administratoren, und
-        # nur wenn es KEINE panel.json gibt - die Katalogspiele haben ihren
-        # eigenen Weg ueber die Spieleseite.
-        # *Only for admins, and only for stacks without panel.json - catalogue
-        #  games have their own path.*
-        if ist_admin(s) and not pi:
-            # Loeschen liegt hinter einem eigenen Schritt. Vorher stand
-            # "entfernen" in derselben Reihe wie "Protokoll" und "Einstellungen":
-            # drei harmlose Knoepfe und einer, der 21 GB loescht. Die
-            # Rueckfrageseite faengt einen Fehlgriff ab, aber der Knopf soll gar
-            # nicht erst danebenliegen.
-            #
-            # Serverseitig ueber einen Parameter, nicht mit JavaScript: die
-            # Uebersicht laeuft unter "default-src 'none'", und diese Lockerung
-            # gilt nur fuer /login, /konto und /passkey.js - sie soll sich nicht
-            # ausbreiten.
-            # *Deletion sits behind its own step, server-side rather than in
-            #  JavaScript: the overview runs under default-src 'none'.*
-            if bearbeiten == name:
-                verweise += (f'<a class="b x" href="/entfernen-fragen/{name}">entfernen</a>'
-                             f'<a class=b href="/">fertig</a>')
-            else:
-                verweise += f'<a class=b href="/?bearbeiten={name}">bearbeiten</a>'
-        # Aktualisieren ist ein eigenes Formular, kein Verweis: es aendert etwas
-        # und braucht deshalb das CSRF-Merkmal. Die Sicherung davor erzwingt
-        # panel-aktion, nicht die Oberflaeche - eine Schutzmassnahme, die man
-        # durch einen anderen Aufrufweg umgehen kann, ist keine.
-        # *Updating is a form, not a link: it changes something and needs the CSRF
-        #  token. The backup is enforced in panel-aktion, not here - a safeguard
-        #  that another entry point bypasses is not one.*
-        aktualisieren_knopf = ""
-        # Fuer JEDEN Server, auch die von Hand gebauten. Der Schalter lag zuerst
-        # in der panel.json und erreichte damit einen von acht - ausgerechnet
-        # Palworld und Enshrouded, die laufend Patches bekommen, waren aussen vor.
-        # *For every server, hand-built ones included: keyed on its own list
-        #  rather than panel.json, which reached one server out of eight.*
-        if darf_verwalten(s):
-            auto = name in auto_an
-            aktualisieren_knopf += (
-                f'<form method=post action=/auto-update style=display:contents>'
-                f'<input type=hidden name=csrf value="{s["csrf"]}">'
-                f'<input type=hidden name=stack value="{name}">'
-                f'<input type=hidden name=wert value="{"aus" if auto else "an"}">'
-                f'<button class="b{" y" if auto else ""}" '
-                f'title="Nächtlich neue Fassungen holen — nur wenn gesichert werden '
-                f'kann und niemand spielt">'
-                # "autoupdate", nicht "auto": neben einem Knopf "aktualisieren"
-                # sagt "auto" nicht, WAS automatisch geschieht - es koennte
-                # genauso gut den Neustart oder die Sicherung meinen.
-                # *"auto" alone does not say what is automatic, next to a button
-                #  labelled "aktualisieren".*
-                f'autoupdate {"an" if auto else "aus"}</button></form>')
-            # Leerlauf: schlaeft, wenn leer - und wacht auf, wenn jemand sich
-            # verbindet. Der Knopf sagt "leerlauf" und nicht "schlafen": Er
-            # schaltet die AUTOMATIK, nicht den Server. Wer "schlafen" liest,
-            # erwartet, dass der Server jetzt anhaelt.
-            # *The button switches the automatism, not the server: "schlafen"
-            #  would read as "stop it now".*
-            # Mods nur fuer admin: Ein Mod ist Code, der IM Spielserver
-            # laeuft, mit dessen Bind-Mount und dessen Netzzugang.
-            if s.get("rolle") == "admin":
-                aktualisieren_knopf += (
-                    f'<a class=b href="/mods/{name}" '
-                    f'title="Mods dieses Servers ansehen und hochladen">mods</a>')
-            sl = name in schlaf_an
-            aktualisieren_knopf += (
-                f'<form method=post action=/leerlauf style=display:contents>'
-                f'<input type=hidden name=csrf value="{s["csrf"]}">'
-                f'<input type=hidden name=stack value="{name}">'
-                f'<input type=hidden name=wert value="{"aus" if sl else "an"}">'
-                f'<button class="b{" y" if sl else ""}" '
-                f'title="Leere Server anhalten und beim Beitritt wieder starten">'
-                f'leerlauf {"an" if sl else "aus"}</button></form>')
-        if darf_verwalten(s):
-            # "+=", NICHT "=": Hier stand eine Zuweisung, und die warf den
-            # Auto-Schalter von oben weg - er wurde gebaut und im selben Atemzug
-            # ueberschrieben. Auf der Karte war davon nichts zu sehen, und jeder
-            # Block sieht fuer sich betrachtet richtig aus.
-            # *"+=", not "=": an assignment here discarded the auto switch built
-            #  a few lines above - created and overwritten in the same breath.*
-            aktualisieren_knopf += (
-                f'<form method=post action=/aktualisieren style=display:contents>'
-                f'<input type=hidden name=csrf value="{s["csrf"]}">'
-                f'<input type=hidden name=stack value="{name}">'
-                f'<button class=b title="Neue Fassung holen — sichert vorher">'
-                f'aktualisieren</button></form>')
+        # Drei Knoepfe, nicht dreizehn (#161). Alles, was nicht Anhalten oder
+        # Neustarten ist, steht auf der Einstellungsseite - dort mit denselben
+        # Rollenpruefungen, die hier standen. Der Verweis erscheint nur, wenn
+        # die Seite fuer diese Rolle etwas zeigt: Ein Knopf, hinter dem nichts
+        # liegt, ist schlimmer als keiner.
+        # *Three buttons, not thirteen. Everything else is on the settings page,
+        #  under the same role checks. The link only appears if that page has
+        #  something for this role.*
+        if SICHERUNG_AN or darf_verwalten(s):
+            knoepfe.append(f'<a class=b href="/server/{name}">Einstellungen</a>')
         aktionen = (f'<form method=post action=/aktion class=steuer>'
                     f'<input type=hidden name=csrf value="{s["csrf"]}">'
-                    f'<input type=hidden name=stack value="{name}">{"".join(knoepfe)}</form>'
-                    f'<div class=verweise>{verweise}{aktualisieren_knopf}</div>')
+                    f'<input type=hidden name=stack value="{name}">{"".join(knoepfe)}</form>')
         host, port, hinweis = adresse_von(name)
         adresse = (f'<div class=z><code>{host}{":" + str(port) if port else ""}</code><br>{hinweis}</div>'
                    if host else "")
@@ -1104,12 +1016,7 @@ def uebersicht(request: Request, meldung: str = "", bearbeiten: str = ""):
             # Platzhalter gleicher Hoehe, damit gestoppte Server das Raster
             # nicht zerreissen.
             last = '<div class="last z" style="display:flex;align-items:center">nicht aktiv</div>'
-        # Die entsperrte Karte wird hervorgehoben - ein Modus, den man nicht
-        # sieht, ist selbst eine Falle.
-        # *The unlocked card is highlighted: a mode you cannot see is a trap.*
-        rahmen = (' style="outline:2px solid var(--y);outline-offset:2px"'
-                  if bearbeiten == name else "")
-        karten.append(f"""<div class=c{rahmen}>{bild_html}<div class=cb>
+        karten.append(f"""<div class=c>{bild_html}<div class=cb>
 <div class=n>{name} <span class="s {'on' if an else 'off'}">{'läuft' if an else 'gestoppt'}</span></div>
 {adresse}
 {last}
@@ -1503,7 +1410,7 @@ def entfernen_fragen(request: Request, stack: str):
           f'<input type=hidden name=csrf value="{s["csrf"]}">'
           f'<input type=hidden name=stack value="{esc(stack)}">'
           f'<button class=x>Ja, {esc(stack)} entfernen</button></form> '
-          f'<a class=b href="/">Abbrechen</a>' + FUSS)
+          f'<a class=b href="{einstellungen_von(stack)}">Abbrechen</a>' + FUSS)
 
 
 @app.post("/fremd-entfernen")
@@ -1810,7 +1717,8 @@ def archive(request: Request, stack: str):
         return sicherung_aus_seite(s)
     rc, aus = aktion("archive", stack, timeout=180)
     if rc != 0:
-        return HTMLResponse(KOPF + kopfleiste(s) + RUMPF + f"<h1>{stack}</h1><div class=f>{aus}</div><a class=b href=/>zurück</a>" + FUSS)
+        return HTMLResponse(KOPF + kopfleiste(s) + RUMPF + f"<h1>{esc(stack)}</h1><div class=f>{esc(aus)}</div>"
+                            f'<a class=b href="{einstellungen_von(stack)}">zurück</a>' + FUSS)
     zeilen = []
     for z in reversed(aus.splitlines()):
         if "\t" not in z:
@@ -1821,7 +1729,7 @@ def archive(request: Request, stack: str):
                  if darf_verwalten(s) else '<span class=z>nur Admin</span>')
         zeilen.append(f"<tr><td><code>{name}</code></td><td>{zeit}</td><td style=text-align:right>{knopf}</td></tr>")
     return HTMLResponse(KOPF + kopfleiste(s) + RUMPF + f"<h1>Sicherungen: {stack}</h1>"
-        f"<div class=d><a class=b href=/>zurück zur Übersicht</a></div>"
+        f'<div class=d><a class=b href="{einstellungen_von(stack)}">zurück</a></div>'
         f"<table><tr><th>Archiv</th><th>Zeitpunkt</th><th></th></tr>"
         f"{''.join(zeilen) or '<tr><td colspan=3>noch keine</td></tr>'}</table>" + FUSS)
 
@@ -1944,7 +1852,8 @@ nur, wenn er vorher lief.</div>
 
 
 @app.post("/aktualisieren")
-def aktualisieren(request: Request, csrf: str = Form(""), stack: str = Form("")):
+def aktualisieren(request: Request, csrf: str = Form(""), stack: str = Form(""),
+                  zurueck: str = Form("")):
     """Neue Fassung des Images holen. Die Sicherung davor ist Bedingung, nicht
     Schritt — scheitert sie, unterbleibt das Update (siehe panel-aktion)."""
     s = pruefe(request, csrf)
@@ -1957,7 +1866,146 @@ def aktualisieren(request: Request, csrf: str = Form(""), stack: str = Form(""))
               "ok" if rc == 0 else "fehlgeschlagen", ergebnis_art=art or "—")
     m = (teile[2] if rc == 0 and len(teile) > 2 else
          f"Nicht aktualisiert: {aus.strip()[:220]}")
-    return RedirectResponse(f"/?meldung={quote(m)}", 303)
+    return zurueck_nach(stack, zurueck, m)
+
+
+def einstellungen_von(stack: str) -> str:
+    """Wohin "zurueck" auf einer Unterseite eines Servers fuehrt (#161).
+
+    Die Unterseiten erreicht man seit #161 ueber die Einstellungsseite, also
+    fuehrt ihr "zurueck" auch dorthin - nicht zwei Ebenen hoch zur Uebersicht.
+    Ein Name, der die Regel verfehlt, landet auf der Uebersicht statt in einem
+    Verweis.
+    *Sub-pages are reached via the settings page since #161, so "back" leads
+     there; a name failing the rule goes to the overview instead of into a link.*
+    """
+    return f"/server/{stack}" if STACK_RE.fullmatch(stack or "") else "/"
+
+
+def zurueck_nach(stack: str, zurueck: str, meldung: str) -> RedirectResponse:
+    """Nach einer Aktion dorthin zurueck, wo sie ausgeloest wurde.
+
+    Seit #161 stehen die Schalter nicht mehr auf der Karte, sondern auf der
+    Einstellungsseite des Servers - ohne diese Umleitung landete man nach jedem
+    Klick wieder auf der Uebersicht und muesste die Seite neu suchen.
+
+    Das Ziel ist STRENG begrenzt: entweder die Einstellungsseite genau dieses
+    Servers, oder die Uebersicht. Ein frei waehlbares Rueckziel waere eine
+    offene Weiterleitung - ein Link auf das Panel, der nach der Anmeldung
+    irgendwohin fuehrt.
+    *Strictly limited to this server's settings page or the overview: a freely
+     chosen target would be an open redirect.*
+    """
+    if zurueck == "server" and STACK_RE.fullmatch(stack or ""):
+        return RedirectResponse(f"/server/{stack}?meldung={quote(meldung)}", 303)
+    return RedirectResponse(f"/?meldung={quote(meldung)}", 303)
+
+
+@app.get("/server/{stack}", response_class=HTMLResponse)
+def server_einstellungen(request: Request, stack: str, meldung: str = ""):
+    """Alles zu einem Server, was nicht Anhalten oder Neustarten ist (#161).
+
+    Die Karte in der Uebersicht traegt nur noch drei Knoepfe. Was vorher dort
+    stand, steht jetzt hier - und zwar unter GENAU denselben Bedingungen. Das
+    Verschieben eines Knopfes auf eine andere Seite ist genau der Moment, in
+    dem eine Pruefung verloren geht; deshalb steht jede hier einzeln und
+    woertlich so, wie sie auf der Karte stand.
+
+    *Everything about a server other than stop and restart. Each control appears
+     under exactly the condition it had on the card: moving a control to another
+     page is precisely when a check gets dropped.*
+    """
+    s = angemeldet(request)
+    if not s:
+        return RedirectResponse("/login", 303)
+    if not STACK_RE.fullmatch(stack):
+        return RedirectResponse("/", 303)
+    name = stack
+    pi = stackinfo(name)
+    csrf = s["csrf"]
+
+    def formular(ziel: str, felder: dict, beschriftung: str, klasse: str = "b",
+                 titel: str = "") -> str:
+        versteckt = "".join(f'<input type=hidden name={k} value="{esc(str(v))}">'
+                            for k, v in felder.items())
+        return (f'<form method=post action={ziel} style=display:contents>'
+                f'<input type=hidden name=csrf value="{csrf}">'
+                f'<input type=hidden name=stack value="{esc(name)}">'
+                f'<input type=hidden name=zurueck value=server>{versteckt}'
+                f'<button class="{klasse}" title="{esc(titel)}">{beschriftung}</button></form>')
+
+    abschnitte = []
+
+    # --- Betrieb: was der Server nachts und im Leerlauf von selbst tut ------
+    if darf_verwalten(s):
+        _, au_roh = aktion("auto-update-liste", timeout=30)
+        _, sl_roh = aktion("schlaf-liste", timeout=30)
+        auto = name in {z.strip() for z in au_roh.splitlines()}
+        sl = name in {z.strip() for z in sl_roh.splitlines()}
+        abschnitte.append(
+            '<div class=abschnitt><h2>Betrieb</h2><div class=verweise>'
+            + formular("/auto-update", {"wert": "aus" if auto else "an"},
+                       f'autoupdate {"an" if auto else "aus"}', "b y" if auto else "b",
+                       "Nächtlich neue Fassungen holen — nur wenn gesichert werden "
+                       "kann und niemand spielt")
+            + formular("/leerlauf", {"wert": "aus" if sl else "an"},
+                       f'leerlauf {"an" if sl else "aus"}', "b y" if sl else "b",
+                       "Leere Server anhalten und beim Beitritt wieder starten")
+            + formular("/aktualisieren", {}, "jetzt aktualisieren", "b",
+                       "Neue Fassung holen — sichert vorher")
+            + '</div><p class=z>autoupdate und leerlauf schalten eine '
+            '<b>Automatik</b>, nicht den Server. „leerlauf aus" hält ihn nicht an.</p></div>')
+
+    # --- Einstellen: Werte und Dateien des Servers -------------------------
+    einstellen = []
+    if darf_verwalten(s):
+        einstellen.append(f'<a class=b href="/konfig/{name}">Konfiguration</a>')
+        anz = konfigzahlen().get(name)
+        zusatz = f" ({anz})" if isinstance(anz, int) and anz else ""
+        einstellen.append(f'<a class=b href="/dateien/{name}">Konfigdateien{zusatz}</a>')
+    if ist_admin(s):
+        # Mods nur fuer admin: Ein Mod ist Code, der IM Spielserver laeuft.
+        einstellen.append(f'<a class=b href="/mods/{name}">Mods</a>')
+    if einstellen:
+        abschnitte.append('<div class=abschnitt><h2>Einstellen</h2><div class=verweise>'
+                          + "".join(einstellen) + '</div></div>')
+
+    # --- Daten: was er schreibt und was von ihm gesichert ist --------------
+    daten = []
+    if SICHERUNG_AN:
+        daten.append(f'<a class=b href="/archive/{name}">Sicherungen</a>')
+    if darf_verwalten(s):
+        # Logs koennen Zugangsdaten enthalten - daher verwalten, nicht bedienen.
+        daten.append(f'<a class=b href="/logs/{name}">Protokoll</a>')
+    if daten:
+        abschnitte.append('<div class=abschnitt><h2>Daten</h2><div class=verweise>'
+                          + "".join(daten) + '</div></div>')
+
+    # --- Gefahr: abgesetzt und zuletzt --------------------------------------
+    # Auf der Karte lag "entfernen" frueher neben harmlosen Knoepfen und
+    # brauchte deshalb einen eigenen "bearbeiten"-Schritt. Hier steht es in
+    # einem eigenen, abgesetzten Abschnitt am Ende - und dahinter kommt
+    # weiterhin die Rueckfrageseite mit der Groessenangabe. Von der Karte bis zum
+    # Loeschen sind es damit mehr Schritte als vorher, nicht weniger.
+    # *Set apart at the end, still followed by the confirmation page with the
+    #  size: more steps from card to deletion than before, not fewer.*
+    if ist_admin(s) and not pi:
+        abschnitte.append(
+            '<div class="abschnitt gefahr"><h2>Entfernen</h2><div class=verweise>'
+            f'<a class="b x" href="/entfernen-fragen/{name}">Server entfernen …</a></div>'
+            '<p class=z>Führt zu einer Rückfrage mit der Größe dessen, was gelöscht '
+            'würde. Die Sicherungen im Borg-Repositorium bleiben erhalten.</p></div>')
+
+    if not abschnitte:
+        # Eine Rolle, die hier nichts sieht, sieht auf der Karte auch keinen
+        # Einstellungen-Knopf - dieser Zweig ist die Absicherung dahinter.
+        return RedirectResponse("/", 303)
+
+    m = f'<div class=m style=margin:0>{esc(meldung)}</div>' if meldung else ""
+    return HTMLResponse(KOPF + kopfleiste(s) + RUMPF +
+                        f'<h1>Einstellungen: {esc(name)}</h1>{m}<div class=einst>'
+                        + "".join(abschnitte) +
+                        '</div><a class=b href="/">zurück zur Übersicht</a>' + FUSS)
 
 
 @app.get("/mods/{stack}", response_class=HTMLResponse)
@@ -2015,10 +2063,10 @@ def mods(request: Request, stack: str, meldung: str = ""):
             '<b>vor</b> dem Entpacken geprüft, und Archive mit Symlinks werden '
             'abgewiesen.</p>')
 
-    m = f'<div class=ok>{esc(meldung)}</div>' if meldung else ""
+    m = f'<div class=m>{esc(meldung)}</div>' if meldung else ""
     return HTMLResponse(KOPF + RUMPF + kopfleiste(s) +
                         f'<div class=card><h1>Mods: {esc(stack)}</h1>{m}{koerper}'
-                        f'<p><a class=b href="/">zurück</a></p></div>' + FUSS)
+                        f'<p><a class=b href="{einstellungen_von(stack)}">zurück</a></p></div>' + FUSS)
 
 
 @app.post("/mod-hochladen")
@@ -2054,7 +2102,8 @@ def mod_entfernen(request: Request, csrf: str = Form(""),
 
 @app.post("/leerlauf")
 def leerlauf_schalten(request: Request, csrf: str = Form(""),
-                      stack: str = Form(""), wert: str = Form("")):
+                      stack: str = Form(""), wert: str = Form(""),
+                      zurueck: str = Form("")):
     s = pruefe(request, csrf)
     if not darf_verwalten(s):
         return RedirectResponse("/", 303)
@@ -2063,12 +2112,13 @@ def leerlauf_schalten(request: Request, csrf: str = Form(""),
               "ok" if rc == 0 else "fehlgeschlagen", auf=wert)
     m = (f"Leerlauf-Abschaltung für {stack}: {wert}." if rc == 0
          else f"Nicht umgestellt: {aus.strip()[:200]}")
-    return RedirectResponse(f"/?meldung={quote(m)}", 303)
+    return zurueck_nach(stack, zurueck, m)
 
 
 @app.post("/auto-update")
 def auto_update_schalten(request: Request, csrf: str = Form(""),
-                         stack: str = Form(""), wert: str = Form("")):
+                         stack: str = Form(""), wert: str = Form(""),
+                         zurueck: str = Form("")):
     s = pruefe(request, csrf)
     if not darf_verwalten(s):
         return RedirectResponse("/", 303)
@@ -2077,7 +2127,7 @@ def auto_update_schalten(request: Request, csrf: str = Form(""),
               "ok" if rc == 0 else "fehlgeschlagen", auf=wert)
     m = (f"Automatische Updates für {stack}: {wert}." if rc == 0
          else f"Nicht umgestellt: {aus.strip()[:200]}")
-    return RedirectResponse(f"/?meldung={quote(m)}", 303)
+    return zurueck_nach(stack, zurueck, m)
 
 
 @app.post("/alle")
@@ -2169,7 +2219,7 @@ def konfig(request: Request, stack: str, meldung: str = ""):
         f"<table><tr><th>Feld</th><th>Wert</th></tr>{''.join(zeilen)}</table>"
         "<div class=warn>Änderungen wirken erst nach einem <b>Neustart</b> des Servers.</div>"
         f'<a class=b href="/dateien/{stack}">Konfigdateien des Servers</a> '
-        f"<a class=b href=/>zurück</a>"
+        f'<a class=b href="{einstellungen_von(stack)}">zurück</a>'
         "<div class=m>Hier stehen die Werte aus der <b>compose-Datei</b> (Container). Die "
         "Einstellungen des Spiels selbst — Weltname, Schwierigkeit, Regeln — liegen in den "
         "<b>Konfigdateien</b> nebenan. "
@@ -2374,7 +2424,7 @@ def dateien(request: Request, stack: str, meldung: str = ""):
           'abgelegt (<code>.vor-panel-…</code>). Änderungen wirken erst nach einem '
           '<b>Neustart</b> des Servers.</div>'
         + f'<a class=b href="/konfig/{esc(stack)}">Container-Einstellungen</a> '
-          f'<a class=b href="/">zurück</a>' + FUSS)
+          f'<a class=b href="{einstellungen_von(stack)}">zurück</a>' + FUSS)
 
 
 @app.get("/datei/{stack}", response_class=HTMLResponse)
@@ -3027,7 +3077,7 @@ def logs(request: Request, stack: str, n: int = 200):
         + f'<div style=margin-bottom:12px>Zeilen: {stufen}</div>'
         + inhalt
         + f'<div class=m><a class=b href="/logs/{esc(stack)}?n={n}">neu laden</a> '
-          f'<a class=b href="/">zurück zur Übersicht</a></div>'
+          f'<a class=b href="{einstellungen_von(stack)}">zurück</a></div>'
         + "</div>" + FUSS)
 
 
