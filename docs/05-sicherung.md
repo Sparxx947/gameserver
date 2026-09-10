@@ -240,9 +240,94 @@ constant`). Der Lauf meldete daraufhin für fünf Spiele `Exit 2`, **obwohl die
 Sicherung selbst durchgelaufen war** — ein Werkzeug, dessen Auswertung den
 ganzen Lauf scheitern lässt, ist schlimmer als eines ohne Auswertung.
 
+### Wenn die Größe stimmt, aber nichts mehr passiert
+
+Beide Prüfungen oben messen die **Größe**. Ein Spielstand, der einmal geschrieben
+und danach nie wieder angefasst wurde, hat eine **konstante** Größe: Er besteht
+die Untergrenze, weil reichlich Bytes da sind, und den Einbruch, weil nichts
+kleiner wird. Er besteht sie alle 15 Minuten, für immer — und das Archiv ist die
+getreue Kopie einer Welt, die seit Tagen nicht mehr geschrieben wird.
+
+FOUNDRY fiel nur auf, weil es **von Anfang an** leer war. Hätte es am 06.09.
+einen einzigen Stand geschrieben und seitdem pausiert, wäre nichts aufgefallen —
+weder mit der Dateizahl noch mit der Größe.
+
+Die dritte Prüfung misst deshalb das **Alter**:
+
+| Prüfung | Schlägt an bei | Findet |
+|---|---|---|
+| **Stille** | Container läuft ≥ 24 h **und** seit 24 h hat sich im Spielverzeichnis keine Datei geändert | einen Stand, der eingefroren ist |
+
+**Beide Bedingungen sind nötig**, nicht nur die zweite. Ohne die Laufzeit meldete
+sich der Platzwart nach jedem Neustart: Ein Server, der vor zehn Minuten
+gestartet ist, hatte noch gar keine Gelegenheit zu speichern — und an einem
+Fehlalarm bei einem gesunden Spiel stirbt die Glaubwürdigkeit dieser Meldung.
+Schwelle: `SICHERUNG_STILL_STD` (Stunden).
+
+Gesucht wird mit `find … -mmin -… -print -quit`, und das `-quit` ist der Punkt:
+Es hält beim **ersten** Treffer an. Im gesunden Fall — dem Normalfall — kostet
+das fast nichts; nur wenn wirklich nichts geschrieben wurde, wird der Baum ganz
+gelaufen. Genau dann will man die Antwort auch.
+
+Geprüft werden **nur laufende Container.** Das nimmt zugleich `config` und `etc`
+aus: Die werden aus Pfaden gesichert, die wochenlang niemand anfasst, und eine
+Regel, die die beiden anmeckert, wird stummgeschaltet.
+
+Die häufigste Ursache steht in der Meldung: Ein Server, der pausiert, wenn
+niemand darauf ist, läuft seinen Autosave nicht — die Welt lebt dann nur im
+Arbeitsspeicher. `stacks/foundry.yaml` trägt dafür `PAUSE_SERVER_WHEN_EMPTY`,
+`stacks/satisfactory.yaml` das gleichbedeutende `AUTOPAUSE`.
+
+> *Both checks above measure size, and a save written once and never touched
+> again has a constant size: it passes the floor because there are plenty of
+> bytes, and the drop because nothing shrank — every 15 minutes, forever, while
+> the archive faithfully copies a world that stopped being written days ago.
+> FOUNDRY was caught only because it was empty from the start; had it written a
+> single save on 06.09. and paused ever since, neither the file count nor the
+> size would have shown anything. The third check therefore measures age: it
+> fires when the container has been up for at least 24 hours **and** no file
+> under the game directory changed in those 24 hours (`SICHERUNG_STILL_STD`).
+> Both conditions are needed — without the uptime guard it would fire after
+> every restart, because a server started ten minutes ago has had no chance to
+> save, and a false alarm on a healthy game is what kills the credibility of
+> this message. The search uses `find … -print -quit`, which stops at the first
+> hit: almost free in the healthy case, and it only walks the whole tree when
+> nothing was written — exactly when the answer is wanted. Only running
+> containers are checked, which also exempts `config` and `etc`, backed up from
+> paths nobody touches for weeks. The most common cause is named in the message:
+> a server that pauses when empty does not run its autosave, so the world lives
+> only in memory.*
+
+### Was der Selbsttest beweist
+
+```bash
+spiele-sicherung --selbsttest
+```
+
+Zwei Dinge, und das zweite ist das, was schon zweimal gefehlt hat:
+
+1. **Schlägt die Stille-Prüfung an?** Neben jedem stillen Fall steht einer, der
+   melden *muss*, und zwei Fälle dicht an der Schwelle zeigen, dass sie dort
+   liegt, wo sie zu liegen behauptet.
+2. **Sind die Helfer an dieser Stelle überhaupt definiert?** Der Selbsttest steht
+   dort, wo auch die Schleife läuft — was hier fehlt, findet sie ebenso wenig.
+   Genau das ist am 2026-09-10 zweimal an einem Tag passiert: erst `in_bytes`,
+   dann `melden`, beide hinter der Schleife, beide zur Laufzeit `command not
+   found`, und beide Male meldete der Lauf Erfolg.
+
+Er braucht weder Borg noch die Passphrase noch Docker und läuft deshalb auch auf
+einem Arbeitsplatzrechner.
+
+> *The self-test proves two things: that the staleness check fires (each silent
+> case paired with one that must report, plus two cases straddling the threshold)
+> and that the helpers are defined at the point the loop runs — which is what
+> failed twice in one day, first `in_bytes`, then `melden`, both behind the loop,
+> both `command not found` at runtime while the run reported success. It needs
+> neither borg nor the passphrase nor Docker, so it runs on a workstation.*
+
 ### Einmal am Tag, nicht alle drei Stunden
 
-Diese beiden Meldungen gehen mit einer Ruhezeit von **einem Tag** hinaus. Der
+Diese drei Meldungen gehen mit einer Ruhezeit von **einem Tag** hinaus. Der
 Lauf kommt alle 15 Minuten; mit der üblichen Sperre von drei Stunden wären das
 acht Nachrichten täglich über ein längst bekanntes Problem, und nach dem zweiten
 Tag liest sie niemand mehr. Ein Fund, der sich selbst in die Bedeutungslosigkeit
@@ -276,6 +361,7 @@ journalctl -u spiele-sicherung -n 30 --no-pager        # letzter Lauf
 borg list --short "$REPO" | tail -20                   # jüngste Archive
 borg info "$REPO"                                      # Größe, Verdichtung
 borg check --repository-only "$REPO"                   # Unversehrtheit
+spiele-sicherung --selbsttest                          # schlagen die Prüfungen an?
 ```
 
 Eine gute Zahl ist erst dann beruhigend, wenn sie auch schlecht werden könnte.

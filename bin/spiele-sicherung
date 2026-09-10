@@ -11,11 +11,19 @@
 # Aufbewahrung: Die "Sohn"-Stufe waere binnen zwei Tagen mit Kopien desselben
 # Standes gefuellt.
 #
-#   spiele-sicherung [--alle] [--nur <name>]
+#   spiele-sicherung [--alle] [--nur <name>] [--selbsttest]
 #     --alle       auch gestoppte Spiele sichern (fuer den taeglichen Lauf)
 #     --nur <name> nur dieses eine Spiel/den Dienst
+#     --selbsttest spielt die Stille-Pruefung mit erfundenen Werten durch
 set -o pipefail
 REPO="@@BORG_REPO@@"
+
+# Der Selbsttest braucht weder Borg noch Passphrase noch Docker. Er wird deshalb
+# VOR beidem erkannt: sonst scheiterte er auf jeder Maschine ohne eingerichtete
+# Sicherung an einer Datei, die er gar nicht anfasst - und eine Pruefung, die
+# man nur dort laufen lassen kann, wo schon alles steht, laeuft niemand.
+SELBSTTEST=0
+for a in "$@"; do [ "$a" = "--selbsttest" ] && SELBSTTEST=1; done
 
 # Abgeschaltete Sicherung (BORG_REPO=aus). Die Pruefung steht VOR dem Lesen der
 # Passphrase: die Datei gibt es dann gar nicht, und ein "cat: kein Zugriff"
@@ -30,13 +38,15 @@ REPO="@@BORG_REPO@@"
 #  Returns 0 on purpose: spiel-verwalten aborts an uninstall when this fails,
 #  and nothing is broken here. The missing safety net is stated on the
 #  confirmation page instead — before the click, not after.*
-if [ "$REPO" = "aus" ]; then
+if [ "$REPO" = "aus" ] && [ "$SELBSTTEST" -eq 0 ]; then
   echo "Sicherung ist abgeschaltet (BORG_REPO=aus) - es wird nichts gesichert." >&2
   exit 0
 fi
 
-export BORG_PASSPHRASE=$(cat /root/.borg-passphrase)
-export BORG_RSH="ssh -o BatchMode=yes -o ConnectTimeout=15"
+if [ "$SELBSTTEST" -eq 0 ]; then
+  export BORG_PASSPHRASE=$(cat /root/.borg-passphrase)
+  export BORG_RSH="ssh -o BatchMode=yes -o ConnectTimeout=15"
+fi
 ZEIT=$(date +%Y%m%d-%H%M%S)
 
 ALLE=0; NUR=""
@@ -44,6 +54,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --alle) ALLE=1; shift ;;
     --nur) NUR="$2"; shift 2 ;;
+    --selbsttest) shift ;;
     *) echo "Unbekannt: $1" >&2; exit 1 ;;
   esac
 done
@@ -73,6 +84,7 @@ fehler=0
 #  258 kB and two at 13 kB look similar as a number and are not.*
 MIN_BYTES="${SICHERUNG_MIN_BYTES:-51200}"          # 50 kB
 EINBRUCH_ANTEIL="${SICHERUNG_EINBRUCH_ANTEIL:-25}"   # Prozent
+STILL_STD="${SICHERUNG_STILL_STD:-24}"               # Stunden
 ZAEHLER=/var/lib/spiele-sicherung.groessen
 
 
@@ -175,6 +187,74 @@ Lauf weniger ein, als sie soll."
   rm -f "$tmp"
 }
 
+# --- Faengt die Sicherung noch etwas NEUES ein? -----------------------------
+# Die Pruefung oben misst die GROESSE. Ein Spielstand, der einmal geschrieben und
+# danach nie wieder angefasst wurde, hat eine KONSTANTE Groesse: Er besteht die
+# Untergrenze, weil reichlich Bytes da sind, und den Einbruch, weil nichts
+# kleiner wird. Er besteht sie alle 15 Minuten, fuer immer - und das Archiv ist
+# die getreue Kopie einer Welt, die seit Tagen nicht mehr geschrieben wird.
+#
+# FOUNDRY fiel nur auf, weil es von ANFANG an leer war. Haette es am 06.09.
+# einen einzigen Stand geschrieben und seitdem pausiert, waere nichts
+# aufgefallen - weder mit der Dateizahl noch mit der Groesse (#142).
+#
+# Gemessen wird deshalb das ALTER: Hat sich im Spielverzeichnis in den letzten
+# STILL_STD Stunden ueberhaupt eine Datei geaendert?
+#
+# Die Laufzeit des Containers ist die zweite Bedingung und nicht Zierat: Ein
+# Server, der vor zehn Minuten gestartet ist, hat noch gar keine Gelegenheit
+# gehabt zu speichern. Ohne diese Bedingung meldete sich der Platzwart nach
+# jedem Neustart - und genau daran, an einem Fehlalarm bei einem gesunden
+# Spiel, stirbt die Glaubwuerdigkeit dieser Meldung.
+#
+# *The check above measures size. A save written once and never touched again
+#  has a constant size - it passes the floor and the drop, every 15 minutes,
+#  forever. FOUNDRY was caught only because it was empty from the start. So this
+#  measures age, and only once the container has been up longer than the window:
+#  a server started ten minutes ago has had no chance to save yet.*
+#
+# Reine Entscheidung, ohne Docker und ohne Dateisystem - damit --selbsttest sie
+# mit erfundenen Werten durchspielen kann. Ohne den Nachweis, dass sie auch
+# anschlaegt, waere sie eine Vermutung.
+still_befund() {   # still_befund <laufzeit_std> <geschrieben 0|1>; 0 = melden
+  local laufzeit="$1" geschrieben="$2"
+  [ "$laufzeit" -lt "$STILL_STD" ] && return 1
+  [ "$geschrieben" -eq 1 ] && return 1
+  return 0
+}
+
+pruefe_still() {   # pruefe_still <name> <pfad>
+  local name="$1" pfad="$2" seit laufzeit geschrieben=0
+  # Nur laufende Container. Das nimmt zugleich "config" und "etc" aus: die
+  # werden aus Pfaden gesichert, die wochenlang niemand anfasst, und eine Regel,
+  # die die beiden anmeckert, wird stummgeschaltet.
+  laeuft "$name" || return 0
+
+  seit=$(docker inspect -f '{{.State.StartedAt}}' "$name" 2>/dev/null) || return 0
+  [ -n "$seit" ] || return 0
+  seit=$(date -d "$seit" +%s 2>/dev/null) || return 0
+  laufzeit=$(( ($(date +%s) - seit) / 3600 ))
+
+  # -quit haelt beim ERSTEN Treffer an. Im gesunden Fall - und das ist der
+  # Normalfall - kostet das fast nichts; nur wenn wirklich nichts geschrieben
+  # wurde, wird der Baum ganz gelaufen. Genau dann will man die Antwort auch.
+  [ -n "$(find "$pfad" -type f -mmin "-$((STILL_STD * 60))" -print -quit 2>/dev/null)" ] \
+    && geschrieben=1
+
+  if still_befund "$laufzeit" "$geschrieben"; then
+    PLATZWART_MELDEN_RUHE_MIN=1440 melden stoerung "Sicherung von $name faengt nichts Neues ein" \
+"$name laeuft seit $laufzeit Stunden, aber unter $pfad hat sich seit
+$STILL_STD Stunden keine einzige Datei geaendert.
+
+Das Archiv entsteht weiter und meldet Erfolg - es enthaelt aber denselben Stand
+wie gestern. Was gerade im Arbeitsspeicher des Servers steht, steht in keiner
+Sicherung.
+
+Haeufigste Ursache: Der Server pausiert, wenn niemand darauf ist, und ein
+pausierter Server laeuft seinen Autosave nicht (siehe #138)."
+  fi
+}
+
 sichere() {   # sichere <name> <pfad>
   local name="$1" pfad="$2" aus
   # --stats gibt die Dateizahl gleich mit aus - ein zweiter borg-Aufruf nur zum
@@ -191,6 +271,7 @@ sichere() {   # sichere <name> <pfad>
   # Bytes, damit ein Vergleich ueberhaupt moeglich ist - "2.43 GB" und "258 kB"
   # lassen sich als Text nicht vergleichen.
   pruefe_plausibel "$name" "$(in_bytes "$aus")"
+  pruefe_still "$name" "$pfad"
   # prune NUR innerhalb dieses Praefixes, sonst wuerde ein Spiel die Staende
   # eines anderen wegraeumen. Borg 1.2 nennt das --glob-archives.
   borg prune --glob-archives "${name}-*" "${prune_regeln[@]}" "$REPO" >/dev/null 2>&1 \
@@ -198,6 +279,59 @@ sichere() {   # sichere <name> <pfad>
 }
 
 laeuft() { docker ps --format "{{.Names}}" | grep -qx "$1"; }
+
+# --- Selbsttest ---------------------------------------------------------------
+# Der OK-Fall beweist nichts. Neben jedem stillen Fall steht deshalb einer, der
+# melden MUSS, und die beiden Faelle dicht an der Schwelle zeigen, dass sie dort
+# liegt, wo sie zu liegen behauptet.
+#
+# Abgedeckt ist die STILLE-Pruefung. Untergrenze und Einbruch schreiben in die
+# Groessendatei und rufen melden - sie sind nicht rein und lassen sich so nicht
+# fahren; ihr Nachweis steht in #140 und #141.
+# *Covers the staleness check; floor and drop are not pure functions.*
+if [ "$SELBSTTEST" -eq 1 ]; then
+  STILL_STD=24
+  schlecht=0
+  echo "== Selbsttest: schlaegt die Stille-Pruefung an? (Schwelle ${STILL_STD} h) =="
+  while read -r lz gs soll text; do
+    if still_befund "$lz" "$gs"; then ist=melden; else ist=still; fi
+    if [ "$ist" = "$soll" ]; then erg="ok    "; else erg="FEHLER"; schlecht=1; fi
+    printf '  %s  %3s h, %s  ->  %-6s (erwartet: %-6s)  %s\n' \
+      "$erg" "$lz" "$([ "$gs" -eq 1 ] && echo "geschrieben   " || echo "nichts geschr.")" \
+      "$ist" "$soll" "$text"
+  done <<'PROBEN'
+48 0 melden laeuft zwei Tage, schreibt nichts - der FOUNDRY-Fall
+48 1 still  schreibt regelmaessig - der Normalfall
+24 0 melden genau auf der Schwelle
+23 0 still  knapp darunter, noch keine Meldung
+0 0 still  gerade gestartet, hatte keine Gelegenheit
+1 1 still  frisch gestartet und schreibt schon
+PROBEN
+
+  # Und die VERDRAHTUNG. Der Selbsttest steht an genau der Stelle, an der auch
+  # die Schleife laeuft - was hier nicht definiert ist, findet sie ebenso wenig.
+  #
+  # Das ist keine Vorsichtsmassnahme auf Verdacht: Am 2026-09-10 ist es an EINEM
+  # Tag zweimal passiert (#141). Erst stand in_bytes hinter der Schleife, die
+  # Groesse blieb leer und pruefe_plausibel stieg stumm aus; dann melden, womit
+  # ueberhaupt keine Meldung mehr hinausging. Beide Male meldete der Lauf Erfolg
+  # und schrieb "Sicherung abgeschlossen". Rechnen und Erreichen sind zwei
+  # Dinge, und gepruefte wurde bis dahin nur das Rechnen.
+  # *Not a precaution on suspicion: this happened twice in one day (#141). The
+  #  self-test sits where the loop runs, so what is undefined here is undefined
+  #  there. Deciding and delivering are two things; only the first was checked.*
+  echo "== Selbsttest: sind die Helfer hier schon definiert? =="
+  for helfer in melden in_bytes laeuft pruefe_plausibel pruefe_still; do
+    if declare -F "$helfer" >/dev/null; then
+      echo "  ok      $helfer() steht vor der Schleife"
+    else
+      echo "  FEHLER  $helfer() ist hier NICHT definiert - zur Laufzeit 127"
+      schlecht=1
+    fi
+  done
+
+  exit $schlecht
+fi
 
 for d in /srv/games/*/ /srv/dienste/*/; do
   [ -d "$d" ] || continue
