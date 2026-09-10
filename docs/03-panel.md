@@ -197,6 +197,95 @@ stillschweigend „an, wegen eines Servers, den es nicht mehr gibt". Gemessen am
 
 ---
 
+## Mods hochladen `/mods/{stack}`
+
+Wo kein Katalog hinreicht, bringt der Betreiber die Datei selbst mit. Nach der
+Messung in #130 ist das hier der Normalfall und nicht die Ausnahme: Von den
+sieben laufenden Servern nimmt **keiner** Steam-Workshop-Mods auf eine Weise,
+die uns nützt.
+
+**Nur für Administratoren**, nicht für `verwalten`. Ein Mod ist Code, der *im*
+Spielserver läuft — mit dessen Bind-Mount und dessen Netzzugang. Einen von Hand
+gebauten Server zu entfernen ist bereits admin-only, weil er sich nicht aus dem
+Katalog wiederherstellen lässt; fremden Code hineinzulegen ist mindestens
+dasselbe.
+
+### Wohin ein Mod gehört, steht in einer Datei — und wird nicht geraten
+
+`/etc/spiele-mods.json`, eine Angabe je Spiel. Steht ein Spiel dort nicht drin,
+**weist das Panel den Upload ab und sagt warum**:
+
+> Für valheim ist nicht hinterlegt, wohin ein Mod gehört. Ein Mod im falschen
+> Verzeichnis tut nichts, und es fällt niemandem auf — deshalb wird hier nicht
+> geraten.
+
+Das ist der Grund für die Strenge: Ein Mod am falschen Ort erzeugt **keinen
+Fehler**. Der Server startet, das Spiel läuft, der Mod fehlt — und niemand
+sucht danach.
+
+Gemessen am 2026-09-10: Von den sieben Servern hat **nur FOUNDRY** überhaupt ein
+Mod-Verzeichnis (`server/Mods`).
+
+### Zip Slip, und warum jeder Eintrag einzeln geprüft wird
+
+Ein Archiv bringt seine eigene Fassung der Falle mit, die schon `konfig-datei`
+geformt hat — dort war es ein Symlink `z: -> /` unter StarRupture. Hier:
+
+* ein Eintrag namens `../../../../etc/cron.d/uebernahme`
+* oder einer, der **selbst ein Symlink** auf `/` ist
+
+Beide werden vom Entpacker geschrieben, **bevor** irgendeine nachträgliche
+Pfadprüfung greifen kann. Deshalb wird jeder Eintrag **einzeln und vor dem
+Entpacken** am aufgelösten Ziel geprüft, und Archive mit Symlinks werden gar
+nicht erst angefasst.
+
+Entpackt wird in ein Zwischenverzeichnis, nicht ins Ziel — was dort landet, ist
+ungeprüft; erst nach allen Prüfungen wird verschoben.
+
+### Weitere Schranken
+
+| Schranke | Warum |
+|---|---|
+| Endungen `.zip .dll .jar .pak .json .cfg .txt .lua` | alles andere hat in einem Mod-Verzeichnis nichts zu suchen |
+| höchstens 512 MB | ARKs Workshop-Elemente sind 319 MB — die Größenordnung ist real |
+| mindestens 10 GB frei | auf einer vollen Platte scheitert als Erstes die **Sicherung**, und dann ist der Rückweg weg, bevor etwas passiert |
+| Dateiname ohne Pfadanteile | **abgewiesen, nicht zurechtgebogen** |
+| Eigentümer vom Zielverzeichnis übernommen | FOUNDRYs Fremdabbild besteht auf uid 1000, die anderen laufen als 4711 — eine Datei mit falschem Eigentümer ist ein Mod, der stillschweigend nicht lädt |
+
+Der erste Entwurf nahm beim Dateinamen erst den Basisnamen und prüfte **danach**
+auf `/` — eine Prüfung, die nach `basename()` nie anschlagen kann.
+`../../boese.dll` wäre als `boese.dll` klaglos gelandet. Sicher war das, aber
+still; wer so einen Namen schickt, soll eine Antwort bekommen.
+
+### Fällt das Verzeichnis unter einen Sicherungsausschluss?
+
+Dann sagt das Panel es **vor** dem Hochladen. Für FOUNDRY ist das der Fall:
+`server/Mods` liegt in `server/`, und das ist ausgeschlossen — ein Mod dort
+überlebt keine Neuinstallation. Gelesen wird die echte `/etc/borg-ausschluss.txt`,
+nicht geraten.
+
+### Die Bytes gehen über stdin, nicht als Argument
+
+Argumente stehen für jeden Benutzer der Maschine in der Prozessliste. Das Panel
+selbst **prüft die Datei nicht** — es läuft unprivilegiert und soll gar nicht
+erst in die Lage kommen, etwas auszupacken.
+
+> *Where no catalogue reaches, the operator brings the file — and per #130 that
+> is the normal case here, not the exception. Admin only: a mod is code running
+> inside the game server. Where a mod belongs is configured per game and never
+> guessed, because a mod in the wrong directory produces no error at all — the
+> server starts, the game runs, the mod is absent. An archive brings its own
+> version of the trap that shaped `konfig-datei`: Zip Slip. Every entry is
+> checked individually and before extraction against the resolved target, and
+> archives containing symlinks are refused outright; extraction goes to a staging
+> directory first. The file name is refused rather than sanitised — the first
+> draft took the basename and then checked for "/", a check that can never fire.
+> If the target falls under a backup exclusion, the panel says so before the
+> upload. The bytes travel on stdin, not as an argument, and the panel never
+> unpacks anything itself.*
+
+---
+
 ## Leerlauf: schlafen legen und beim Beitritt wecken
 
 Sieben Server belegen im Leerlauf 12,1 GiB, und die Summe ihrer Grenzen ist

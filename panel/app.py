@@ -25,7 +25,7 @@ import qrcode
 import qrcode.image.svg
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError, InvalidHashError
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import (HTMLResponse, RedirectResponse, FileResponse,
                                JSONResponse, Response, StreamingResponse)
 from itsdangerous import BadSignature, URLSafeTimedSerializer
@@ -168,8 +168,22 @@ def eigene_speichern(liste: list[dict]) -> None:
     tmp.replace(EIGENE)
 
 
-def aktion(*args: str, timeout: int = 900) -> tuple[int, str]:
+def aktion(*args: str, timeout: int = 900, eingabe: bytes | None = None) -> tuple[int, str]:
+    """Ruft panel-aktion ueber die sudo-Bruecke.
+
+    "eingabe" schickt Bytes ueber stdin - gebraucht fuer hochgeladene Dateien.
+    Sie gehen NICHT als Argument mit: Argumente stehen fuer jeden Benutzer der
+    Maschine in der Prozessliste, und eine Moddatei hat dort nichts verloren,
+    von der Groesse ganz abgesehen.
+    *"eingabe" passes bytes on stdin, needed for uploads: arguments are visible
+     to every user in the process list, quite apart from the size.*
+    """
     try:
+        if eingabe is not None:
+            p = subprocess.run(AKTION + list(args), input=eingabe,
+                               capture_output=True, timeout=timeout)
+            aus = (p.stdout or p.stderr).decode("utf8", "replace")
+            return p.returncode, aus.strip()
         p = subprocess.run(AKTION + list(args), capture_output=True, text=True, timeout=timeout)
         return p.returncode, (p.stdout or p.stderr).strip()
     except subprocess.TimeoutExpired:
@@ -1001,6 +1015,12 @@ def uebersicht(request: Request, meldung: str = "", bearbeiten: str = ""):
             # erwartet, dass der Server jetzt anhaelt.
             # *The button switches the automatism, not the server: "schlafen"
             #  would read as "stop it now".*
+            # Mods nur fuer admin: Ein Mod ist Code, der IM Spielserver
+            # laeuft, mit dessen Bind-Mount und dessen Netzzugang.
+            if s.get("rolle") == "admin":
+                aktualisieren_knopf += (
+                    f'<a class=b href="/mods/{name}" '
+                    f'title="Mods dieses Servers ansehen und hochladen">mods</a>')
             sl = name in schlaf_an
             aktualisieren_knopf += (
                 f'<form method=post action=/leerlauf style=display:contents>'
@@ -1929,6 +1949,98 @@ def aktualisieren(request: Request, csrf: str = Form(""), stack: str = Form(""))
     m = (teile[2] if rc == 0 and len(teile) > 2 else
          f"Nicht aktualisiert: {aus.strip()[:220]}")
     return RedirectResponse(f"/?meldung={quote(m)}", 303)
+
+
+@app.get("/mods/{stack}", response_class=HTMLResponse)
+def mods(request: Request, stack: str, meldung: str = ""):
+    """Mods eines Servers ansehen und hochladen.
+
+    NUR fuer Administratoren, nicht fuer "verwalten". Ein Mod ist Code, der IM
+    Spielserver laeuft, mit dessen Bind-Mount und dessen Netzzugang. Einen von
+    Hand gebauten Server zu entfernen ist schon admin-only, weil es sich nicht
+    aus dem Katalog wiederherstellen laesst - fremden Code hineinzulegen ist
+    mindestens dasselbe.
+
+    *Admin only, not "verwalten": a mod is code running inside the game server
+     with its bind mount and network access. Removing a hand-built server is
+     already admin-only because it cannot be restored from the catalogue;
+     putting third-party code into one is at least that.*
+    """
+    s = angemeldet(request)
+    if s.get("rolle") != "admin":
+        return RedirectResponse("/", 303)
+    rc_z, ziel = aktion("mod-ziel", stack, timeout=30)
+    rc_l, liste_roh = aktion("mod-liste", stack, timeout=30)
+
+    if rc_z != 0:
+        koerper = (f'<div class=warn>{esc(ziel.strip()[:400])}</div>'
+                   '<p class=z>Ein Mod im falschen Verzeichnis tut nichts, und es '
+                   'fällt niemandem auf — deshalb wird hier nicht geraten.</p>')
+    else:
+        gesichert = "NEIN" not in ziel
+        warnung = ("" if gesichert else
+                   '<div class=warn>Dieses Verzeichnis fällt unter einen '
+                   'Sicherungsausschluss: Was hier liegt, überlebt keine '
+                   'Neuinstallation.</div>')
+        zeilen = "".join(
+            f'<tr><td><code>{esc(z.split(chr(9))[0].strip())}</code></td>'
+            f'<td class=z>{esc(chr(9).join(z.split(chr(9))[1:]))}</td>'
+            f'<td><form method=post action=/mod-entfernen style=display:contents>'
+            f'<input type=hidden name=csrf value="{s["csrf"]}">'
+            f'<input type=hidden name=stack value="{esc(stack)}">'
+            f'<input type=hidden name=name value="{esc(z.split(chr(9))[0].strip())}">'
+            f'<button class="b x">entfernen</button></form></td></tr>'
+            for z in liste_roh.splitlines() if z.strip())
+        koerper = (
+            f'<pre class=z>{esc(ziel)}</pre>{warnung}'
+            + (f'<table class=t><tr><th>Datei</th><th>Größe</th><th></th></tr>{zeilen}</table>'
+               if zeilen else '<p class=z>Noch kein Mod installiert.</p>')
+            + '<h2>Hochladen</h2>'
+            '<form method=post action=/mod-hochladen enctype="multipart/form-data">'
+            f'<input type=hidden name=csrf value="{s["csrf"]}">'
+            f'<input type=hidden name=stack value="{esc(stack)}">'
+            '<input type=file name=datei required>'
+            '<button class="b y">hochladen</button></form>'
+            '<p class=z>Zugelassen: .zip .dll .jar .pak .json .cfg .txt .lua, '
+            'höchstens 512 MB. Ein ZIP wird entpackt — jeder Eintrag wird '
+            '<b>vor</b> dem Entpacken geprüft, und Archive mit Symlinks werden '
+            'abgewiesen.</p>')
+
+    m = f'<div class=ok>{esc(meldung)}</div>' if meldung else ""
+    return HTMLResponse(KOPF + RUMPF + kopfleiste(s) +
+                        f'<div class=card><h1>Mods: {esc(stack)}</h1>{m}{koerper}'
+                        f'<p><a class=b href="/">zurück</a></p></div>' + FUSS)
+
+
+@app.post("/mod-hochladen")
+async def mod_hochladen(request: Request, csrf: str = Form(""),
+                        stack: str = Form(""), datei: UploadFile = File(...)):
+    s = pruefe(request, csrf)
+    if s.get("rolle") != "admin":
+        return RedirectResponse("/", 303)
+    # Die Bytes gehen unveraendert an panel-aktion und von dort an
+    # mod-verwalten. Das Panel prueft sie NICHT - es laeuft unprivilegiert und
+    # soll gar nicht erst in die Lage kommen, etwas auszupacken.
+    # *The bytes pass through unchanged; the panel runs unprivileged and should
+    #  not be in the business of unpacking anything.*
+    inhalt = await datei.read()
+    rc, aus = aktion("mod-annehmen", stack, datei.filename or "", eingabe=inhalt,
+                     timeout=300)
+    protokoll(s, "Mod hochgeladen", stack, "ok" if rc == 0 else "abgewiesen",
+              auf=(datei.filename or "")[:80])
+    m = aus.strip()[:300] if aus.strip() else ("angenommen" if rc == 0 else "abgewiesen")
+    return RedirectResponse(f"/mods/{stack}?meldung={quote(m)}", 303)
+
+
+@app.post("/mod-entfernen")
+def mod_entfernen(request: Request, csrf: str = Form(""),
+                  stack: str = Form(""), name: str = Form("")):
+    s = pruefe(request, csrf)
+    if s.get("rolle") != "admin":
+        return RedirectResponse("/", 303)
+    rc, aus = aktion("mod-entfernen", stack, name, timeout=60)
+    protokoll(s, "Mod entfernt", stack, "ok" if rc == 0 else "fehlgeschlagen", auf=name[:80])
+    return RedirectResponse(f"/mods/{stack}?meldung={quote(aus.strip()[:200])}", 303)
 
 
 @app.post("/leerlauf")

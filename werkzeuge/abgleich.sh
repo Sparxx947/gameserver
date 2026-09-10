@@ -73,6 +73,8 @@ PAARE=(
   "bin/platzwart-status:/usr/local/bin/platzwart-status"
   "bin/platzwart-verlauf:/usr/local/bin/platzwart-verlauf"
   "bin/platzwart-schlaf:/usr/local/bin/platzwart-schlaf"
+  "bin/mod-verwalten:/usr/local/bin/mod-verwalten"
+  "etc/spiele-mods.json:/etc/spiele-mods.json"
   "systemd/spiele-autoupdate.service:/etc/systemd/system/spiele-autoupdate.service"
   "systemd/spiele-autoupdate.timer:/etc/systemd/system/spiele-autoupdate.timer"
   "systemd/spiele-wiederanlauf.service:/etc/systemd/system/spiele-wiederanlauf.service"

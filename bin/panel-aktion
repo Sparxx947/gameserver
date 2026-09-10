@@ -412,6 +412,34 @@ except Exception:
     chmod 600 "$liste"
     echo "ok	auto-update fuer $s: $wert"
     ;;
+  mod-ziel|mod-liste)
+    # Lesend, deshalb wie die anderen Auskuenfte ohne weitere Schranke.
+    s="${2:-}"; pruefe_stack "$s"
+    exec /usr/local/bin/mod-verwalten "${1#mod-}" "$s"
+    ;;
+  mod-annehmen)
+    # Die Datei kommt ueber stdin. Sie wird hier NICHT angefasst - das Pruefen
+    # macht mod-verwalten, und zwar in einem Zwischenverzeichnis.
+    #
+    # Der Dateiname ist der einzige Parameter, der von aussen kommt, und er wird
+    # hier schon eingeschraenkt: keine Pfadanteile, keine Steuerzeichen. Dass
+    # mod-verwalten dasselbe noch einmal prueft, ist Absicht - zwei Schranken
+    # hintereinander, und die aeussere ist die billigere.
+    # *The file arrives on stdin and is not touched here. The name is the only
+    #  parameter from outside and is constrained here as well; mod-verwalten
+    #  checks it again on purpose.*
+    s="${2:-}"; n="${3:-}"; pruefe_stack "$s"
+    case "$n" in
+      ""|*/*|*\\*|.*) fehler "unzulaessiger Dateiname" ;;
+    esac
+    printf %s "$n" | grep -qE '^[A-Za-z0-9._-]{1,100}$' || fehler "unzulaessiger Dateiname"
+    exec /usr/local/bin/mod-verwalten annehmen "$s" "$n"
+    ;;
+  mod-entfernen)
+    s="${2:-}"; n="${3:-}"; pruefe_stack "$s"
+    printf %s "$n" | grep -qE '^[A-Za-z0-9._-]{1,100}$' || fehler "unzulaessiger Name"
+    exec /usr/local/bin/mod-verwalten entfernen "$s" "$n"
+    ;;
   schlaf)
     # Leerlauf-Abschaltung je Server. Eigene Liste, aus demselben Grund wie beim
     # Auto-Update: Die panel.json haben nur ueber den Katalog installierte
