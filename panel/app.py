@@ -1070,6 +1070,15 @@ def uebersicht(request: Request, meldung: str = "", bearbeiten: str = ""):
         if pi.get("einrichtung_offen"):
             adresse += ('<div class=warn>Einrichtung läuft: '
                         + pi.get("einrichtung_stand", "") + '</div>')
+        # Eigener Zweig, weil "kein Passwortfeld gefunden" und "der Server ist
+        # nie gestartet" verschiedene Handlungen verlangen - und weil der erste
+        # Satz im zweiten Fall in die alarmierende Richtung falsch waere: Man
+        # suchte einen offenen Port, den es gar nicht gibt (#158).
+        # *Own branch: "no password field" and "the server never started" call
+        #  for different actions, and the first would be alarmingly wrong.*
+        elif pi and "SERVER STARTET NICHT" in pi.get("einrichtung_stand", ""):
+            adresse += ('<div class=warn>Server startet nicht: '
+                        + pi.get("einrichtung_stand", "") + '</div>')
         elif pi and "KEIN Passwortfeld" in pi.get("einrichtung_stand", ""):
             adresse += ('<div class=warn>Ohne Beitrittspasswort! '
                         + pi.get("einrichtung_stand", "") + '</div>')

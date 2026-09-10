@@ -30,11 +30,13 @@ wird zum Dauerzustand - man weiss nie, ob das Problem noch besteht.
 
 Exit: 0 = nichts Neues oder gemeldet, 1 = Fehler beim Melden.
 """
+import datetime
 import json
 import os
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 ZUSTAND = Path("/var/lib/platzwart-wache.zustand")
@@ -42,6 +44,8 @@ STACKS = Path("/opt/stacks")
 MELDEN = "/usr/local/bin/platzwart-melden"
 PLATTE_WARN = int(os.environ.get("WACHE_PLATTE_WARN", "85"))
 SPEICHER_WARN = int(os.environ.get("WACHE_SPEICHER_WARN", "85"))
+NEUSTART_WARN = int(os.environ.get("WACHE_NEUSTART_WARN", "3"))
+FRISCH_MIN = int(os.environ.get("WACHE_FRISCH_MIN", "10"))    # Minuten
 
 # Beendet mit 0 = sauber angehalten, 143 = SIGTERM (also "docker stop", ein
 # ausdruecklicher Befehl). Alles andere ist ein Absturz - 137 ist SIGKILL und
@@ -147,6 +151,71 @@ def speicher_befund(gesamt_kib: int, verfuegbar_kib: int, grenzen: int,
     return t
 
 
+def container_lage() -> list:
+    """(Name, laeuft, restarting, Neustarts, Minuten seit Start, Gesundheit).
+
+    Ueber docker inspect und nicht ueber "docker ps --filter status=exited":
+    Der Filter findet eine Neustartschleife NICHT. Ein Container, den
+    restart=always sofort wieder hochzieht, steht nur Sekundenbruchteile auf
+    "exited" und die uebrige Zeit auf "restarting" - und ein Container mit
+    kaputtem Gesundheitstest steht die ganze Zeit auf "running".
+    """
+    ids = sh("docker", "ps", "-aq").split()
+    if not ids:
+        return []
+    form = ("{{.Name}}\t{{.State.Running}}\t{{.State.Restarting}}\t{{.RestartCount}}"
+            "\t{{.State.StartedAt}}\t{{if .State.Health}}{{.State.Health.Status}}{{else}}-{{end}}")
+    raus = []
+    for z in sh("docker", "inspect", "--format", form, *ids).splitlines():
+        f = z.split("\t")
+        if len(f) != 6:
+            continue
+        try:
+            neustarts = int(f[3])
+        except ValueError:
+            continue
+        seit_min = 10 ** 6
+        try:
+            s = f[4].split(".")[0].rstrip("Z")
+            seit_min = int((time.time() - datetime.datetime.fromisoformat(s)
+                            .replace(tzinfo=datetime.timezone.utc).timestamp()) / 60)
+        except (ValueError, OverflowError, OSError):
+            pass
+        raus.append((f[0].lstrip("/"), f[1] == "true", f[2] == "true",
+                     neustarts, seit_min, f[5]))
+    return raus
+
+
+def schleifen_befund(neustarts: int, seit_min: int, restarting: bool,
+                     schwelle: int = NEUSTART_WARN,
+                     frisch: int = FRISCH_MIN) -> bool:
+    """Haengt der Container gerade in einer Neustartschleife?
+
+    Getrennt von lage(), damit --selbsttest sie mit erfundenen Werten fahren
+    kann - ohne den Nachweis, dass sie anschlaegt, waere sie eine Vermutung.
+
+    ZWEI Bedingungen. RestartCount allein reicht nicht: Der Zaehler faellt nie
+    wieder, ein Container, der vorletzte Woche fuenfmal abstuerzte und seither
+    laeuft, stuende dauerhaft als Stoerung im Kanal - und ein Alarm, der nie
+    endet, wird stummgeschaltet. Deshalb zusaetzlich: Er muss GERADE neu
+    starten oder eben erst gestartet sein. Beruhigt er sich, waechst die
+    Laufzeit ueber die Frist und die Entwarnung geht von selbst hinaus.
+
+    RestartCount zaehlt nur, was die Neustartregel selbst ausgeloest hat - ein
+    "docker restart" von Hand erhoeht ihn nicht. Der Zaehler beschreibt also
+    Abstuerze, nicht Bedienung.
+
+    *Two conditions. RestartCount alone never falls, so a container that
+     crashed a fortnight ago would sit in the channel forever, and an alarm
+     that never ends gets muted. So it must also be restarting right now or
+     have started only just. RestartCount counts only policy restarts - a
+     manual "docker restart" does not raise it.*
+    """
+    if neustarts < schwelle:
+        return False
+    return restarting or seit_min < frisch
+
+
 def lage() -> dict:
     """Was stimmt gerade nicht? Schluessel -> Text. Ein leeres Ergebnis heisst
     'alles in Ordnung' - und weil der Schluessel stabil ist, erkennt der
@@ -168,6 +237,29 @@ def lage() -> dict:
             f"**{name}** ist beendet mit Code {code}{wie}.\n\n"
             f"Docker sagt: {status}\n\n"
             f"Nachsehen mit:  docker logs --tail 50 {name}")
+
+    # --- Neustartschleife und kaputter Gesundheitstest ------------------------
+    # Beides ist der Wache bis zum 2026-09-10 entgangen, weil sie nur nach
+    # "exited" sah. Gemessen auf einer Testmaschine: factorio lief zwanzig
+    # Minuten in der Schleife und ahl2 sechsunddreissig Minuten "unhealthy" -
+    # die Wache meldete keines von beiden (#158). Ein Container, der laeuft,
+    # ist nicht dasselbe wie ein Server, der laeuft.
+    for name, laeuft, restarting, neustarts, seit_min, gesund in container_lage():
+        if schleifen_befund(neustarts, seit_min, restarting):
+            funde[f"schleife:{name}"] = (
+                f"**{name}** haengt in einer Neustartschleife: {neustarts} Neustarts, "
+                f"zuletzt vor {seit_min} Minuten gestartet.\n\n"
+                "Der Container laeuft also - der Server darin nicht. Genau das sieht "
+                "weder das Panel noch die Abfrage der Spielerzahl.\n\n"
+                f"Nachsehen mit:  docker logs --tail 50 {name}")
+        elif laeuft and gesund == "unhealthy":
+            funde[f"ungesund:{name}"] = (
+                f"**{name}** meldet seinen eigenen Gesundheitstest als "
+                "fehlgeschlagen.\n\n"
+                "Der Container laeuft, aber das Abbild selbst sagt, dass darin "
+                "etwas nicht stimmt - haeufig fehlende Spieldateien oder ein "
+                "Serverprozess, der nicht startet.\n\n"
+                f"Nachsehen mit:  docker logs --tail 50 {name}")
 
     # --- Platte --------------------------------------------------------------
     p = sh("df", "--output=pcent", "/").splitlines()
@@ -271,6 +363,27 @@ def main() -> int:
                   f"(erwartet: {'meldet' if soll else 'still'})")
             schlecht += 0 if ok else 1
 
+        # Und die Neustartschleife. Zwei Bedingungen, also stehen zu jeder
+        # beide Seiten da - der Zaehler allein darf nicht reichen, sonst
+        # meldete ein laengst beruhigter Container fuer immer.
+        print("== Selbsttest: erkennt sie eine Neustartschleife? ==")
+        schleifenproben = [
+            # Neustarts, Minuten seit Start, restarting, soll melden
+            (7, 0, True,  True,  "startet gerade neu, 7 Neustarts - die Schleife"),
+            (7, 2, False, True,  "eben erst hochgekommen, faellt gleich wieder"),
+            (3, 1, False, True,  "genau auf der Schwelle"),
+            (2, 1, True,  False, "zwei Neustarts - noch kein Muster"),
+            (7, 240, False, False, "stuerzte frueher ab, laeuft seit vier Stunden"),
+            (0, 100000, False, False, "laeuft seit Wochen, nie abgestuerzt"),
+        ]
+        for neustarts, seit, restarting, soll, text in schleifenproben:
+            ist = schleifen_befund(neustarts, seit, restarting, schwelle=3, frisch=10)
+            ok = ist == soll
+            print(f"  {'ok ' if ok else 'FEHLER'}  {neustarts} Neustarts, seit {seit:>6} min"
+                  f", {'startet neu' if restarting else 'laeuft     '}  ->  "
+                  f"{'meldet' if ist else 'still '}   {text}")
+            schlecht += 0 if ok else 1
+
         return 1 if schlecht else 0
 
     jetzt = lage()
@@ -290,6 +403,8 @@ def main() -> int:
         titel = {"abgestuerzt": "Server abgestuerzt",
                  "platte": "Platte wird knapp",
                  "speicher": "Arbeitsspeicher wird knapp",
+                 "schleife": "Server in der Neustartschleife",
+                 "ungesund": "Server meldet sich als ungesund",
                  "offen": "Server ohne Beitrittspasswort"}.get(art, art)
         if not melden("stoerung", titel, text, trocken):
             fehler = 1
@@ -298,6 +413,8 @@ def main() -> int:
         titel = {"abgestuerzt": f"{wer} laeuft wieder",
                  "platte": "Platte wieder in Ordnung",
                  "speicher": "Arbeitsspeicher wieder in Ordnung",
+                 "schleife": f"{wer} startet wieder durch",
+                 "ungesund": f"{wer} meldet sich wieder gesund",
                  "offen": f"{wer}: Einrichtung abgeschlossen"}.get(art, f"{k} erledigt")
         if not melden("meldung", titel, "Die Stoerung besteht nicht mehr.", trocken):
             fehler = 1

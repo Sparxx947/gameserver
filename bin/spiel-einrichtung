@@ -307,6 +307,46 @@ def bearbeite(pfad: Path, muster, wert, zahl=False):
     return treffer
 
 
+def serverlage(stack: str):
+    """(kurz, warum) - steht hinter dem Container ueberhaupt ein laufender Server?
+
+    Die Einrichtung berichtete bisher ausschliesslich ueber Felder, die sie
+    geschrieben hat, nie darueber, ob dahinter etwas laeuft. Beim ersten
+    Aufbau auf einer frischen Maschine liefen drei von drei Servern nicht -
+    und alle drei meldeten ein Ergebnis (#158).
+
+    Am schlimmsten war die Aufgabe-Meldung nach sechs Stunden: "der Server
+    laeuft ohne Beitrittspasswort" ist falsch, wenn er ueberhaupt nicht laeuft,
+    und falsch in die ALARMIERENDE Richtung. Wer das liest, sucht einen offenen
+    Port, den es gar nicht gibt, und uebersieht darueber den echten Grund.
+
+    *Setup only ever reported on fields it wrote, never on whether a server was
+     behind them. On a fresh machine three of three were not running and all
+     three reported an outcome. The six-hour message was the worst of it: "the
+     server runs without a join password" is false when it is not running at
+     all, and false in the alarming direction.*
+    """
+    form = ("{{.State.Running}}\t{{.State.Restarting}}\t{{.RestartCount}}"
+            "\t{{if .State.Health}}{{.State.Health.Status}}{{else}}-{{end}}")
+    try:
+        r = subprocess.run(["docker", "inspect", "--format", form, stack],
+                           capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return "unbekannt", ""
+    if r.returncode != 0 or not r.stdout.strip():
+        return "fehlt", "es gibt keinen Container dieses Namens"
+    f = r.stdout.strip().split("\t")
+    if len(f) != 4:
+        return "unbekannt", ""
+    if f[1] == "true":
+        return "schleife", f"der Container startet immer wieder neu ({f[2]} Neustarts)"
+    if f[0] != "true":
+        return "gestoppt", "der Container laeuft nicht"
+    if f[3] == "unhealthy":
+        return "ungesund", "der Container meldet seinen eigenen Gesundheitstest als fehlgeschlagen"
+    return "laeuft", ""
+
+
 def einrichten(stack: str) -> dict:
     verz = STACKS / stack
     marke = verz / "panel.json"
@@ -411,10 +451,24 @@ def lauf(nur=None):
                 neustart(stack)
         elif alter_h > ENDLOS_NACH_H:
             p["einrichtung_offen"] = False
-            p["einrichtung_stand"] = ("KEIN Passwortfeld gefunden - der Server läuft ohne "
-                                      "Beitrittspasswort. Bitte von Hand setzen.")
+            kurz, warum = serverlage(stack)
+            if kurz in ("laeuft", "unbekannt"):
+                # Der Server LIEF und hat trotzdem kein Passwortfeld hergegeben -
+                # nur dann stimmt dieser Satz, und app.py haengt seine Warnung an
+                # den Wortlaut "KEIN Passwortfeld".
+                p["einrichtung_stand"] = ("KEIN Passwortfeld gefunden - der Server läuft ohne "
+                                          "Beitrittspasswort. Bitte von Hand setzen.")
+            else:
+                p["einrichtung_stand"] = (
+                    f"SERVER STARTET NICHT - {warum}. In {ENDLOS_NACH_H} Stunden ist keine "
+                    "Konfigurationsdatei entstanden, weil der Server nie so weit kam. "
+                    "Es ist also kein Beitrittspasswort gesetzt - erreichbar ist der "
+                    "Server aber auch nicht.")
         else:
-            p["einrichtung_stand"] = "wartet auf die Konfigurationsdatei des Servers"
+            kurz, warum = serverlage(stack)
+            p["einrichtung_stand"] = ("wartet auf die Konfigurationsdatei des Servers"
+                                      + ("" if kurz in ("laeuft", "unbekannt")
+                                         else f" - aber {warum}"))
         verz.write_text(json.dumps(p, indent=1) + "\n")
 
         # Der Port ZULETZT - und nur, wenn die Einrichtung entschieden ist.
