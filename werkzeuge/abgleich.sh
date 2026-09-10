@@ -65,7 +65,26 @@ PAARE=(
   "systemd/palworld-neustart.timer:/etc/systemd/system/palworld-neustart.timer"
   "systemd/dns-ziel.service:/etc/systemd/system/dns-ziel.service"
   "systemd/dns-ziel.timer:/etc/systemd/system/dns-ziel.timer"
+  "bin/spiele-autoupdate:/usr/local/bin/spiele-autoupdate"
+  "bin/spiele-wiederanlauf:/usr/local/bin/spiele-wiederanlauf"
+  "bin/platzwart-melden:/usr/local/bin/platzwart-melden"
+  "bin/platzwart-wache:/usr/local/bin/platzwart-wache"
+  "systemd/spiele-autoupdate.service:/etc/systemd/system/spiele-autoupdate.service"
+  "systemd/spiele-autoupdate.timer:/etc/systemd/system/spiele-autoupdate.timer"
+  "systemd/spiele-wiederanlauf.service:/etc/systemd/system/spiele-wiederanlauf.service"
+  "systemd/platzwart-wache.service:/etc/systemd/system/platzwart-wache.service"
+  "systemd/platzwart-wache.timer:/etc/systemd/system/platzwart-wache.timer"
 )
+# Diese Liste wird VON HAND gepflegt, und genau daran ist sie gescheitert: Sie
+# wuchs nicht mit, als spiele-autoupdate und spiele-wiederanlauf dazukamen. Neun
+# ausgerollte Dateien wurden nie verglichen, und der Lauf meldete trotzdem
+# "abweichend: 0" - eine Zahl, die wie "alles stimmt" aussieht und "alles, was
+# ich zufaellig ansehe, stimmt" bedeutet.
+# vollstaendigkeit.sh prueft seit dem 2026-09-10, dass jede von install/
+# ausgerollte Datei hier steht. Wer eine hinzufuegt, laeuft dort auf.
+# *Hand-maintained, and that is exactly how it failed: it did not grow when
+#  auto-update and restart-recovery arrived. Nine deployed files were never
+#  compared while the run still reported zero deviations.*
 
 gleich=0; anders=0; fehlt=0
 for p in "${PAARE[@]}"; do
