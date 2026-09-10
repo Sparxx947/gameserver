@@ -197,6 +197,46 @@ stillschweigend „an, wegen eines Servers, den es nicht mehr gibt". Gemessen am
 
 ---
 
+## Auf dem Telefon: `manifest.webmanifest`
+
+Die Oberfläche lässt sich als App installieren — Android über „Zum Startbildschirm
+hinzufügen", iOS über Teilen → Zum Home-Bildschirm. `display: standalone` nimmt
+die Browserleiste weg.
+
+**Der Gewinn liegt nicht im Aussehen, sondern bei den Passkeys.** Auf dem Telefon
+wird aus „Authenticator öffnen, sechs Ziffern ablesen, tippen bevor sie ablaufen"
+ein Fingerabdruck. Und das Panel ist genau das, wonach man unterwegs greift:
+*Läuft der Server noch? Starte ihn neu.*
+
+Drei Entscheidungen:
+
+* **Erzeugt, nicht als Datei ausgeliefert.** Zwei Werte kommen aus der
+  Konfiguration (der Name der Welt); eine Datei müsste beim Ausrollen ersetzt
+  werden, und dann gäbe es sie zweimal.
+* **Die Symbole zeichnet `werkzeuge/logo.py`**, jetzt auch in 192 und 512 —
+  nicht von Hand daneben gelegt. Genau dafür gibt es das Werkzeug.
+* **Kein Service Worker.** Ein Offline-Zwischenspeicher für eine Seite, deren
+  ganzer Zweck der aktuelle Zustand ist, zeigte einen alten Zustand — und das
+  ist schlimmer als eine Fehlermeldung.
+
+**`manifest-src 'self'` gehört in die CSP**, in *beiden* Blöcken. `default-src
+'none'` deckt es **nicht** ab, es ist eine eigene Direktive — ohne sie lädt der
+Browser das Manifest nicht, die Installation bleibt einfach aus, und es gibt
+keinen sichtbaren Fehler.
+
+> *The panel installs as an app; `display: standalone` removes the browser
+> chrome. The gain is not cosmetic but the passkeys: on a phone, "open the
+> authenticator, read six digits, type them before they expire" becomes a
+> fingerprint — and the panel is exactly what one reaches for away from the
+> desk. Generated rather than served as a file, because two values come from the
+> configuration. Icons are drawn by `logo.py`, now at 192 and 512 as well. No
+> service worker: an offline cache for a page whose entire purpose is current
+> state would show stale state. `manifest-src 'self'` belongs in both CSP blocks
+> — `default-src 'none'` does not cover it, and without it installation silently
+> does not happen.*
+
+---
+
 ## Die öffentliche Statusseite `/status`
 
 Wer wissen wollte, ob ein Server läuft und wie man beitritt, brauchte einen

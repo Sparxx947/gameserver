@@ -37,6 +37,9 @@ wohin() {
     panel/app.py)        echo "/opt/panel/app.py 0644 root:root" ;;
     etc/spiele-katalog.json) echo "/etc/spiele-katalog.json 0644 root:root" ;;
     etc/spiele-adressen.json) echo "/etc/spiele-adressen.json 0644 root:root" ;;
+    # Die Symbole erzeugt werkzeuge/logo.py; sie gehoeren dem Panelnutzer,
+    # weil bilder/ das einzige beschreibbare Verzeichnis des Panels ist.
+    panel/bilder/*) echo "/opt/panel/bilder/${1#panel/bilder/} 0644 panel:panel" ;;
     etc/borg-ausschluss.txt) echo "/etc/borg-ausschluss.txt 0644 root:root" ;;
     etc/caddy/Caddyfile) echo "/etc/caddy/Caddyfile 0644 root:root" ;;
     etc/fail2ban/jail.local) echo "/etc/fail2ban/jail.local 0644 root:root" ;;
@@ -52,6 +55,43 @@ for datei in "$@"; do
   [ -f "$quelle" ] || { echo "FEHLT: $datei"; fehler=1; continue; }
   if ! read -r pfad modus eigner < <(wohin "$datei"); then
     echo "UNBEKANNT wohin: $datei"; fehler=1; continue
+  fi
+
+  # Binaerdateien gehen UNVERAENDERT hinueber. Der Weg darunter laeuft ueber
+  # eine Kommandosubstitution, und die verwirft NULL-Bytes stillschweigend:
+  # Am 2026-09-10 kam icon-192.png mit 11275 statt 11409 Byte an, "file" sagte
+  # "data" statt "PNG image", und ausgerollt: stand daneben. Eine Warnung der
+  # Shell gab es, aber der Rueckgabewert war 0.
+  #
+  # Ein Werkzeug, das stillschweigend beschaedigt, ist schlimmer als eins, das
+  # abbricht. Geprueft wird trotzdem auf Platzhalter - mit "grep -a", denn die
+  # Annahme "in einer Binaerdatei steht kein Platzhalter" soll eine gepruefte
+  # Aussage sein und keine Vermutung.
+  #
+  # *Binary files are transferred verbatim: the path below goes through command
+  #  substitution, which drops NUL bytes silently - a PNG arrived 134 bytes
+  #  short and "file" called it data, while the tool printed success. A tool
+  #  that corrupts silently is worse than one that refuses. Placeholders are
+  #  still checked, with grep -a, so that "a binary holds no placeholder" is a
+  #  measured statement rather than an assumption.*
+  if LC_ALL=C grep -qI . "$quelle" 2>/dev/null; then
+    binaer=0
+  else
+    binaer=1
+  fi
+
+  if [ $binaer -eq 1 ]; then
+    if LC_ALL=C grep -aqE '@@[A-Z_]+@@' "$quelle"; then
+      echo "ABBRUCH: $datei ist binaer und enthaelt einen Platzhalter."
+      fehler=1; continue
+    fi
+    ssh "$ZIEL" "
+      [ -f '$pfad' ] && cp -a '$pfad' '$pfad.vor-$(date +%Y%m%d-%H%M%S)'
+      cat > '$pfad.neu' && chmod $modus '$pfad.neu' && chown $eigner '$pfad.neu' \
+        && mv '$pfad.neu' '$pfad'" < "$quelle" \
+      && { echo "ausgerollt: $datei -> $pfad (binaer, unveraendert)"; ausgerollt=1; } \
+      || { echo "FEHLGESCHLAGEN: $datei"; fehler=1; }
+    continue
   fi
 
   text=$(cat "$quelle")

@@ -27,7 +27,7 @@ from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError, InvalidHashError
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import (HTMLResponse, RedirectResponse, FileResponse,
-                               Response, StreamingResponse)
+                               JSONResponse, Response, StreamingResponse)
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 
 # Eigenes Datenverzeichnis: /opt/panel selbst gehoert root, damit die App
@@ -572,7 +572,7 @@ def gesperrt(ip: str) -> int:
 
 
 KOPF = """<!doctype html><html lang=de><head><meta charset=utf-8>
-<meta name=viewport content="width=device-width,initial-scale=1"><title>Platzwart</title><link rel=icon href="/favicon.svg" type="image/svg+xml"><link rel="alternate icon" href="/favicon.ico" sizes="48x48 32x32 16x16"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name=viewport content="width=device-width,initial-scale=1"><title>Platzwart</title><link rel=icon href="/favicon.svg" type="image/svg+xml"><link rel="alternate icon" href="/favicon.ico" sizes="48x48 32x32 16x16"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel=manifest href="/manifest.webmanifest"><meta name=theme-color content="#14161a">
 <style>
 :root{color-scheme:dark;--bg:#14161a;--k:#1d2026;--r:#2b303a;--t:#e6e8ec;--d:#9aa1ad;--a:#5b9dd9;--g:#4caf7d;--x:#d9534f;--y:#d9a441}
 .sp{color:var(--d);font-size:12px}.sp.an{color:var(--g);font-weight:600}
@@ -1033,6 +1033,57 @@ def favicon_ico():
 @app.get("/favicon.svg")
 def favicon_svg():
     return FileResponse(BILDER / "favicon.svg", media_type="image/svg+xml",
+                        headers={"Cache-Control": "public, max-age=86400"})
+
+
+# Das Manifest macht aus der Oberflaeche eine installierbare App. Es wird hier
+# erzeugt und nicht als Datei ausgeliefert, weil zwei Werte daraus aus der
+# Konfiguration kommen (Name der Welt) - eine Datei muesste dafuer beim
+# Ausrollen ersetzt werden, und dann gaebe es sie zweimal.
+#
+# "display": "standalone" nimmt die Browserleiste weg. Das ist der eigentliche
+# Gewinn zusammen mit den Passkeys: Auf dem Telefon wird aus "Authenticator
+# oeffnen, sechs Ziffern ablesen, tippen bevor sie ablaufen" ein Fingerabdruck.
+#
+# KEIN Service Worker. Ein Offline-Zwischenspeicher fuer eine Seite, deren
+# ganzer Zweck der aktuelle Zustand ist, zeigte einen alten Zustand - und das
+# ist schlimmer als eine Fehlermeldung.
+#
+# *Generated rather than served as a file because two values come from the
+#  configuration. "standalone" removes the browser chrome, which together with
+#  passkeys turns TOTP typing into a fingerprint on a phone. No service worker:
+#  an offline cache for a page whose entire purpose is current state would show
+#  stale state, which is worse than an error.*
+@app.get("/manifest.webmanifest")
+def manifest():
+    return JSONResponse({
+        "name": "Platzwart @@WELT_NAME@@",
+        "short_name": "Platzwart",
+        "description": "Spieleserver verwalten",
+        "start_url": "/",
+        "scope": "/",
+        "display": "standalone",
+        "background_color": "#14161a",
+        "theme_color": "#14161a",
+        "icons": [
+            {"src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml"},
+            {"src": "/icon-192.png", "sizes": "192x192", "type": "image/png"},
+            {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png",
+             "purpose": "any maskable"},
+        ],
+    }, media_type="application/manifest+json",
+       headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/icon-192.png")
+def icon192():
+    return FileResponse(BILDER / "icon-192.png", media_type="image/png",
+                        headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/icon-512.png")
+def icon512():
+    return FileResponse(BILDER / "icon-512.png", media_type="image/png",
                         headers={"Cache-Control": "public, max-age=86400"})
 
 
