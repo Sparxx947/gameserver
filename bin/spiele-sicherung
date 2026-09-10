@@ -59,9 +59,21 @@ fehler=0
 
 # Ab wieviel Dateien gilt ein Archiv als "nicht praktisch leer"? Und auf welchen
 # Bruchteil des Vorgaengers darf es fallen, ohne dass jemand hinsieht?
-MIN_DATEIEN="${SICHERUNG_MIN_DATEIEN:-5}"
+# Gemessen wird die GROESSE, nicht die Dateizahl. Der erste Entwurf zaehlte
+# Dateien und meldete prompt satisfactory als "praktisch leer" - dort liegen
+# genau vier .sav-Dateien, und das ist der vollstaendige Spielstand. Vier
+# Dateien mit 258 kB und zwei Dateien mit 13 kB sehen als Zahl aehnlich aus und
+# sind es nicht.
+#
+# Ein Fehlalarm ist hier besonders teuer: Diese Meldung soll man ernst nehmen,
+# und eine, die bei einem gesunden Spiel losgeht, nimmt man nach dem zweiten Mal
+# nicht mehr ernst.
+# *Size, not file count. The first draft counted files and promptly flagged
+#  satisfactory, where four .sav files ARE the complete save. Four files at
+#  258 kB and two at 13 kB look similar as a number and are not.*
+MIN_BYTES="${SICHERUNG_MIN_BYTES:-51200}"          # 50 kB
 EINBRUCH_ANTEIL="${SICHERUNG_EINBRUCH_ANTEIL:-25}"   # Prozent
-ZAEHLER=/var/lib/spiele-sicherung.dateizahlen
+ZAEHLER=/var/lib/spiele-sicherung.groessen
 
 
 # --- Ist das Archiv plausibel? ----------------------------------------------
@@ -91,22 +103,22 @@ ZAEHLER=/var/lib/spiele-sicherung.dateizahlen
 # *A day, not the usual three hours: this runs every 15 minutes, and eight
 #  messages a day about a long-known problem stop being read. The failed-
 #  backup message keeps the short window - that one is urgent.*
-pruefe_plausibel() {   # pruefe_plausibel <name> <dateizahl>
+pruefe_plausibel() {   # pruefe_plausibel <name> <bytes>
   local name="$1" zahl="$2" vorher=""
   [ -n "$zahl" ] || return 0
   [ -f "$ZAEHLER" ] && vorher=$(grep -E "^$name " "$ZAEHLER" 2>/dev/null | awk '{print $2}')
 
-  if [ "$zahl" -le "$MIN_DATEIEN" ]; then
+  if [ "$zahl" -lt "$MIN_BYTES" ]; then
     PLATZWART_MELDEN_RUHE_MIN=1440 melden stoerung "Sicherung von $name ist praktisch leer" \
-"Das Archiv enthaelt $zahl Datei(en). Eine Sicherung, die nichts einfaengt,
+"Das Archiv enthaelt $((zahl / 1024)) kB. Eine Sicherung, die nichts einfaengt,
 meldet trotzdem Erfolg - der Rueckgabewert sagt nur, dass das Archiv entstanden
 ist, nicht dass etwas drin steht.
 
 Nachsehen mit:  panel-aktion archive $name"
-  elif [ -n "$vorher" ] && [ "$vorher" -gt "$MIN_DATEIEN" ] \
+  elif [ -n "$vorher" ] && [ "$vorher" -ge "$MIN_BYTES" ] \
        && [ $((zahl * 100)) -lt $((vorher * EINBRUCH_ANTEIL)) ]; then
     PLATZWART_MELDEN_RUHE_MIN=1440 melden stoerung "Sicherung von $name eingebrochen" \
-"Vorher $vorher Dateien, jetzt $zahl. Das ist unter $EINBRUCH_ANTEIL Prozent.
+"Vorher $((vorher / 1024)) kB, jetzt $((zahl / 1024)) kB. Das ist unter $EINBRUCH_ANTEIL Prozent.
 
 Wenn dort nicht gerade etwas geloescht wurde, faengt die Sicherung seit diesem
 Lauf weniger ein, als sie soll."
@@ -133,8 +145,10 @@ sichere() {   # sichere <name> <pfad>
   if [ $rc -ne 0 ]; then
     echo "FEHLER: borg create fuer $name endete mit $rc" >&2; fehler=1; return
   fi
-  pruefe_plausibel "$name" "$(grep -oE "Number of files: *[0-9]+" <<<"$aus" \
-                              | grep -oE "[0-9]+" | head -1)"
+  # borg --stats nennt die Groesse mit Einheit ("13.44 kB"). Gerechnet wird in
+  # Bytes, damit ein Vergleich ueberhaupt moeglich ist - "2.43 GB" und "258 kB"
+  # lassen sich als Text nicht vergleichen.
+  pruefe_plausibel "$name" "$(in_bytes "$aus")"
   # prune NUR innerhalb dieses Praefixes, sonst wuerde ein Spiel die Staende
   # eines anderen wegraeumen. Borg 1.2 nennt das --glob-archives.
   borg prune --glob-archives "${name}-*" "${prune_regeln[@]}" "$REPO" >/dev/null 2>&1 \
@@ -179,6 +193,32 @@ borg compact "$REPO" >/dev/null 2>&1
 # frueher oder spaeter auseinander.
 # *One definition on purpose: it briefly existed twice, which Bash resolves
 #  to the last one - same behaviour, but two identical lines drift apart.*
+# Die Groesse aus "borg create --stats" in Bytes.
+#
+# Eine eigene Funktion und KEIN eingebettetes awk: Der erste Entwurf hatte das
+# awk-Programm mitten in der Aufrufzeile, und die verschachtelten
+# Anfuehrungszeichen zerbrachen beim Einsetzen - "awk: runaway string constant".
+# Der Lauf meldete daraufhin fuer fuenf Spiele Exit 2, obwohl die Sicherung
+# selbst durchgelaufen war. Ein Werkzeug, dessen Auswertung den ganzen Lauf
+# scheitern laesst, ist schlimmer als eines ohne Auswertung.
+# *A function of its own rather than awk embedded in the call line, where the
+#  nested quoting broke and made five games report exit 2 although the backup
+#  itself had completed.*
+in_bytes() {
+  local zeile zahl einheit
+  zeile=$(grep -m1 "^This archive:" <<<"$1") || return 0
+  zahl=$(awk "{print \$3}" <<<"$zeile")
+  einheit=$(awk "{print \$4}" <<<"$zeile")
+  case "$einheit" in
+    kB) python3 -c "print(int(float('$zahl')*1000))" ;;
+    MB) python3 -c "print(int(float('$zahl')*1000000))" ;;
+    GB) python3 -c "print(int(float('$zahl')*1000000000))" ;;
+    TB) python3 -c "print(int(float('$zahl')*1000000000000))" ;;
+    B)  python3 -c "print(int(float('$zahl')))" ;;
+    *)  return 0 ;;
+  esac
+}
+
 melden() { /usr/local/bin/platzwart-melden "$@" 2>/dev/null || true; }
 MARKE=/var/lib/spiele-sicherung.stoerung
 if [ $fehler -ne 0 ]; then
