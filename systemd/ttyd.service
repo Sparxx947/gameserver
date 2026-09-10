@@ -1,5 +1,5 @@
 [Unit]
-Description=Webterminal (ttyd) fuer das Panel
+Description=Platzwart: Webterminal (ttyd)
 After=network.target
 
 [Service]

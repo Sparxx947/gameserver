@@ -1,5 +1,5 @@
 [Unit]
-Description=Freigeschaltete Spieleserver aktualisieren
+Description=Platzwart: freigeschaltete Spieleserver aktualisieren
 Requires=docker.service
 After=docker.service network-online.target
 

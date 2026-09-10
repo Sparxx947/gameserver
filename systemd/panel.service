@@ -1,5 +1,5 @@
 [Unit]
-Description=Platzwart - Weboberflaeche des Spieleservers
+Description=Platzwart: Weboberflaeche
 After=network-online.target docker.service
 Wants=network-online.target
 

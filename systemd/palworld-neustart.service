@@ -1,5 +1,5 @@
 [Unit]
-Description=Palworld-Server neu starten (gegen das bekannte Speicherleck)
+Description=Platzwart: Palworld neu starten (gegen das bekannte Speicherleck)
 
 [Service]
 Type=oneshot
