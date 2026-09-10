@@ -72,6 +72,44 @@ fehler=0
 #  satisfactory, where four .sav files ARE the complete save. Four files at
 #  258 kB and two at 13 kB look similar as a number and are not.*
 MIN_BYTES="${SICHERUNG_MIN_BYTES:-51200}"          # 50 kB
+
+# --- Alterspruefung (#142) --------------------------------------------------
+# Die zwei Pruefungen oben messen die GROESSE. Ein Spielstand, der einmal
+# geschrieben und nie wieder angefasst wurde, behaelt seine Groesse: Er kommt
+# alle 15 Minuten sauber durch die Untergrenze (genug Inhalt) und durch den
+# Einbruchsvergleich (nichts gefallen) - und das Archiv ist eine treue Kopie
+# einer Welt, die vor Tagen aufhoerte, geschrieben zu werden. Wir erkannten also
+# ein Netz, das NIE etwas gefangen hat, aber nicht eines, das AUFGEHOERT hat.
+#
+# Das Signal dafuer kostet nichts: "borg create --stats" nennt die deduplizierte
+# Groesse, also was gegenueber dem letzten Lauf wirklich neu ist. Gemessen am
+# 2026-09-10:
+#
+#   windrose (schreibt gerade)   181,31 kB neu
+#   satisfactory (schreibt nicht)   639 B  neu
+#   teamspeak (nur Konfiguration)   643 B  neu
+#
+# Die rund 640 Byte sind Borgs eigene Verwaltungsdaten - das ist der Boden.
+# Alles darueber heisst: es hat sich etwas geaendert. Das braucht KEIN Wissen
+# darueber, wie ein einzelnes Spiel seine Staende ablegt, und genau daran waere
+# eine Loesung ueber Dateimuster gescheitert (bei Valheim und FOUNDRY traf mein
+# erster Versuch das Falsche).
+#
+# *The two checks above measure size. A save written once and never touched
+#  keeps its size and passes both forever. The deduplicated size from
+#  --stats says what is actually new since the last run, costs nothing extra,
+#  and needs no per-game knowledge of where saves live - which is exactly what a
+#  file-pattern approach got wrong.*
+NEU_SCHWELLE="${SICHERUNG_NEU_SCHWELLE:-2048}"     # darunter gilt: nichts Neues
+STILL_STUNDEN="${SICHERUNG_STILL_STUNDEN:-24}"
+
+# Von Natur aus ausgenommen: Was hier steht, schreibt legitim tagelang nichts.
+# TeamSpeaks Daten sind Konfiguration und eine Datenbank, die sich nur aendert,
+# wenn jemand Kanaele umbaut - eine Regel, die das meldet, wird stummgeschaltet
+# und nimmt die echten Funde mit.
+# *Exempt by nature: a rule that flags these gets muted and takes the real
+#  findings with it.*
+OHNE_ALTERSPRUEFUNG="${SICHERUNG_OHNE_ALTERSPRUEFUNG:-teamspeak}"
 EINBRUCH_ANTEIL="${SICHERUNG_EINBRUCH_ANTEIL:-25}"   # Prozent
 ZAEHLER=/var/lib/spiele-sicherung.groessen
 
@@ -119,11 +157,20 @@ ZAEHLER=/var/lib/spiele-sicherung.groessen
 # *A function of its own rather than awk embedded in the call line, where the
 #  nested quoting broke and made five games report exit 2 although the backup
 #  itself had completed.*
-in_bytes() {
+in_bytes() {   # in_bytes <stats-text> [dedup]
+  # Die Zeile hat drei Groessenangaben:
+  #   This archive:   <original> <einheit>  <komprimiert> <einheit>  <dedup> <einheit>
+  # Ohne zweites Argument die erste (wieviel ist drin), mit "dedup" die letzte
+  # (wieviel ist gegenueber dem letzten Lauf neu).
   local zeile zahl einheit
   zeile=$(grep -m1 "^This archive:" <<<"$1") || return 0
-  zahl=$(awk "{print \$3}" <<<"$zeile")
-  einheit=$(awk "{print \$4}" <<<"$zeile")
+  if [ "${2:-}" = "dedup" ]; then
+    zahl=$(awk "{print \$(NF-1)}" <<<"$zeile")
+    einheit=$(awk "{print \$NF}" <<<"$zeile")
+  else
+    zahl=$(awk "{print \$3}" <<<"$zeile")
+    einheit=$(awk "{print \$4}" <<<"$zeile")
+  fi
   case "$einheit" in
     kB) python3 -c "print(int(float('$zahl')*1000))" ;;
     MB) python3 -c "print(int(float('$zahl')*1000000))" ;;
@@ -145,10 +192,14 @@ melden() { /usr/local/bin/platzwart-melden "$@" 2>/dev/null || true; }
 # *A day, not the usual three hours: this runs every 15 minutes, and eight
 #  messages a day about a long-known problem stop being read. The failed-
 #  backup message keeps the short window - that one is urgent.*
-pruefe_plausibel() {   # pruefe_plausibel <name> <bytes>
-  local name="$1" zahl="$2" vorher=""
+pruefe_plausibel() {   # pruefe_plausibel <name> <bytes> <neu_bytes>
+  local name="$1" zahl="$2" neu="${3:-}" vorher="" seit="" jetzt
   [ -n "$zahl" ] || return 0
-  [ -f "$ZAEHLER" ] && vorher=$(grep -E "^$name " "$ZAEHLER" 2>/dev/null | awk '{print $2}')
+  jetzt=$(date +%s)
+  [ -f "$ZAEHLER" ] && {
+    vorher=$(grep -E "^$name " "$ZAEHLER" 2>/dev/null | awk '{print $2}')
+    seit=$(grep -E "^$name " "$ZAEHLER" 2>/dev/null | awk '{print $3}')
+  }
 
   if [ "$zahl" -lt "$MIN_BYTES" ]; then
     PLATZWART_MELDEN_RUHE_MIN=1440 melden stoerung "Sicherung von $name ist praktisch leer" \
@@ -166,11 +217,43 @@ Wenn dort nicht gerade etwas geloescht wurde, faengt die Sicherung seit diesem
 Lauf weniger ein, als sie soll."
   fi
 
+  # --- Hat sich seit Tagen nichts geaendert? -------------------------------
+  # Der Zeitpunkt der letzten echten Aenderung wird gespeichert, nicht die Zahl
+  # der stillen Laeufe: Ein Neustart des Zeitgebers wuerde einen Zaehler
+  # zuruecksetzen und die Stille von vorn beginnen lassen.
+  # *The moment of the last real change is stored, not a count of quiet runs:
+  #  restarting the timer would reset a counter and start the silence over.*
+  if [ -n "$neu" ] && [ "$neu" -ge "$NEU_SCHWELLE" ]; then
+    seit="$jetzt"
+  else
+    [ -n "$seit" ] || seit="$jetzt"
+    if ! grep -qw "$name" <<<"$OHNE_ALTERSPRUEFUNG"; then
+      local still_h=$(( (jetzt - seit) / 3600 ))
+      # Der Container muss auch SO LANGE schon laufen. "Laeuft seit gestern und
+      # hat nichts geschrieben" ist eine Aussage; "wurde vor zehn Minuten
+      # gestartet" ist keine, egal wie alt der Spielstand ist.
+      # *The container must have been up that long too: "running since yesterday
+      #  and wrote nothing" is a statement, "started ten minutes ago" is not.*
+      local start laufzeit_h=0
+      start=$(docker inspect "$name" --format '{{.State.StartedAt}}' 2>/dev/null)
+      [ -n "$start" ] && laufzeit_h=$(( (jetzt - $(date -d "$start" +%s 2>/dev/null || echo "$jetzt")) / 3600 ))
+      if [ "$still_h" -ge "$STILL_STUNDEN" ] && [ "$laufzeit_h" -ge "$STILL_STUNDEN" ]; then
+        PLATZWART_MELDEN_RUHE_MIN=1440 melden stoerung "$name schreibt seit $still_h Stunden nichts" \
+"Der Server laeuft seit $laufzeit_h Stunden, und seit $still_h Stunden kam in der
+Sicherung nichts Neues dazu. Das Archiv ist gross genug und faellt nicht - es ist
+nur eine treue Kopie eines Standes, der sich nicht mehr aendert.
+
+Zwei Bilder passen dazu: Das Spiel pausiert, wenn niemand drauf ist (FOUNDRY und
+Satisfactory haben so einen Schalter), oder es kommt nicht mehr zum Schreiben."
+      fi
+    fi
+  fi
+
   # Zahl merken - erst NACH der Pruefung, sonst vergleicht der naechste Lauf
   # gegen den eingebrochenen Wert und schweigt.
   local tmp; tmp=$(mktemp)
   grep -vE "^$name " "$ZAEHLER" 2>/dev/null > "$tmp" || true
-  echo "$name $zahl" >> "$tmp"
+  echo "$name $zahl $seit" >> "$tmp"
   sort -o "$ZAEHLER" "$tmp" 2>/dev/null && chmod 600 "$ZAEHLER"
   rm -f "$tmp"
 }
@@ -190,7 +273,9 @@ sichere() {   # sichere <name> <pfad>
   # borg --stats nennt die Groesse mit Einheit ("13.44 kB"). Gerechnet wird in
   # Bytes, damit ein Vergleich ueberhaupt moeglich ist - "2.43 GB" und "258 kB"
   # lassen sich als Text nicht vergleichen.
-  pruefe_plausibel "$name" "$(in_bytes "$aus")"
+  # Die deduplizierte Groesse steht in derselben Zeile, in den letzten beiden
+  # Feldern - sie sagt, was gegenueber dem letzten Lauf WIRKLICH neu ist.
+  pruefe_plausibel "$name" "$(in_bytes "$aus")" "$(in_bytes "$aus" dedup)"
   # prune NUR innerhalb dieses Praefixes, sonst wuerde ein Spiel die Staende
   # eines anderen wegraeumen. Borg 1.2 nennt das --glob-archives.
   borg prune --glob-archives "${name}-*" "${prune_regeln[@]}" "$REPO" >/dev/null 2>&1 \

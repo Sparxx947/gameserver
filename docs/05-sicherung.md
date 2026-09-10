@@ -240,6 +240,72 @@ constant`). Der Lauf meldete daraufhin für fünf Spiele `Exit 2`, **obwohl die
 Sicherung selbst durchgelaufen war** — ein Werkzeug, dessen Auswertung den
 ganzen Lauf scheitern lässt, ist schlimmer als eines ohne Auswertung.
 
+### Die dritte Prüfung: hat sich überhaupt noch etwas geändert?
+
+Die beiden Prüfungen oben messen die **Größe**. Ein Spielstand, der einmal
+geschrieben und nie wieder angefasst wurde, behält seine Größe: Er kommt durch
+die Untergrenze (genug Inhalt) *und* durch den Einbruchsvergleich (nichts
+gefallen) — alle 15 Minuten, für immer. Das Archiv ist dann eine treue Kopie
+einer Welt, die vor Tagen aufhörte, geschrieben zu werden.
+
+Erkannt wurde also ein Netz, das **nie** etwas gefangen hat — aber nicht eines,
+das **aufgehört** hat.
+
+**Das Signal dafür kostet nichts.** `borg create --stats` nennt die
+deduplizierte Größe, also was gegenüber dem letzten Lauf wirklich neu ist.
+Gemessen am 2026-09-10:
+
+| Spiel | insgesamt | davon neu |
+|---|---|---|
+| `windrose` (schreibt gerade) | 76,05 MB | **181,31 kB** |
+| `satisfactory` (schreibt nicht) | 259,05 kB | **639 B** |
+| `teamspeak` (nur Konfiguration) | 252,26 kB | **643 B** |
+
+Die rund 640 Byte sind Borgs eigene Verwaltungsdaten — das ist der Boden. Alles
+darüber heißt: es hat sich etwas geändert. Und das braucht **kein Wissen
+darüber, wie ein einzelnes Spiel seine Stände ablegt**; genau daran wäre eine
+Lösung über Dateimuster gescheitert, die bei Valheim und FOUNDRY das Falsche traf.
+
+**Zwei Bedingungen müssen zusammenkommen**, sonst meldet die Prüfung Unsinn:
+
+* seit **24 Stunden** kam nichts Neues dazu, **und**
+* der Container läuft auch schon so lange.
+
+„Läuft seit gestern und hat nichts geschrieben" ist eine Aussage. „Wurde vor
+zehn Minuten gestartet" ist keine, egal wie alt der Spielstand ist.
+
+Gespeichert wird der **Zeitpunkt der letzten echten Änderung**, nicht die Zahl
+stiller Läufe: Ein Neustart des Zeitgebers würde einen Zähler zurücksetzen und
+die Stille von vorn beginnen lassen.
+
+**Ausgenommen ist, was von Natur aus tagelang nichts schreibt** — voreingestellt
+`teamspeak`, dessen Daten Konfiguration und eine Datenbank sind, die sich nur
+ändert, wenn jemand Kanäle umbaut. Eine Regel, die das meldet, wird
+stummgeschaltet und nimmt die echten Funde mit. Änderbar über
+`SICHERUNG_OHNE_ALTERSPRUEFUNG`.
+
+**Was die Prüfung sichtbar machen wird:** Zwei der sieben Stacks tragen einen
+Schalter, der das Spiel anhält, wenn niemand drauf ist — FOUNDRYs
+`PAUSE_SERVER_WHEN_EMPTY` und Satisfactorys `AUTOPAUSE`. Am 2026-09-10 hatte
+Satisfactory seit **17,6 Stunden** nichts geschrieben, während der Server lief.
+Ob das für dieses Abbild normal ist, hat bis dahin **niemand gemessen** — und
+die Prüfungen, die es gab, hätten es nicht gesagt.
+
+> *The two checks above measure size. A save written once and never touched keeps
+> its size and passes both forever, while the archive is a faithful copy of a
+> world that stopped being written days ago — so a net that never caught anything
+> was detected, but not one that stopped catching. The signal costs nothing:
+> `--stats` reports the deduplicated size, i.e. what is genuinely new since the
+> last run, and roughly 640 bytes is borg's own bookkeeping floor. It needs no
+> per-game knowledge of where saves live, which is exactly what a file-pattern
+> approach got wrong for Valheim and FOUNDRY. Two conditions must coincide:
+> nothing new for 24 hours AND the container up that long — "running since
+> yesterday and wrote nothing" is a statement, "started ten minutes ago" is not.
+> The moment of the last real change is stored rather than a count of quiet runs,
+> so restarting the timer does not restart the silence. Exempt by default is
+> `teamspeak`, whose data legitimately sits unchanged for days; a rule that flags
+> it gets muted and takes the real findings with it.*
+
 ### Einmal am Tag, nicht alle drei Stunden
 
 Diese beiden Meldungen gehen mit einer Ruhezeit von **einem Tag** hinaus. Der
