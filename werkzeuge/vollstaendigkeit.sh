@@ -65,7 +65,8 @@ python3 -c "import json;json.load(open('etc/spiele-katalog.json'))" 2>/dev/null 
 # Python ein AUSDRUCK und wird zum Tupel "(1, 20)". Die Syntaxpruefung laesst das
 # durch, weil "1,20" gueltiges Python ist - im ausgelieferten HTML stand dann
 # pattern="[A-Za-z0-9](1, 20)", und ein voellig korrekter Benutzername wurde vom
-# Browser abgewiesen (08.09., "ropax85"). Deshalb wird hier das ERGEBNIS geprueft,
+# Browser abgewiesen (08.09., ein siebenstelliger Name aus Buchstaben und
+# Ziffern). Deshalb wird hier das ERGEBNIS geprueft,
 # nicht der Quelltext.
 # *Braces in f-strings: {1,20} in an HTML attribute is an expression to Python and
 #  renders as a tuple. The syntax check passes it, so the rendered output is what
@@ -158,6 +159,33 @@ treffer=$(grep -rniE "$MUSTER" --exclude-dir=.git --exclude=konfiguration.env \
             --exclude='vollstaendigkeit.sh' --exclude='*.beispiel' . || true)
 if [ -n "$treffer" ]; then
   echo "  TREFFER — bitte pruefen:"; sed 's/^/    /' <<<"$treffer"; fehler=1
+fi
+
+# --- 4b. Keine echten IP-Adressen -------------------------------------------
+# Am 2026-09-09 stand die oeffentliche IPv4 des Servers in E23 - seit dem
+# 08.09., als der Vorfall aufgeschrieben wurde. Die Regel dagegen steht in
+# CLAUDE.md; gemerkt hat sie niemand, weil nichts hinsah.
+#
+# Erlaubt sind genau die Bereiche, die keinen Ort verraten: Loopback, 0.0.0.0,
+# die privaten Netze (RFC 1918), der Tailscale-Bereich (RFC 6598) und die drei
+# Dokumentationsnetze aus RFC 5737. Alles andere ist ein Fund - auch eine
+# fremde Adresse, denn die gehoert genauso wenig hierher.
+#
+# Das "(?<!§)" ist kein Schmuck: "§4.2.1.1" (NIST SP 800-63B-4) und "§3.1.3.1"
+# sehen wie IPv4 aus. Ohne diese Ausnahme meldet die Pruefung zwei Abschnitts-
+# nummern und wird nach dem zweiten Mal ignoriert.
+# *Allowed are exactly the ranges that reveal no location. The negative
+#  lookbehind is not decoration: NIST section numbers look like IPv4, and a
+#  check that cries wolf twice gets ignored.*
+echo "== Keine echten IP-Adressen? =="
+treffer=$(grep -rPoh '(?<!§)(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?![\d.])' \
+            --exclude-dir=.git --exclude=konfiguration.env --exclude='vollstaendigkeit.sh' . \
+          | sort -u | grep -vE '^(127\.|0\.0\.0\.0$|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.|100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.|192\.0\.2\.|198\.51\.100\.|203\.0\.113\.)' || true)
+if [ -n "$treffer" ]; then
+  echo "  STANDORTDATEN — echte Adressen gehoeren nicht ins Repositorium:"
+  sed 's/^/    /' <<<"$treffer"
+  echo "    Fuer Beispiele: 192.0.2.x, 198.51.100.x, 203.0.113.x (RFC 5737)."
+  fehler=1
 fi
 
 # --- 5. Jeder Platzhalter muss in der Vorlage erklaert sein ------------------
