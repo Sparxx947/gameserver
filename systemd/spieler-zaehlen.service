@@ -1,0 +1,13 @@
+[Unit]
+Description=Platzwart: Spielerzahlen abfragen
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/spieler-zaehlen
+# Wie bei platzwart-wache: KEINE Haertung, die NoNewPrivileges impliziert -
+# dieser Dienst braucht den Docker-Socket, und ohne ihn saehe er still keine
+# Container und schriebe eine leere Liste.
+ProtectHome=yes
+PrivateTmp=yes
