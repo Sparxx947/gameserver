@@ -567,7 +567,8 @@ nicht auf.
 Prüft, ob das Repositorium alles enthält, was die Einrichtung anfasst: existiert
 jede von `install/` referenzierte Datei **und wird sie von git verfolgt**, sind
 alle Skripte syntaktisch heil, steckt irgendwo ein Geheimnis, ist jeder
-`@@PLATZHALTER@@` in `konfiguration.env.beispiel` erklärt.
+`@@PLATZHALTER@@` in `konfiguration.env.beispiel` erklärt — und halten die
+Katalogports die vier Regeln aus `katalog-ports.py` ein.
 
 Als Bremse vor jedem Commit:
 `ln -sf ../../werkzeuge/git-hooks/pre-commit .git/hooks/pre-commit`.
@@ -575,8 +576,28 @@ Notausgang `GAMESERVER_KEIN_GATE=1`.
 
 > *Verifies the repository holds everything the installation touches: every file
 > referenced by `install/` exists and is tracked, all scripts parse, no secret is
-> present, every placeholder is documented. Wire it in as a pre-commit hook via
+> present, every placeholder is documented, and the catalogue ports follow the
+> four rules in `katalog-ports.py`. Wire it in as a pre-commit hook via
 > the symlink above; bypass with `GAMESERVER_KEIN_GATE=1`.*
+
+### `katalog-ports.py`
+
+```
+werkzeuge/katalog-ports.py            Katalogports pruefen (Exit 1 = Verstoss)
+PLATZWART_PORTPRUEFUNG=aus …          abschalten, nur wenn man weiss, warum
+```
+
+Vier Regeln: Verwaltungsports nur auf `127.0.0.1`, TCP und UDP eines
+Containerports auf einem Hostport, die Beitrittsadresse auf einem Port, auf dem
+das Spiel ankommt, kein Hostport doppelt (lokale eingeschlossen). Enthält
+außerdem die Helfer, die `katalog-ergaenzen.py` und `katalog-lgsm.py` für die
+Portvergabe benutzen — die Regel steht damit einmal, nicht in drei Kopien.
+Hintergrund: [04-spielekatalog.md](04-spielekatalog.md#portregeln-im-katalog).
+
+> *Four rules — management ports local only, TCP and UDP of a container port on
+> one host port, a join port the game listens on, no host port used twice (local
+> ones included). Also holds the helpers both catalogue generators use for port
+> allocation, so the rule exists once rather than in three copies.*
 
 ---
 

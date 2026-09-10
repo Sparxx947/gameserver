@@ -16,8 +16,8 @@
     "26901:26901/udp",
     "26902:26902/udp",
     "26903:26903/udp",
-    "127.0.0.1:8081:8080/tcp",
-    "8082:8082/tcp",
+    "127.0.0.1:30400:8080/tcp",
+    "127.0.0.1:8082:8082/tcp",
     "30013:27015/udp"
    ],
    "volumes": [
@@ -38,7 +38,7 @@
    },
    "adresse_port": 26900,
    "spieler": 4,
-   "hinweis": "Verwaltungszugang liegt lokal auf 8081 statt 8080 (Necesse hat 8080). Verwaltungszugang (TCP2 - Web base control) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30013. This Docker will download and install SteamCMD. It will also install 7 Days to Die and run it. ATTENTION: First Startup can take very long since it downloads the gameserver files! Update Notice: Simply restart the container if a n… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "hinweis": "Verwaltungszugaenge (TCP2 - Web base control auf 127.0.0.1:30400/tcp; TCP3 - Web Panel auf 127.0.0.1:8082/tcp) sind nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30013. This Docker will download and install SteamCMD. It will also install 7 Days to Die and run it. ATTENTION: First Startup can take very long since it downloads the gameserver files! Update Notice: Simply restart the container if a n… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -97,7 +97,7 @@
    "platte_gb": 12,
    "ports": [
     "30300:27015/udp",
-    "30300:27015/tcp"
+    "127.0.0.1:30300:27015/tcp"
    ],
    "volumes": [
     "/srv/games/ahl:/data"
@@ -117,7 +117,7 @@
    },
    "adresse_port": 30300,
    "spieler": 4,
-   "hinweis": "Action Half-Life in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/ahlserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30300/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30300. Action Half-Life in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/ahlserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -136,7 +136,7 @@
    "platte_gb": 12,
    "ports": [
     "30301:27015/udp",
-    "30301:27015/tcp"
+    "127.0.0.1:30301:27015/tcp"
    ],
    "volumes": [
     "/srv/games/ahl2:/data"
@@ -156,7 +156,7 @@
    },
    "adresse_port": 30301,
    "spieler": 4,
-   "hinweis": "Action: Source in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/ahl2server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30301/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30301. Action: Source in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/ahl2server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -175,7 +175,7 @@
    "platte_gb": 15,
    "ports": [
     "30100:27015/udp",
-    "27015:27015/tcp"
+    "127.0.0.1:27015:27015/tcp"
    ],
    "volumes": [
     "/srv/games/alienswarm:/serverdata"
@@ -195,7 +195,7 @@
    },
    "adresse_port": 30100,
    "spieler": 4,
-   "hinweis": "Koop-Shooter aus der Vogelperspektive, bis 4. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:27015/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30100. Koop-Shooter aus der Vogelperspektive, bis 4. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -213,7 +213,7 @@
    "platte_gb": 15,
    "ports": [
     "30101:27015/udp",
-    "30100:27015/tcp"
+    "127.0.0.1:30100:27015/tcp"
    ],
    "volumes": [
     "/srv/games/alienswarmreactivedrop:/serverdata"
@@ -233,7 +233,7 @@
    },
    "adresse_port": 30101,
    "spieler": 4,
-   "hinweis": "Alien Swarm mit neuen Kampagnen, Koop bis 4. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30100/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30101. Alien Swarm mit neuen Kampagnen, Koop bis 4. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -485,7 +485,7 @@
     "9600:9600/udp",
     "8081:8081/tcp",
     "50041:50041/tcp",
-    "8772:8772/tcp"
+    "127.0.0.1:8772:8772/tcp"
    ],
    "volumes": [
     "/srv/games/assettocorsa:/serverdata"
@@ -505,7 +505,7 @@
    },
    "adresse_port": 9600,
    "spieler": 4,
-   "hinweis": "Rennsimulation mit Fahrphysik. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (Server-Manager auf 127.0.0.1:8772/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Rennsimulation mit Fahrphysik. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -639,7 +639,7 @@
    "platte_gb": 12,
    "ports": [
     "30304:27015/udp",
-    "30303:27015/tcp"
+    "127.0.0.1:30303:27015/tcp"
    ],
    "volumes": [
     "/srv/games/bb:/data"
@@ -659,7 +659,7 @@
    },
    "adresse_port": 30304,
    "spieler": 4,
-   "hinweis": "BrainBread in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/bbserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30303/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30304. BrainBread in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/bbserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -678,7 +678,7 @@
    "platte_gb": 12,
    "ports": [
     "30305:27015/udp",
-    "30304:27015/tcp"
+    "127.0.0.1:30304:27015/tcp"
    ],
    "volumes": [
     "/srv/games/bb2:/data"
@@ -698,7 +698,7 @@
    },
    "adresse_port": 30305,
    "spieler": 4,
-   "hinweis": "BrainBread 2 in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/bb2server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30304/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30305. BrainBread 2 in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/bb2server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -717,7 +717,7 @@
    "platte_gb": 12,
    "ports": [
     "30306:27015/udp",
-    "30305:27015/tcp"
+    "127.0.0.1:30305:27015/tcp"
    ],
    "volumes": [
     "/srv/games/bd:/data"
@@ -737,7 +737,7 @@
    },
    "adresse_port": 30306,
    "spieler": 4,
-   "hinweis": "Base Defense in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/bdserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30305/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30306. Base Defense in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/bdserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -844,7 +844,7 @@
    "platte_gb": 12,
    "ports": [
     "30307:27015/udp",
-    "30306:27015/tcp"
+    "127.0.0.1:30306:27015/tcp"
    ],
    "volumes": [
     "/srv/games/bmdm:/data"
@@ -864,7 +864,7 @@
    },
    "adresse_port": 30307,
    "spieler": 4,
-   "hinweis": "Black Mesa: Deathmatch in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/bmdmserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30306/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30307. Black Mesa: Deathmatch in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/bmdmserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -926,7 +926,7 @@
    "platte_gb": 12,
    "ports": [
     "30308:27015/udp",
-    "30307:27015/tcp"
+    "127.0.0.1:30307:27015/tcp"
    ],
    "volumes": [
     "/srv/games/bs:/data"
@@ -946,7 +946,7 @@
    },
    "adresse_port": 30308,
    "spieler": 4,
-   "hinweis": "Blade Symphony in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/bsserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30307/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30308. Blade Symphony in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/bsserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -965,7 +965,7 @@
    "platte_gb": 12,
    "ports": [
     "30309:7777/udp",
-    "30308:7777/tcp",
+    "30309:7777/tcp",
     "30310:7780/udp"
    ],
    "volumes": [
@@ -986,7 +986,7 @@
    },
    "adresse_port": 30309,
    "spieler": 4,
-   "hinweis": "BATTALION: Legacy in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/btlserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Abweichender Port (Standard war belegt): 7777->30309, 7780->30310. BATTALION: Legacy in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/btlserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -1005,7 +1005,7 @@
    "platte_gb": 12,
    "ports": [
     "30311:27015/udp",
-    "30309:27015/tcp"
+    "127.0.0.1:30401:27015/tcp"
    ],
    "volumes": [
     "/srv/games/cc:/data"
@@ -1025,7 +1025,7 @@
    },
    "adresse_port": 30311,
    "spieler": 4,
-   "hinweis": "Codename CURE in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/ccserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30401/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30311. Codename CURE in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/ccserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -1160,7 +1160,7 @@
    "platte_gb": 12,
    "ports": [
     "30312:28960/udp",
-    "30310:28960/tcp"
+    "30312:28960/tcp"
    ],
    "volumes": [
     "/srv/games/cod2:/data"
@@ -1180,7 +1180,7 @@
    },
    "adresse_port": 30312,
    "spieler": 4,
-   "hinweis": "Call of Duty 2 in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/cod2server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Abweichender Port (Standard war belegt): 28960->30312. Call of Duty 2 in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/cod2server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -1199,7 +1199,7 @@
    "platte_gb": 12,
    "ports": [
     "30313:28960/udp",
-    "30311:28960/tcp"
+    "30313:28960/tcp"
    ],
    "volumes": [
     "/srv/games/cod4:/data"
@@ -1219,7 +1219,7 @@
    },
    "adresse_port": 30313,
    "spieler": 4,
-   "hinweis": "Call of Duty 4 in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/cod4server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Abweichender Port (Standard war belegt): 28960->30313. Call of Duty 4 in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/cod4server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -1238,7 +1238,7 @@
    "platte_gb": 12,
    "ports": [
     "30314:28960/udp",
-    "30312:28960/tcp"
+    "30314:28960/tcp"
    ],
    "volumes": [
     "/srv/games/coduo:/data"
@@ -1258,7 +1258,7 @@
    },
    "adresse_port": 30314,
    "spieler": 4,
-   "hinweis": "Call of Duty: United Offensive in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/coduoserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Abweichender Port (Standard war belegt): 28960->30314. Call of Duty: United Offensive in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/coduoserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -1277,7 +1277,7 @@
    "platte_gb": 12,
    "ports": [
     "30315:28960/udp",
-    "30313:28960/tcp"
+    "30315:28960/tcp"
    ],
    "volumes": [
     "/srv/games/codwaw:/data"
@@ -1297,7 +1297,7 @@
    },
    "adresse_port": 30315,
    "spieler": 4,
-   "hinweis": "Call of Duty: World at War in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/codwawserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Abweichender Port (Standard war belegt): 28960->30315. Call of Duty: World at War in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/codwawserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -1352,7 +1352,7 @@
    "mem_gb": 10,
    "platte_gb": 40,
    "ports": [
-    "30010:7777/tcp",
+    "30011:7777/tcp",
     "30011:7777/udp",
     "7778:7778/udp",
     "30012:27015/udp"
@@ -1373,9 +1373,9 @@
     "pfad": "",
     "feld": ""
    },
-   "adresse_port": 30010,
+   "adresse_port": 30011,
    "spieler": 4,
-   "hinweis": "Abweichender Port (Standard war belegt): 7777->30010, 7777->30011, 27015->30012. This Docker will download and install SteamCMD. It will also install Conan Exiles and run it. Servername: 'Docker ConanExiles' Password: 'Docker' rconPassword: 'adminDocker' ATTENTION: First Startup can take very long since it dow… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "hinweis": "Abweichender Port (Standard war belegt): 7777->30011, 27015->30012. This Docker will download and install SteamCMD. It will also install Conan Exiles and run it. Servername: 'Docker ConanExiles' Password: 'Docker' rconPassword: 'adminDocker' ATTENTION: First Startup can take very long since it dow… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -1499,8 +1499,8 @@
    "mem_gb": 4,
    "platte_gb": 8,
    "ports": [
-    "26900:26900/udp",
-    "26901:26901/udp",
+    "30402:26900/udp",
+    "30403:26901/udp",
     "127.0.0.1:26902:26902/tcp"
    ],
    "volumes": [
@@ -1519,9 +1519,9 @@
     "pfad": "",
     "feld": ""
    },
-   "adresse_port": 26900,
+   "adresse_port": 30402,
    "spieler": 4,
-   "hinweis": "Verwaltungszugang (TCP - WebAdmin) ist nur lokal erreichbar, nicht aus dem Internet. This Docker will download and install SteamCMD. It will also install Creativerse and run it. **ATTENTION:** First Startup can take very long since it downloads the gameserver files and the world template! **Update Notice:** Simply… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "hinweis": "Abweichender Port (Standard war belegt): 26900->30402, 26901->30403. Verwaltungszugang (TCP - WebAdmin) ist nur lokal erreichbar, nicht aus dem Internet. This Docker will download and install SteamCMD. It will also install Creativerse and run it. **ATTENTION:** First Startup can take very long since it downloads the gameserver files and the world template! **Update Notice:** Simply… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -1539,7 +1539,7 @@
    "platte_gb": 12,
    "ports": [
     "30316:27015/udp",
-    "30314:27015/tcp"
+    "127.0.0.1:30404:27015/tcp"
    ],
    "volumes": [
     "/srv/games/cs:/data"
@@ -1559,7 +1559,7 @@
    },
    "adresse_port": 30316,
    "spieler": 4,
-   "hinweis": "Counter-Strike 1.6 in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/csserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30404/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30316. Counter-Strike 1.6 in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/csserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -1578,7 +1578,7 @@
    "platte_gb": 30,
    "ports": [
     "30317:27015/udp",
-    "30315:27015/tcp"
+    "127.0.0.1:30405:27015/tcp"
    ],
    "volumes": [
     "/srv/games/cs2:/data"
@@ -1598,7 +1598,7 @@
    },
    "adresse_port": 30317,
    "spieler": 4,
-   "hinweis": "Counter-Strike 2 in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/cs2server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30405/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30317. Counter-Strike 2 in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/cs2server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -1617,7 +1617,7 @@
    "platte_gb": 12,
    "ports": [
     "30318:27015/udp",
-    "30316:27015/tcp"
+    "127.0.0.1:30316:27015/tcp"
    ],
    "volumes": [
     "/srv/games/cscz:/data"
@@ -1637,7 +1637,7 @@
    },
    "adresse_port": 30318,
    "spieler": 4,
-   "hinweis": "Counter-Strike: Condition Zero in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/csczserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30316/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30318. Counter-Strike: Condition Zero in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/csczserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -1656,7 +1656,7 @@
    "platte_gb": 30,
    "ports": [
     "30319:27015/udp",
-    "30317:27015/tcp"
+    "127.0.0.1:30317:27015/tcp"
    ],
    "volumes": [
     "/srv/games/csgo:/data"
@@ -1676,7 +1676,7 @@
    },
    "adresse_port": 30319,
    "spieler": 4,
-   "hinweis": "Counter-Strike: Global Offensive in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/csgoserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30317/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30319. Counter-Strike: Global Offensive in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/csgoserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -1695,7 +1695,7 @@
    "platte_gb": 12,
    "ports": [
     "30320:27015/udp",
-    "30318:27015/tcp"
+    "127.0.0.1:30318:27015/tcp"
    ],
    "volumes": [
     "/srv/games/css:/data"
@@ -1715,7 +1715,7 @@
    },
    "adresse_port": 30320,
    "spieler": 4,
-   "hinweis": "Counter-Strike: Source in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/cssserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30318/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30320. Counter-Strike: Source in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/cssserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -1734,7 +1734,7 @@
    "platte_gb": 10,
    "ports": [
     "30104:27015/udp",
-    "30101:27015/tcp"
+    "127.0.0.1:30101:27015/tcp"
    ],
    "volumes": [
     "/srv/games/cstrike16:/serverdata"
@@ -1754,7 +1754,7 @@
    },
    "adresse_port": 30104,
    "spieler": 4,
-   "hinweis": "Counter-Strike 1.6, der Klassiker. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30101/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30104. Counter-Strike 1.6, der Klassiker. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -1772,7 +1772,7 @@
    "platte_gb": 12,
    "ports": [
     "30321:27015/udp",
-    "30319:27015/tcp"
+    "127.0.0.1:30319:27015/tcp"
    ],
    "volumes": [
     "/srv/games/dab:/data"
@@ -1792,7 +1792,7 @@
    },
    "adresse_port": 30321,
    "spieler": 4,
-   "hinweis": "Double Action: Boogaloo in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/dabserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30319/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30321. Double Action: Boogaloo in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/dabserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -1811,7 +1811,7 @@
    "platte_gb": 10,
    "ports": [
     "30106:27015/udp",
-    "30102:27015/tcp"
+    "127.0.0.1:30102:27015/tcp"
    ],
    "volumes": [
     "/srv/games/dayofdefeatsource:/serverdata"
@@ -1831,7 +1831,7 @@
    },
    "adresse_port": 30106,
    "spieler": 4,
-   "hinweis": "Zweiter Weltkrieg, Team gegen Team. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30102/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30106. Zweiter Weltkrieg, Team gegen Team. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -1849,7 +1849,7 @@
    "platte_gb": 15,
    "ports": [
     "30107:27015/udp",
-    "30103:27015/tcp"
+    "127.0.0.1:30103:27015/tcp"
    ],
    "volumes": [
     "/srv/games/dayofinfamy:/serverdata"
@@ -1869,7 +1869,7 @@
    },
    "adresse_port": 30107,
    "spieler": 4,
-   "hinweis": "Zweiter Weltkrieg, taktisch und ohne Fadenkreuz. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30103/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30107. Zweiter Weltkrieg, taktisch und ohne Fadenkreuz. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -1925,7 +1925,7 @@
    "platte_gb": 30,
    "ports": [
     "30322:2302/udp",
-    "30320:2302/tcp"
+    "30322:2302/tcp"
    ],
    "volumes": [
     "/srv/games/dayz:/data"
@@ -1945,7 +1945,7 @@
    },
    "adresse_port": 30322,
    "spieler": 4,
-   "hinweis": "DayZ in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/dayzserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Abweichender Port (Standard war belegt): 2302->30322. DayZ in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/dayzserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -1997,7 +1997,7 @@
    "platte_gb": 12,
    "ports": [
     "30323:27015/udp",
-    "30321:27015/tcp"
+    "127.0.0.1:30321:27015/tcp"
    ],
    "volumes": [
     "/srv/games/dmc:/data"
@@ -2017,7 +2017,7 @@
    },
    "adresse_port": 30323,
    "spieler": 4,
-   "hinweis": "Deathmatch Classic in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/dmcserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30321/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30323. Deathmatch Classic in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/dmcserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -2036,7 +2036,7 @@
    "platte_gb": 12,
    "ports": [
     "30324:27015/udp",
-    "30322:27015/tcp"
+    "127.0.0.1:30406:27015/tcp"
    ],
    "volumes": [
     "/srv/games/dod:/data"
@@ -2056,7 +2056,7 @@
    },
    "adresse_port": 30324,
    "spieler": 4,
-   "hinweis": "Day of Defeat in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/dodserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30406/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30324. Day of Defeat in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/dodserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -2075,7 +2075,7 @@
    "platte_gb": 12,
    "ports": [
     "30325:7777/udp",
-    "30323:7777/tcp",
+    "30325:7777/tcp",
     "30326:27015/udp"
    ],
    "volumes": [
@@ -2096,7 +2096,7 @@
    },
    "adresse_port": 30325,
    "spieler": 4,
-   "hinweis": "Day of Dragons in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/dodrserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Abweichender Port (Standard war belegt): 7777->30325, 27015->30326. Day of Dragons in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/dodrserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -2154,7 +2154,7 @@
    "platte_gb": 12,
    "ports": [
     "30327:27015/udp",
-    "30324:27015/tcp"
+    "127.0.0.1:30324:27015/tcp"
    ],
    "volumes": [
     "/srv/games/dys:/data"
@@ -2174,7 +2174,7 @@
    },
    "adresse_port": 30327,
    "spieler": 4,
-   "hinweis": "Dystopia in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/dysserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30324/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30327. Dystopia in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/dysserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -2231,7 +2231,7 @@
    "platte_gb": 12,
    "ports": [
     "30328:27015/udp",
-    "30325:27015/tcp"
+    "127.0.0.1:30407:27015/tcp"
    ],
    "volumes": [
     "/srv/games/em:/data"
@@ -2251,7 +2251,7 @@
    },
    "adresse_port": 30328,
    "spieler": 4,
-   "hinweis": "Empires Mod in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/emserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30407/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30328. Empires Mod in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/emserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -2383,7 +2383,7 @@
    "platte_gb": 15,
    "ports": [
     "30110:27015/udp",
-    "30104:27015/tcp"
+    "127.0.0.1:30104:27015/tcp"
    ],
    "volumes": [
     "/srv/games/fistfuloffrags:/serverdata"
@@ -2403,7 +2403,7 @@
    },
    "adresse_port": 30110,
    "spieler": 4,
-   "hinweis": "Western-Shooter mit Revolvern und Fausthieben. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30104/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30110. Western-Shooter mit Revolvern und Fausthieben. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -2420,11 +2420,11 @@
    "mem_gb": 4,
    "platte_gb": 10,
    "ports": [
-    "30110:30110/tcp",
+    "30111:30110/tcp",
     "30120:30120/tcp",
     "30111:30110/udp",
     "30120:30120/udp",
-    "9016:8080/tcp"
+    "127.0.0.1:9016:8080/tcp"
    ],
    "volumes": [
     "/srv/games/fivem:/serverdata"
@@ -2440,9 +2440,9 @@
     "pfad": "",
     "feld": ""
    },
-   "adresse_port": 30110,
+   "adresse_port": 30120,
    "spieler": 4,
-   "hinweis": "Mehrspieler-Framework fuer GTA V, braucht das Spiel. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (WebConsole auf 127.0.0.1:9016/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 30110->30111. Mehrspieler-Framework fuer GTA V, braucht das Spiel. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [],
    "bauart": "ich777",
    "kategorie": "sandbox"
@@ -2456,11 +2456,11 @@
    "mem_gb": 6,
    "platte_gb": 15,
    "ports": [
-    "30016:7777/tcp",
+    "30017:7777/tcp",
     "30017:7777/udp",
     "127.0.0.1:30018:27015/tcp",
     "30019:27015/udp",
-    "30020:25575/tcp"
+    "127.0.0.1:30020:25575/tcp"
    ],
    "volumes": [
     "/srv/games/frozenflame:/serverdata"
@@ -2478,9 +2478,9 @@
     "pfad": "",
     "feld": ""
    },
-   "adresse_port": 30016,
+   "adresse_port": 30017,
    "spieler": 4,
-   "hinweis": "Verwaltungszugang (TCP 2 - RCON) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 7777->30016, 7777->30017, 27015->30018, 27015->30019, 25575->30020. This Docker will download and install SteamCMD. It will also install FrozenFlame and run it. **ATTENTION:** First Startup can take very long since it downloads the gameserver files! **Update Notice:** Simply restart the container … Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30020/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Verwaltungszugang (TCP 2 - RCON) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 7777->30017, 27015->30019. This Docker will download and install SteamCMD. It will also install FrozenFlame and run it. **ATTENTION:** First Startup can take very long since it downloads the gameserver files! **Update Notice:** Simply restart the container … Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -2498,7 +2498,7 @@
    "platte_gb": 15,
    "ports": [
     "30112:27015/udp",
-    "30105:27015/tcp"
+    "127.0.0.1:30105:27015/tcp"
    ],
    "volumes": [
     "/srv/games/garrysmod:/serverdata"
@@ -2518,7 +2518,7 @@
    },
    "adresse_port": 30112,
    "spieler": 4,
-   "hinweis": "Sandbox mit Source-Physik, alles ist moeglich. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30105/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30112. Sandbox mit Source-Physik, alles ist moeglich. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -2536,7 +2536,7 @@
    "platte_gb": 10,
    "ports": [
     "30114:27015/udp",
-    "30107:27015/tcp"
+    "127.0.0.1:30107:27015/tcp"
    ],
    "volumes": [
     "/srv/games/halflife2deathmatch:/serverdata"
@@ -2556,7 +2556,7 @@
    },
    "adresse_port": 30114,
    "spieler": 4,
-   "hinweis": "Half-Life 2 im Deathmatch, mit Schwerkraftgewehr. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30107/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30114. Half-Life 2 im Deathmatch, mit Schwerkraftgewehr. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -2573,7 +2573,7 @@
    "mem_gb": 4,
    "platte_gb": 10,
    "ports": [
-    "30106:27015/tcp",
+    "127.0.0.1:30106:27015/tcp",
     "30113:27015/udp"
    ],
    "volumes": [
@@ -2592,9 +2592,9 @@
     "pfad": "",
     "feld": ""
    },
-   "adresse_port": 30106,
+   "adresse_port": 30113,
    "spieler": 4,
-   "hinweis": "Half-Life 1 im Deathmatch. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30106/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30113. Half-Life 1 im Deathmatch. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -2612,7 +2612,7 @@
    "platte_gb": 12,
    "ports": [
     "30329:7777/udp",
-    "30326:7777/tcp",
+    "30329:7777/tcp",
     "30330:27015/udp"
    ],
    "volumes": [
@@ -2633,7 +2633,7 @@
    },
    "adresse_port": 30329,
    "spieler": 4,
-   "hinweis": "HYPERCHARGE: Unboxed in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/hcuserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Abweichender Port (Standard war belegt): 7777->30329, 27015->30330. HYPERCHARGE: Unboxed in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/hcuserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -2652,7 +2652,7 @@
    "platte_gb": 12,
    "ports": [
     "30331:27015/udp",
-    "30327:27015/tcp"
+    "127.0.0.1:30327:27015/tcp"
    ],
    "volumes": [
     "/srv/games/hldms:/data"
@@ -2672,7 +2672,7 @@
    },
    "adresse_port": 30331,
    "spieler": 4,
-   "hinweis": "Half-Life Deathmatch: Source in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/hldmsserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30327/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30331. Half-Life Deathmatch: Source in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/hldmsserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -2732,7 +2732,7 @@
    "platte_gb": 30,
    "ports": [
     "30332:7777/udp",
-    "30328:7777/tcp",
+    "30332:7777/tcp",
     "30333:27015/udp"
    ],
    "volumes": [
@@ -2753,7 +2753,7 @@
    },
    "adresse_port": 30332,
    "spieler": 4,
-   "hinweis": "Humanitz in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/hzserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Abweichender Port (Standard war belegt): 7777->30332, 27015->30333. Humanitz in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/hzserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -2810,7 +2810,7 @@
    "platte_gb": 15,
    "ports": [
     "30115:27015/udp",
-    "30108:27015/tcp"
+    "127.0.0.1:30108:27015/tcp"
    ],
    "volumes": [
     "/srv/games/insurgency:/serverdata"
@@ -2830,7 +2830,7 @@
    },
    "adresse_port": 30115,
    "spieler": 4,
-   "hinweis": "Taktischer Shooter ohne Trefferanzeige. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30108/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30115. Taktischer Shooter ohne Trefferanzeige. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -2886,7 +2886,7 @@
    "platte_gb": 12,
    "ports": [
     "30334:27015/udp",
-    "30329:27015/tcp"
+    "127.0.0.1:30408:27015/tcp"
    ],
    "volumes": [
     "/srv/games/ios:/data"
@@ -2906,7 +2906,7 @@
    },
    "adresse_port": 30334,
    "spieler": 4,
-   "hinweis": "IOSoccer in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/iosserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30408/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30334. IOSoccer in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/iosserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -2925,7 +2925,7 @@
    "platte_gb": 12,
    "ports": [
     "30335:27015/udp",
-    "30330:27015/tcp"
+    "127.0.0.1:30330:27015/tcp"
    ],
    "volumes": [
     "/srv/games/jbep3:/data"
@@ -2945,7 +2945,7 @@
    },
    "adresse_port": 30335,
    "spieler": 4,
-   "hinweis": "Jabroni Brawl: Episode 3 in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/jbep3server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30330/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30335. Jabroni Brawl: Episode 3 in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/jbep3server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -3050,7 +3050,7 @@
    "platte_gb": 12,
    "ports": [
     "30336:27960/udp",
-    "27960:27960/tcp"
+    "30336:27960/tcp"
    ],
    "volumes": [
     "/srv/games/jk2:/data"
@@ -3070,7 +3070,7 @@
    },
    "adresse_port": 30336,
    "spieler": 4,
-   "hinweis": "Jedi Knight II: Jedi Outcast in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/jk2server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Abweichender Port (Standard war belegt): 27960->30336. Jedi Knight II: Jedi Outcast in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/jk2server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -3093,7 +3093,7 @@
     "7717:7717/udp",
     "28852:28852/tcp",
     "28852:28852/udp",
-    "8075:8075/tcp",
+    "127.0.0.1:8075:8075/tcp",
     "20560:20560/udp"
    ],
    "volumes": [
@@ -3114,7 +3114,7 @@
    },
    "adresse_port": 7707,
    "spieler": 4,
-   "hinweis": "Koop gegen Monsterwellen, bis 6. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (Admin Port auf 127.0.0.1:8075/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Koop gegen Monsterwellen, bis 6. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -3133,7 +3133,7 @@
    "ports": [
     "30116:7777/udp",
     "30117:27015/udp",
-    "8080:8080/tcp",
+    "127.0.0.1:30409:8080/tcp",
     "30118:20560/udp"
    ],
    "volumes": [
@@ -3154,7 +3154,7 @@
    },
    "adresse_port": 30116,
    "spieler": 4,
-   "hinweis": "Koop gegen Monsterwellen, Nachfolger, bis 6. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (Web Admin auf 127.0.0.1:30409/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 7777->30116, 27015->30117, 20560->30118. Koop gegen Monsterwellen, Nachfolger, bis 6. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -3172,7 +3172,7 @@
    "platte_gb": 12,
    "ports": [
     "30337:27015/udp",
-    "30331:27015/tcp"
+    "127.0.0.1:30331:27015/tcp"
    ],
    "volumes": [
     "/srv/games/l4d2:/data"
@@ -3192,7 +3192,7 @@
    },
    "adresse_port": 30337,
    "spieler": 4,
-   "hinweis": "Left 4 Dead 2 in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/l4d2server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30331/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30337. Left 4 Dead 2 in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/l4d2server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -3249,7 +3249,7 @@
    "platte_gb": 10,
    "ports": [
     "30119:27015/udp",
-    "30109:27015/tcp"
+    "127.0.0.1:30109:27015/tcp"
    ],
    "volumes": [
     "/srv/games/left4dead:/serverdata"
@@ -3269,7 +3269,7 @@
    },
    "adresse_port": 30119,
    "spieler": 4,
-   "hinweis": "Koop-Kampagne gegen Zombies, genau 4 Spieler. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30109/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30119. Koop-Kampagne gegen Zombies, genau 4 Spieler. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -3368,7 +3368,7 @@
    "platte_gb": 12,
    "ports": [
     "30338:27015/udp",
-    "30332:27015/tcp"
+    "127.0.0.1:30410:27015/tcp"
    ],
    "volumes": [
     "/srv/games/mcv:/data"
@@ -3388,7 +3388,7 @@
    },
    "adresse_port": 30338,
    "spieler": 4,
-   "hinweis": "Military Conflict: Vietnam in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/mcvserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30410/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30338. Military Conflict: Vietnam in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/mcvserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -3406,7 +3406,7 @@
    "mem_gb": 6,
    "platte_gb": 15,
    "ports": [
-    "30029:7777/tcp",
+    "30030:7777/tcp",
     "30030:7777/udp",
     "15000:15000/tcp",
     "15000:15000/udp"
@@ -3427,9 +3427,9 @@
     "pfad": "",
     "feld": ""
    },
-   "adresse_port": 30029,
+   "adresse_port": 30030,
    "spieler": 4,
-   "hinweis": "Abweichender Port (Standard war belegt): 7777->30029, 7777->30030. This Docker will download and install SteamCMD. It will also install Memories of Mars and run it. ATTENTION: First Startup can take very long since it downloads the gameserver files! ONLINE PLAY: Please be sure to set the variable… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "hinweis": "Abweichender Port (Standard war belegt): 7777->30030. This Docker will download and install SteamCMD. It will also install Memories of Mars and run it. ATTENTION: First Startup can take very long since it downloads the gameserver files! ONLINE PLAY: Please be sure to set the variable… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -3950,7 +3950,7 @@
    "platte_gb": 12,
    "ports": [
     "30339:27015/udp",
-    "30333:27015/tcp"
+    "127.0.0.1:30333:27015/tcp"
    ],
    "volumes": [
     "/srv/games/nd:/data"
@@ -3970,7 +3970,7 @@
    },
    "adresse_port": 30339,
    "spieler": 4,
-   "hinweis": "Nuclear Dawn in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/ndserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30333/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30339. Nuclear Dawn in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/ndserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -4028,7 +4028,7 @@
    "platte_gb": 15,
    "ports": [
     "30124:27015/udp",
-    "30111:27015/tcp"
+    "127.0.0.1:30411:27015/tcp"
    ],
    "volumes": [
     "/srv/games/neotokyo:/serverdata"
@@ -4048,7 +4048,7 @@
    },
    "adresse_port": 30124,
    "spieler": 4,
-   "hinweis": "Cyberpunk-Taktikshooter auf Source-Basis. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30411/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30124. Cyberpunk-Taktikshooter auf Source-Basis. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -4066,7 +4066,7 @@
    "platte_gb": 12,
    "ports": [
     "30340:27015/udp",
-    "30334:27015/tcp"
+    "127.0.0.1:30334:27015/tcp"
    ],
    "volumes": [
     "/srv/games/nmrih:/data"
@@ -4086,7 +4086,7 @@
    },
    "adresse_port": 30340,
    "spieler": 4,
-   "hinweis": "No More Room in Hell in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/nmrihserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30334/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30340. No More Room in Hell in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/nmrihserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -4105,7 +4105,7 @@
    "platte_gb": 12,
    "ports": [
     "30341:27015/udp",
-    "30335:27015/tcp"
+    "127.0.0.1:30335:27015/tcp"
    ],
    "volumes": [
     "/srv/games/ns:/data"
@@ -4125,7 +4125,7 @@
    },
    "adresse_port": 30341,
    "spieler": 4,
-   "hinweis": "Natural Selection in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/nsserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30335/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30341. Natural Selection in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/nsserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -4144,7 +4144,7 @@
    "platte_gb": 12,
    "ports": [
     "30342:27015/udp",
-    "30336:27015/tcp"
+    "127.0.0.1:30412:27015/tcp"
    ],
    "volumes": [
     "/srv/games/ns2:/data"
@@ -4164,7 +4164,7 @@
    },
    "adresse_port": 30342,
    "spieler": 4,
-   "hinweis": "Natural Selection 2 in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/ns2server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30412/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30342. Natural Selection 2 in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/ns2server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -4183,7 +4183,7 @@
    "platte_gb": 12,
    "ports": [
     "30343:27015/udp",
-    "30337:27015/tcp"
+    "127.0.0.1:30337:27015/tcp"
    ],
    "volumes": [
     "/srv/games/ns2c:/data"
@@ -4203,7 +4203,7 @@
    },
    "adresse_port": 30343,
    "spieler": 4,
-   "hinweis": "NS2: Combat in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/ns2cserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30337/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30343. NS2: Combat in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/ns2cserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -4222,7 +4222,7 @@
    "platte_gb": 30,
    "ports": [
     "30344:7777/udp",
-    "30338:7777/tcp",
+    "30344:7777/tcp",
     "27005:27005/udp"
    ],
    "volumes": [
@@ -4243,7 +4243,7 @@
    },
    "adresse_port": 30344,
    "spieler": 4,
-   "hinweis": "Operation: Harsh Doorstop in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/ohdserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Abweichender Port (Standard war belegt): 7777->30344. Operation: Harsh Doorstop in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/ohdserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -4304,8 +4304,8 @@
    "mem_gb": 1,
    "platte_gb": 3,
    "ports": [
-    "30112:25565/tcp",
-    "25565:25565/udp"
+    "30413:25565/tcp",
+    "30413:25565/udp"
    ],
    "volumes": [
     "/srv/games/openmwtes3mp:/serverdata"
@@ -4321,9 +4321,9 @@
     "pfad": "",
     "feld": ""
    },
-   "adresse_port": 30112,
+   "adresse_port": 30413,
    "spieler": 4,
-   "hinweis": "Morrowind zu mehreren, offene Neuimplementierung. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Abweichender Port (Standard war belegt): 25565->30413. Morrowind zu mehreren, offene Neuimplementierung. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [],
    "bauart": "ich777",
    "kategorie": "sandbox"
@@ -4404,7 +4404,7 @@
    "platte_gb": 12,
    "ports": [
     "30345:27015/udp",
-    "30339:27015/tcp"
+    "127.0.0.1:30339:27015/tcp"
    ],
    "volumes": [
     "/srv/games/opfor:/data"
@@ -4424,7 +4424,7 @@
    },
    "adresse_port": 30345,
    "spieler": 4,
-   "hinweis": "Opposing Force in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/opforserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30339/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30345. Opposing Force in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/opforserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -4607,7 +4607,7 @@
    "platte_gb": 15,
    "ports": [
     "30125:27015/udp",
-    "30113:27015/tcp"
+    "127.0.0.1:30113:27015/tcp"
    ],
    "volumes": [
     "/srv/games/pvkii:/serverdata"
@@ -4627,7 +4627,7 @@
    },
    "adresse_port": 30125,
    "spieler": 4,
-   "hinweis": "Piraten gegen Wikinger gegen Ritter, Nahkampf. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30113/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30125. Piraten gegen Wikinger gegen Ritter, Nahkampf. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -4645,7 +4645,7 @@
    "platte_gb": 12,
    "ports": [
     "30346:7777/udp",
-    "30340:7777/tcp"
+    "30346:7777/tcp"
    ],
    "volumes": [
     "/srv/games/pvr:/data"
@@ -4665,7 +4665,7 @@
    },
    "adresse_port": 30346,
    "spieler": 4,
-   "hinweis": "Pavlov VR in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/pvrserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Abweichender Port (Standard war belegt): 7777->30346. Pavlov VR in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/pvrserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -4723,7 +4723,7 @@
    "platte_gb": 12,
    "ports": [
     "30347:27960/udp",
-    "30341:27960/tcp"
+    "30347:27960/tcp"
    ],
    "volumes": [
     "/srv/games/q3:/data"
@@ -4743,7 +4743,7 @@
    },
    "adresse_port": 30347,
    "spieler": 4,
-   "hinweis": "Quake 3: Arena in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/q3server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Abweichender Port (Standard war belegt): 27960->30347. Quake 3: Arena in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/q3server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -4801,7 +4801,7 @@
    "platte_gb": 10,
    "ports": [
     "27960:27960/udp",
-    "28690:28690/tcp"
+    "127.0.0.1:28690:28690/tcp"
    ],
    "volumes": [
     "/srv/games/quakelive:/serverdata"
@@ -4821,7 +4821,7 @@
    },
    "adresse_port": 27960,
    "spieler": 4,
-   "hinweis": "Arena-Shooter, schnell und ohne Schnickschnack. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:28690/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Arena-Shooter, schnell und ohne Schnickschnack. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -4877,11 +4877,11 @@
    "mem_gb": 4,
    "platte_gb": 10,
    "ports": [
-    "30114:30110/tcp",
-    "30121:30120/tcp",
+    "30126:30110/tcp",
+    "30127:30120/tcp",
     "30126:30110/udp",
     "30127:30120/udp",
-    "30115:8080/tcp"
+    "127.0.0.1:30115:8080/tcp"
    ],
    "volumes": [
     "/srv/games/redm:/serverdata"
@@ -4897,9 +4897,9 @@
     "pfad": "",
     "feld": ""
    },
-   "adresse_port": 30114,
+   "adresse_port": 30127,
    "spieler": 4,
-   "hinweis": "Mehrspieler-Framework fuer Red Dead Redemption 2. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (WebConsole auf 127.0.0.1:30115/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 30110->30126, 30120->30127. Mehrspieler-Framework fuer Red Dead Redemption 2. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [],
    "bauart": "ich777",
    "kategorie": "sandbox"
@@ -4914,7 +4914,7 @@
    "platte_gb": 12,
    "ports": [
     "30348:27015/udp",
-    "30342:27015/tcp"
+    "127.0.0.1:30342:27015/tcp"
    ],
    "volumes": [
     "/srv/games/ricochet:/data"
@@ -4934,7 +4934,7 @@
    },
    "adresse_port": 30348,
    "spieler": 4,
-   "hinweis": "Ricochet in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/ricochetserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30342/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30348. Ricochet in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/ricochetserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -4997,7 +4997,7 @@
    "platte_gb": 12,
    "ports": [
     "30349:27960/udp",
-    "30343:27960/tcp"
+    "30349:27960/tcp"
    ],
    "volumes": [
     "/srv/games/rtcw:/data"
@@ -5017,7 +5017,7 @@
    },
    "adresse_port": 30349,
    "spieler": 4,
-   "hinweis": "Return to Castle Wolfenstein in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/rtcwserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Abweichender Port (Standard war belegt): 27960->30349. Return to Castle Wolfenstein in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/rtcwserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -5123,7 +5123,7 @@
    "platte_gb": 12,
    "ports": [
     "30350:7777/udp",
-    "30344:7777/tcp"
+    "30350:7777/tcp"
    ],
    "volumes": [
     "/srv/games/samp:/data"
@@ -5143,7 +5143,7 @@
    },
    "adresse_port": 30350,
    "spieler": 4,
-   "hinweis": "San Andreas Multiplayer in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/sampserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Abweichender Port (Standard war belegt): 7777->30350. San Andreas Multiplayer in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/sampserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -5162,7 +5162,7 @@
    "platte_gb": 12,
    "ports": [
     "30351:7777/udp",
-    "30345:7777/tcp",
+    "30351:7777/tcp",
     "30352:27015/udp"
    ],
    "volumes": [
@@ -5183,7 +5183,7 @@
    },
    "adresse_port": 30351,
    "spieler": 4,
-   "hinweis": "StickyBots in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/sbotsserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Abweichender Port (Standard war belegt): 7777->30351, 27015->30352. StickyBots in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/sbotsserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -5202,7 +5202,7 @@
    "platte_gb": 30,
    "ports": [
     "30128:7777/udp",
-    "30116:7777/tcp"
+    "30128:7777/tcp"
    ],
    "volumes": [
     "/srv/games/scpsecretlaboratory:/serverdata"
@@ -5222,7 +5222,7 @@
    },
    "adresse_port": 30128,
    "spieler": 4,
-   "hinweis": "SCP-Horror, rundenbasiert, Rollen gegeneinander. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Abweichender Port (Standard war belegt): 7777->30128. SCP-Horror, rundenbasiert, Rollen gegeneinander. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -5240,7 +5240,7 @@
    "platte_gb": 12,
    "ports": [
     "30353:7777/udp",
-    "30346:7777/tcp"
+    "30353:7777/tcp"
    ],
    "volumes": [
     "/srv/games/scpslsm:/data"
@@ -5260,7 +5260,7 @@
    },
    "adresse_port": 30353,
    "spieler": 4,
-   "hinweis": "SCP: Secret Laboratory ServerMod in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/scpslsmserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Abweichender Port (Standard war belegt): 7777->30353. SCP: Secret Laboratory ServerMod in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/scpslsmserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -5279,7 +5279,7 @@
    "platte_gb": 12,
    "ports": [
     "30354:27015/udp",
-    "30347:27015/tcp"
+    "127.0.0.1:30414:27015/tcp"
    ],
    "volumes": [
     "/srv/games/sfc:/data"
@@ -5299,7 +5299,7 @@
    },
    "adresse_port": 30354,
    "spieler": 4,
-   "hinweis": "SourceForts Classic in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/sfcserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30414/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30354. SourceForts Classic in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/sfcserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -5400,7 +5400,7 @@
    "mem_gb": 8,
    "platte_gb": 16,
    "ports": [
-    "8766:8766/udp",
+    "30415:8766/udp",
     "30002:27016/udp",
     "9700:9700/udp"
    ],
@@ -5420,9 +5420,9 @@
     "pfad": "",
     "feld": ""
    },
-   "adresse_port": 8766,
+   "adresse_port": 30415,
    "spieler": 4,
-   "hinweis": "Abweichender Port (Standard war belegt): 27016->30002. This Docker will download and install SteamCMD. It will also install Sons Of The Forest and run it. **SERVERNAME:** 'Sons Of The Forest Docker Server' **SERVERPASSWORD:** 'Docker' (you can change this in your SERVERFOLDER/userdata… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "hinweis": "Abweichender Port (Standard war belegt): 8766->30415, 27016->30002. This Docker will download and install SteamCMD. It will also install Sons Of The Forest and run it. **SERVERNAME:** 'Sons Of The Forest Docker Server' **SERVERPASSWORD:** 'Docker' (you can change this in your SERVERFOLDER/userdata… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -5439,7 +5439,7 @@
    "mem_gb": 10,
    "platte_gb": 25,
    "ports": [
-    "8777:8777/udp",
+    "30416:8777/udp",
     "30008:27015/udp"
    ],
    "volumes": [
@@ -5457,9 +5457,9 @@
     "art": "env",
     "feld": "GAME_PARAMS"
    },
-   "adresse_port": 8777,
+   "adresse_port": 30416,
    "spieler": 4,
-   "hinweis": "Abweichender Port (Standard war belegt): 27015->30008. This Docker will download and install SteamCMD. It will also install Soulmask and run it. Defaults: Servername: 'Soulmask Docker' Password: 'Docker' Admin Password: 'adminDocker' (You can change that in the GAME_PARAMS variable) A… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "hinweis": "Abweichender Port (Standard war belegt): 8777->30416, 27015->30008. This Docker will download and install SteamCMD. It will also install Soulmask and run it. Defaults: Servername: 'Soulmask Docker' Password: 'Docker' Admin Password: 'adminDocker' (You can change that in the GAME_PARAMS variable) A… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -5481,8 +5481,8 @@
     "27165:27165/udp",
     "27166:27166/udp",
     "27166:27166/tcp",
-    "21114:21114/tcp",
-    "21114:21114/udp"
+    "127.0.0.1:21114:21114/tcp",
+    "127.0.0.1:21114:21114/udp"
    ],
    "volumes": [
     "/srv/games/squad:/serverdata"
@@ -5502,7 +5502,7 @@
    },
    "adresse_port": 7787,
    "spieler": 4,
-   "hinweis": "Militaersimulation mit grossen Teams und Sprachfunk. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:21114/tcp; RCON auf 127.0.0.1:21114/udp) ist nur lokal erreichbar, nicht aus dem Internet. Militaersimulation mit grossen Teams und Sprachfunk. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -5520,7 +5520,7 @@
    "platte_gb": 30,
    "ports": [
     "30355:10027/udp",
-    "10027:10027/tcp",
+    "30355:10027/tcp",
     "30356:10037/udp"
    ],
    "volumes": [
@@ -5541,7 +5541,7 @@
    },
    "adresse_port": 30355,
    "spieler": 4,
-   "hinweis": "Squad 44 in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/squad44server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Abweichender Port (Standard war belegt): 10027->30355, 10037->30356. Squad 44 in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/squad44server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -5750,7 +5750,7 @@
    "platte_gb": 15,
    "ports": [
     "30129:27015/udp",
-    "30117:27015/tcp"
+    "127.0.0.1:30117:27015/tcp"
    ],
    "volumes": [
     "/srv/games/svencoop:/serverdata"
@@ -5770,7 +5770,7 @@
    },
    "adresse_port": 30129,
    "spieler": 4,
-   "hinweis": "Half-Life 1 als Koop-Kampagne. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30117/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30129. Half-Life 1 als Koop-Kampagne. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -5787,7 +5787,7 @@
    "mem_gb": 4,
    "platte_gb": 10,
    "ports": [
-    "30118:27015/tcp",
+    "127.0.0.1:30118:27015/tcp",
     "30130:27015/udp"
    ],
    "volumes": [
@@ -5806,9 +5806,9 @@
     "pfad": "",
     "feld": ""
    },
-   "adresse_port": 30118,
+   "adresse_port": 30130,
    "spieler": 4,
-   "hinweis": "Klassenbasierter Team-Shooter, neun Klassen. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30118/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30130. Klassenbasierter Team-Shooter, neun Klassen. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -5855,7 +5855,7 @@
    "platte_gb": 3,
    "ports": [
     "30131:8303/udp",
-    "30119:8303/tcp"
+    "30131:8303/tcp"
    ],
    "volumes": [
     "/srv/games/teeworlds:/serverdata"
@@ -5873,7 +5873,7 @@
    },
    "adresse_port": 30131,
    "spieler": 4,
-   "hinweis": "2D-Arena mit Enterhaken, sehr genuegsam. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Abweichender Port (Standard war belegt): 8303->30131. 2D-Arena mit Enterhaken, sehr genuegsam. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
    "ausschluss": [],
    "bauart": "ich777",
    "kategorie": "arena"
@@ -5991,7 +5991,7 @@
    "platte_gb": 12,
    "ports": [
     "30357:27015/udp",
-    "30348:27015/tcp"
+    "127.0.0.1:30348:27015/tcp"
    ],
    "volumes": [
     "/srv/games/tf2c:/data"
@@ -6011,7 +6011,7 @@
    },
    "adresse_port": 30357,
    "spieler": 4,
-   "hinweis": "Team Fortress 2 Classified in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/tf2cserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30348/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30357. Team Fortress 2 Classified in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/tf2cserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -6030,7 +6030,7 @@
    "platte_gb": 12,
    "ports": [
     "30358:27015/udp",
-    "30349:27015/tcp"
+    "127.0.0.1:30417:27015/tcp"
    ],
    "volumes": [
     "/srv/games/tfc:/data"
@@ -6050,7 +6050,7 @@
    },
    "adresse_port": 30358,
    "spieler": 4,
-   "hinweis": "Team Fortress Classic in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/tfcserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30417/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30358. Team Fortress Classic in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/tfcserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -6068,7 +6068,7 @@
    "mem_gb": 4,
    "platte_gb": 8,
    "ports": [
-    "8766:8766/udp",
+    "30418:8766/udp",
     "30003:27015/udp",
     "30004:27016/udp"
    ],
@@ -6088,9 +6088,9 @@
     "pfad": "",
     "feld": ""
    },
-   "adresse_port": 8766,
+   "adresse_port": 30418,
    "spieler": 4,
-   "hinweis": "Abweichender Port (Standard war belegt): 27015->30003, 27016->30004. This Docker will download and install SteamCMD. It will also install The Forest and run it. SERVERNAME: 'The Forest Docker' SERVERPASSWORD: 'Docker' ADMINPASSWORD: 'adminDocker' (you can change this in your SERVERFOLDER/config/con… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "hinweis": "Abweichender Port (Standard war belegt): 8766->30418, 27015->30003, 27016->30004. This Docker will download and install SteamCMD. It will also install The Forest and run it. SERVERNAME: 'The Forest Docker' SERVERPASSWORD: 'Docker' ADMINPASSWORD: 'adminDocker' (you can change this in your SERVERFOLDER/config/con… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -6147,7 +6147,7 @@
    "platte_gb": 30,
    "ports": [
     "30359:7777/udp",
-    "30350:7777/tcp"
+    "30359:7777/tcp"
    ],
    "volumes": [
     "/srv/games/ti:/data"
@@ -6167,7 +6167,7 @@
    },
    "adresse_port": 30359,
    "spieler": 4,
-   "hinweis": "The Isle in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/tiserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Abweichender Port (Standard war belegt): 7777->30359. The Isle in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/tiserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -6186,7 +6186,7 @@
    "platte_gb": 12,
    "ports": [
     "30360:27015/udp",
-    "30351:27015/tcp"
+    "127.0.0.1:30419:27015/tcp"
    ],
    "volumes": [
     "/srv/games/ts:/data"
@@ -6206,7 +6206,7 @@
    },
    "adresse_port": 30360,
    "spieler": 4,
-   "hinweis": "The Specialists in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/tsserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30419/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30360. The Specialists in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/tsserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -6225,7 +6225,7 @@
    "platte_gb": 30,
    "ports": [
     "30361:7777/udp",
-    "30352:7777/tcp",
+    "30361:7777/tcp",
     "30362:27015/udp"
    ],
    "volumes": [
@@ -6246,7 +6246,7 @@
    },
    "adresse_port": 30361,
    "spieler": 4,
-   "hinweis": "Tower Unite in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/tuserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Abweichender Port (Standard war belegt): 7777->30361, 27015->30362. Tower Unite in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/tuserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -6264,11 +6264,11 @@
    "mem_gb": 3,
    "platte_gb": 4,
    "ports": [
-    "30032:27015/tcp",
+    "30034:27015/tcp",
     "30034:27015/udp",
-    "30035:27016/tcp",
+    "30036:27016/tcp",
     "30036:27016/udp",
-    "30037:27017/tcp",
+    "30038:27017/tcp",
     "30038:27017/udp"
    ],
    "volumes": [
@@ -6288,9 +6288,9 @@
     "pfad": "",
     "feld": ""
    },
-   "adresse_port": 30032,
+   "adresse_port": 30034,
    "spieler": 4,
-   "hinweis": "Abweichender Port (Standard war belegt): 27015->30032, 27015->30034, 27016->30035, 27016->30036, 27017->30037, 27017->30038. This Docker will download and install SteamCMD. It will also install Unturned and run it (if you want to install Rocket Mod set the Variable 'Install Rocket Mod' to 'true' without quotes). ATTENTION: First Startup can take very lo… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "hinweis": "Abweichender Port (Standard war belegt): 27015->30034, 27016->30036, 27017->30038. This Docker will download and install SteamCMD. It will also install Unturned and run it (if you want to install Rocket Mod set the Variable 'Install Rocket Mod' to 'true' without quotes). ATTENTION: First Startup can take very lo… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -6340,7 +6340,7 @@
    "platte_gb": 12,
    "ports": [
     "30363:7777/udp",
-    "30353:7777/tcp"
+    "30363:7777/tcp"
    ],
    "volumes": [
     "/srv/games/ut:/data"
@@ -6360,7 +6360,7 @@
    },
    "adresse_port": 30363,
    "spieler": 4,
-   "hinweis": "Unreal Tournament in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/utserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Abweichender Port (Standard war belegt): 7777->30363. Unreal Tournament in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/utserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -6422,7 +6422,7 @@
    "platte_gb": 12,
    "ports": [
     "30364:7777/udp",
-    "30354:7777/tcp",
+    "30364:7777/tcp",
     "6500:6500/udp"
    ],
    "volumes": [
@@ -6443,7 +6443,7 @@
    },
    "adresse_port": 30364,
    "spieler": 4,
-   "hinweis": "Unreal Tournament 3 in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/ut3server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Abweichender Port (Standard war belegt): 7777->30364. Unreal Tournament 3 in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/ut3server/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -6620,7 +6620,7 @@
    "platte_gb": 12,
    "ports": [
     "30365:27015/udp",
-    "30355:27015/tcp"
+    "127.0.0.1:30420:27015/tcp"
    ],
    "volumes": [
     "/srv/games/vs:/data"
@@ -6640,7 +6640,7 @@
    },
    "adresse_port": 30365,
    "spieler": 4,
-   "hinweis": "Vampire Slayer in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/vsserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30420/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30365. Vampire Slayer in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/vsserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -6772,9 +6772,9 @@
    "mem_gb": 6,
    "platte_gb": 12,
    "ports": [
-    "8766:8766/udp",
-    "27020:27020/udp",
-    "8766:8766/tcp",
+    "30421:8766/udp",
+    "30422:27020/udp",
+    "30421:8766/tcp",
     "30031:3724/tcp"
    ],
    "volumes": [
@@ -6794,9 +6794,9 @@
     "pfad": "",
     "feld": ""
    },
-   "adresse_port": 8766,
+   "adresse_port": 30421,
    "spieler": 4,
-   "hinweis": "Abweichender Port (Standard war belegt): 3724->30031. This Docker will download and install SteamCMD. It will also install Wurm Unlimited with or without the Server-ModLauncher and run it. (You can also copy over the 'Creative' or 'Adventure' folder if you want to create a Server wit… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "hinweis": "Abweichender Port (Standard war belegt): 8766->30421, 27020->30422, 3724->30031. This Docker will download and install SteamCMD. It will also install Wurm Unlimited with or without the Server-ModLauncher and run it. (You can also copy over the 'Creative' or 'Adventure' folder if you want to create a Server wit… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -6878,7 +6878,7 @@
    "platte_gb": 12,
    "ports": [
     "30366:27015/udp",
-    "30356:27015/tcp"
+    "127.0.0.1:30356:27015/tcp"
    ],
    "volumes": [
     "/srv/games/zmr:/data"
@@ -6898,7 +6898,7 @@
    },
    "adresse_port": 30366,
    "spieler": 4,
-   "hinweis": "Zombie Master: Reborn in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/zmrserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30356/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30366. Zombie Master: Reborn in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/zmrserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",
@@ -6917,7 +6917,7 @@
    "platte_gb": 12,
    "ports": [
     "30367:27015/udp",
-    "30357:27015/tcp"
+    "127.0.0.1:30357:27015/tcp"
    ],
    "volumes": [
     "/srv/games/zps:/data"
@@ -6937,7 +6937,7 @@
    },
    "adresse_port": 30367,
    "spieler": 4,
-   "hinweis": "Zombie Panic! Source in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/zpsserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30357/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30367. Zombie Panic! Source in der LinuxGSM-Bauart. Daten unter /data, Konfiguration in config-lgsm/zpsserver/ und serverfiles/. Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Manche LinuxGSM-Spiele setzen Einstellungen durch HINZUFUEGEN von Zeilen in common.cfg - findet der Einrichtungsschritt kein Feld, meldet er das.",
    "ausschluss": [
     "serverfiles/steamapps",
     "log",

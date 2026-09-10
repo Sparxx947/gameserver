@@ -317,10 +317,15 @@ def installieren(sch: str):
     # Portangaben haben zwei Formen: "8080:8080/tcp" und - bei nur lokal
     # gebundenen Verwaltungszugaengen - "127.0.0.1:8080:8080/tcp". Der Host-Port
     # ist in beiden Faellen das VORLETZTE Feld, nicht das erste.
-    # Nur oeffentliche Ports pruefen: eine dreiteilige Angabe bindet an
-    # 127.0.0.1 und kann mit nichts kollidieren, was von aussen kommt.
-    kollision = [p for p in g["ports"]
-                 if len(p.split("/")[0].split(":")) < 3 and port_und_proto(p) in belegt]
+    # AUCH die lokalen pruefen. Hier stand, eine Bindung an 127.0.0.1 koenne
+    # mit nichts kollidieren - gemessen am 2026-09-10 stimmt das nicht: haelt
+    # ein Container 0.0.0.0:8081, weist das System 127.0.0.1:8081 mit "Address
+    # already in use" ab, und umgekehrt, fuer TCP wie UDP. docker-proxy bindet
+    # echte Sockets. Die Installation lief dann durch und der Container startete
+    # nicht (#163).
+    # *Local ones too: 127.0.0.1:N and 0.0.0.0:N collide in both directions,
+    #  for TCP and UDP alike - measured, and docker-proxy binds real sockets.*
+    kollision = [p for p in g["ports"] if port_und_proto(p) in belegt]
     if kollision:
         fehler("Port bereits belegt: " + ", ".join(kollision))
 

@@ -22,9 +22,14 @@ Konventionen mit, die einzeln zu pruefen waeren.
 Ohne --schreiben wird nur berichtet, was hinzukaeme. Vorhandene Eintraege
 werden NIE angefasst.
 """
-import json, re, sys, urllib.request
+import importlib.util, json, re, sys, urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+
+# Die Portregeln stehen EINMAL, in katalog-ports.py - hier nur benutzt.
+sys.dont_write_bytecode = True
+_spec = importlib.util.spec_from_file_location("katalog_ports", Path(__file__).with_name("katalog-ports.py"))
+kp = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(kp)
 
 VORLAGEN = "https://api.github.com/repos/ich777/docker-templates/contents/ich777"
 GHCR_TOKEN = "https://ghcr.io/token?scope=repository:ich777/steamcmd:pull"
@@ -40,9 +45,12 @@ KEIN_SPIEL = ("firefox", "chrome", "thunderbird", "radarr", "sonarr", "lidarr", 
 
 # Verwaltungszugaenge gehoeren auf 127.0.0.1 - RCON, Webkonsolen und Query-
 # Schnittstellen sind passwortgeschuetzte Administrationswege und beliebte
-# Bruteforce-Ziele. Siehe docs/06-netz-dns-firewall.md.
-# *Management ports bind to localhost: RCON and web consoles are admin paths.*
-NUR_LOKAL = re.compile(r"rcon|webconsole|admin|telnet|api|control|query.?web|9011|9012|9014|9015|9031", re.I)
+# Bruteforce-Ziele. Siehe docs/06-netz-dns-firewall.md. Die Regel steht in
+# katalog-ports.py (ist_verwaltung). Hier stand bis #163 eine eigene Kopie, die
+# ihr Namensmuster mit der PORTNUMMER verglich - der Name kam gar nicht an, weil
+# der Parser nur <HostPort>/<ContainerPort> las. Sie griff nie.
+# *The rule lives in katalog-ports.py. The copy here matched its name pattern
+#  against the port number and never fired.*
 
 # Ressourcenbedarf steht in keiner Vorlage. Die Werte hier sind SCHAETZUNGEN
 # nach Bauart des Spiels - sie bestimmen nur die Vorabpruefung ("passt das noch
@@ -119,8 +127,18 @@ def auswerten(name: str, xml: str) -> dict | None:
         return None
     gid = re.search(r'Name="GAME_ID"[^>]*>\s*([^<\s]*)\s*<', xml)
     gid = gid.group(1) if gid else ""
-    ports = re.findall(r"<HostPort>(\d+)</HostPort>\s*<ContainerPort>(\d+)</ContainerPort>"
-                       r"\s*<Protocol>(\w+)</Protocol>", xml)
+    # Die Portnamen stehen nicht bei <HostPort>, sondern in den <Config
+    # Type="Port">-Eintraegen ("TCP RCON", "TCP - WebConsole"). Ohne sie kann
+    # keine Namensregel greifen.
+    # *Port names live in the <Config Type="Port"> entries, not next to <HostPort>.*
+    namen = {}
+    for m in re.finditer(r"<Config\b([^>]*)>", xml):
+        a = dict(re.findall(r'(\w+)="([^"]*)"', m.group(1)))
+        if a.get("Type") == "Port" and a.get("Target", "").isdigit():
+            namen[(int(a["Target"]), (a.get("Mode") or "tcp").lower())] = a.get("Name", "")
+    ports = [(h, c, p, namen.get((int(c), p.lower()), ""))
+             for h, c, p in re.findall(r"<HostPort>(\d+)</HostPort>\s*<ContainerPort>(\d+)</ContainerPort>"
+                                       r"\s*<Protocol>(\w+)</Protocol>", xml)]
     params = re.search(r'Name="GAME_PARAMS"[^>]*>(.*?)</Config>', xml, re.S)
     besch = re.search(r"<Overview>(.*?)</Overview>", xml, re.S)
     steamcmd = "steamcmd:" in image
@@ -141,23 +159,34 @@ def ports_bauen(roh: list, belegt: set) -> tuple:
     """Portangaben erzeugen und Kollisionen mit BEREITS VERGEBENEN aufloesen.
 
     Der Ersatzbereich beginnt bei 30100, weil der Katalog 30000-30099 schon
-    nutzt. Verwaltungsports werden an 127.0.0.1 gebunden und zaehlen deshalb
-    nicht als belegt - sie kollidieren nicht nach aussen.
+    nutzt. Seit #163 drei Aenderungen:
+    * TCP und UDP EINES Containerports bekommen EINEN Hostport. Getrennt
+      verschoben landete TF2s Beitrittsadresse auf dem TCP-Port, und FiveM,
+      das beide auf einem Port braucht, war gar nicht erreichbar.
+    * Lokale Ports zaehlen als belegt: 127.0.0.1:N und 0.0.0.0:N schliessen
+      sich aus (gemessen).
+    * Die Beitrittsadresse ist der erste oeffentliche UDP-Port - bei Spielen
+      ohne UDP der erste oeffentliche.
+    *One host port per container port for TCP and UDP; local ports count as
+     taken; the join address is the first public UDP port.*
     """
-    raus, erster = [], 0
-    for host, cont, proto in roh:
-        h, c, p = int(host), int(cont), proto.lower()
-        lokal = bool(NUR_LOKAL.search(str(h)) or NUR_LOKAL.search(str(c)))
-        if lokal:
+    gruppen = {}
+    for host, cont, proto, name in roh:
+        gruppen.setdefault(int(cont), []).append((int(host), proto.lower(), name))
+    raus, erster, erster_udp = [], 0, 0
+    for c, g in gruppen.items():
+        oeff = [p for h, p, n in g if not kp.ist_verwaltung(c, p, n)]
+        lokal = [p for h, p, n in g if kp.ist_verwaltung(c, p, n)]
+        if oeff:
+            h = kp.hostport_fuer(g[0][0], oeff, belegt, 30100)
+            raus += [f"{h}:{c}/{p}" for p in oeff]
+            erster = erster or h
+            if "udp" in oeff:
+                erster_udp = erster_udp or h
+        for p in lokal:
+            h = kp.hostport_fuer(g[0][0], [p], belegt, 30100)
             raus.append(f"127.0.0.1:{h}:{c}/{p}")
-            continue
-        while (h, p) in belegt:
-            h = max(30100, h + 1) if h < 30100 else h + 1
-        belegt.add((h, p))
-        raus.append(f"{h}:{c}/{p}")
-        if not erster:
-            erster = h
-    return raus, erster
+    return raus, erster_udp or erster
 
 
 def eintrag_bauen(sch: str, v: dict, belegt: set) -> dict:
@@ -205,20 +234,8 @@ def main():
     # installierbar. Der Katalog allein weiss davon nichts.
     # *Besides the catalogue, the hand-built stacks count too: Satisfactory holds
     #  7777, and the catalogue alone knows nothing about it.*
-    belegt = set()
-    for g in katalog["spiele"]:
-        for p in g["ports"]:
-            teile = p.split(":")
-            if len(teile) == 3:
-                continue
-            belegt.add((int(teile[0]), p.rsplit("/", 1)[-1].lower()))
-    stacks = pfad.parent.parent / "stacks"
-    for y in sorted(stacks.glob("*.yaml")) if stacks.is_dir() else []:
-        for m in re.finditer(r'^\s*-\s*"?(?:127\.0\.0\.1:)?(\d+):\d+(?:/(\w+))?"?\s*$',
-                             y.read_text(), re.M):
-            if "127.0.0.1" in m.group(0):
-                continue
-            belegt.add((int(m.group(1)), (m.group(2) or "tcp").lower()))
+    # Lokale eingeschlossen - siehe kp.belegte_ports.
+    belegt = kp.belegte_ports(katalog["spiele"], kp.stackports_lesen())
     print(f"  {len(belegt)} Ports bereits vergeben (Katalog + vorhandene Stacks)")
 
     print("Vorlagen laden ...")

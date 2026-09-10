@@ -149,13 +149,67 @@ deshalb selbst an.
 
 ---
 
+## Portregeln im Katalog
+
+`werkzeuge/katalog-ports.py` prüft vier Regeln, und `vollstaendigkeit.sh` ruft
+es bei jedem Lauf. Jede Regel stammt aus einem Fehler, der im Katalog wirklich
+stand (#163, gefunden am 2026-09-10):
+
+| Regel | Was vorher im Katalog stand |
+|---|---|
+| **Verwaltungsports nur auf `127.0.0.1`** (Grenze 4) | FiveM und RedM veröffentlichten ihre *WebConsole* — ein gotty-Terminal direkt an der Serverkonsole, **ohne Anmeldung**. Dazu RCON bei 52 Source-/GoldSrc-Spielen (TCP 27015), bei Squad und Quake Live, die Webadministration von Killing Floor 1 und 2, das Web Panel von 7 Days to Die, der Server-Manager von Assetto Corsa. |
+| **TCP und UDP eines Containerports auf einem Hostport** | Die Kollisionsauflösung verschob beide getrennt. FiveM braucht beide auf **einem** Port und war so nicht erreichbar. |
+| **Die Beitrittsadresse zeigt auf einen Port, auf dem das Spiel ankommt** | Bei TF2 zeigte sie auf `30118/tcp`, das Spiel lauschte auf `30130/udp`. Dasselbe bei acht weiteren, darunter Conan Exiles. |
+| **Kein Hostport doppelt, lokale eingeschlossen** | Creativerse und 7 Days to Die teilten sich `26900/udp`, Assetto Corsa lag auf dem lokalen Port von 7 Days to Die. Die Installation lehnte das zweite Spiel ab — oder, bei lokalen Ports, startete es gar nicht. |
+
+**Warum die Regel für Verwaltungsports nie griff:** Sie stand im Generator als
+Namensmuster (`rcon|webconsole|admin|…`) — und wurde mit der **Portnummer**
+verglichen. Der Name kam gar nicht an: Der Parser las nur `<HostPort>` und
+`<ContainerPort>`, die Namen stehen in den `<Config Type="Port">`-Einträgen der
+Vorlage. Die Regel steht jetzt **einmal**, in `katalog-ports.py`, und beide
+Generatoren benutzen sie. Eine Kopie war genau das, was sie verrotten ließ.
+
+**Wo die Prüfung nichts weiß:** Der Katalog speichert keine Portnamen. Die
+Prüfung kennt die Verwaltungsports deshalb als Liste von Containerports
+(`VERWALTUNG` im Werkzeug) — sie fängt die bekannten, ein neues Spiel mit einem
+neuen Verwaltungsport fällt erst auf, wenn jemand die Vorlage liest. Die
+Generatoren entscheiden dagegen nach dem **Namen** aus der Vorlage.
+
+**Zwei bewusste Ausnahmen** — der Webport von **Eco** (`3001/tcp`) und die
+Statistik von **Assetto Corsas stracker** (`50041/tcp`) bleiben öffentlich: Beide
+sind für Spieler da, auch wenn dahinter ein Anmeldebereich liegt. Unturned
+nennt `27015/tcp` in seiner Vorlage „Game Port" und ist deshalb von der
+RCON-Regel ausgenommen.
+
+Keines der geänderten 94 Spiele war installiert. Ein installiertes Spiel hätte
+seinen Port behalten müssen — sonst verliert jeder Client den Server.
+
+> *`werkzeuge/katalog-ports.py`, run by the completeness check, enforces four
+> rules, each from a real defect found on 2026-09-10 (#163): management ports
+> bind to localhost (FiveM/RedM published an unauthenticated server console,
+> 52 Source games their RCON); TCP and UDP of one container port share a host
+> port (FiveM needs both on one); the join port is one the game listens on (TF2
+> pointed at its TCP port); and no host port is used twice, local ones included.
+> The management rule never fired because the generator matched its name pattern
+> against the port number — the parser never read the names at all. It now
+> lives once, in `katalog-ports.py`. The catalogue stores no port names, so the
+> check relies on a list of known container ports, while the generators decide
+> by template name. Eco's web port and Assetto Corsa's stracker stay public on
+> purpose; Unturned's 27015/tcp is a game port. None of the 94 changed games was
+> installed — an installed one would have had to keep its port.*
+
+---
+
 ## Installation Schritt für Schritt
 
 1. **Nachschlagen.** Schlüssel im Katalog suchen; unbekannt → Abbruch.
 2. **Platz prüfen.** `platte_gb` + 10 GB Reserve müssen frei sein.
 3. **Ports prüfen.** Kollision wird gegen die **tatsächlich belegten** Ports
    geprüft, nicht gegen alle im Katalog vergebenen. Sonst bekäme fast jedes
-   Spiel einen Ersatzport, obwohl nie zwei gleichzeitig laufen.
+   Spiel einen Ersatzport, obwohl nie zwei gleichzeitig laufen. **Auch die
+   lokalen** (`127.0.0.1:…`): Bis #163 stand hier, eine lokale Bindung könne
+   mit nichts kollidieren. Gemessen weist das System `127.0.0.1:N` ab, wenn ein
+   anderer Container `0.0.0.0:N` hält, und umgekehrt, für TCP wie UDP.
 4. **Passwörter würfeln.** Beitritt und Admin, je 14 Zeichen ohne verwechselbare
    Zeichen.
 5. **Dateien schreiben.** `compose.yaml` (`0600 root`), `panel.json`
@@ -169,7 +223,8 @@ deshalb selbst an.
 
 > *Install steps: look up the key, check disk space, check ports against
 > actually bound ports (not every port in the catalogue, or nearly every game
-> would be relocated), generate two passwords, write the files, create the
+> would be relocated) — local ones included, since `127.0.0.1:N` and `0.0.0.0:N`
+> exclude each other (measured) — generate two passwords, write the files, create the
 > directory with `mkdir` followed by an explicit `chmod` — the `mode` argument is
 > masked by `umask`, which once silently cost the join address in the overview —
 > and start only if free RAM covers the memory limit.*

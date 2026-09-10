@@ -24,9 +24,14 @@ Anpassungen an den Werkzeugen noetig machten:
 
   katalog-lgsm.py <katalog.json> [--schreiben]
 """
-import csv, io, json, re, sys, urllib.request
+import csv, importlib.util, io, json, re, sys, urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+
+# Die Portregeln stehen EINMAL, in katalog-ports.py - hier nur benutzt.
+sys.dont_write_bytecode = True
+_spec = importlib.util.spec_from_file_location("katalog_ports", Path(__file__).with_name("katalog-ports.py"))
+kp = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(kp)
 
 LISTE = "https://raw.githubusercontent.com/GameServerManagers/LinuxGSM/master/lgsm/data/serverlist.csv"
 DEFAULTS = "https://raw.githubusercontent.com/GameServerManagers/LinuxGSM/master/lgsm/config-default/config-lgsm"
@@ -79,17 +84,21 @@ def eintrag(kuerzel: str, z: dict, cfg: str, belegt: set) -> dict | None:
     sch = re.sub(r"[^a-z0-9]", "", kuerzel.lower())
     mem, platte = (8, 30) if kuerzel in GROSS else GROESSE_STANDARD
 
-    ports, adresse = [], 0
-    for p, proto in ((port, "udp"), (port, "tcp"), (wert("queryport"), "udp")):
-        if not p.isdigit():
-            continue
-        h = int(p)
-        while (h, proto) in belegt:
-            h = max(30300, h + 1) if h < 30300 else h + 1
-        belegt.add((h, proto))
-        ports.append(f"{h}:{p}/{proto}")
-        if not adresse:
-            adresse = h
+    # Spielport: UDP und TCP auf EINEN Hostport (#163) - getrennt verschoben
+    # zeigte die Beitrittsadresse sonst auf einen Port, auf dem niemand lauscht.
+    # TCP auf dem Spielport ist bei der Source-Engine RCON und kommt dann auf
+    # 127.0.0.1; die Regel dafuer steht in katalog-ports.py.
+    # *Game port: UDP and TCP share one host port; TCP on a Source game port is
+    #  RCON and binds locally.*
+    ports = []
+    gp = int(port)
+    adresse = kp.hostport_fuer(gp, ("udp", "tcp"), belegt, 30300)
+    ports.append(f"{adresse}:{gp}/udp")
+    lokal = "127.0.0.1:" if kp.ist_verwaltung(gp, "tcp") else ""
+    ports.append(f"{lokal}{adresse}:{gp}/tcp")
+    q = wert("queryport")
+    if q.isdigit() and int(q) != gp:
+        ports.append(f"{kp.hostport_fuer(int(q), ('udp',), belegt, 30300)}:{q}/udp")
     return {
         "schluessel": sch, "name": z["gamename"],
         "kurz": z["gamename"] + " (LinuxGSM)",
@@ -164,19 +173,8 @@ def main():
     # fuehrt, muss sie auch beide vollstaendig fuehren.
     # *The stacks were at first only considered for name matching, not for ports,
     #  so ARK was assigned 7777 which Satisfactory holds.*
-    belegt = set()
-    for g in katalog["spiele"]:
-        for p in g["ports"]:
-            teile = p.split(":")
-            if len(teile) == 3:
-                continue
-            belegt.add((int(teile[0]), p.rsplit("/", 1)[-1].lower()))
-    for y in sorted(stacks.glob("*.yaml")) if stacks.is_dir() else []:
-        for m in re.finditer(r'^\s*-\s*"?(?:127\.0\.0\.1:)?(\d+):\d+(?:/(\w+))?"?\s*$',
-                             y.read_text(), re.M):
-            if "127.0.0.1" in m.group(0):
-                continue
-            belegt.add((int(m.group(1)), (m.group(2) or "tcp").lower()))
+    # Lokale eingeschlossen: 127.0.0.1:N und 0.0.0.0:N schliessen sich aus (#163).
+    belegt = kp.belegte_ports(katalog["spiele"], kp.stackports_lesen())
     print(f"  {len(belegt)} Ports bereits vergeben (Katalog + laufende Stacks)")
 
     print("Serverliste und Docker-Tags laden ...")
