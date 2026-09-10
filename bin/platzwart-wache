@@ -41,6 +41,7 @@ ZUSTAND = Path("/var/lib/platzwart-wache.zustand")
 STACKS = Path("/opt/stacks")
 MELDEN = "/usr/local/bin/platzwart-melden"
 PLATTE_WARN = int(os.environ.get("WACHE_PLATTE_WARN", "85"))
+SPEICHER_WARN = int(os.environ.get("WACHE_SPEICHER_WARN", "85"))
 
 # Beendet mit 0 = sauber angehalten, 143 = SIGTERM (also "docker stop", ein
 # ausdruecklicher Befehl). Alles andere ist ein Absturz - 137 ist SIGKILL und
@@ -55,6 +56,95 @@ def sh(*a) -> str:
         return subprocess.run(a, capture_output=True, text=True, timeout=60).stdout
     except (OSError, subprocess.SubprocessError):
         return ""
+
+
+def meminfo() -> tuple[int, int]:
+    """(MemTotal, MemAvailable) in KiB - (0, 0), wenn /proc nicht lesbar ist.
+
+    MemAvailable und nicht MemFree: der Seitencache steht unter MemFree nicht
+    als frei, ist aber jederzeit einloesbar. Eine Pruefung gegen MemFree
+    schlaegt deshalb im Normalbetrieb an, und ein Melder, der immer meldet,
+    wird nach einer Woche stummgeschaltet. docs/08 liest aus demselben Grund
+    Spalte 7 von `free -m`.
+    """
+    werte = {}
+    try:
+        for z in Path("/proc/meminfo").read_text().splitlines():
+            name, _, rest = z.partition(":")
+            if name in ("MemTotal", "MemAvailable"):
+                werte[name] = int(rest.split()[0])
+    except (OSError, ValueError, IndexError):
+        return 0, 0
+    return werte.get("MemTotal", 0), werte.get("MemAvailable", 0)
+
+
+def grenzen_laufend() -> tuple[int, int]:
+    """(Summe der mem_limits laufender Container in Bytes, Zahl ohne Grenze).
+
+    Ueber `docker ps` und nicht ueber den Katalog: satisfactory, windrose und
+    foundry sind von Hand gebaut, haben keine panel.json und gehen an jeder
+    Katalogpruefung vorbei - sie stellen aber 24 der 47 G. Genau diese Tuer
+    laesst `spiel-verwalten` offen, das den freien Speicher nur vor einer
+    Katalog-Installation prueft.
+
+    HostConfig.Memory ist 0, wenn der Container keine Grenze hat. Das als
+    "nimmt nichts" zu zaehlen waere die falsche Richtung - ein Container ohne
+    Grenze darf alles nehmen, was da ist -, deshalb wird er getrennt gezaehlt
+    und im Meldungstext genannt.
+    """
+    ids = sh("docker", "ps", "-q").split()
+    if not ids:
+        return 0, 0
+    summe = ohne = 0
+    for z in sh("docker", "inspect", "--format", "{{.HostConfig.Memory}}",
+                *ids).split():
+        try:
+            g = int(z)
+        except ValueError:
+            continue
+        if g > 0:
+            summe += g
+        else:
+            ohne += 1
+    return summe, ohne
+
+
+def speicher_befund(gesamt_kib: int, verfuegbar_kib: int, grenzen: int,
+                    ohne_grenze: int,
+                    schwelle: int = SPEICHER_WARN) -> str | None:
+    """Wird der Arbeitsspeicher knapp? Meldungstext oder None.
+
+    Getrennt von lage(), damit --selbsttest sie mit erfundenen Zahlen
+    durchspielen kann. Ohne den Nachweis, dass sie auch anschlaegt, waere sie
+    eine Vermutung.
+
+    Gemessen wird der TATSAECHLICH belegte Speicher, nicht die Summe der
+    Grenzen. Die Summe uebersteigt den RAM dauerhaft und mit Absicht (docs/08,
+    "Speicher: die Grenzen sind ueberbucht"); ein Alarm darauf staende an
+    jedem einzelnen Tag im Kanal. Die Summe gehoert trotzdem in den Text: sie
+    beantwortet die Frage, die man sich in dem Moment stellt - wie viel
+    duerften die laufenden Server noch nehmen, wenn es jetzt schon eng ist.
+    """
+    if gesamt_kib <= 0:
+        return None
+    belegt = round((gesamt_kib - verfuegbar_kib) * 100 / gesamt_kib)
+    if belegt < schwelle:
+        return None
+    t = (f"Der Arbeitsspeicher ist zu **{belegt} %** belegt "
+         f"(Schwelle {schwelle} %). Verfuegbar sind noch "
+         f"{verfuegbar_kib / 1024 / 1024:.1f} GiB von "
+         f"{gesamt_kib / 1024 / 1024:.1f} GiB.\n\n")
+    if grenzen:
+        t += (f"Die laufenden Container duerfen zusammen "
+              f"{grenzen / 1024 ** 3:.0f} GiB nehmen")
+        t += f", dazu {ohne_grenze} ohne jede Grenze" if ohne_grenze else ""
+        t += ".\n\n"
+    elif ohne_grenze:
+        t += f"Kein laufender Container hat eine Grenze ({ohne_grenze} Stueck).\n\n"
+    t += ("Wird es eng, greift **nicht** die saubere Container-Grenze, sondern "
+          "der OOM-Killer der Maschine - und der trifft nicht unbedingt den, "
+          "der gewachsen ist. So starb StarRupture.")
+    return t
 
 
 def lage() -> dict:
@@ -91,6 +181,18 @@ def lage() -> dict:
                     "und damit faellt der Rueckweg weg, bevor etwas passiert.")
         except ValueError:
             pass
+
+    # --- Arbeitsspeicher ------------------------------------------------------
+    # Die Ueberbuchung der mem_limits ist Absicht, und was sie trug, war der
+    # Satz "solange nicht alle Server gleichzeitig laufen". Gemessen laufen
+    # alle sieben gleichzeitig - die Voraussetzung gilt nicht mehr, und
+    # aufgefallen ist das niemandem, weil sie von nichts geprueft wurde. Eine
+    # Annahme, die kein Melder kennt, hoert lautlos auf zu stimmen.
+    gesamt, verfuegbar = meminfo()
+    grenzen, ohne_grenze = grenzen_laufend()
+    speicher = speicher_befund(gesamt, verfuegbar, grenzen, ohne_grenze)
+    if speicher:
+        funde["speicher"] = speicher
 
     # --- Server ohne Beitrittspasswort ---------------------------------------
     # E23: Das Veroeffentlichen des Ports ist der Schritt, der nach aussen
@@ -143,6 +245,32 @@ def main() -> int:
         # Und die Gegenprobe: eine Pruefung, die IMMER etwas meldet, prueft nichts.
         print("  ok  unveraendert meldet nichts" if not [
             k for k in {"a"} if k not in {"a"}] else "  FEHLER")
+
+        # Dasselbe fuer die Speicherpruefung. Der OK-Fall beweist nichts,
+        # deshalb steht neben jedem stillen Fall einer, der melden MUSS - und
+        # die beiden Faelle dicht an der Schwelle zeigen, dass sie dort liegt,
+        # wo sie zu liegen behauptet.
+        print("== Selbsttest: schlaegt die Speicherpruefung an? ==")
+        GIB = 1024 * 1024                     # KiB je GiB
+        speicherproben = [
+            # gesamt, verfuegbar, Grenzen (Bytes), ohne Grenze, soll melden
+            (23 * GIB, 11 * GIB, 47 * 1024 ** 3, 0, False),  # 52 % - der Alltag
+            (23 * GIB,  4 * GIB, 47 * 1024 ** 3, 0, False),  # 83 % - knapp drunter
+            (23 * GIB,  3 * GIB, 47 * 1024 ** 3, 0, True),   # 87 % - knapp drueber
+            (23 * GIB,  2 * GIB, 47 * 1024 ** 3, 0, True),   # 91 % - es wird eng
+            (23 * GIB,  2 * GIB,             0, 3, True),    # ohne Grenzen ebenso
+            (0, 0, 0, 0, False),                             # /proc unlesbar: still
+        ]
+        for gesamt, verf, grenzen, ohne, soll in speicherproben:
+            text = speicher_befund(gesamt, verf, grenzen, ohne, schwelle=85)
+            ok = bool(text) == soll
+            belegt = (f"{round((gesamt - verf) * 100 / gesamt)} %"
+                      if gesamt else "unlesbar")
+            print(f"  {'ok ' if ok else 'FEHLER'}  {belegt:>8} belegt  ->  "
+                  f"{'meldet' if text else 'still '}   "
+                  f"(erwartet: {'meldet' if soll else 'still'})")
+            schlecht += 0 if ok else 1
+
         return 1 if schlecht else 0
 
     jetzt = lage()
@@ -161,6 +289,7 @@ def main() -> int:
         art = k.split(":")[0]
         titel = {"abgestuerzt": "Server abgestuerzt",
                  "platte": "Platte wird knapp",
+                 "speicher": "Arbeitsspeicher wird knapp",
                  "offen": "Server ohne Beitrittspasswort"}.get(art, art)
         if not melden("stoerung", titel, text, trocken):
             fehler = 1
@@ -168,6 +297,7 @@ def main() -> int:
         art, _, wer = k.partition(":")
         titel = {"abgestuerzt": f"{wer} laeuft wieder",
                  "platte": "Platte wieder in Ordnung",
+                 "speicher": "Arbeitsspeicher wieder in Ordnung",
                  "offen": f"{wer}: Einrichtung abgeschlossen"}.get(art, f"{k} erledigt")
         if not melden("meldung", titel, "Die Stoerung besteht nicht mehr.", trocken):
             fehler = 1
