@@ -1,5 +1,5 @@
 [Unit]
-Description=Taegliche Vollsicherung (auch gestoppte Spiele, Konfiguration, /etc)
+Description=Platzwart: taegliche Vollsicherung (auch gestoppte Spiele, Konfiguration, /etc)
 After=network-online.target tailscaled.service
 Wants=network-online.target
 

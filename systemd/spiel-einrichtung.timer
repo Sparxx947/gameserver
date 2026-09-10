@@ -1,5 +1,5 @@
 [Unit]
-Description=Passwort-Einrichtung alle zwei Minuten pruefen
+Description=Platzwart: Passwort-Einrichtung alle zwei Minuten pruefen
 
 [Timer]
 OnBootSec=3min

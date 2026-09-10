@@ -1,5 +1,5 @@
 [Unit]
-Description=Oeffentliche IPv4 alle fuenf Minuten pruefen
+Description=Platzwart: oeffentliche IPv4 alle fuenf Minuten pruefen
 
 [Timer]
 # Beim Start frueh, danach alle fuenf Minuten. Fuenf Minuten, weil der A-Eintrag

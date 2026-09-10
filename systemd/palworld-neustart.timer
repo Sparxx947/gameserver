@@ -1,5 +1,5 @@
 [Unit]
-Description=Palworld alle 12 Stunden neu starten (05:30 und 17:30)
+Description=Platzwart: Palworld alle 12 Stunden neu starten (05:30 und 17:30)
 
 [Timer]
 OnCalendar=*-*-* 05,17:30:00

@@ -1,5 +1,5 @@
 [Unit]
-Description=Beitrittspasswort und Spielerzahl frisch installierter Spielserver setzen
+Description=Platzwart: Beitrittspasswort und Spielerzahl frisch installierter Spielserver setzen
 After=docker.service
 
 [Service]

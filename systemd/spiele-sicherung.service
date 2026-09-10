@@ -1,5 +1,5 @@
 [Unit]
-Description=Spielstaende nach borgserver sichern
+Description=Platzwart: Spielstaende sichern
 After=network-online.target tailscaled.service
 Wants=network-online.target
 

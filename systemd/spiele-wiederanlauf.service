@@ -12,7 +12,7 @@
 # *"panel-aktion neustart" stops the containers on purpose so the games write
 #  their saves. But an explicit stop is exactly what disables unless-stopped, and
 #  Docker remembers it across the reboot — so nothing came back.*
-Description=Nach dem Neustart die vorher laufenden Spieleserver wieder starten
+Description=Platzwart: nach dem Neustart die vorher laufenden Spieleserver wieder starten
 Requires=docker.service
 After=docker.service network-online.target
 ConditionPathExists=/var/lib/spiele-wiederanlauf

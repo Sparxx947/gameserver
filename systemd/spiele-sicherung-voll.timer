@@ -1,5 +1,5 @@
 [Unit]
-Description=Taegliche Vollsicherung um 04:00
+Description=Platzwart: taegliche Vollsicherung um 04:00
 
 [Timer]
 OnCalendar=*-*-* 04:00:00

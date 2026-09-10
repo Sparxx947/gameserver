@@ -4,7 +4,7 @@
 # ist eine Annahme und keine Messung.
 # *Nightly, when nobody usually plays. The window is the first of four conditions;
 #  the second is measured traffic, because "at night" is an assumption.*
-Description=Spieleserver-Updates, naechtlich
+Description=Platzwart: Spieleserver-Updates, naechtlich
 
 [Timer]
 OnCalendar=*-*-* 05:15
