@@ -1,0 +1,12 @@
+[Unit]
+Description=Platzwart: Speicher, Last und Spielerzahl mitschreiben
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/platzwart-verlauf
+# Keine Haertung, die NoNewPrivileges impliziert - der Docker-Socket wird
+# gebraucht, und ohne ihn schriebe dieser Dienst still gar nichts mit.
+ProtectHome=yes
+PrivateTmp=yes

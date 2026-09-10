@@ -197,6 +197,69 @@ stillschweigend „an, wegen eines Servers, den es nicht mehr gibt". Gemessen am
 
 ---
 
+## Der Verlauf auf der Karte
+
+Bis zum 2026-09-10 war alles im Panel eine **Momentaufnahme**. Es konnte zeigen,
+dass `foundry` 4,3 von 6 GiB belegt — aber nicht, ob das seit Wochen so ist oder
+seit drei Tagen steigt. Und genau das ist die Frage, die man stellt.
+
+Auf der Karte eines laufenden Servers steht deshalb jetzt eine kleine Linie: der
+Speicherverlauf der letzten 24 Stunden. Der Tooltip nennt Bereich und Zeitraum.
+
+### Ein Ringpuffer, keine Zeitreihendatenbank
+
+`platzwart-verlauf` schreibt alle fünf Minuten einen Wert nach
+`/var/lib/platzwart-verlauf.json`:
+
+```
+{"foundry": [[zeit, mem_mb, cpu_prozent, spieler|null], ...]}
+```
+
+2016 Werte je Server sind bei diesem Abstand **eine Woche** und kosten rund
+60 kB. Dafür braucht es keinen Dienst, keinen Port und keine
+Aufbewahrungsregel, über die man streiten kann.
+
+### Die Lücken sind der springende Punkt
+
+**Jeder Wert trägt seine eigene Zeit**, sie wird nicht aus einem festen Abstand
+gerechnet. Fällt ein Lauf aus, entsteht dadurch eine Lücke, die man sehen kann.
+
+Die Linie wird an jedem Abstand über dem Doppelten des Messtakts **unterbrochen**.
+Eine durchgezogene Linie behauptete sonst Messwerte, die es nie gab — und
+ausgerechnet ein Ausfall sähe aus wie ein besonders ruhiger Verlauf. Der Tooltip
+zählt die Lücken mit.
+
+Aus demselben Grund steht im Timer `Persistent=false`: Ein nachgeholter Lauf
+schriebe einen Messwert mit falschem Zeitstempel und schüttete genau die Lücke
+zu, die man sehen soll.
+
+### Was bewusst nicht passiert
+
+* **Nicht aus dem Seitenaufbau messen.** Die Übersicht **liest** nur. Ein
+  zusätzlicher `docker stats`-Aufruf je Seitenaufruf wäre spürbar.
+* **Keine alte Spielerzahl in den Verlauf schreiben.** Nur frische Werte gehen
+  hinein — eine alte Zahl läse sich später als Messwert dieses Zeitpunkts.
+* **Entfernte Server verschwinden.** Sonst wüchse die Datei mit jedem
+  gelöschten Spiel weiter und der Verlauf zeigte Geister.
+
+Nachgewiesen: Eine Reihe mit 40 Minuten Pause ergibt **zwei** Liniensegmente und
+`1 Messlücke(n)` im Tooltip, eine durchgehende Reihe **eines**.
+
+> *Everything in the panel was a snapshot: it could show that a server uses 4.3
+> of 6 GiB but not whether that has held for weeks or been climbing for three
+> days — the question one actually asks. A ring buffer, not a time-series
+> database: 2016 samples per server is a week at five-minute spacing and costs
+> about 60 kB, needing no service, no port and no retention policy to argue
+> about. The gaps are the point: every sample carries its own timestamp, and the
+> line breaks wherever the spacing exceeds twice the sampling interval — drawn
+> straight across, an outage would look like a particularly calm stretch. The
+> timer is `Persistent=false` for the same reason: a caught-up run would write a
+> sample with the wrong timestamp and fill in the very gap one is meant to see.
+> The overview only reads; stale player counts are never recorded; removed
+> servers drop out so the file does not grow with every deleted game.*
+
+---
+
 ## Auf dem Telefon: `manifest.webmanifest`
 
 Die Oberfläche lässt sich als App installieren — Android über „Zum Startbildschirm

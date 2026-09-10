@@ -587,6 +587,7 @@ Notausgang `GAMESERVER_KEIN_GATE=1`.
 | `platzwart-wache.timer` | alle 5 min | Lage prüfen, **Änderungen** nach Discord melden (`Persistent=false`) |
 | `spieler-zaehlen.timer` | jede Minute | Spielerzahlen abfragen (`Persistent=false`) |
 | `platzwart-status.timer` | jede Minute | öffentliche Statusseite neu schreiben (`Persistent=false`) |
+| `platzwart-verlauf.timer` | alle 5 min | Speicher, Last und Spielerzahl mitschreiben (`Persistent=false`) |
 | `spiele-wiederanlauf.service` | beim Hochfahren | startet die Server wieder, die `panel-aktion neustart` vorher angehalten hat |
 | `panel.service` | dauerhaft | Weboberfläche, `User=panel`, uvicorn auf `127.0.0.1:8099` |
 | `ttyd.service` | dauerhaft | Webterminal, `User=<admin>`, `127.0.0.1:7681` |
@@ -630,6 +631,7 @@ schon einmal dazu geführt, dass Aufrufe still fehlschlugen.
 | `/etc/platzwart-melden.conf` | `0600 root` | Discord-Webhooks. **Nicht** von der Einrichtung angelegt; fehlt sie, meldet nichts |
 | `/etc/spiele-adressen.json` | `0644 root` | Beitrittsadressen der von Hand gebauten Server; gelesen von Panel **und** Statusseite |
 | `/var/lib/platzwart-status/index.html` | `0644 root` | die öffentliche Seite; Caddy liefert sie unmittelbar aus |
+| `/var/lib/platzwart-verlauf.json` | `0644 root` | Ringpuffer, 2016 Werte je Server = eine Woche; jeder Wert mit eigener Zeit, damit Lücken sichtbar bleiben |
 | `/var/lib/platzwart-spieler.json` | `0644 root` | zuletzt gemessene Spielerzahlen; **kein Eintrag = keine Antwort**, nicht null |
 | `/var/lib/platzwart-spieler.stumm` | `0644 root` | wer zuletzt nicht antwortete — Wiedervorlage nach 30 min |
 | `/var/lib/platzwart-wache.zustand` | `0600 root` | welche Befunde beim letzten Lauf offen waren — daraus entsteht Störung vs. Entwarnung |

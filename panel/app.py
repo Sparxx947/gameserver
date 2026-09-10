@@ -397,6 +397,75 @@ def spieler_text(d: dict | None) -> str:
             f'auf Port {d.get("port","?")}">{wer} Spieler</span>')
 
 
+VERLAUFSTAND = Path("/var/lib/platzwart-verlauf.json")
+VERLAUF_FENSTER_S = 24 * 3600      # was die Linie zeigt
+VERLAUF_ABSTAND_S = 300            # was der Zeitgeber schreibt
+
+
+def verlauf() -> dict:
+    try:
+        return json.loads(VERLAUFSTAND.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def sparkline(reihe: list | None) -> str:
+    """Der Speicherverlauf als winzige Linie. Inline-SVG, kein Bild und kein
+    JavaScript - die CSP des Panels laesst beides nicht zu, und ein eingebettetes
+    SVG ist Auszeichnung, keine Ressource.
+
+    Der springende Punkt sind die LUECKEN. Faellt der Zeitgeber aus, darf die
+    Linie nicht einfach durchgezogen werden: Sie behauptete dann Messwerte, die
+    es nie gab, und ausgerechnet ein Ausfall saehe aus wie ein ruhiger Verlauf.
+    Deshalb wird bei jedem Abstand ueber dem Doppelten des Messtakts ein neues
+    Liniensegment begonnen.
+
+    *The gaps are the point: if the timer stops, drawing straight across would
+     claim readings that never existed, and an outage would look like a calm
+     stretch. A break of more than twice the sampling interval starts a new
+     segment.*
+    """
+    if not reihe:
+        return ""
+    jetzt = time.time()
+    w = [p for p in reihe if jetzt - p[0] <= VERLAUF_FENSTER_S]
+    if len(w) < 3:
+        return ""
+    werte = [p[1] for p in w]
+    lo, hi = min(werte), max(werte)
+    spanne = max(hi - lo, 1)
+    t0, t1 = w[0][0], w[-1][0]
+    breite = max(t1 - t0, 1)
+    B, H = 96, 18
+
+    segmente, aktuell = [], []
+    vorher = None
+    for zeit, mb, *_ in w:
+        if vorher is not None and zeit - vorher > 2 * VERLAUF_ABSTAND_S:
+            if len(aktuell) > 1:
+                segmente.append(aktuell)
+            aktuell = []
+        x = (zeit - t0) / breite * B
+        y = H - (mb - lo) / spanne * (H - 2) - 1
+        aktuell.append(f"{x:.1f},{y:.1f}")
+        vorher = zeit
+    if len(aktuell) > 1:
+        segmente.append(aktuell)
+    if not segmente:
+        return ""
+
+    pfade = "".join(
+        f'<polyline points="{" ".join(s)}" fill=none stroke=currentColor '
+        f'stroke-width=1.2 stroke-linejoin=round/>' for s in segmente)
+    stunden = int((t1 - t0) / 3600)
+    luecken = len(segmente) - 1
+    hinweis = (f"Speicher {lo}-{hi} MB ueber {stunden} h"
+               + (f", {luecken} Messluecke(n)" if luecken else ""))
+    return (f'<span class=spark title="{hinweis}">'
+            f'<svg viewBox="0 0 {B} {H}" width={B} height={H} '
+            f'aria-hidden=true>{pfade}</svg></span>')
+
+
 def verkehr_text(bps: float | None) -> str:
     """Kurz und ehrlich. Ohne Vergleichswert steht da nichts - eine leere Angabe
     ist besser als eine erfundene."""
@@ -575,7 +644,7 @@ KOPF = """<!doctype html><html lang=de><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1"><title>Platzwart</title><link rel=icon href="/favicon.svg" type="image/svg+xml"><link rel="alternate icon" href="/favicon.ico" sizes="48x48 32x32 16x16"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel=manifest href="/manifest.webmanifest"><meta name=theme-color content="#14161a">
 <style>
 :root{color-scheme:dark;--bg:#14161a;--k:#1d2026;--r:#2b303a;--t:#e6e8ec;--d:#9aa1ad;--a:#5b9dd9;--g:#4caf7d;--x:#d9534f;--y:#d9a441}
-.sp{color:var(--d);font-size:12px}.sp.an{color:var(--g);font-weight:600}
+.spark{display:inline-block;vertical-align:middle;margin-left:8px;color:var(--d);opacity:.8}.spark svg{display:block}.sp{color:var(--d);font-size:12px}.sp.an{color:var(--g);font-weight:600}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--t);font:15px/1.5 system-ui,sans-serif}
 .w{max-width:1000px;margin:0 auto;padding:22px 16px}h1{font-size:20px;margin:0 0 16px}
 /* Der Katalog bekommt eine eigene, breitere Spalte. 1000px sind fuer Fliesstext
@@ -803,6 +872,7 @@ def uebersicht(request: Request, meldung: str = "", bearbeiten: str = ""):
             gemessen[teil[0]] = _bytes(rein) + _bytes(raus)
     raten = verkehr_rate(gemessen)
     spieler = spielerstand()
+    verl = verlauf()
     # Einmal fuer alle Karten holen, nicht je Karte einmal: ein Aufruf ueber die
     # sudo-Bruecke kostet spuerbar, und die Antwort ist fuer jede Karte dieselbe.
     # *Fetched once for all cards, not per card.*
@@ -841,6 +911,10 @@ def uebersicht(request: Request, meldung: str = "", bearbeiten: str = ""):
         #  indication that somebody is on.*
         verkehr = (spieler_text(spieler.get(name)) or
                    verkehr_text(raten.get(name))) if an else ""
+        # Die Linie zeigt den Speicher der letzten 24 h. Sie beantwortet die
+        # Frage, die eine Momentaufnahme nicht kann: steigt das, oder ist es
+        # seit jeher so?
+        verkehr += sparkline(verl.get(name)) if an else ""
         bild_html = (f'<img src="/bild/{name}" alt="">' if (BILDER / f"{name}.jpg").is_file()
                      else f'<div class=ph>{name[:2].upper()}</div>')
         knoepfe = []
