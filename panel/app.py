@@ -2024,7 +2024,7 @@ def mods(request: Request, stack: str, meldung: str = ""):
      putting third-party code into one is at least that.*
     """
     s = angemeldet(request)
-    if s.get("rolle") != "admin":
+    if not ist_admin(s):
         return RedirectResponse("/", 303)
     rc_z, ziel = aktion("mod-ziel", stack, timeout=30)
     rc_l, liste_roh = aktion("mod-liste", stack, timeout=30)
@@ -2073,7 +2073,7 @@ def mods(request: Request, stack: str, meldung: str = ""):
 async def mod_hochladen(request: Request, csrf: str = Form(""),
                         stack: str = Form(""), datei: UploadFile = File(...)):
     s = pruefe(request, csrf)
-    if s.get("rolle") != "admin":
+    if not ist_admin(s):
         return RedirectResponse("/", 303)
     # Die Bytes gehen unveraendert an panel-aktion und von dort an
     # mod-verwalten. Das Panel prueft sie NICHT - es laeuft unprivilegiert und
@@ -2093,7 +2093,7 @@ async def mod_hochladen(request: Request, csrf: str = Form(""),
 def mod_entfernen(request: Request, csrf: str = Form(""),
                   stack: str = Form(""), name: str = Form("")):
     s = pruefe(request, csrf)
-    if s.get("rolle") != "admin":
+    if not ist_admin(s):
         return RedirectResponse("/", 303)
     rc, aus = aktion("mod-entfernen", stack, name, timeout=60)
     protokoll(s, "Mod entfernt", stack, "ok" if rc == 0 else "fehlgeschlagen", auf=name[:80])

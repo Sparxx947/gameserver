@@ -107,6 +107,38 @@ if schlecht:
     sys.exit(1)
 PRUEF
 
+# Jede Route holt ihre Sitzung ueber angemeldet() oder pruefe(), und beide
+# geben None zurueck - ohne Anmeldung, mit falschem CSRF-Merkmal. Wer danach
+# s.get(...) oder s["..."] schreibt, ohne vorher auf None zu pruefen, bekommt
+# einen AttributeError und damit HTTP 500 statt einer Umleitung. So bei allen
+# drei Mod-Routen (#165), waehrend jede andere Route ist_admin(s) oder
+# darf_verwalten(s) benutzte, die None abfangen.
+# *angemeldet()/pruefe() return None without a session. Touching s before a None
+#  check turns that into a 500 - as in all three mod routes (#165).*
+echo "== Sitzung erst auf None pruefen, dann benutzen? =="
+python3 - <<'PRUEF' || fehler=1
+import re, sys
+zeilen = open("panel/app.py").read().split("\n")
+schlecht, route = [], None
+for i, z in enumerate(zeilen, 1):
+    m = re.match(r'@app\.(get|post)\("([^"]+)"', z)
+    if m:
+        route, start = m.group(2), i
+        continue
+    if route and re.search(r'\bs(\.get\(|\[")', z):
+        davor = "\n".join(zeilen[start:i - 1])
+        if not re.search(r'if not s\b|if s is None|darf_verwalten\(s\)|ist_admin\(s\)', davor):
+            schlecht.append(f"{route} (Zeile {i}): {z.strip()[:60]}")
+        route = None
+    elif route and i - start > 60:
+        route = None
+if schlecht:
+    print("  Sitzung benutzt, bevor sie auf None geprueft ist - ohne Anmeldung HTTP 500:")
+    print("    " + "\n    ".join(schlecht))
+    print("    Vorher: if not s: ... oder ist_admin(s)/darf_verwalten(s) benutzen.")
+    sys.exit(1)
+PRUEF
+
 echo "== Keine ausgewerteten Klammern im HTML? =="
 python3 - <<'PRUEF' || fehler=1
 import re, sys
