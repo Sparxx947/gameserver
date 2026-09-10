@@ -88,4 +88,34 @@ if [ "$ALLE" -eq 1 ] && [ -z "$NUR" ]; then
 fi
 
 borg compact "$REPO" >/dev/null 2>&1
+
+# --- Melden ------------------------------------------------------------------
+# Dieser Lauf kommt alle 15 Minuten, also 96-mal am Tag. Deshalb zwei Dinge:
+#
+#  1. Der Meldungstext traegt KEINEN Zeitstempel. platzwart-melden unterdrueckt
+#     Wiederholungen ueber einen Abgleich des Textes - mit "$ZEIT" darin waere
+#     jeder Lauf ein neuer Text und die Sperre wirkungslos. Aus einer Stoerung
+#     wuerden 96 Nachrichten, und danach schaltet man den Kanal ab.
+#  2. Die Entwarnung wird gemeldet, nicht nur die Stoerung. Ohne sie weiss
+#     niemand, ob das Problem noch besteht oder sich erledigt hat - und ein
+#     Alarm, dessen Ende man nicht sieht, wird zum Dauerzustand.
+#
+# *Runs every 15 minutes. The text carries no timestamp, or the repeat guard
+#  would never match and one fault would become 96 messages a day. And recovery
+#  is reported too: an alarm whose end is invisible becomes permanent.*
+melden() { /usr/local/bin/platzwart-melden "$@" 2>/dev/null || true; }
+MARKE=/var/lib/spiele-sicherung.stoerung
+if [ $fehler -ne 0 ]; then
+  melden stoerung "Sicherung fehlgeschlagen" \
+"Der Sicherungslauf endete mit Fehlern. Bis das behoben ist, entsteht kein
+neuer Rueckweg - und die vorhandenen Staende fallen weiter aus der Rotation.
+
+Nachsehen mit:  journalctl -u spiele-sicherung -n 50"
+  : > "$MARKE"
+elif [ -e "$MARKE" ]; then
+  melden meldung "Sicherung laeuft wieder" \
+"Der erste Lauf nach der Stoerung ist durchgelaufen."
+  rm -f "$MARKE"
+fi
+
 [ $fehler -eq 0 ] && echo "Sicherung abgeschlossen: $ZEIT" || { echo "Sicherung MIT FEHLERN: $ZEIT" >&2; exit 1; }

@@ -1,0 +1,18 @@
+[Unit]
+# Sieht nach, was nicht stimmt, und meldet AENDERUNGEN - siehe bin/platzwart-wache.
+Description=Platzwart: Lage pruefen und Aenderungen melden
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/platzwart-wache
+# Braucht Docker und /opt/stacks lesend sowie /var/lib schreibend. KEINE
+# Haertung, die NoNewPrivileges impliziert: LockPersonality,
+# ProtectKernelTunables und ProtectControlGroups setzen es mit, und dann
+# kaeme dieser Dienst nicht mehr an den Docker-Socket - er wuerde still
+# leere Listen sehen und "alles in Ordnung" melden.
+# *No hardening that implies NoNewPrivileges: it would silently see empty
+#  lists and report all-clear.*
+ProtectHome=yes
+PrivateTmp=yes

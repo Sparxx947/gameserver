@@ -56,6 +56,87 @@ wenn der freie Speicher zum `mem_limit` nicht reicht.
 
 ---
 
+## Was sich von selbst meldet
+
+Bis zum 2026-09-10 meldete sich **nichts**. Die Ereignisse gab es alle, sie
+standen im Journal und warteten darauf, dass jemand nachsieht — der einzige
+Melder war eine Prüfung, die montags 10:00 auf einem Desktop lief. Ein Server,
+der Samstagnacht um drei stirbt, fiel damit am Montag auf.
+
+Geschickt wird nach Discord, über zwei Webhooks:
+
+| Kanal | Was dort landet |
+|---|---|
+| `#platzwart-stoerung` | Server abgestürzt, Sicherung fehlgeschlagen, Platte knapp, Server ohne Beitrittspasswort, Update fehlgeschlagen |
+| `#platzwart-meldungen` | Update wirklich eingespielt, Entwarnung nach einer Störung |
+
+**Zwei Kanäle, mit Absicht.** Ein Kanal, in dem täglich „Update geprüft, nichts
+Neues" steht, wird nach einer Woche stummgeschaltet — und dann fällt auch die
+Störung nicht mehr auf.
+
+### Die drei Regeln, an denen das hängt
+
+**Gemeldet werden Änderungen, nicht Zustände.** `platzwart-wache` läuft alle fünf
+Minuten und vergleicht die Lage mit der des letzten Laufs: neu dazugekommen ist
+eine Störung, weggefallen eine Entwarnung, unverändert ist Schweigen. Ein Timer,
+der jedes Mal dieselbe Störung schickt, ist nach einem Tag 288-mal dasselbe.
+
+**Die Entwarnung gehört dazu.** Ein Alarm, dessen Ende man nicht sieht, wird zum
+Dauerzustand — man weiß nie, ob das Problem noch besteht.
+
+**Der Meldungstext trägt keinen Zeitstempel.** `platzwart-melden` unterdrückt
+Wiederholungen über einen Abgleich des Textes. Die Sicherung läuft alle 15
+Minuten; stünde die Uhrzeit in der Meldung, wäre jeder Lauf ein neuer Text und
+die Sperre wirkungslos.
+
+### Was ein Absturz ist und was nicht
+
+Exit `0` ist ein sauberes Anhalten, Exit `143` ist SIGTERM — also ein
+ausdrückliches `docker stop`. Beides wird **nicht** gemeldet. Alles andere gilt
+als Absturz; `137` ist SIGKILL und damit fast immer der OOM-Killer, genau das
+Bild, an dem StarRupture starb.
+
+### Einrichten und prüfen
+
+Die Ziele stehen in `/etc/platzwart-melden.conf` (Modus 600, root), Vorlage:
+`etc/platzwart-melden.conf.beispiel`. Die Datei wird **nicht** von der
+Einrichtung angelegt — sie enthält ein Geheimnis, und Geheimnisse entstehen auf
+der Maschine. Fehlt sie, tut der Melder nichts und meldet Erfolg.
+
+```bash
+platzwart-melden --test      # schickt in beide Kanäle und weist nach,
+                             # dass eine ungültige URL erkennbar scheitert
+platzwart-wache --trocken    # zeigt die Lage, ohne zu melden
+platzwart-wache --selbsttest # spielt den Vergleich mit erfundenen Lagen durch
+```
+
+**Die URL ist das Geheimnis.** Discords Webhook-Endpunkt prüft keine Signatur;
+wer sie hat, kann in den Kanal schreiben. Deshalb 600 und root — und deshalb
+filtert `platzwart-melden` vor dem Senden nach Passwörtern und Token: Meldungen
+entstehen oft aus Fehlerausgaben, und in Fehlerausgaben stehen Passwörter.
+Discord ist ein fremder Dienst; was einmal dort steht, steht da.
+
+**Zum Nachprüfen nicht den Bot fragen.** Ein Bot sieht ohne den
+Message-Content-Intent bei fremden Nachrichten leeres `content` und `embeds` —
+die Nachricht steht da, die Abfrage zeigt sie nur nicht. Genau daran ist die
+erste Kontrolle hier gescheitert, und es sah aus wie ein Zustellfehler. Der
+Melder hängt deshalb `?wait=true` an: Discord antwortet dann mit der
+**angelegten** Nachricht statt mit einem bloßen `204`.
+
+> *Until 2026-09-10 nothing on this machine reported anything; the events existed
+> and sat in the journal. Two Discord channels, deliberately: one carrying
+> "nothing new" daily gets muted within a week, and the outage stops being
+> noticed with it. Three rules carry it — changes are reported rather than
+> states, the all-clear is reported too (an alarm whose end is invisible becomes
+> permanent), and message texts carry no timestamp, or the repeat guard would
+> never match. Exit 0 and 143 are deliberate stops and stay silent; 137 is the
+> OOM killer. The webhook URL is the secret — Discord verifies no signature — so
+> mode 600, root, and secret filtering before sending. Do not verify via the
+> bot: without the Message Content intent it sees empty content and embeds,
+> which looks exactly like a delivery failure.*
+
+---
+
 ## Fehlerbilder
 
 ### Panel antwortet nicht
