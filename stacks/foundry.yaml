@@ -28,6 +28,16 @@ services:
       # 10.09. NIE einen Spielstand geschrieben, und die Sicherung fing jedes
       # Mal vier leere Verzeichnisse ein und meldete Erfolg (#138).
       #
+      # Mit "false" schreibt er fuenf rotierende Autosaves im Takt von
+      # autosave_interval=300. ACHTUNG beim Nachpruefen: Der ERSTE kommt etwa
+      # elf Minuten nach dem Start (Laden der Welt plus erstes Intervall). Eine
+      # Pruefung nach sieben Minuten sieht nichts und fuehrt zu genau dem
+      # Fehlschluss, der hier einmal gezogen wurde. Und: Beim Herunterfahren
+      # speichert FOUNDRY NICHT - ein Absturz verliert bis zu fuenf Minuten.
+      # *First autosave arrives ~11 minutes after start; a check at seven
+      #  minutes sees nothing, which is exactly the wrong conclusion drawn here
+      #  once. FOUNDRY does not save on shutdown either.*
+      #
       # Den Leerlauf uebernimmt seit #118 platzwart-schlaf. Der kann es besser:
       # Er haelt den Container wirklich an (spart Speicher statt nur CPU) und
       # weckt ihn beim Beitritt ueber systemd wieder.

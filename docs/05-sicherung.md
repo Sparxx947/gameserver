@@ -421,6 +421,81 @@ die ist dringend.
 > known problem stop being read. The failed-backup message keeps the short
 > window — that one is urgent.*
 
+## Probeweise zurückspielen, ohne den Server anzufassen
+
+Die echte Wiederherstellung hält einen Server an, löscht seine Daten und
+schreibt das Archiv darüber — sie braucht deshalb ein ausdrückliches Okay. Aber
+die Hälfte, die die wichtige Frage beantwortet, braucht **keinen Stillstand**:
+
+```bash
+sicherung-probe <spiel>              # neuestes Archiv
+sicherung-probe <spiel> --archiv X   # ein bestimmtes
+sicherung-probe --selbsttest
+```
+
+Auspacken in ein Wegwerfverzeichnis, hineinsehen, wegwerfen. Gemeldet wird, ob
+es sich überhaupt auspacken lässt, was herauskommt (Dateien, Größe, jüngste
+Datei) und wie das zu dem steht, was jetzt auf der Platte liegt.
+
+**Eine Sicherung, die nie zurückgespielt wurde, ist eine Behauptung.** Am
+2026-09-10 kamen drei Funde mit derselben Form zusammen — FOUNDRYs hohle
+Archive, die Lücke bei stehengebliebenen Ständen, der blinde Abgleich. Jedes Mal
+meldete sich etwas heil, ohne dass jemand hineingesehen hatte.
+
+### Was es nicht tut
+
+* **Es schreibt nie nach `/srv/games`.** `borg extract` schreibt relativ zum
+  aktuellen Verzeichnis, und die Archive tragen absolute Pfade. Aus `/`
+  gestartet, schriebe es direkt über den laufenden Server — das ist genau der
+  Unterschied zwischen dieser Probe und der echten Wiederherstellung. Die Probe
+  startet deshalb **zwingend** aus dem Wegwerfverzeichnis.
+* **Es lässt nichts liegen**, auch nicht bei Fehlern. Mehrere GB unter `/tmp`,
+  die niemand wegräumt, füllen die Platte — und dann scheitert als Erstes die
+  Sicherung.
+* **Es läuft nicht auf einem Zeitgeber.** Jede Nacht einige GB auszupacken, um
+  etwas zu beweisen, kostet mehr, als es belegt.
+* **Es bricht ab, wenn der Platz nicht reicht** — mindestens 10 GB müssen
+  danach frei bleiben. Eine Probe, die die Platte füllt, bräche genau die
+  Sicherung, die sie prüfen soll.
+
+### Der Vergleich rechnet die Ausschlüsse heraus
+
+Sonst wäre er Äpfel gegen Obstkörbe: Valheims Archiv hält 2,4 GB, das
+Verzeichnis auf der Platte ein Mehrfaches — die Spielinstallation ist
+ausgeschlossen, weil sie sich neu herunterladen lässt. Jedes gesunde Archiv sähe
+dann aus, als halte es nur einen Bruchteil. Gelesen wird die echte
+`/etc/borg-ausschluss.txt`.
+
+### Die Probe wartet auf die Sicherung
+
+Die Sicherung läuft alle 15 Minuten und hält dabei die Sperre des Repositoriums.
+Der erste Lauf gegen Valheim brach genau daran ab, während nebenan `borg create`
+lief. Die Probe ist nicht eilig und wartet jetzt bis zu 15 Minuten
+(`--lock-wait`), statt zu scheitern.
+
+### Was sie am ersten Tag gefunden hat
+
+Beim Test gegen FOUNDRY meldete sie **12,7 MB mit einer Datei von 18:13** — wo
+am Nachmittag zwei leere Verzeichnisse gelegen hatten. Damit war bewiesen, dass
+das Abschalten von `PAUSE_SERVER_WHEN_EMPTY` #138 **doch** behoben hatte. Ich
+hatte das eine Stunde zuvor verworfen, nach sieben Minuten Warten; der erste
+Autosave kommt aber erst rund elf Minuten nach dem Start. Das Werkzeug fand, was
+der zweite Blick übersehen hatte.
+
+> *The real restore stops a server and writes the archive over it, so it needs
+> explicit approval — but the half that answers the important question needs no
+> outage: extract to a scratch directory, look inside, throw away. A backup that
+> was never restored is a claim. It never writes into /srv/games — borg extract
+> writes relative to the current directory, and from "/" it would overwrite the
+> live server, which is exactly the difference from a real restore. It never
+> leaves its scratch directory behind, does not run on a timer, and refuses when
+> space is short. The live comparison excludes the backup's own exclusions, or
+> every healthy archive would look like a fraction. It waits for the 15-minute
+> backup's lock rather than failing. On its first day it proved that turning off
+> PAUSE_SERVER_WHEN_EMPTY had fixed #138 after all — which I had rejected an hour
+> earlier after waiting seven minutes, when the first autosave comes after
+> eleven.*
+
 ## Prüfen
 
 ```bash
