@@ -481,7 +481,7 @@ es zuerst gebaut.
 der Moment, in dem der Server nach außen offen ist. Steht er vor der
 Passwort-Einrichtung, liegt zwischen beiden ein Fenster, in dem der Server
 erreichbar ist und kein Passwort verlangt. Am 08.09. war das kein Gedankenspiel:
-ET: Legacy antwortete auf `45.82.122.120:27960` mit `g_needpass 0`, während die
+ET: Legacy antwortete auf `198.51.100.10:27960` mit `g_needpass 0`, während die
 Einrichtung noch auf die Konfigurationsdatei wartete. Beide Schritte brauchen
 ohnehin dieselbe Datei — die Reihenfolge kostet also nichts.
 
