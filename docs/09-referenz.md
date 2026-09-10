@@ -632,6 +632,7 @@ schon einmal dazu geführt, dass Aufrufe still fehlschlugen.
 | `/opt/panel/daten/nutzer.json` … Feld `codes` | `0600 panel` | Wiederherstellungscodes, Argon2id-Hashes, je 93,3 Bit |
 | `/var/lib/spiele-autoupdate.liste` | `0600 root` | freigeschaltete Server für nächtliche Updates, eine Zeile je Stack |
 | `/etc/platzwart-melden.conf` | `0600 root` | Discord-Webhooks. **Nicht** von der Einrichtung angelegt; fehlt sie, meldet nichts |
+| `/etc/spiele-mods.json` | `0644 root` | wohin ein Mod je Spiel gehört; **fehlt der Eintrag, wird der Upload abgewiesen** statt geraten |
 | `/etc/spiele-adressen.json` | `0644 root` | Beitrittsadressen der von Hand gebauten Server; gelesen von Panel **und** Statusseite |
 | `/var/lib/platzwart-status/index.html` | `0644 root` | die öffentliche Seite; Caddy liefert sie unmittelbar aus |
 | `/var/lib/platzwart-schlaf.liste` | `0644 root` | für den Leerlauf freigeschaltete Server, eine Zeile je Stack |

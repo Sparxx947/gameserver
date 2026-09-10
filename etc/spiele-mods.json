@@ -1,0 +1,11 @@
+{
+  "_hinweis": "Wohin ein Mod bei welchem Spiel gehoert. Bewusst eine Angabe je Spiel und KEINE Vermutung: Ein Mod im falschen Verzeichnis tut nichts, und niemandem faellt es auf - der Server startet, das Spiel laeuft, der Mod fehlt. Steht ein Spiel hier nicht drin, weist das Panel den Upload ab und sagt warum. Das ist besser als eine Datei irgendwo abzulegen.",
+  "_english": "Where a mod belongs, per game, and deliberately no guessing: a mod in the wrong directory does nothing and nobody notices - the server starts, the game runs, the mod is absent. A game not listed here has uploads refused with the reason.",
+  "_pfad": "Relativ zu /srv/games/<stack>. Der Eigentuemer wird vom vorhandenen Verzeichnis uebernommen, nicht geraten - FOUNDRYs Fremdabbild besteht auf uid 1000, die anderen laufen als 4711.",
+  "mods": {
+    "foundry": {
+      "pfad": "server/Mods",
+      "hinweis": "Liegt in server/ und damit im Sicherungsausschluss: Ein Mod hier ueberlebt keine Neuinstallation. Das Panel sagt es vor dem Hochladen."
+    }
+  }
+}

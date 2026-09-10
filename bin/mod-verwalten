@@ -1,0 +1,307 @@
+#!/usr/bin/env python3
+"""mod-verwalten — nimmt eine hochgeladene Moddatei an, prueft sie und legt sie ab.
+
+Wo kein Katalog hinreicht, bringt der Betreiber die Datei selbst mit. Nach der
+Messung in #130 ist das der haeufigere Fall: Von den sieben Servern hier hat
+KEINER Steam-Workshop-Unterstuetzung, die uns nuetzt.
+
+*Where no catalogue reaches, the operator brings the file. Per the measurement in
+ #130 that is the common case here: none of the seven servers takes Workshop
+ mods usefully.*
+
+  mod-verwalten liste <stack>
+  mod-verwalten ziel  <stack>            wohin ginge es, und ist es gesichert?
+  mod-verwalten annehmen <stack> <name>  liest die Datei von stdin
+  mod-verwalten entfernen <stack> <name>
+  mod-verwalten --selbsttest
+
+== Wogegen hier gebaut wird ==
+
+Ein Archiv bringt seine eigene Fassung der Falle mit, die schon konfig-datei
+formt (dort ein Symlink "z: -> /" unter StarRupture): **Zip Slip**. Ein Eintrag
+namens "../../etc/cron.d/x" oder einer, der SELBST ein Symlink ist, wird vom
+Entpacker geschrieben, BEVOR irgendeine nachtraegliche Pfadpruefung greift.
+
+Deshalb wird JEDER Eintrag EINZELN und VOR dem Entpacken geprueft, am
+aufgeloesten Ziel - und Archive mit Symlinks werden gar nicht erst angefasst.
+
+*An archive brings its own version of the trap that already shaped konfig-datei:
+ Zip Slip. An entry named "../../etc/cron.d/x", or one that IS a symlink, is
+ written by the extractor before any later path check applies. So every entry is
+ checked individually and BEFORE extraction, against the resolved target - and
+ archives containing symlinks are refused outright.*
+"""
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import zipfile
+from pathlib import Path
+
+KONF = Path(os.environ.get("MOD_KONF", "/etc/spiele-mods.json"))
+AUSSCHLUSS = Path("/etc/borg-ausschluss.txt")
+STACKS = Path("/opt/stacks")
+GAMES = Path(os.environ.get("MOD_GAMES", "/srv/games"))
+MAX_BYTES = int(os.environ.get("MOD_MAX_BYTES", str(512 * 1024 * 1024)))   # 512 MB
+# Unter so viel freiem Platz wird nichts mehr angenommen. Die Sicherung ist das
+# Erste, was auf einer vollen Platte scheitert - und dann ist der Rueckweg weg,
+# bevor etwas passiert.
+FREI_MIN_GB = int(os.environ.get("MOD_FREI_MIN_GB", "10"))
+ERLAUBTE_ENDUNGEN = {".zip", ".dll", ".jar", ".pak", ".json", ".cfg", ".txt", ".lua"}
+
+
+def fehler(*t):
+    print("FEHLER: " + " ".join(str(x) for x in t), file=sys.stderr)
+    sys.exit(1)
+
+
+def konfiguration() -> dict:
+    try:
+        return json.loads(KONF.read_text()).get("mods", {})
+    except (OSError, ValueError):
+        return {}
+
+
+def ziel_von(stack: str) -> tuple:
+    """(Pfad, Hinweis) - oder (None, Grund). Nie geraten."""
+    e = konfiguration().get(stack)
+    if not e or not e.get("pfad"):
+        return None, (f"Fuer {stack} ist nicht hinterlegt, wohin ein Mod gehoert. "
+                      "Ein Mod im falschen Verzeichnis tut nichts, und es faellt "
+                      "niemandem auf - deshalb wird hier nicht geraten. Eintrag "
+                      f"in {KONF} ergaenzen.")
+    return (GAMES / stack / e["pfad"]), e.get("hinweis", "")
+
+
+def in_der_sicherung(pfad: Path) -> bool:
+    """Faengt die Sicherung diesen Pfad ein - oder faellt er unter einen
+    Ausschluss? Gelesen wird die echte Ausschlussliste, nicht geraten."""
+    try:
+        zeilen = AUSSCHLUSS.read_text().splitlines()
+    except OSError:
+        return True
+    for z in zeilen:
+        z = z.strip()
+        if not z or z.startswith("#"):
+            continue
+        muster = z.split(":", 1)[1] if z.startswith("sh:") else z
+        muster = muster.rstrip("*").rstrip("/")
+        if muster and str(pfad).startswith(muster):
+            return False
+    return True
+
+
+def eigentuemer(pfad: Path) -> tuple:
+    """uid/gid vom vorhandenen Verzeichnis uebernehmen, nicht raten. FOUNDRYs
+    Fremdabbild besteht auf uid 1000, die anderen laufen als 4711 - eine Datei
+    mit falschem Eigentuemer ist ein Mod, der stillschweigend nicht laedt."""
+    p = pfad
+    while not p.exists() and p != p.parent:
+        p = p.parent
+    st = p.stat()
+    return st.st_uid, st.st_gid
+
+
+def freier_platz_gb(pfad: Path) -> float:
+    s = os.statvfs(pfad if pfad.exists() else pfad.parent)
+    return s.f_bavail * s.f_frsize / 1024**3
+
+
+# --- Die Pruefung eines Archiveintrags, ohne Nebenwirkungen ------------------
+def eintrag_erlaubt(name: str, wurzel: str = "/ziel") -> tuple:
+    """(True, "") oder (False, Grund). Rein rechnend, damit pruefbar.
+
+    Geprueft wird das AUFGELOESTE Ziel: "../../etc/cron.d/x" und "a/../../b"
+    sehen vor dem Aufloesen harmlos aus.
+    """
+    if name.startswith("/") or (len(name) > 1 and name[1] == ":"):
+        return False, "absoluter Pfad"
+    ziel = os.path.normpath(os.path.join(wurzel, name))
+    if not (ziel == wurzel or ziel.startswith(wurzel.rstrip("/") + "/")):
+        return False, "zeigt aus dem Zielverzeichnis heraus"
+    return True, ""
+
+
+def annehmen(stack: str, name: str) -> int:
+    ziel, hinweis = ziel_von(stack)
+    if ziel is None:
+        fehler(hinweis)
+    # Der Name kommt von aussen und wird ABGEWIESEN, nicht zurechtgebogen.
+    #
+    # Der erste Entwurf nahm erst den Basisnamen und pruefte DANACH auf "/" -
+    # eine Pruefung, die nach basename() nie anschlagen kann. "../../boese.dll"
+    # waere als "boese.dll" klaglos gelandet. Sicher war das, aber still: Wer
+    # einen solchen Namen schickt, soll eine Antwort bekommen und keine
+    # heimliche Umbenennung.
+    # *Refused, not silently sanitised. The first draft took the basename and
+    #  then checked for "/" - a check that can never fire after basename().*
+    roh_name = name
+    name = name.strip()
+    if not name or name.startswith(".") or "/" in name or "\\" in name \
+            or name != os.path.basename(name):
+        fehler(f"unzulaessiger Dateiname: {roh_name!r} - erwartet wird ein "
+               "einfacher Name ohne Pfadanteile")
+    endung = Path(name).suffix.lower()
+    if endung not in ERLAUBTE_ENDUNGEN:
+        fehler(f"Endung {endung or '(keine)'} nicht erlaubt. Zugelassen: "
+               + " ".join(sorted(ERLAUBTE_ENDUNGEN)))
+    if freier_platz_gb(GAMES) < FREI_MIN_GB:
+        fehler(f"nur noch {freier_platz_gb(GAMES):.1f} GB frei - unter {FREI_MIN_GB} GB "
+               "wird nichts angenommen. Auf einer vollen Platte scheitert als "
+               "Erstes die Sicherung.")
+
+    # In ein Zwischenverzeichnis lesen, NICHT ins Ziel. Was dort landet, ist
+    # ungeprueft; erst nach allen Pruefungen wird verschoben.
+    with tempfile.TemporaryDirectory(prefix="mod-", dir="/tmp") as tmp:
+        roh = Path(tmp) / name
+        gelesen = 0
+        with open(roh, "wb") as f:
+            while True:
+                stueck = sys.stdin.buffer.read(1 << 16)
+                if not stueck:
+                    break
+                gelesen += len(stueck)
+                if gelesen > MAX_BYTES:
+                    fehler(f"groesser als {MAX_BYTES // 1024 // 1024} MB")
+                f.write(stueck)
+        if gelesen == 0:
+            fehler("leere Datei")
+
+        ziel.mkdir(parents=True, exist_ok=True)
+        uid, gid = eigentuemer(ziel)
+
+        if endung == ".zip":
+            entpackt = Path(tmp) / "entpackt"
+            entpackt.mkdir()
+            try:
+                with zipfile.ZipFile(roh) as z:
+                    for info in z.infolist():
+                        # Symlinks im Archiv: gar nicht erst anfassen. Ein
+                        # Eintrag, der SELBST ein Symlink auf "/" ist, wird vom
+                        # Entpacker geschrieben, bevor eine Pfadpruefung greift.
+                        if (info.external_attr >> 16) & 0o170000 == 0o120000:
+                            fehler(f"Archiv enthaelt einen Symlink: {info.filename}")
+                        ok, grund = eintrag_erlaubt(info.filename, str(entpackt))
+                        if not ok:
+                            fehler(f"Eintrag abgewiesen ({grund}): {info.filename}")
+                    # Erst JETZT entpacken - jeder Eintrag ist geprueft.
+                    z.extractall(entpackt)
+            except zipfile.BadZipFile:
+                fehler("kein lesbares ZIP-Archiv")
+            for p in sorted(entpackt.rglob("*")):
+                rel = p.relative_to(entpackt)
+                z2 = ziel / rel
+                if p.is_dir():
+                    z2.mkdir(parents=True, exist_ok=True)
+                else:
+                    z2.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(p, z2)
+                os.chown(z2, uid, gid)
+            anzahl = sum(1 for _ in entpackt.rglob("*") if _.is_file())
+            print(f"ok\t{name}\tentpackt, {anzahl} Datei(en) nach {ziel}")
+        else:
+            z2 = ziel / name
+            shutil.copy2(roh, z2)
+            os.chown(z2, uid, gid)
+            print(f"ok\t{name}\t{gelesen // 1024} kB nach {ziel}")
+
+    if not in_der_sicherung(ziel):
+        print(f"hinweis\t{ziel} faellt unter einen Sicherungsausschluss - "
+              "dieser Mod ueberlebt keine Neuinstallation.", file=sys.stderr)
+    return 0
+
+
+def liste(stack: str) -> int:
+    ziel, grund = ziel_von(stack)
+    if ziel is None:
+        print(f"  {grund}")
+        return 1
+    if not ziel.exists():
+        print(f"  {ziel} gibt es noch nicht - kein Mod installiert")
+        return 0
+    for p in sorted(ziel.iterdir()):
+        st = p.stat()
+        art = "Verzeichnis" if p.is_dir() else f"{st.st_size // 1024} kB"
+        print(f"  {p.name}\t{art}\tuid {st.st_uid}")
+    return 0
+
+
+def entfernen(stack: str, name: str) -> int:
+    ziel, grund = ziel_von(stack)
+    if ziel is None:
+        fehler(grund)
+    name = os.path.basename(name).strip()
+    ok, g = eintrag_erlaubt(name, str(ziel))
+    if not ok or not name:
+        fehler("unzulaessiger Name")
+    p = ziel / name
+    if not p.exists():
+        fehler(f"{name} gibt es dort nicht")
+    # Aufgeloest pruefen, dann loeschen - ein Symlink im Zielverzeichnis darf
+    # nicht dazu fuehren, dass etwas ausserhalb verschwindet.
+    echt = p.resolve()
+    if not str(echt).startswith(str(ziel.resolve()) + os.sep):
+        fehler(f"{name} zeigt aus {ziel} heraus - hier wird nichts geloescht")
+    shutil.rmtree(echt) if echt.is_dir() else echt.unlink()
+    print(f"ok\t{name} entfernt")
+    return 0
+
+
+def main() -> int:
+    a = sys.argv[1:]
+    if "--selbsttest" in a:
+        print("== Selbsttest: was darf ein Archiveintrag heissen? ==")
+        faelle = [
+            ("mod/datei.dll", True, "gewoehnlicher Eintrag"),
+            ("datei.dll", True, "im Wurzelverzeichnis"),
+            ("a/b/../c.dll", True, "harmloses .. innerhalb"),
+            ("../../etc/cron.d/x", False, "Zip Slip nach oben"),
+            ("../x", False, "eine Ebene nach oben"),
+            ("/etc/passwd", False, "absoluter Pfad"),
+            ("C:/windows/x", False, "Windows-Laufwerk"),
+            ("a/../../b", False, "erst hinein, dann zweimal heraus"),
+        ]
+        schlecht = 0
+        for name, soll, titel in faelle:
+            ist, grund = eintrag_erlaubt(name)
+            if ist == soll:
+                print(f"  ok      {titel:32} {name!r}")
+            else:
+                print(f"  FEHLER  {titel:32} {name!r} -> {ist} ({grund})")
+                schlecht += 1
+        # Gegenprobe: Eine Pruefung, die ALLES abweist, prueft nichts.
+        erlaubt = sum(1 for n, s, _ in faelle if eintrag_erlaubt(n)[0])
+        if erlaubt == 3:
+            print("  ok      drei Eintraege kommen durch - die Pruefung weist nicht alles ab")
+        else:
+            print(f"  FEHLER  {erlaubt} statt 3 Eintraege kommen durch")
+            schlecht += 1
+        return 1 if schlecht else 0
+
+    if len(a) < 2:
+        print(__doc__.split("\n\n")[3], file=sys.stderr)
+        return 2
+    befehl, stack = a[0], a[1]
+    if befehl == "liste":
+        return liste(stack)
+    if befehl == "ziel":
+        ziel, hinweis = ziel_von(stack)
+        if ziel is None:
+            print(f"  {hinweis}")
+            return 1
+        print(f"  Ziel:      {ziel}")
+        print(f"  Gesichert: {'ja' if in_der_sicherung(ziel) else 'NEIN'}")
+        if hinweis:
+            print(f"  Hinweis:   {hinweis}")
+        return 0
+    if befehl == "annehmen" and len(a) >= 3:
+        return annehmen(stack, a[2])
+    if befehl == "entfernen" and len(a) >= 3:
+        return entfernen(stack, a[2])
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())
