@@ -194,37 +194,94 @@ stillschweigend „an, wegen eines Servers, den es nicht mehr gibt". Gemessen am
 
 ---
 
-## „Verkehr", nicht „Spieler"
+## Spieler, wo es geht — Verkehr, wo nicht
 
-Auf der Karte eines laufenden Servers steht, wie viel Netzverkehr er gerade hat —
-`ruhig`, `Verkehr 45 kB/s`, `Verkehr 3.4 MB/s`.
+Auf der Karte eines laufenden Servers steht entweder eine **echte Spielerzahl**
+(`0/10 Spieler`) oder der **Netzverkehr** (`ruhig`, `Verkehr 45 kB/s`). Welches
+von beidem, entscheidet sich daran, ob der Server auf eine Abfrage antwortet.
 
-**Warum keine Spielerzahl?** Weil es sie nicht gibt. Gemessen am 2026-09-09:
+### Eine Fehlmessung, die eine Funktion gekostet hat
 
-| Server | Steam-Abfrage (A2S) |
-|---|---|
-| Palworld | keine Antwort, weder auf 27015 noch auf 8211 |
-| TeamSpeak | eigenes Protokoll |
-| Enshrouded | antwortet, aber in einem dritten Format |
+Hier stand bis zum 2026-09-10, es gebe keine Spielerzahlen — Palworld antworte
+auf keine Steam-Abfrage, TeamSpeak spreche ein eigenes Protokoll, Enshrouded „ein
+drittes Format". Das war **falsch**, und zwar in einem Punkt, der zählt:
 
-Jedes Spiel bräuchte einen eigenen Weg, und für die meisten der 179
-Katalogspiele gäbe es gar keinen. Der Netzverkehr dagegen ist für **jeden**
-Container da und kommt aus demselben `docker stats`, das die Übersicht ohnehin
-abruft — ein Feld mehr, kein zweiter Aufruf.
+```
+=== Steam-Abfrage (A2S_INFO), 2026-09-10 ===
+  valheim      0/10 Spieler   "Valheim Docker"
+  enshrouded   0/4 Spieler    "mjfabrix"
+  palworld     keine Antwort
+  foundry      keine Antwort
+  satisfactory keine Antwort
+```
 
-Er beantwortet die Frage, um die es wirklich geht: *Kann ich neu starten, oder
-ist gerade jemand drauf?* Deshalb heißt die Anzeige **Verkehr** und nicht
-**Spieler** — sie behauptet nicht, was sie nicht weiß.
+Enshrouded antwortet auf **ganz normales A2S**. Die vermutliche Ursache des
+Irrtums steckt im Protokoll: Seit 2020 beantworten Server die erste
+`A2S_INFO`-Anfrage nicht mit Daten, sondern mit einem **Challenge** (`0x41`);
+erst die Wiederholung mit angehängtem Challenge liefert die Antwort. Wer das
+nicht tut, sieht einen antwortenden Server als stumm — und schreibt „nicht
+abrufbar" in die Dokumentation.
 
-**Drei Fälle, in denen bewusst nichts angezeigt wird:**
+Das ist die Lehre, nicht die Zahl: Eine Messung, die „geht nicht" ergibt, ist
+erst dann ein Befund, wenn auch der Weg geprüft wurde, auf dem sie misst.
 
-* **Erster Abruf.** Der Wert aus `docker stats` ist kumulativ seit dem Start des
-  Containers; ohne Vergleichswert gibt es keine Rate. Eine leere Angabe ist
-  besser als eine erfundene.
-* **Der Zähler fällt.** Das heißt Container-Neustart, nicht negativer Verkehr —
-  der Eintrag wird verworfen.
+### Wie es jetzt läuft
+
+`spieler-zaehlen` fragt jede Minute über einen Timer und schreibt
+`/var/lib/platzwart-spieler.json`. Die Übersicht **liest** nur — eine Abfrage im
+Seitenaufbau würde jeden Seitenaufruf um die langsamste Antwort verlängern.
+
+Der **Abfrageport wird gefunden, nicht konfiguriert.** Eine Angabe im Katalog
+hätte drei der sieben Server nicht erreicht: `satisfactory`, `windrose` und
+`foundry` sind von Hand gebaut und haben keinen Katalogeintrag. Stattdessen
+werden die veröffentlichten UDP-Ports durchprobiert und der, der antwortet,
+gemerkt — Valheim veröffentlicht drei, genau einer antwortet.
+
+**Wer schweigt, wird nicht jede Minute erneut gefragt.** Fünf der sieben
+antworten nicht; sie im Minutentakt anzufragen sind Pakete an Spielports, die
+niemandem nützen. Wiedervorlage nach 30 Minuten — ein Spiel kann seine Abfrage
+nach einem Update anschalten. Gemessen: erster Lauf 2,8 s (alle, parallel),
+danach 0,33 s.
+
+Die Abfragearten stehen als Klassen nebeneinander, dieselbe Naht wie bei den
+DNS-Anbietern (E24). Wer TeamSpeaks ServerQuery oder Satisfactorys HTTPS-API
+ergänzt, schreibt eine Klasse und trägt sie ein, sonst nichts.
+
+### Was bewusst *nicht* angezeigt wird
+
+* **Wer nicht antwortet, bekommt keine Null.** Er steht gar nicht erst im Stand;
+  die Karte zeigt dann Verkehr. Eine Null wäre eine Aussage, keine Antwort ist
+  keine.
+* **Zahlen über drei Minuten alt.** Steht der Timer, ist die letzte Zahl keine
+  Auskunft über „gerade" mehr. Eine veraltete Zahl als aktuelle auszugeben ist
+  schlimmer als keine.
+
+### Der Verkehr bleibt — für die anderen fünf
+
+Er kommt aus demselben `docker stats`, das die Übersicht ohnehin abruft, und
+beantwortet die Frage, um die es wirklich geht: *Kann ich neu starten, oder ist
+gerade jemand drauf?* Drei Fälle, in denen auch er bewusst leer bleibt:
+
+* **Erster Abruf.** Der Wert ist kumulativ seit dem Containerstart; ohne
+  Vergleichswert gibt es keine Rate.
+* **Der Zähler fällt.** Das heißt Container-Neustart, nicht negativer Verkehr.
 * **Der letzte Abruf ist über 15 Minuten her.** Dann sagt die Differenz nichts
   mehr über „gerade".
+
+> *A card shows a real player count where the server answers a query, and network
+> traffic where it does not. Until 2026-09-10 this section claimed no counts were
+> obtainable — wrongly: Enshrouded answers plain A2S. The likely cause of the
+> error is in the protocol: since 2020 the first A2S_INFO is answered with a
+> challenge, and only the repeat carrying it returns data, so a responding server
+> looks silent. The lesson is not the number but this: a measurement yielding
+> "not possible" is only a finding once the method itself has been checked.
+> A timer queries every minute and the overview only reads, since querying inside
+> the request path would lengthen every page load. The query port is discovered
+> rather than configured — three of the seven servers are hand-built and have no
+> catalogue entry. Silent servers are retried every 30 minutes, not every minute.
+> A server that does not answer gets no zero: it is absent from the file, and a
+> zero would be a statement where there is no answer. Counts older than three
+> minutes are dropped — stale presented as current is worse than nothing.*
 
 Der letzte Stand liegt in `/opt/panel/daten/netzstand.json`.
 

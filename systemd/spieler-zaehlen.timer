@@ -1,0 +1,15 @@
+[Unit]
+Description=Platzwart: Spielerzahlen jede Minute abfragen
+
+[Timer]
+# Jede Minute. Eine Spielerzahl, die eine Minute alt ist, stimmt fuer jeden
+# praktischen Zweck; eine Abfrage im Seitenaufbau wuerde dagegen jeden
+# Seitenaufruf um die langsamste Antwort verlaengern.
+# *A count one minute old is fine; querying inside the request path would
+#  lengthen every page load by the slowest answer.*
+OnBootSec=90s
+OnUnitActiveSec=1min
+Persistent=false
+
+[Install]
+WantedBy=timers.target

@@ -351,6 +351,42 @@ def verkehr_rate(gemessen: dict) -> dict:
     return raten
 
 
+SPIELERSTAND = Path("/var/lib/platzwart-spieler.json")
+# Aelter als das, und die Zahl wird nicht mehr gezeigt. Der Zeitgeber laeuft
+# jede Minute; steht er, ist eine drei Minuten alte Spielerzahl keine Auskunft
+# ueber "gerade" mehr - und eine veraltete Zahl als aktuelle auszugeben ist
+# schlimmer als keine.
+# *Older than this and the number is not shown: a stale count presented as
+#  current is worse than none.*
+SPIELER_FRISCH_S = 180
+
+
+def spielerstand() -> dict:
+    """Was der Zaehler zuletzt gemessen hat. Wer nicht antwortet, steht nicht
+    drin - das Fehlen ist die Aussage, nicht eine Null."""
+    try:
+        d = json.loads(SPIELERSTAND.read_text())
+    except (OSError, ValueError):
+        return {}
+    jetzt = time.time()
+    return {n: v for n, v in d.items()
+            if jetzt - float(v.get("zeit", 0)) <= SPIELER_FRISCH_S}
+
+
+def spieler_text(d: dict | None) -> str:
+    """Eine echte Zahl, wenn es eine gibt - sonst gar nichts, damit der
+    Verkehrswert einspringen kann."""
+    if not d:
+        return ""
+    n, m = d.get("spieler"), d.get("max")
+    if n is None:
+        return ""
+    klasse = "sp an" if n else "sp"
+    wer = f"{n}/{m}" if m else str(n)
+    return (f'<span class="{klasse}" title="gemessen ueber {d.get("quelle","?")} '
+            f'auf Port {d.get("port","?")}">{wer} Spieler</span>')
+
+
 def verkehr_text(bps: float | None) -> str:
     """Kurz und ehrlich. Ohne Vergleichswert steht da nichts - eine leere Angabe
     ist besser als eine erfundene."""
@@ -529,6 +565,7 @@ KOPF = """<!doctype html><html lang=de><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1"><title>Platzwart</title><link rel=icon href="/favicon.svg" type="image/svg+xml"><link rel="alternate icon" href="/favicon.ico" sizes="48x48 32x32 16x16"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <style>
 :root{color-scheme:dark;--bg:#14161a;--k:#1d2026;--r:#2b303a;--t:#e6e8ec;--d:#9aa1ad;--a:#5b9dd9;--g:#4caf7d;--x:#d9534f;--y:#d9a441}
+.sp{color:var(--d);font-size:12px}.sp.an{color:var(--g);font-weight:600}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--t);font:15px/1.5 system-ui,sans-serif}
 .w{max-width:1000px;margin:0 auto;padding:22px 16px}h1{font-size:20px;margin:0 0 16px}
 /* Der Katalog bekommt eine eigene, breitere Spalte. 1000px sind fuer Fliesstext
@@ -755,6 +792,7 @@ def uebersicht(request: Request, meldung: str = "", bearbeiten: str = ""):
             rein, raus = teil[4].split("/", 1)
             gemessen[teil[0]] = _bytes(rein) + _bytes(raus)
     raten = verkehr_rate(gemessen)
+    spieler = spielerstand()
     # Einmal fuer alle Karten holen, nicht je Karte einmal: ein Aufruf ueber die
     # sudo-Bruecke kostet spuerbar, und die Antwort ist fuer jede Karte dieselbe.
     # *Fetched once for all cards, not per card.*
@@ -784,7 +822,15 @@ def uebersicht(request: Request, meldung: str = "", bearbeiten: str = ""):
             continue
         name, zustand, cpu, mem = t[0], t[1], t[2], t[3]
         an = zustand == "laeuft"
-        verkehr = verkehr_text(raten.get(name)) if an else ""
+        # Die echte Spielerzahl schlaegt den Verkehr - aber nur, wenn es eine
+        # gibt. Fuenf der sieben Server antworten auf keine Abfrage; fuer die
+        # bleibt der Verkehr die einzige ehrliche Auskunft darueber, ob gerade
+        # jemand drauf ist.
+        # *The real count beats traffic, but only where one exists: five of
+        #  seven answer no query, and for those traffic is the only honest
+        #  indication that somebody is on.*
+        verkehr = (spieler_text(spieler.get(name)) or
+                   verkehr_text(raten.get(name))) if an else ""
         bild_html = (f'<img src="/bild/{name}" alt="">' if (BILDER / f"{name}.jpg").is_file()
                      else f'<div class=ph>{name[:2].upper()}</div>')
         knoepfe = []

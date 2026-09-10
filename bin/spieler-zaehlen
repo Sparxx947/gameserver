@@ -1,0 +1,258 @@
+#!/usr/bin/env python3
+"""spieler-zaehlen — fragt die Spielserver, wie viele Leute drauf sind.
+
+Die Uebersicht zeigte bisher **Verkehr** statt Spielern, mit der Begruendung,
+Spielerzahlen seien ueber diese Spiele hinweg nicht abrufbar. Am 2026-09-10
+nachgemessen: Das stimmt so nicht. Valheim und Enshrouded antworten auf ganz
+normales A2S, ohne dass irgendetwas umgestellt werden muesste.
+
+*The overview showed traffic instead of players on the recorded grounds that
+ player counts are not obtainable across these games. Measured: Valheim and
+ Enshrouded answer plain A2S with no configuration at all.*
+
+Der Abfrageport wird **gefunden, nicht konfiguriert**. Eine Angabe im Katalog
+haette drei der sieben Server nicht erreicht: satisfactory, windrose und foundry
+sind von Hand gebaut und haben keinen Katalogeintrag. Stattdessen werden die
+veroeffentlichten UDP-Ports durchprobiert und der, der antwortet, gemerkt.
+
+*The query port is discovered, not configured: three of the seven servers are
+ hand-built and have no catalogue entry, so a catalogue field would never have
+ reached them.*
+
+  spieler-zaehlen [--einmal] [--zeigen] [--selbsttest]
+
+Schreibt /var/lib/platzwart-spieler.json. Wer nicht antwortet, steht NICHT drin -
+eine fehlende Angabe ist besser als eine erfundene.
+"""
+import json
+import os
+import socket
+import struct
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+STAND = Path(os.environ.get("SPIELER_STAND", "/var/lib/platzwart-spieler.json"))
+ZEIT_AUS = float(os.environ.get("SPIELER_TIMEOUT", "1.2"))
+
+
+class Abfrage:
+    """Eine Art, einen Server nach seinen Spielern zu fragen.
+
+    Dieselbe Naht wie bei den DNS-Anbietern (E24): Die Klasse uebersetzt EIN
+    Protokoll und entscheidet nichts darueber, was angezeigt wird. Wer eine
+    weitere Art ergaenzt - Satisfactorys HTTPS-API, TeamSpeaks ServerQuery -
+    schreibt eine Klasse und traegt sie unten ein, sonst nichts.
+    """
+    name = "?"
+
+    def frage(self, port: int) -> dict | None:
+        raise NotImplementedError
+
+
+class A2S(Abfrage):
+    """Steams A2S_INFO. Valheim, Enshrouded und die halbe LinuxGSM-Familie."""
+    name = "a2s"
+    KOPF = b"\xFF\xFF\xFF\xFFTSource Engine Query\x00"
+
+    def frage(self, port: int) -> dict | None:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(ZEIT_AUS)
+        try:
+            s.sendto(self.KOPF, ("127.0.0.1", port))
+            d, _ = s.recvfrom(4096)
+            # Seit 2020 antwortet der erste A2S_INFO mit einem Challenge (0x41)
+            # statt mit Daten. Wer den nicht beantwortet, haelt einen
+            # antwortenden Server fuer stumm - genau daran ist die Annahme
+            # "Spielerzahlen sind nicht abrufbar" vermutlich entstanden.
+            # *Since 2020 the first A2S_INFO is answered with a challenge; not
+            #  replying to it makes a responding server look silent.*
+            if d[4:5] == b"A":
+                s.sendto(self.KOPF + d[5:9], ("127.0.0.1", port))
+                d, _ = s.recvfrom(4096)
+            if d[4:5] != b"I":
+                return None
+            i = 6
+
+            def zeichen():
+                nonlocal i
+                e = d.index(b"\x00", i)
+                w = d[i:e].decode("utf8", "replace")
+                i = e + 1
+                return w
+
+            servername = zeichen(); zeichen(); zeichen(); spiel = zeichen()
+            i += 2                                  # AppID
+            return {"spieler": d[i], "max": d[i + 1],
+                    "servername": servername[:60], "spiel": spiel[:40],
+                    "quelle": self.name}
+        except (socket.timeout, OSError, IndexError, ValueError):
+            return None
+        finally:
+            s.close()
+
+
+ARTEN = [A2S()]
+
+
+def laufende_mit_udp() -> dict:
+    """Container -> veroeffentlichte UDP-Ports auf dem Wirt."""
+    try:
+        namen = subprocess.run(["docker", "ps", "--format", "{{.Names}}"],
+                               capture_output=True, text=True, timeout=30
+                               ).stdout.split()
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    raus = {}
+    for n in namen:
+        try:
+            roh = subprocess.run(
+                ["docker", "inspect", "-f", "{{json .NetworkSettings.Ports}}", n],
+                capture_output=True, text=True, timeout=30).stdout
+            m = json.loads(roh or "{}") or {}
+        except (OSError, subprocess.SubprocessError, ValueError):
+            continue
+        ports = []
+        for schluessel, bind in m.items():
+            if not schluessel.endswith("/udp") or not bind:
+                continue
+            for b in bind:
+                # Nur IPv4-Bindungen, und nur einmal je Portnummer: Docker
+                # fuehrt dieselbe Veroeffentlichung fuer 0.0.0.0 und :: auf.
+                p = int(b.get("HostPort") or 0)
+                if p and p not in ports and ":" not in (b.get("HostIp") or ""):
+                    ports.append(p)
+        if ports:
+            raus[n] = sorted(ports)
+    return raus
+
+
+def lies_stand() -> dict:
+    try:
+        return json.loads(STAND.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+# Wer nicht antwortet, wird nicht jede Minute erneut behelligt. Fuenf der
+# sieben Server schweigen; sie jede Minute anzufragen sind Pakete an
+# Spielports, die niemandem nuetzen. Nach dieser Frist wird noch einmal
+# nachgesehen - ein Spiel kann seine Abfrage nach einem Update anschalten.
+# *Silent servers are not probed every minute: five of seven stay quiet, and
+#  probing them costs packets to game ports for nothing. Retried after this
+#  interval, since an update can switch a query interface on.*
+STUMM_PAUSE = int(os.environ.get("SPIELER_STUMM_PAUSE", "1800"))
+STUMME = Path(os.environ.get("SPIELER_STUMME", "/var/lib/platzwart-spieler.stumm"))
+
+
+def einer(name: str, ports: list, gemerkt: int | None) -> tuple:
+    """Einen Server fragen. Zuerst der Port, der letztes Mal geantwortet hat -
+    das spart mehrere Zeitueberschreitungen, Valheim veroeffentlicht drei
+    UDP-Ports, von denen genau einer antwortet."""
+    reihe = ([gemerkt] if gemerkt in ports else []) + \
+            [p for p in ports if p != gemerkt]
+    for art in ARTEN:
+        for p in reihe:
+            d = art.frage(p)
+            if d:
+                d.update({"port": p, "zeit": int(time.time())})
+                return name, d
+    return name, None
+
+
+def einmal(zeigen: bool = False) -> int:
+    alt = lies_stand()
+    jetzt = int(time.time())
+    try:
+        stumm = json.loads(STUMME.read_text())
+    except (OSError, ValueError):
+        stumm = {}
+    laufend = laufende_mit_udp()
+
+    aufgaben = {n: p for n, p in laufend.items()
+                if jetzt - int(stumm.get(n, 0)) >= STUMM_PAUSE
+                or n in alt}
+    # Parallel, nicht nacheinander: acht Zeitueberschreitungen hintereinander
+    # waren gemessen 10 s. Nebeneinander ist der Lauf so lang wie die laengste
+    # einzelne Abfrage.
+    # *In parallel: eight consecutive timeouts measured 10 s; side by side the
+    #  run takes as long as the slowest single query.*
+    from concurrent.futures import ThreadPoolExecutor
+    neu = {}
+    if aufgaben:
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            for name, d in pool.map(
+                    lambda kv: einer(kv[0], kv[1], (alt.get(kv[0]) or {}).get("port")),
+                    aufgaben.items()):
+                if d:
+                    neu[name] = d
+                    stumm.pop(name, None)
+                else:
+                    stumm[name] = jetzt
+    # Wer gerade nicht gefragt wurde, weil er als stumm gilt, faellt nicht aus
+    # der Welt - er hat nur keinen Eintrag, und das ist die richtige Aussage.
+    stumm = {n: z for n, z in stumm.items() if n in laufend}
+    try:
+        STUMME.write_text(json.dumps(stumm))
+        STUMME.chmod(0o644)
+    except OSError:
+        pass
+    try:
+        STAND.parent.mkdir(parents=True, exist_ok=True)
+        STAND.write_text(json.dumps(neu, indent=1, ensure_ascii=False))
+        # Lesbar fuer das Panel, das als unprivilegierter Nutzer laeuft. Kein
+        # Geheimnis: Servername und Spielerzahl zeigt die Oberflaeche ohnehin.
+        STAND.chmod(0o644)
+    except OSError as e:
+        print(f"spieler-zaehlen: {e}", file=sys.stderr)
+        return 1
+    if zeigen:
+        for n, d in sorted(neu.items()):
+            print(f"  {n:14} {d['spieler']}/{d['max']:<4} Port {d['port']:<6}"
+                  f' "{d["servername"][:30]}"')
+        ohne = [n for n in laufend if n not in neu]
+        if ohne:
+            print(f"  ohne Antwort: {' '.join(sorted(ohne))}"
+                  f"  (Wiedervorlage in {STUMM_PAUSE // 60} min)")
+    return 0
+
+
+def main() -> int:
+    if "--selbsttest" in sys.argv:
+        # Der OK-Fall beweist nichts. Nachgewiesen wird, dass ein Port, an dem
+        # NICHTS lauscht, als "keine Antwort" zurueckkommt - und nicht als 0
+        # Spieler. Der Unterschied ist der ganze Punkt: 0 Spieler ist eine
+        # Aussage, keine Antwort ist keine.
+        print("== Selbsttest ==")
+        a = A2S()
+        frei = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        frei.bind(("127.0.0.1", 0))
+        port = frei.getsockname()[1]
+        frei.close()
+        if a.frage(port) is None:
+            print(f"  ok  toter Port {port} liefert 'keine Antwort', nicht 0 Spieler")
+        else:
+            print("  FEHLER: toter Port lieferte ein Ergebnis")
+            return 1
+        # Gegenprobe: ein echter Server MUSS eine Antwort liefern, sonst prueft
+        # der Test fuer jede Eingabe dasselbe.
+        gefunden = False
+        for n, ports in laufende_mit_udp().items():
+            for p in ports:
+                if a.frage(p):
+                    print(f"  ok  {n} auf Port {p} antwortet - der Weg traegt")
+                    gefunden = True
+                    break
+            if gefunden:
+                break
+        if not gefunden:
+            print("  WARNUNG: kein einziger Server antwortet - Gegenprobe fehlt,")
+            print("           der Test koennte fuer alles 'keine Antwort' melden")
+            return 1
+        return 0
+    return einmal(zeigen="--zeigen" in sys.argv or "--einmal" in sys.argv)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

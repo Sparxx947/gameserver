@@ -585,6 +585,7 @@ Notausgang `GAMESERVER_KEIN_GATE=1`.
 |---|---|---|
 | `spiele-autoupdate.timer` | täglich 05:15, ±30 min | freigeschaltete Server aktualisieren (`Persistent=false`) |
 | `platzwart-wache.timer` | alle 5 min | Lage prüfen, **Änderungen** nach Discord melden (`Persistent=false`) |
+| `spieler-zaehlen.timer` | jede Minute | Spielerzahlen abfragen (`Persistent=false`) |
 | `spiele-wiederanlauf.service` | beim Hochfahren | startet die Server wieder, die `panel-aktion neustart` vorher angehalten hat |
 | `panel.service` | dauerhaft | Weboberfläche, `User=panel`, uvicorn auf `127.0.0.1:8099` |
 | `ttyd.service` | dauerhaft | Webterminal, `User=<admin>`, `127.0.0.1:7681` |
@@ -626,6 +627,8 @@ schon einmal dazu geführt, dass Aufrufe still fehlschlugen.
 | `/opt/panel/daten/nutzer.json` … Feld `codes` | `0600 panel` | Wiederherstellungscodes, Argon2id-Hashes, je 93,3 Bit |
 | `/var/lib/spiele-autoupdate.liste` | `0600 root` | freigeschaltete Server für nächtliche Updates, eine Zeile je Stack |
 | `/etc/platzwart-melden.conf` | `0600 root` | Discord-Webhooks. **Nicht** von der Einrichtung angelegt; fehlt sie, meldet nichts |
+| `/var/lib/platzwart-spieler.json` | `0644 root` | zuletzt gemessene Spielerzahlen; **kein Eintrag = keine Antwort**, nicht null |
+| `/var/lib/platzwart-spieler.stumm` | `0644 root` | wer zuletzt nicht antwortete — Wiedervorlage nach 30 min |
 | `/var/lib/platzwart-wache.zustand` | `0600 root` | welche Befunde beim letzten Lauf offen waren — daraus entsteht Störung vs. Entwarnung |
 | `/var/lib/platzwart-melden.gesehen` | `0600 root` | zuletzt verschickte Meldungen, gegen Wiederholung (Standard 180 min) |
 | `/var/lib/spiele-sicherung.stoerung` | `0600 root` | Marke: die letzte Sicherung schlug fehl — der nächste Erfolg meldet Entwarnung |
