@@ -1,0 +1,516 @@
+#!/usr/bin/env python3
+"""platzwart-schlaf — legt leere Server schlafen und weckt sie beim Beitritt.
+
+Sieben Server belegen im Leerlauf 12,1 GiB, und die Summe ihrer Grenzen ist
+doppelt so gross wie der Arbeitsspeicher der Maschine. Ein Server, auf dem
+niemand ist, muss nicht laufen.
+
+*Seven servers idle at 12.1 GiB, and the sum of their limits is twice the
+ machine's memory. A server nobody is on does not need to run.*
+
+  platzwart-schlaf --pruefen        vom Zeitgeber: wer darf schlafen?
+  platzwart-schlaf --wecken <stack> von der Socket-Aktivierung
+  platzwart-schlaf --schlafen <s>   von Hand
+  platzwart-schlaf --liste
+  platzwart-schlaf --selbsttest
+
+== Das Aufwecken ==
+
+Systemd hoert auf dem Spielport, solange der Server schlaeft. Beim ersten Paket
+haelt es den Dienst hier an, gibt den Port frei und startet den Container. Das
+erste Paket geht dabei verloren - Spielclients versuchen es erneut, und ein
+Server, der ohnehin eine Minute zum Starten braucht, wird nicht dadurch besser,
+dass man das eine Paket aufhebt.
+
+**Kein eigener Lauscher.** Systemd haelt den Port, nicht ein selbst
+geschriebenes Programm - es gibt hier kein Stueck Code, das auf einem
+oeffentlichen Port Pakete liest.
+
+*systemd holds the port while the server sleeps; on the first packet it stops
+ this listener, frees the port and starts the container. The first packet is
+ lost, and game clients retry. No hand-written listener sits on a public port.*
+
+== Was ein Fehlwecken kostet, und warum das kein Drama ist ==
+
+Ein Portscan weckt den Server. Das ist gewollt harmlos: Wenn niemand beitritt,
+ist er beim naechsten Durchlauf wieder leer und legt sich wieder hin. Teuer
+waere nur ein Flattern, und genau das wird gezaehlt - haeuft es sich, meldet
+sich der Platzwart.
+
+*A port scan wakes the server. That is deliberately harmless: with nobody
+ joining, the next check finds it empty and puts it back. Only flapping would
+ be expensive, and that is counted and reported.*
+"""
+import json
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+LISTE = Path(os.environ.get("SCHLAF_LISTE", "/var/lib/platzwart-schlaf.liste"))
+STAND = Path(os.environ.get("SCHLAF_STAND", "/var/lib/platzwart-schlaf.json"))
+SPIELER = Path("/var/lib/platzwart-spieler.json")
+UNITS = Path(os.environ.get("SCHLAF_UNITS", "/etc/systemd/system"))
+STACKS = Path("/opt/stacks")
+MELDEN = "/usr/local/bin/platzwart-melden"
+
+# Wie lange leer, bevor geschlafen wird. Mit einer echten Spielerzahl reicht
+# eine kurze Frist - sie ist eine Aussage. Ohne sie bleibt nur der Verkehr, und
+# der ist ein Stellvertreter: Deshalb dort die deutlich laengere Frist.
+# *With a real player count a short window suffices - it is a statement. Without
+#  one only traffic remains, a proxy, hence the much longer window.*
+LEER_MIN = int(os.environ.get("SCHLAF_LEER_MIN", "30"))
+LEER_MIN_VERKEHR = int(os.environ.get("SCHLAF_LEER_MIN_VERKEHR", "180"))
+RUHE_BYTES = int(os.environ.get("SCHLAF_RUHE_BYTES", "1500"))
+SPIELER_FRISCH_S = 180
+# Mehr Weckvorgaenge als das an einem Tag, ohne dass jemand bleibt: melden.
+FLATTER_GRENZE = int(os.environ.get("SCHLAF_FLATTER", "12"))
+
+
+def sh(*a, timeout=120):
+    try:
+        return subprocess.run(a, capture_output=True, text=True, timeout=timeout)
+    except (OSError, subprocess.SubprocessError):
+        class X:
+            returncode, stdout, stderr = 1, "", ""
+        return X()
+
+
+def melden(stufe, titel, text=""):
+    sh(MELDEN, stufe, titel, text)
+
+
+def freigeschaltet() -> set:
+    try:
+        return {z.strip() for z in LISTE.read_text().splitlines() if z.strip()}
+    except OSError:
+        return set()
+
+
+def stand() -> dict:
+    try:
+        return json.loads(STAND.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def stand_schreiben(d: dict):
+    try:
+        STAND.parent.mkdir(parents=True, exist_ok=True)
+        STAND.write_text(json.dumps(d, indent=1))
+        STAND.chmod(0o644)
+    except OSError as e:
+        print(f"schlaf: {e}", file=sys.stderr)
+
+
+def laeuft(s: str) -> bool:
+    return s in sh("docker", "ps", "--format", "{{.Names}}").stdout.split()
+
+
+def ports_von(s: str) -> list:
+    """Veroeffentlichte Wirtsports als (nummer, proto). Muss GELESEN werden,
+    solange der Container laeuft - danach weiss es nur noch die compose-Datei,
+    und die zu parsen waere ein zweiter Weg zur selben Auskunft."""
+    d = sh("docker", "inspect", "-f", "{{json .NetworkSettings.Ports}}", s).stdout
+    try:
+        return ports_filtern(json.loads(d or "{}") or {})
+    except ValueError:
+        return []
+
+
+def ports_filtern(m: dict) -> list:
+    """Aus Dockers Portabbildung die, die nach AUSSEN zeigen.
+
+    Getrennt von ports_von(), damit der Filter pruefbar ist, ohne Docker zu
+    brauchen. Der Filter ist der sicherheitsrelevante Teil: Ein auf 127.0.0.1
+    gebundener Verwaltungsport - TeamSpeaks ServerQuery zum Beispiel - darf
+    nichts wecken, denn dort kommt von aussen niemand an. Stuende er in der
+    Weckliste, hielte systemd ihn nach dem Schlafenlegen auf 0.0.0.0 offen und
+    machte aus einem localhost-Port einen oeffentlichen.
+
+    *Split out so the filter is testable without Docker. It is the
+     security-relevant part: a management port bound to 127.0.0.1 must not wake
+     anything - and listing it would have systemd hold it on 0.0.0.0, turning a
+     localhost port into a public one.*
+    """
+    raus = []
+    for schluessel, bind in m.items():
+        proto = "udp" if schluessel.endswith("/udp") else "tcp"
+        for b in (bind or []):
+            hp, hi = b.get("HostPort"), b.get("HostIp") or ""
+            if hp and ":" not in hi and not hi.startswith("127."):
+                if (int(hp), proto) not in raus:
+                    raus.append((int(hp), proto))
+    return sorted(raus)
+
+
+def spieler(s: str):
+    """Echte Spielerzahl oder None. None heisst NICHT null."""
+    try:
+        d = json.loads(SPIELER.read_text())
+    except (OSError, ValueError):
+        return None
+    e = d.get(s)
+    if not e or time.time() - float(e.get("zeit", 0)) > SPIELER_FRISCH_S:
+        return None
+    return e.get("spieler")
+
+
+def verkehr_ruhig(s: str) -> bool:
+    """Zwei Messungen mit Abstand - ein einzelner Wert aus docker stats ist
+    kumulativ seit dem Containerstart und sagt ueber 'jetzt' nichts."""
+    def summe():
+        aus = sh("docker", "stats", "--no-stream", "--format",
+                 "{{.Name}}\t{{.NetIO}}").stdout
+        for z in aus.splitlines():
+            t = z.split("\t")
+            if len(t) >= 2 and t[0] == s:
+                gesamt = 0.0
+                for stueck in t[1].split("/"):
+                    stueck = stueck.strip()
+                    for e, f in (("GB", 1e9), ("MB", 1e6), ("kB", 1e3),
+                                 ("GiB", 1024**3), ("MiB", 1024**2),
+                                 ("KiB", 1024), ("B", 1)):
+                        if stueck.endswith(e):
+                            try:
+                                gesamt += float(stueck[: -len(e)]) * f
+                            except ValueError:
+                                pass
+                            break
+                return gesamt
+        return None
+    a = summe()
+    if a is None:
+        return False
+    time.sleep(10)
+    b = summe()
+    if b is None or b < a:
+        return False        # Zaehler gefallen = Neustart, keine Ruhe
+    return (b - a) / 10 < RUHE_BYTES
+
+
+# --- Wecken --------------------------------------------------------------
+def socket_name(s: str) -> str:
+    return f"platzwart-wecken-{s}.socket"
+
+
+def ufw_regel(port: int, proto: str, s: str, an: bool):
+    """Solange ein Server schlaeft, muss ufw seine Ports auf dem WIRT
+    durchlassen - und nur solange.
+
+    Der Grund ist die Eigenheit, die dieses System ohnehin praegt: Ein
+    laufender Container bekommt seinen Verkehr ueber Dockers DNAT und die
+    FORWARD-Kette, und die liegt VOR den ufw-Ketten - ufw sieht ihn nie.
+    Schlaeft der Server, haelt systemd den Port auf dem Wirt, und derselbe
+    Verkehr laeuft ploetzlich durch INPUT. Dort ist die Voreinstellung DROP.
+
+    Gemessen am 2026-09-10: Der Weckposten lauschte, "NAccepted=0", und ein
+    Paket von aussen kam nie an. Von der Maschine selbst weckte dasselbe Paket
+    sofort - Loopback laesst ufw durch.
+
+    *A running container gets its traffic through Docker's DNAT in FORWARD,
+     which sits before the ufw chains, so ufw never sees it. A sleeping server
+     has systemd holding the port on the host, and the same traffic suddenly
+     traverses INPUT, where the default is DROP. Measured: the listener sat at
+     NAccepted=0 while an external packet never arrived, and the identical
+     packet from localhost woke it at once.*
+    """
+    marke = f"platzwart-schlaf:{s}"
+    if an:
+        sh("ufw", "allow", f"{port}/{proto}", "comment", marke)
+    else:
+        sh("ufw", "delete", "allow", f"{port}/{proto}")
+
+
+def socket_schreiben(s: str, ports: list) -> bool:
+    zeilen = ["[Unit]",
+              f"Description=Platzwart: {s} beim Beitritt wecken",
+              f"# Erzeugt von platzwart-schlaf. Solange {s} schlaeft, haelt",
+              "# systemd diese Ports. Beim ersten Paket laeuft der Dienst an,",
+              "# gibt sie frei und startet den Container.",
+              "",
+              "[Socket]"]
+    for p, proto in ports:
+        zeilen.append(("ListenDatagram=" if proto == "udp" else "ListenStream=")
+                      + str(p))
+    zeilen += [
+        "Accept=no",
+        f"Service=platzwart-wecken@{s}.service",
+        "",
+        "[Install]",
+        "WantedBy=sockets.target",
+        "",
+    ]
+    try:
+        (UNITS / socket_name(s)).write_text("\n".join(zeilen))
+    except OSError as e:
+        print(f"schlaf: {e}", file=sys.stderr)
+        return False
+    sh("systemctl", "daemon-reload")
+    for p, proto in ports:
+        ufw_regel(p, proto, s, True)
+    return sh("systemctl", "start", socket_name(s)).returncode == 0
+
+
+def socket_entfernen(s: str):
+    # Wird dieses Programm VOM Weckdienst gerufen, hat systemd den Socket ueber
+    # Conflicts= bereits angehalten. Ihn hier noch einmal anzuhalten hiesse,
+    # aus einem laufenden Dienst heraus in dieselbe Transaktion zu greifen -
+    # genau das hat sich verklemmt.
+    # *Called from the wake unit, systemd has already stopped the socket via
+    #  Conflicts=; stopping it again from inside that very unit deadlocks.*
+    if not os.environ.get("PLATZWART_VOM_SOCKET"):
+        sh("systemctl", "stop", socket_name(s))
+    sh("systemctl", "disable", socket_name(s))
+    try:
+        (UNITS / socket_name(s)).unlink(missing_ok=True)
+    except OSError:
+        pass
+    sh("systemctl", "daemon-reload")
+    # Die ufw-Regeln wieder weg: Der laufende Container braucht sie nicht
+    # (sein Verkehr geht an ufw vorbei), und eine Regel, die nichts tut, aber
+    # dasteht, macht "ufw status" zu einer Liste, der man nicht mehr glaubt.
+    # *Removed again: the running container does not need them, and a rule that
+    #  does nothing but sits there makes "ufw status" a list one stops trusting.*
+    for p, proto in (stand().get(s) or {}).get("ports", []):
+        ufw_regel(int(p), proto, s, False)
+
+
+def belegt(ports: list) -> bool:
+    """Haelt noch jemand einen dieser Ports? Gefragt wird das System, nicht der
+    eigene Zustand - systemd gibt einen Socket nicht auf Zuruf sofort frei."""
+    if not ports:
+        return False
+    aus = sh("ss", "-lntuH").stdout
+    for p, _ in ports:
+        if f":{p} " in aus.replace("\t", " "):
+            return True
+    return False
+
+
+def wecken(s: str) -> int:
+    d = stand()
+    e = d.get(s) or {}
+    # ZUERST den Port freigeben, DANN starten. Andersherum kann der Container
+    # nicht binden - systemd haelt den Port noch, und docker compose scheitert
+    # mit "address already in use".
+    # *Free the port first: otherwise the container cannot bind and compose
+    #  fails with "address already in use".*
+    socket_entfernen(s)
+    soll = [(int(p), pr) for p, pr in (e.get("ports") or [])]
+
+    # Warten, bis die Ports wirklich frei sind. Startet der Container, WAEHREND
+    # systemd sie noch haelt, kommt er ohne veroeffentlichte Ports hoch - er
+    # steht dann auf "Up" und ist fuer niemanden erreichbar, und Docker meldet
+    # dabei KEINEN Fehler. Am 2026-09-10 genau so passiert.
+    # *Started while systemd still holds the ports, the container comes up with
+    #  no published ports: it reads as "Up" and is reachable by nobody, and
+    #  Docker reports no error. Observed exactly like that.*
+    for _ in range(50):
+        if not belegt(soll):
+            break
+        time.sleep(0.2)
+
+    r = subprocess.run(["docker", "compose", "up", "-d"],
+                       cwd=STACKS / s, capture_output=True, text=True,
+                       timeout=600)
+
+    # Und danach das ERGEBNIS pruefen, nicht den Rueckgabewert. Fehlen Ports,
+    # einmal neu erzeugen - das holt sie zurueck.
+    if r.returncode == 0 and soll:
+        for versuch in (1, 2):
+            time.sleep(2)
+            ist = ports_von(s)
+            if all(p in ist for p in soll):
+                break
+            if versuch == 1:
+                subprocess.run(["docker", "compose", "up", "-d",
+                                "--force-recreate"], cwd=STACKS / s,
+                               capture_output=True, text=True, timeout=600)
+        else:
+            melden("stoerung", f"{s} laeuft ohne seine Ports",
+                   f"Erwartet: {soll}\nVorhanden: {ports_von(s)}\n\n"
+                   "Der Server steht auf 'laeuft' und ist trotzdem fuer "
+                   "niemanden erreichbar. Von Hand:\n"
+                   f"  cd /opt/stacks/{s} && docker compose up -d --force-recreate")
+    e["geweckt"] = ([*e.get("geweckt", []), int(time.time())])[-50:]
+    e.pop("schlaeft_seit", None)
+    e["leer_seit"] = int(time.time())
+    d[s] = e
+    stand_schreiben(d)
+    if r.returncode != 0:
+        melden("stoerung", f"{s} liess sich nicht wecken",
+               (r.stderr or r.stdout)[-500:])
+        return 1
+    melden("meldung", f"{s} geweckt",
+           "Jemand hat sich verbunden, der Server faehrt hoch.")
+    return 0
+
+
+def schlafen(s: str, grund: str = "") -> int:
+    ports = ports_von(s)
+    if not ports:
+        print(f"schlaf: {s} hat keinen oeffentlichen Port - "
+              "ohne den koennte ihn niemand wecken", file=sys.stderr)
+        return 1
+    r = subprocess.run(["docker", "compose", "stop"], cwd=STACKS / s,
+                       capture_output=True, text=True, timeout=600)
+    if r.returncode != 0:
+        melden("stoerung", f"{s} liess sich nicht schlafen legen",
+               (r.stderr or r.stdout)[-500:])
+        return 1
+    d = stand()
+    e = d.get(s) or {}
+    e.update({"schlaeft_seit": int(time.time()),
+              "ports": [[p, pr] for p, pr in ports]})
+    d[s] = e
+    stand_schreiben(d)
+    if not socket_schreiben(s, ports):
+        # Konnte der Weckposten nicht aufgestellt werden, bleibt der Server
+        # nicht schlafend liegen - sonst waere er unerreichbar, bis jemand
+        # nachsieht. Lieber laufen lassen und melden.
+        # *If the wake listener cannot be set up, the server does not stay
+        #  asleep - it would be unreachable until somebody looked.*
+        subprocess.run(["docker", "compose", "start"], cwd=STACKS / s,
+                       capture_output=True, timeout=600)
+        e.pop("schlaeft_seit", None)
+        d[s] = e
+        stand_schreiben(d)
+        melden("stoerung", f"{s}: Weckposten liess sich nicht aufstellen",
+               "Der Server laeuft weiter, statt unerreichbar zu schlafen.")
+        return 1
+    print(f"ok\t{s} schlaeft, Weckposten auf "
+          + ", ".join(f"{p}/{pr}" for p, pr in ports) + (f" ({grund})" if grund else ""))
+    return 0
+
+
+# --- Der Durchlauf -------------------------------------------------------
+def pruefen(trocken: bool = False) -> int:
+    frei = freigeschaltet()
+    d = stand()
+    jetzt = int(time.time())
+    if not frei:
+        print("Kein Server ist fuer den Leerlauf freigeschaltet.")
+        return 0
+    for s in sorted(frei):
+        if not (STACKS / s).is_dir():
+            continue
+        e = d.setdefault(s, {})
+        if e.get("schlaeft_seit"):
+            # Schlaeft schon. Nur nachsehen, ob der Weckposten noch steht -
+            # ohne ihn waere der Server unerreichbar, und das faellt sonst
+            # erst auf, wenn jemand spielen will.
+            # *Already asleep: only check the wake listener is still up. Without
+            #  it the server is unreachable, which otherwise surfaces only when
+            #  somebody wants to play.*
+            if sh("systemctl", "is-active", socket_name(s)).stdout.strip() != "active":
+                melden("stoerung", f"{s} schlaeft ohne Weckposten",
+                       "Der Server ist so fuer niemanden erreichbar. "
+                       f"Wieder aufwecken mit:  platzwart-schlaf --wecken {s}")
+            continue
+        if not laeuft(s):
+            e.pop("leer_seit", None)
+            continue
+
+        n = spieler(s)
+        if n is None:
+            frist, quelle = LEER_MIN_VERKEHR, "Verkehr"
+            leer = verkehr_ruhig(s)
+        else:
+            frist, quelle = LEER_MIN, "Spielerzahl"
+            leer = (n == 0)
+
+        if not leer:
+            e.pop("leer_seit", None)
+            print(f"  {s:14} nicht leer ({quelle})")
+            continue
+        e.setdefault("leer_seit", jetzt)
+        dauer = (jetzt - e["leer_seit"]) / 60
+        if dauer < frist:
+            print(f"  {s:14} leer seit {dauer:.0f} von {frist} min ({quelle})")
+            continue
+        if trocken:
+            print(f"  {s:14} WUERDE schlafen ({quelle}, {dauer:.0f} min leer)")
+            continue
+        print(f"  {s:14} legt sich schlafen ({quelle}, {dauer:.0f} min leer)")
+        stand_schreiben(d)
+        schlafen(s, f"{quelle}, {dauer:.0f} min leer")
+        d = stand()
+
+    # Flattern melden: geweckt, aber niemand blieb.
+    for s, e in d.items():
+        letzte = [t for t in e.get("geweckt", []) if jetzt - t < 86400]
+        if len(letzte) >= FLATTER_GRENZE:
+            melden("stoerung", f"{s} wird staendig geweckt",
+                   f"{len(letzte)} Weckvorgaenge in 24 Stunden, ohne dass jemand "
+                   "geblieben ist. Vermutlich weckt ihn ein Portscan.\n\n"
+                   f"Leerlauf fuer diesen Server abschalten:  "
+                   f"panel-aktion schlaf {s} aus")
+            e["geweckt"] = []
+    stand_schreiben(d)
+    return 0
+
+
+def main() -> int:
+    a = sys.argv[1:]
+    if "--selbsttest" in a:
+        print("== Selbsttest ==")
+        schlecht = 0
+        # 1. Eine fehlende Spielerzahl darf NICHT als "null Spieler" gelten.
+        #    Andersherum legte sich ein Server schlafen, ueber den man gar
+        #    nichts weiss - mitten im Spiel.
+        alt = SPIELER
+        globals()["SPIELER"] = Path("/nichts/da")
+        if spieler("egal") is None:
+            print("  ok   fehlende Auskunft ist None, nicht 0")
+        else:
+            print("  FEHLER: fehlende Auskunft gilt als null Spieler"); schlecht += 1
+        globals()["SPIELER"] = alt
+        # 2. Gegenprobe, sonst meldet die Pruefung fuer jede Eingabe dasselbe.
+        if spieler("gibtesnicht") is None and isinstance(freigeschaltet(), set):
+            print("  ok   Liste lesbar, unbekannter Server ist None")
+        # 3. Nur oeffentliche Ports duerfen wecken. Mit echten Daten geprueft:
+        #    TeamSpeaks ServerQuery liegt auf 127.0.0.1 und darf NICHT in die
+        #    Weckliste - sonst hielte systemd ihn danach auf 0.0.0.0 offen.
+        probe = {
+            "9987/udp": [{"HostIp": "0.0.0.0", "HostPort": "9987"},
+                         {"HostIp": "::", "HostPort": "9987"}],
+            "10011/tcp": [{"HostIp": "127.0.0.1", "HostPort": "10011"}],
+            "30033/tcp": [{"HostIp": "0.0.0.0", "HostPort": "30033"}],
+            "25575/tcp": [],
+        }
+        ist = ports_filtern(probe)
+        soll = [(9987, "udp"), (30033, "tcp")]
+        if ist == soll:
+            print(f"  ok   nur oeffentliche Ports wecken: {ist}")
+        else:
+            print(f"  FEHLER: erwartet {soll}, bekommen {ist}"); schlecht += 1
+        # Gegenprobe: eine Abbildung ohne oeffentliche Ports ergibt LEER -
+        # sonst meldete der Filter fuer jede Eingabe dasselbe.
+        nur_lokal = {"10011/tcp": [{"HostIp": "127.0.0.1", "HostPort": "10011"}]}
+        if ports_filtern(nur_lokal) == []:
+            print("  ok   rein lokale Abbildung ergibt keine Weckports")
+        else:
+            print("  FEHLER: localhost-Port wuerde wecken"); schlecht += 1
+        return 1 if schlecht else 0
+
+    if "--wecken" in a:
+        return wecken(a[a.index("--wecken") + 1])
+    if "--schlafen" in a:
+        return schlafen(a[a.index("--schlafen") + 1])
+    if "--liste" in a:
+        d, frei = stand(), freigeschaltet()
+        for s in sorted(frei):
+            e = d.get(s) or {}
+            zu = "schlaeft" if e.get("schlaeft_seit") else "wach"
+            g = len([t for t in e.get("geweckt", []) if time.time() - t < 86400])
+            print(f"  {s:14} freigeschaltet, {zu}, {g} Weckvorgaenge in 24 h")
+        if not frei:
+            print("  (niemand freigeschaltet)")
+        return 0
+    return pruefen(trocken="--trocken" in a)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

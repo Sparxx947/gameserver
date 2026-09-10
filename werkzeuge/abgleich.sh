@@ -72,6 +72,7 @@ PAARE=(
   "bin/spieler-zaehlen:/usr/local/bin/spieler-zaehlen"
   "bin/platzwart-status:/usr/local/bin/platzwart-status"
   "bin/platzwart-verlauf:/usr/local/bin/platzwart-verlauf"
+  "bin/platzwart-schlaf:/usr/local/bin/platzwart-schlaf"
   "systemd/spiele-autoupdate.service:/etc/systemd/system/spiele-autoupdate.service"
   "systemd/spiele-autoupdate.timer:/etc/systemd/system/spiele-autoupdate.timer"
   "systemd/spiele-wiederanlauf.service:/etc/systemd/system/spiele-wiederanlauf.service"
@@ -83,6 +84,9 @@ PAARE=(
   "systemd/platzwart-status.timer:/etc/systemd/system/platzwart-status.timer"
   "systemd/platzwart-verlauf.service:/etc/systemd/system/platzwart-verlauf.service"
   "systemd/platzwart-verlauf.timer:/etc/systemd/system/platzwart-verlauf.timer"
+  "systemd/platzwart-schlaf.service:/etc/systemd/system/platzwart-schlaf.service"
+  "systemd/platzwart-schlaf.timer:/etc/systemd/system/platzwart-schlaf.timer"
+  "systemd/platzwart-wecken@.service:/etc/systemd/system/platzwart-wecken@.service"
   "etc/spiele-adressen.json:/etc/spiele-adressen.json"
 )
 # Diese Liste wird VON HAND gepflegt, und genau daran ist sie gescheitert: Sie

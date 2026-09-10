@@ -197,6 +197,104 @@ stillschweigend „an, wegen eines Servers, den es nicht mehr gibt". Gemessen am
 
 ---
 
+## Leerlauf: schlafen legen und beim Beitritt wecken
+
+Sieben Server belegen im Leerlauf 12,1 GiB, und die Summe ihrer Grenzen ist
+doppelt so groß wie der Arbeitsspeicher der Maschine. Ein Server, auf dem
+niemand ist, muss nicht laufen.
+
+Der Schalter steht **auf jeder Karte** (`leerlauf an` / `leerlauf aus`), aus per
+Voreinstellung, je Server — dieselbe Regel wie beim Auto-Update, und aus
+demselben Grund: Eine Automatik, die alles auf einmal betrifft, ist die, die man
+später nicht mehr zuordnen kann.
+
+### Das Aufwecken hält systemd, nicht ein eigenes Programm
+
+Solange ein Server schläft, hört **systemd** auf seinen Spielports. Beim ersten
+Paket hält es den Weckposten an, gibt die Ports frei und startet den Container.
+Es gibt hier kein selbst geschriebenes Stück Code, das auf einem öffentlichen
+Port Pakete liest.
+
+Das erste Paket geht dabei verloren. Spielclients versuchen es erneut, und ein
+Server, der ohnehin eine Minute zum Starten braucht, wird nicht dadurch besser,
+dass man das eine Paket aufhebt.
+
+### ufw muss die Ports durchlassen — aber nur, solange geschlafen wird
+
+Das ist die Falle, die dieses System ohnehin prägt, hier von der anderen Seite:
+
+* Ein **laufender** Container bekommt seinen Verkehr über Dockers DNAT und die
+  `FORWARD`-Kette, und die liegt **vor** den ufw-Ketten. ufw sieht ihn nie.
+* Ein **schlafender** Server hat systemd auf dem Wirt lauschen — und derselbe
+  Verkehr läuft plötzlich durch `INPUT`. Dort ist die Voreinstellung `DROP`.
+
+Gemessen am 2026-09-10: Der Weckposten lauschte, `NAccepted=0`, und ein Paket
+von außen kam nie an. Dasselbe Paket von der Maschine selbst weckte sofort —
+Loopback lässt ufw durch.
+
+`platzwart-schlaf` legt die Regeln deshalb beim Schlafenlegen an und **nimmt sie
+beim Aufwecken wieder weg**. Eine Regel, die nichts tut, aber dasteht, macht aus
+`ufw status` eine Liste, der man nicht mehr glaubt.
+
+### Zwei Fehler, die es fast lautlos gegeben hätte
+
+**Der Weckdienst darf sich nicht selbst anhalten.** Der erste Entwurf rief
+`systemctl stop` auf den Socket aus dem Dienst heraus, den systemd gerade
+startete — das verklemmt sich, der Dienst endete mit Status 1 und der Container
+kam nie hoch. Von Hand lief derselbe Befehl anstandslos, was die Suche
+verlängerte. Richtig ist `Conflicts=` in der Unit: systemd hält den Posten als
+Teil derselben Transaktion an.
+
+**Startet der Container, während die Ports noch gehalten werden, kommt er ohne
+veröffentlichte Ports hoch** — er steht auf „Up" und ist für niemanden
+erreichbar, und Docker meldet dabei **keinen Fehler**. Deshalb wartet
+`platzwart-schlaf` erst, bis die Ports frei sind, und prüft danach das
+**Ergebnis** statt des Rückgabewerts. Fehlen Ports, wird einmal neu erzeugt;
+bleibt es dabei, meldet sich der Platzwart.
+
+### Wann ein Server als leer gilt
+
+| Grundlage | Frist | Warum |
+|---|---|---|
+| **Echte Spielerzahl** | 30 min leer | eine Zahl ist eine Aussage |
+| **Nur Netzverkehr** | 180 min unter 1,5 kB/s | ein Stellvertreter, deshalb die deutlich längere Frist |
+
+**Eine fehlende Spielerzahl gilt nie als null.** Sonst legte sich ein Server
+schlafen, über den man gar nichts weiß — mitten im Spiel.
+
+### Fehlwecken sind eingeplant
+
+Ein Portscan weckt den Server. Das ist gewollt harmlos: Wenn niemand beitritt,
+ist er beim nächsten Durchlauf wieder leer und legt sich wieder hin. Teuer wäre
+nur ein Flattern — deshalb werden die Weckvorgänge gezählt, und häufen sie sich
+(mehr als zwölf an einem Tag), meldet sich der Platzwart mit dem Befehl zum
+Abschalten.
+
+**Abschalten weckt sofort.** Ein schlafender Server, dessen Automatik gerade
+abgeschaltet wurde, bliebe sonst liegen — und niemand könnte sich das erklären.
+
+**Ein Verwaltungsport weckt nie.** `ports_filtern` nimmt nur, was nicht auf
+`127.0.0.1` gebunden ist. Stünde TeamSpeaks ServerQuery in der Weckliste, hielte
+systemd ihn nach dem Schlafenlegen auf `0.0.0.0` offen und machte aus einem
+localhost-Port einen öffentlichen.
+
+> *Seven idle servers hold 12.1 GiB and their limits sum to twice the machine's
+> memory. Off by default, per server, switchable on every card. systemd holds
+> the game ports while a server sleeps — no hand-written listener on a public
+> port — and the first packet is lost, which clients retry. ufw must pass those
+> ports, but only while sleeping: a running container's traffic goes through
+> Docker's DNAT in FORWARD, ahead of the ufw chains, while a sleeping server's
+> traffic suddenly traverses INPUT, where the default is DROP. The wake unit
+> must not stop its own socket — that deadlocks; `Conflicts=` is the mechanism.
+> And a container started while the ports are still held comes up with none
+> published, reading as "Up" while reachable by nobody, with no error from
+> Docker — so the result is checked, not the return code. A missing player count
+> never counts as zero. Wake-ups from port scans are harmless by design and are
+> counted; flapping is reported. Switching the feature off wakes a sleeping
+> server at once. Management ports bound to localhost never wake anything.*
+
+---
+
 ## Der Verlauf auf der Karte
 
 Bis zum 2026-09-10 war alles im Panel eine **Momentaufnahme**. Es konnte zeigen,

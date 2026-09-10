@@ -1,0 +1,14 @@
+[Unit]
+Description=Platzwart: alle zehn Minuten nach leeren Servern sehen
+
+[Timer]
+# Zehn Minuten. Die Fristen darin sind 30 min (echte Spielerzahl) und 180 min
+# (nur Verkehr) - feiner zu pruefen brächte nichts und liefe der
+# Verkehrsmessung ins Messfenster.
+OnBootSec=10min
+OnUnitActiveSec=10min
+# Persistent=false: Ein nachgeholter Lauf pruefte einen Zustand von damals.
+Persistent=false
+
+[Install]
+WantedBy=timers.target
