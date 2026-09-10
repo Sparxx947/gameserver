@@ -22,4 +22,19 @@ services:
       SERVER_PORT: "3724"
       SERVER_QUERY_PORT: "27016"
       SERVER_MAX_PLAYERS: "4"
-      PAUSE_SERVER_WHEN_EMPTY: "true"
+      # AUS, und das ist ein Befund, kein Geschmack: Mit "true" pausiert das
+      # Spiel, sobald niemand drauf ist - und ein pausierter Server laesst sein
+      # Autosave-Intervall nicht laufen. FOUNDRY hat deshalb vom 06.09. bis zum
+      # 10.09. NIE einen Spielstand geschrieben, und die Sicherung fing jedes
+      # Mal vier leere Verzeichnisse ein und meldete Erfolg (#138).
+      #
+      # Den Leerlauf uebernimmt seit #118 platzwart-schlaf. Der kann es besser:
+      # Er haelt den Container wirklich an (spart Speicher statt nur CPU) und
+      # weckt ihn beim Beitritt ueber systemd wieder.
+      #
+      # *Off, and that is a finding rather than taste: paused, the game does not
+      #  run its autosave interval, so FOUNDRY never wrote a save between 06.09.
+      #  and 10.09. while the backup captured four empty directories and
+      #  reported success. Idling is platzwart-schlaf's job since #118, and it
+      #  does it better - it actually stops the container and wakes it on join.*
+      PAUSE_SERVER_WHEN_EMPTY: "false"
