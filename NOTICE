@@ -30,6 +30,27 @@ steht hier, weil sie richtig ist und drei Zeilen kostet.
  password handling, descriptions and artwork originate here.*
 
 --------------------------------------------------------------------------
+Beitragende / contributors
+
+Als MajorMaxdom (Janik Ludewig) seine Beitraege einreichte, war dieses
+Repositorium PRIVAT und trug keine Lizenz. GitHubs Regel "inbound = outbound"
+(ToS D.6) greift nur bei oeffentlichen Repositorien - das Recht an seinen
+Beitraegen lag damit bei ihm und liess sich nicht einseitig lizenzieren.
+
+Er hat am 2026-09-10 in Issue #112 zugestimmt: "Agreed with MIT license."
+
+Das steht hier und nicht nur dort, weil ein Repositorium seine Issues
+ueberleben kann und eine Lizenzfrage die schlechteste ist, um sie spaeter
+rekonstruieren zu muessen.
+
+*When MajorMaxdom (Janik Ludewig) submitted his contributions this repository
+ was PRIVATE and unlicensed, so GitHub's inbound=outbound rule - which covers
+ public repositories only - did not apply and his copyright could not be
+ licensed unilaterally. He agreed in issue #112 on 2026-09-10. Recorded here
+ rather than only there, because a repository can outlive its issue tracker and
+ a licence question is the worst thing to have to reconstruct later.*
+
+--------------------------------------------------------------------------
 Container-Abbilder Dritter / third-party container images
 
 Der Katalog verweist auf Abbilder von gameservermanagers (LinuxGSM),
