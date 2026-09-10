@@ -1,0 +1,16 @@
+[Unit]
+Description=Platzwart: Lage alle fuenf Minuten pruefen
+
+[Timer]
+# Fuenf Minuten: kurz genug, dass ein naechtlicher Absturz nicht bis zum
+# Morgen liegen bleibt, lang genug, dass der Lauf nicht auffaellt. Gemeldet
+# wird ohnehin nur, was sich geaendert hat.
+OnBootSec=3min
+OnUnitActiveSec=5min
+# Persistent=false: Ein verpasster Lauf soll nicht nachgeholt werden. Die
+# Wache prueft den Zustand JETZT - ein Nachholen nach einem Neustart wuerde
+# nur denselben Zustand ein zweites Mal ansehen.
+Persistent=false
+
+[Install]
+WantedBy=timers.target

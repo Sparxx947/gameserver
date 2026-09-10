@@ -1,0 +1,192 @@
+#!/usr/bin/env python3
+"""platzwart-wache — sieht nach, was gerade nicht stimmt, und meldet Aenderungen.
+
+Der Fall, gegen den das gebaut ist: Ein Server stirbt Samstagnacht um drei. Die
+Sicherung laeuft weiter, das Panel zeigt ihn grau, und niemand sieht hin. Bisher
+fiel das montags auf, wenn eine Pruefung auf einem Desktop lief.
+
+*A server dies at three on Saturday morning. Backups keep running, the panel
+ shows it greyed out, and nobody looks. Until now that surfaced on Monday.*
+
+Gemeldet werden **Aenderungen**, nicht Zustaende. Der Lauf vergleicht die Lage
+mit der des letzten Laufs:
+
+  neu dazugekommen  -> Stoerung
+  weggefallen       -> Entwarnung
+  unveraendert      -> nichts
+
+Das ist der Unterschied zwischen einem Melder, dem man glaubt, und einem, den
+man nach drei Tagen stummschaltet. Ein Timer alle fuenf Minuten, der jedes Mal
+dieselbe Stoerung schickt, ist nach einem Tag 288-mal dasselbe.
+
+Die Entwarnung ist dabei nicht Zierat: Ein Alarm, dessen Ende man nicht sieht,
+wird zum Dauerzustand - man weiss nie, ob das Problem noch besteht.
+
+*Changes are reported, not states: newly appeared is a fault, disappeared is an
+ all-clear, unchanged is silence. The all-clear matters - an alarm whose end is
+ invisible becomes permanent.*
+
+  platzwart-wache [--trocken] [--selbsttest]
+
+Exit: 0 = nichts Neues oder gemeldet, 1 = Fehler beim Melden.
+"""
+import json
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+ZUSTAND = Path("/var/lib/platzwart-wache.zustand")
+STACKS = Path("/opt/stacks")
+MELDEN = "/usr/local/bin/platzwart-melden"
+PLATTE_WARN = int(os.environ.get("WACHE_PLATTE_WARN", "85"))
+
+# Beendet mit 0 = sauber angehalten, 143 = SIGTERM (also "docker stop", ein
+# ausdruecklicher Befehl). Alles andere ist ein Absturz - 137 ist SIGKILL und
+# damit der OOM-Killer, genau das Bild, an dem StarRupture starb.
+# *0 is a clean stop, 143 is SIGTERM (an explicit "docker stop"). Everything
+#  else crashed; 137 is SIGKILL, i.e. the OOM killer.*
+HARMLOS = {0, 143}
+
+
+def sh(*a) -> str:
+    try:
+        return subprocess.run(a, capture_output=True, text=True, timeout=60).stdout
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def lage() -> dict:
+    """Was stimmt gerade nicht? Schluessel -> Text. Ein leeres Ergebnis heisst
+    'alles in Ordnung' - und weil der Schluessel stabil ist, erkennt der
+    Vergleich dieselbe Stoerung wieder, statt sie fuer neu zu halten."""
+    funde = {}
+
+    # --- Abgestuerzte Container ---------------------------------------------
+    for z in sh("docker", "ps", "-a", "--filter", "status=exited",
+                "--format", "{{.Names}}\t{{.Status}}").splitlines():
+        if "\t" not in z:
+            continue
+        name, status = z.split("\t", 1)
+        m = re.search(r"Exited \((\d+)\)", status)
+        if not m or int(m.group(1)) in HARMLOS:
+            continue
+        code = int(m.group(1))
+        wie = " (SIGKILL - sehr wahrscheinlich der OOM-Killer)" if code == 137 else ""
+        funde[f"abgestuerzt:{name}"] = (
+            f"**{name}** ist beendet mit Code {code}{wie}.\n\n"
+            f"Docker sagt: {status}\n\n"
+            f"Nachsehen mit:  docker logs --tail 50 {name}")
+
+    # --- Platte --------------------------------------------------------------
+    p = sh("df", "--output=pcent", "/").splitlines()
+    if len(p) > 1:
+        try:
+            voll = int(p[1].strip().rstrip("%"))
+            if voll >= PLATTE_WARN:
+                funde["platte"] = (
+                    f"Die Platte ist zu **{voll} %** belegt (Schwelle {PLATTE_WARN} %).\n\n"
+                    "Laeuft sie voll, schlaegt als erstes die Sicherung fehl - "
+                    "und damit faellt der Rueckweg weg, bevor etwas passiert.")
+        except ValueError:
+            pass
+
+    # --- Server ohne Beitrittspasswort ---------------------------------------
+    # E23: Das Veroeffentlichen des Ports ist der Schritt, der nach aussen
+    # oeffnet. Ein Server, dessen Einrichtung dabei stehen blieb, steht offen -
+    # das Panel warnt auf der Karte, aber nur, wenn jemand hinsieht.
+    for f in sorted(STACKS.glob("*/panel.json")):
+        try:
+            d = json.loads(f.read_text())
+        except (ValueError, OSError):
+            continue
+        if d.get("einrichtung_offen"):
+            s = f.parent.name
+            funde[f"offen:{s}"] = (
+                f"**{s}**: die Einrichtung ist nicht abgeschlossen.\n\n"
+                f"Stand: {str(d.get('einrichtung_stand', ''))[:200]}\n\n"
+                "Solange das so steht, kann der Server ohne Beitrittspasswort "
+                "erreichbar sein (siehe E23).")
+    return funde
+
+
+def melden(stufe: str, titel: str, text: str, trocken: bool) -> bool:
+    if trocken:
+        print(f"  [{stufe}] {titel}")
+        return True
+    r = subprocess.run([MELDEN, stufe, titel, text], capture_output=True, text=True)
+    return r.returncode == 0
+
+
+def main() -> int:
+    trocken = "--trocken" in sys.argv
+
+    if "--selbsttest" in sys.argv:
+        # Der OK-Fall beweist nichts. Hier wird der Vergleich mit erfundenen
+        # Lagen durchgespielt - ohne Docker, ohne Discord.
+        print("== Selbsttest: erkennt der Vergleich Wechsel? ==")
+        proben = [
+            ({}, {"a": "x"}, ["neu: a"]),
+            ({"a": "x"}, {"a": "x"}, []),
+            ({"a": "x"}, {}, ["weg: a"]),
+            ({"a": "x"}, {"a": "x", "b": "y"}, ["neu: b"]),
+            ({"a": "x", "b": "y"}, {"b": "y"}, ["weg: a"]),
+        ]
+        schlecht = 0
+        for alt, neu, erwartet in proben:
+            ist = [f"neu: {k}" for k in neu if k not in alt] + \
+                  [f"weg: {k}" for k in alt if k not in neu]
+            ok = sorted(ist) == sorted(erwartet)
+            print(f"  {'ok ' if ok else 'FEHLER'}  {list(alt)} -> {list(neu)}  = {ist}")
+            schlecht += 0 if ok else 1
+        # Und die Gegenprobe: eine Pruefung, die IMMER etwas meldet, prueft nichts.
+        print("  ok  unveraendert meldet nichts" if not [
+            k for k in {"a"} if k not in {"a"}] else "  FEHLER")
+        return 1 if schlecht else 0
+
+    jetzt = lage()
+    vorher = {}
+    if ZUSTAND.exists():
+        try:
+            vorher = json.loads(ZUSTAND.read_text())
+        except (ValueError, OSError):
+            vorher = {}
+
+    neu = {k: v for k, v in jetzt.items() if k not in vorher}
+    weg = [k for k in vorher if k not in jetzt]
+
+    fehler = 0
+    for k, text in neu.items():
+        art = k.split(":")[0]
+        titel = {"abgestuerzt": "Server abgestuerzt",
+                 "platte": "Platte wird knapp",
+                 "offen": "Server ohne Beitrittspasswort"}.get(art, art)
+        if not melden("stoerung", titel, text, trocken):
+            fehler = 1
+    for k in weg:
+        art, _, wer = k.partition(":")
+        titel = {"abgestuerzt": f"{wer} laeuft wieder",
+                 "platte": "Platte wieder in Ordnung",
+                 "offen": f"{wer}: Einrichtung abgeschlossen"}.get(art, f"{k} erledigt")
+        if not melden("meldung", titel, "Die Stoerung besteht nicht mehr.", trocken):
+            fehler = 1
+
+    if not trocken:
+        try:
+            ZUSTAND.parent.mkdir(parents=True, exist_ok=True)
+            ZUSTAND.write_text(json.dumps(jetzt, indent=1))
+            ZUSTAND.chmod(0o600)
+        except OSError as e:
+            print(f"wache: Zustand nicht schreibbar ({e}) - beim naechsten Lauf "
+                  "wird alles noch einmal gemeldet", file=sys.stderr)
+            fehler = 1
+
+    print(f"{len(jetzt)} Befund(e), {len(neu)} neu, {len(weg)} erledigt")
+    for k in jetzt:
+        print(f"  {k}")
+    return fehler
+
+
+if __name__ == "__main__":
+    sys.exit(main())

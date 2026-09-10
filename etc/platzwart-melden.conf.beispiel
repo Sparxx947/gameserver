@@ -1,0 +1,32 @@
+# /etc/platzwart-melden.conf — Ziele fuer Benachrichtigungen.
+#
+# Diese Datei wird NICHT von der Einrichtung angelegt, genau wie
+# /etc/dns-gameserver.conf: Sie enthaelt ein Geheimnis, und Geheimnisse
+# entstehen auf der Zielmaschine, nicht im Repositorium.
+#
+# Fehlt sie, tut platzwart-melden nichts und meldet Erfolg — aus per
+# Voreinstellung, dieselbe Regel wie beim Auto-Update.
+#
+#   install -m 600 -o root -g root /dev/null /etc/platzwart-melden.conf
+#   $EDITOR /etc/platzwart-melden.conf
+#
+# Die URL IST das Geheimnis. Discords Webhook-Endpunkt prueft keine Signatur —
+# wer die URL hat, kann in den Kanal schreiben. Deshalb Modus 600 und root,
+# und deshalb steht sie hier nur als Platzhalter.
+#
+# *Not created by the installer, like the DNS token: it holds a secret, and
+#  secrets are made on the target machine. Missing file means the notifier does
+#  nothing and reports success. The URL IS the secret — Discord's webhook
+#  endpoint verifies no signature.*
+#
+# Discord: Kanal -> Bearbeiten -> Integrationen -> Webhooks -> Neuer Webhook.
+# Zwei Ziele, mit Absicht: Ein Kanal, in dem taeglich "nichts Neues" steht,
+# wird stummgeschaltet — und dann faellt auch die Stoerung nicht mehr auf.
+
+# Was Handeln verlangt: Absturz, fehlgeschlagene Sicherung, volle Platte,
+# ein Server ohne Beitrittspasswort.
+WEBHOOK_STOERUNG=https://discord.com/api/webhooks/<id>/<token>
+
+# Was nur ins Protokoll gehoert: Update eingespielt, Entwarnung nach einer
+# Stoerung, Wiederanlauf nach einem Neustart.
+WEBHOOK_MELDUNG=https://discord.com/api/webhooks/<id>/<token>

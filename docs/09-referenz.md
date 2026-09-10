@@ -584,6 +584,7 @@ Notausgang `GAMESERVER_KEIN_GATE=1`.
 | Unit | Zeitpunkt | Zweck |
 |---|---|---|
 | `spiele-autoupdate.timer` | täglich 05:15, ±30 min | freigeschaltete Server aktualisieren (`Persistent=false`) |
+| `platzwart-wache.timer` | alle 5 min | Lage prüfen, **Änderungen** nach Discord melden (`Persistent=false`) |
 | `spiele-wiederanlauf.service` | beim Hochfahren | startet die Server wieder, die `panel-aktion neustart` vorher angehalten hat |
 | `panel.service` | dauerhaft | Weboberfläche, `User=panel`, uvicorn auf `127.0.0.1:8099` |
 | `ttyd.service` | dauerhaft | Webterminal, `User=<admin>`, `127.0.0.1:7681` |
@@ -624,6 +625,10 @@ schon einmal dazu geführt, dass Aufrufe still fehlschlugen.
 | `/opt/panel/daten/zugangsdaten.json` | `0600 panel` | selbst gepflegte Zugänge |
 | `/opt/panel/daten/nutzer.json` … Feld `codes` | `0600 panel` | Wiederherstellungscodes, Argon2id-Hashes, je 93,3 Bit |
 | `/var/lib/spiele-autoupdate.liste` | `0600 root` | freigeschaltete Server für nächtliche Updates, eine Zeile je Stack |
+| `/etc/platzwart-melden.conf` | `0600 root` | Discord-Webhooks. **Nicht** von der Einrichtung angelegt; fehlt sie, meldet nichts |
+| `/var/lib/platzwart-wache.zustand` | `0600 root` | welche Befunde beim letzten Lauf offen waren — daraus entsteht Störung vs. Entwarnung |
+| `/var/lib/platzwart-melden.gesehen` | `0600 root` | zuletzt verschickte Meldungen, gegen Wiederholung (Standard 180 min) |
+| `/var/lib/spiele-sicherung.stoerung` | `0600 root` | Marke: die letzte Sicherung schlug fehl — der nächste Erfolg meldet Entwarnung |
 | `/opt/panel/statisch/passkey.js` | `0644 root` | das einzige JavaScript des Panels (WebAuthn) |
 | `/opt/panel/daten/audit.jsonl` | `0644 panel` | Protokoll: wer hat wann was getan (Rotation bei 4 MB nach `.jsonl.1`) |
 | `/opt/stacks/<n>/compose.yaml` | `0600 root` | Serverdefinition mit Passwörtern |

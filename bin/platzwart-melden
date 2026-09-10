@@ -1,0 +1,208 @@
+#!/usr/bin/env python3
+"""platzwart-melden — schickt eine Meldung nach Discord.
+
+Warum es das gibt: Auf dieser Maschine meldete sich **nichts**. Der einzige
+Melder war eine Pruefung, die montags 10:00 auf einem Desktop laeuft - ein
+Server, der Samstagnacht abstuerzt, fiel am Montag auf. Die Ereignisse selbst
+gab es alle schon, sie wurden nur protokolliert und nie verschickt.
+
+*Nothing on this machine ever reported anything. The only reporter ran Mondays
+ at 10:00 on a desktop, so a server dying on Saturday night surfaced on Monday.
+ The events all existed already - they were logged and never sent.*
+
+  platzwart-melden stoerung "Titel" ["Text"]     -> #platzwart-stoerung
+  platzwart-melden meldung  "Titel" ["Text"]     -> #platzwart-meldungen
+  platzwart-melden --test                        -> beide Wege nachweisen
+
+Zwei Kanaele, nicht einer: Ein Kanal, in dem taeglich "Update geprueft, nichts
+Neues" steht, wird nach einer Woche stummgeschaltet - und dann faellt auch die
+Stoerung nicht mehr auf. Was Handeln verlangt, geht getrennt von dem, was nur
+ins Protokoll gehoert.
+
+*Two channels, not one: a channel carrying "checked, nothing new" every day gets
+ muted within a week, and the outage stops being noticed along with it.*
+
+Aus per Voreinstellung: Fehlt /etc/platzwart-melden.conf, tut dieses Programm
+nichts und meldet Erfolg. Dieselbe Regel wie beim Auto-Update - eine Automatik,
+die sich ungefragt einschaltet, ist die, die spaeter niemand zuordnen kann.
+
+Exit: immer 0, ausser mit --streng. Ein Melder, der seinen Aufrufer scheitern
+laesst, macht aus einer Meldung einen zweiten Ausfall.
+"""
+import hashlib
+import json
+import os
+import re
+import sys
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+KONF = Path(os.environ.get("PLATZWART_MELDEN_KONF", "/etc/platzwart-melden.conf"))
+# Gegen Dauerfeuer: derselbe Text aus demselben Anlass wird nicht wiederholt.
+# Ein Timer, der alle fuenf Minuten dieselbe Stoerung findet, soll einmal
+# melden und nicht 288-mal am Tag - sonst ist der Kanal nach einem Tag wertlos.
+# *Same text from the same cause is not repeated: a timer finding the same fault
+#  every five minutes must report once, not 288 times a day.*
+GEDAECHTNIS = Path("/var/lib/platzwart-melden.gesehen")
+RUHE_MIN = int(os.environ.get("PLATZWART_MELDEN_RUHE_MIN", "180"))
+
+# Was niemals hinausgeht. Dasselbe Muster wie im Protokoll des Panels: eine
+# Meldung entsteht oft aus einer Fehlerausgabe, und in Fehlerausgaben stehen
+# Passwoerter. Discord ist ein fremder Dienst - was einmal dort steht, steht da.
+# *Never sent. A message often comes from an error output, and error outputs
+#  carry passwords. Discord is a third party: what lands there, stays there.*
+GEHEIM = re.compile(
+    r"(?i)(pass(?:wor[dt])?|token|secret|passphrase|api[_-]?key|authorization)"
+    r"\s*[:=]\s*\S+"
+)
+URL_MIT_GEHEIMNIS = re.compile(r"https://discord\.com/api/webhooks/\d+/\S+")
+
+
+def ohne_geheimnis(t: str) -> str:
+    t = GEHEIM.sub(lambda m: m.group(1) + "=<entfernt>", t)
+    return URL_MIT_GEHEIMNIS.sub("<webhook-url entfernt>", t)
+
+
+def konfiguration() -> dict:
+    if not KONF.exists():
+        return {}
+    werte = {}
+    for z in KONF.read_text().splitlines():
+        m = re.match(r"\s*([A-Z_]+)\s*=\s*(\S+)", z)
+        if m:
+            werte[m.group(1)] = m.group(2)
+    return werte
+
+
+def schon_gemeldet(schluessel: str) -> bool:
+    """True, wenn dieselbe Meldung innerhalb der Ruhezeit schon hinausging."""
+    jetzt = time.time()
+    alt = {}
+    if GEDAECHTNIS.exists():
+        try:
+            alt = json.loads(GEDAECHTNIS.read_text())
+        except (ValueError, OSError):
+            alt = {}          # kaputte Datei darf das Melden nicht verhindern
+    # Abgelaufene Eintraege wegwerfen, sonst waechst die Datei ewig.
+    alt = {k: v for k, v in alt.items() if jetzt - v < RUHE_MIN * 60}
+    da = schluessel in alt
+    alt[schluessel] = jetzt
+    try:
+        GEDAECHTNIS.parent.mkdir(parents=True, exist_ok=True)
+        GEDAECHTNIS.write_text(json.dumps(alt))
+        GEDAECHTNIS.chmod(0o600)
+    except OSError:
+        pass                  # nicht schreibbar heisst: lieber doppelt melden
+    return da
+
+
+def senden(url: str, titel: str, text: str, farbe: int) -> bool:
+    rumpf = {"embeds": [{
+        "title": titel[:250],
+        "description": text[:3900] if text else None,
+        "color": farbe,
+        "footer": {"text": f"Platzwart · {os.uname().nodename}"},
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()) + "Z",
+    }]}
+    daten = json.dumps(rumpf).encode()
+    # "?wait=true": Discord antwortet dann mit der ANGELEGTEN Nachricht statt mit
+    # einem blossen 204. Der Unterschied ist der zwischen "angenommen" und
+    # "existiert" - und bei einem Melder, dem man glauben soll, ist das der
+    # ganze Punkt.
+    #
+    # Gegenprobe NICHT ueber den Bot: Ein Bot sieht ohne den Message-Content-
+    # Intent bei fremden Nachrichten leeres `content` und `embeds` - die
+    # Nachricht steht da, die Abfrage zeigt sie nur nicht. Genau daran ist die
+    # erste Kontrolle hier gescheitert (2026-09-10), und sie sah aus wie ein
+    # Zustellfehler.
+    # *Discord answers with the CREATED message instead of a bare 204 - the
+    #  difference between "accepted" and "exists". Do not verify via the bot:
+    #  without the Message Content intent it sees empty content and embeds on
+    #  messages it did not send, which looks exactly like a delivery failure.*
+    url = url + ("&" if "?" in url else "?") + "wait=true"
+    for versuch in (1, 2):
+        a = urllib.request.Request(
+            url, data=daten,
+            headers={"Content-Type": "application/json",
+                     "User-Agent": "platzwart-melden/1.0"},
+            method="POST")
+        try:
+            with urllib.request.urlopen(a, timeout=20) as r:
+                if r.status == 204:
+                    return True          # ohne wait=true; sollte nicht vorkommen
+                return bool(json.load(r).get("id"))
+        except urllib.error.HTTPError as e:
+            # 429 = zu schnell. Discord nennt die Wartezeit selbst; einmal
+            # warten und noch einmal, danach aufgeben statt endlos zu haemmern.
+            if e.code == 429 and versuch == 1:
+                try:
+                    warte = float(json.load(e).get("retry_after", 2))
+                except Exception:
+                    warte = 2.0
+                time.sleep(min(warte, 10) + 0.2)
+                continue
+            print(f"melden: HTTP {e.code}", file=sys.stderr)
+            return False
+        except OSError as e:
+            print(f"melden: {type(e).__name__}", file=sys.stderr)
+            return False
+    return False
+
+
+FARBEN = {"stoerung": 0xD9534F, "meldung": 0x4CAF7D}
+
+
+def ziel(k: dict, stufe: str) -> str | None:
+    return k.get("WEBHOOK_STOERUNG" if stufe == "stoerung" else "WEBHOOK_MELDUNG")
+
+
+def main() -> int:
+    streng = "--streng" in sys.argv
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    k = konfiguration()
+
+    if "--test" in sys.argv:
+        if not k:
+            print(f"{KONF} fehlt - es wuerde nichts verschickt.")
+            return 1 if streng else 0
+        ok = True
+        for stufe in ("stoerung", "meldung"):
+            gut = senden(ziel(k, stufe), f"Probe: {stufe}",
+                         "Nachweis, dass dieser Weg traegt. Wenn diese Zeile "
+                         "hier steht, kommen Meldungen an.", FARBEN[stufe])
+            print(f"  {stufe:10} {'ok' if gut else 'FEHLGESCHLAGEN'}")
+            ok = ok and gut
+        # Der OK-Fall beweist nichts: auch der Weg fuer eine KAPUTTE URL muss
+        # sich zeigen, sonst haelt man ein stilles Scheitern fuer Erfolg.
+        kaputt = senden(k["WEBHOOK_MELDUNG"].rsplit("/", 1)[0] + "/ungueltig",
+                        "darf nicht ankommen", "", 0)
+        print(f"  {'ok':10} eine ungueltige URL scheitert erkennbar"
+              if not kaputt else "  FEHLER: ungueltige URL galt als Erfolg")
+        return 0 if (ok and not kaputt) else 1
+
+    if len(args) < 2 or args[0] not in FARBEN:
+        print(__doc__.split("\n\n")[3].strip(), file=sys.stderr)
+        return 2
+    stufe, titel = args[0], args[1]
+    text = args[2] if len(args) > 2 else ""
+
+    if not k:
+        return 0              # aus per Voreinstellung
+    url = ziel(k, stufe)
+    if not url:
+        print(f"melden: kein Ziel fuer {stufe} in {KONF}", file=sys.stderr)
+        return 1 if streng else 0
+
+    titel, text = ohne_geheimnis(titel), ohne_geheimnis(text)
+    schluessel = hashlib.sha256(f"{stufe}\0{titel}\0{text}".encode()).hexdigest()[:16]
+    if schon_gemeldet(schluessel):
+        return 0
+
+    gut = senden(url, titel, text, FARBEN[stufe])
+    return 0 if (gut or not streng) else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

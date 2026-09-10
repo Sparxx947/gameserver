@@ -42,6 +42,12 @@ for a in "$@"; do
 done
 
 log() { echo "$*"; logger -t autoupdate "$*"; }
+# Der Melder darf diesen Lauf nie scheitern lassen: ein Update, das wegen einer
+# nicht zustellbaren Benachrichtigung unterbleibt, waere aus einer Meldung ein
+# zweiter Ausfall gemacht. Fehlt die Konfiguration, tut er ohnehin nichts.
+# *The notifier must never fail this run: an update skipped because a message
+#  could not be delivered turns a notification into a second outage.*
+melden() { /usr/local/bin/platzwart-melden "$@" 2>/dev/null || true; }
 
 # --- Wer ist freigeschaltet? ------------------------------------------------
 # Eine eigene Liste, nicht die panel.json: die haben nur ueber den Katalog
@@ -125,9 +131,28 @@ for s in "${kandidaten[@]}"; do
     # *panel-aktion enforces the backup and reports what happened; none of that is
     #  reimplemented here.*
     if aus=$(/usr/local/bin/panel-aktion aktualisieren "$s" 2>&1); then
-        log "$s: $(printf %s "$aus" | tail -1 | cut -f2-)"
+        letzte=$(printf %s "$aus" | tail -1)
+        log "$s: $(printf %s "$letzte" | cut -f2-)"
+        # Gemeldet wird nur, was WIRKLICH neu ist. "schon aktuell" ist der
+        # Normalfall und jede Nacht dasselbe - eine Meldung, die taeglich
+        # kommt und nie etwas bedeutet, schaltet den Kanal stumm und die
+        # Stoerung gleich mit.
+        # *Only an actual update is reported. "already current" is the nightly
+        #  normal case, and a message that arrives daily and never means
+        #  anything mutes the channel, and the outage along with it.*
+        case "$letzte" in
+            *aktualisiert*)
+                melden meldung "$s aktualisiert" \
+                    "$(printf %s "$letzte" | cut -f3-)
+
+Der Stand von vor dem Update liegt in der Sicherung, die panel-aktion vorher
+erzwungen hat. Bricht der Spielstand, ist das der Rueckweg - er faellt in
+wenigen Tagen aus der Rotation." ;;
+        esac
     else
         log "$s: FEHLGESCHLAGEN - $(printf %s "$aus" | tail -1)"
+        melden stoerung "Update fuer $s fehlgeschlagen" \
+            "$(printf %s "$aus" | tail -3)"
         fehler=1
     fi
 done
