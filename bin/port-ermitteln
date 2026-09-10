@@ -208,6 +208,49 @@ def eintragen(stack: str, host: int, container: int, protokolle: list) -> None:
     print(f"ok\tPort {host} eingetragen\tSicherung: {sicherung.name}")
 
 
+def ausstehende_eintragen(stack: str, ports: list) -> None:
+    """Die beim Installieren zurueckgehaltenen Katalogports eintragen (#156).
+
+    Mit derselben Absicherung wie eintragen(): vor und nach dem Schreiben den
+    sicherheitsrelevanten Teil der compose.yaml vergleichen. Weicht Image,
+    Volume, user oder privileged ab, wird zurueckgerollt.
+
+    Die Portzeilen werden WOERTLICH uebernommen, nicht in host:container
+    zerlegt - der Katalog kennt Bereiche ("2456-2458:2456-2458/udp"), und eine
+    Zerlegung, die nur einzelne Ports kennt, haette sie still verstuemmelt.
+    *Taken over verbatim: the catalogue has ranges, and splitting into single
+     host:container pairs would have mangled them silently.*
+    """
+    pfad = STACKS / stack / "compose.yaml"
+    vorher = geruest(pfad, ohne_ports=True)
+    if not vorher:
+        fehler("compose.yaml ist schon jetzt nicht auswertbar")
+    zeilen = pfad.read_text().splitlines(keepends=True)
+    neue = [f'      - "{p}"\n' for p in ports]
+    idx = next((i for i, z in enumerate(zeilen) if re.match(r"^\s*ports:\s*$", z)), None)
+    if idx is not None:
+        # Schon ein ports:-Block (etwa mit den Verwaltungsports auf 127.0.0.1)?
+        # Dann dahinter anhaengen, und was schon dasteht, nicht verdoppeln.
+        ende = idx + 1
+        while ende < len(zeilen) and re.match(r'^\s*-\s*"', zeilen[ende]):
+            ende += 1
+        vorhanden = {z.strip() for z in zeilen[idx + 1:ende]}
+        zeilen[ende:ende] = [z for z in neue if z.strip() not in vorhanden]
+    else:
+        i = next((i for i, z in enumerate(zeilen) if re.match(r"^\s*volumes:\s*$", z)), None)
+        if i is None:
+            fehler("weder ports: noch volumes: gefunden - nichts geaendert")
+        zeilen[i:i] = ["    ports:\n"] + neue
+    sicherung = pfad.with_name(f"compose.yaml.vor-port-{time.strftime('%Y%m%d-%H%M%S')}")
+    shutil.copy2(pfad, sicherung)
+    pfad.write_text("".join(zeilen))
+    nachher = geruest(pfad, ohne_ports=True)
+    if not nachher or nachher != vorher:
+        shutil.copy2(sicherung, pfad)
+        fehler("die Aenderung haette mehr als die Ports beruehrt - zurueckgenommen")
+    print(f"ok\t{len(ports)} Port(s) eingetragen\tSicherung: {sicherung.name}")
+
+
 def geruest(pfad: Path, ohne_ports: bool) -> str:
     r = subprocess.run(["docker", "compose", "-f", str(pfad), "config", "--format", "json"],
                        capture_output=True, text=True, timeout=60)
@@ -241,7 +284,8 @@ def main():
         fehler("kein panel.json - nur ueber den Katalog installierte Server")
     p = json.loads(marke.read_text())
     regel = p.get("port_regel")
-    if not regel:
+    ausstehend = p.get("ports_ausstehend") or []
+    if not regel and not ausstehend:
         fehler("dieser Server braucht keine nachtraegliche Portermittlung")
 
     # Es soll genau EINEN Weg geben, der einen Port veroeffentlicht.
@@ -259,6 +303,20 @@ def main():
     if not aus_einrichtung and not nur_zeigen:
         os.execv("/usr/local/bin/spiel-einrichtung",
                  ["spiel-einrichtung", stack])
+
+    # Ab hier kommen wir nur noch mit --aus-einrichtung an, also NACHDEM
+    # spiel-einrichtung das Passwort geschrieben hat.
+    if ausstehend and not nur_zeigen:
+        ausstehende_eintragen(stack, ausstehend)
+        p["ports_ausstehend"] = []
+        marke.write_text(json.dumps(p, indent=1, ensure_ascii=False) + "\n")
+        os.chmod(marke, 0o640)
+        shutil.chown(marke, "root", "panel")
+        if not regel:
+            subprocess.run(["docker", "compose", "up", "-d"], cwd=STACKS / stack,
+                           capture_output=True, timeout=300)
+            print(f"ok\t{stack}: {len(ausstehend)} Port(s) nach dem Passwort veroeffentlicht")
+            return
 
     basis = next((b / stack for b in BASEN if (b / stack).is_dir()), None)
     if not basis:

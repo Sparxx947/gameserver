@@ -116,6 +116,15 @@ aufweicht, macht aus einem abgesicherten System ein offenes. Begründung in
    genau **einen** Weg geben, der Ports veröffentlicht. Wer einen zweiten baut,
    baut die Lücke von E23 nach.
 
+   **Das gilt auch für Katalogports.** Bis #156 schrieb die Installation sie
+   schon beim Anlegen in die compose.yaml — ein zweiter Weg, den dieser Absatz
+   nicht erwähnte und niemand bemerkte. Jetzt hält `spiel-verwalten` die
+   öffentlichen Katalogports in `panel.json` unter `ports_ausstehend` zurück,
+   und `port-ermitteln` trägt sie ein, nachdem das Passwort steht. Zwei
+   Ausnahmen ohne Fenster: ein Passwort über die Umgebung (steht in der
+   compose.yaml, bevor der Server zum ersten Mal startet) und Verwaltungsports
+   auf `127.0.0.1` (öffnen nichts nach außen).
+
 > *Five non-negotiables carrying the whole security design: the panel never gets
 > the Docker socket and nobody joins the `docker` group; `panel-aktion` validates
 > every parameter against an allow-list with no eval; only individual fields are

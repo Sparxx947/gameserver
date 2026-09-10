@@ -152,6 +152,41 @@ def zugang_entfernen(stack: str):
     ZUGAENGE.write_text(json.dumps(liste, indent=1, ensure_ascii=False) + "\n")
 
 
+def ports_aufteilen(g: dict) -> tuple:
+    """(sofort, ausstehend) - welche Katalogports gleich veroeffentlicht werden
+    duerfen und welche erst, wenn das Beitrittspasswort steht.
+
+    Grenze 5: Ein Spielport wird erst veroeffentlicht, wenn das Passwort steht,
+    und es gibt genau EINEN Weg dorthin. Bis #156 schrieb die Installation die
+    Katalogports aber schon beim Anlegen in die compose.yaml - vor jedem
+    Passwort. Das war ein ZWEITER Weg.
+
+    Zwei Ausnahmen, beide ohne Fenster:
+
+      * Passwort ueber die UMGEBUNG ("art": "env"). Dann steht es in der
+        compose.yaml, bevor der Server zum ersten Mal startet - es gibt keinen
+        Moment ohne. Alle Ports duerfen sofort.
+      * Verwaltungsports auf 127.0.0.1 (Grenze 4). Die oeffnen nichts nach
+        aussen, also fallen sie nicht unter Grenze 5.
+
+    Alles andere wartet in panel.json unter "ports_ausstehend", bis
+    spiel-einrichtung das Passwort geschrieben hat, und wird dann von
+    port-ermitteln eingetragen - dem einen Weg.
+
+    *Boundary 5: a game port is published only once the join password exists,
+     through exactly ONE path. Until #156 the install wrote catalogue ports
+     before any password - a second path. Two exceptions, both without a window:
+     an env password is in the compose file before the first start, and
+     localhost-bound management ports open nothing to the outside.*
+    """
+    alle = list(g.get("ports") or [])
+    if g["passwort"]["art"] == "env":
+        return alle, []
+    sofort = [p for p in alle if str(p).startswith("127.")]
+    ausstehend = [p for p in alle if not str(p).startswith("127.")]
+    return sofort, ausstehend
+
+
 def compose_bauen(g: dict, pw: str, admin: str) -> str:
     s = g["schluessel"]
     z = [f'# {g["name"]}-Server, angelegt vom Panel-Katalog.',
@@ -162,9 +197,10 @@ def compose_bauen(g: dict, pw: str, admin: str) -> str:
          f'    container_name: {s}', f'    hostname: {s}',
          '    restart: unless-stopped', '    stop_grace_period: 90s',
          f'    mem_limit: {g["mem_gb"]}g', f'    memswap_limit: {g["mem_gb"]}g']
-    if g["ports"]:
+    sofort, _ = ports_aufteilen(g)
+    if sofort:
         z.append('    ports:')
-        z += [f'      - "{p}"' for p in g["ports"]]
+        z += [f'      - "{p}"' for p in sofort]
     z.append('    volumes:')
     z += [f'      - {v}' for v in g["volumes"]]
     # Platzhalter des Katalogs fuellen. {PASSWORT} und {ADMIN} koennen in jedem
@@ -340,6 +376,11 @@ def installieren(sch: str):
         #  rule comes from LinuxGSM and travels along so it can be applied after
         #  the first start; until then the server has no published port.*
         "port_regel": g.get("port_regel"),
+        # Oeffentliche Ports, die erst nach dem Beitrittspasswort eingetragen
+        # werden - von port-ermitteln, dem einen Weg (#156).
+        # *Public ports published only after the join password, by
+        #  port-ermitteln - the one path.*
+        "ports_ausstehend": ports_aufteilen(g)[1],
     }, indent=1) + "\n")
     # panel.json enthaelt die Passwoerter - deshalb 0640 und Gruppe panel,
     # nicht world-readable.

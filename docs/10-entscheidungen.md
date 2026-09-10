@@ -560,3 +560,48 @@ bei der Einrichtung gelesen wird.
 > internationally readable but loses the maintenance connection that makes the
 > name fit. Tool names, the SSH target and above all the WebAuthn RP_ID stay —
 > existing passkeys are bound to the latter.*
+
+---
+
+## E26 — Auch Katalogports kommen zuletzt
+
+E23 hat den Port ans Ende der Einrichtung gelegt — aber nur den, den
+`port-ermitteln` findet. Die Installation schrieb die **Katalogports** schon
+beim Anlegen in die compose.yaml, vor jedem Passwort. Das war ein zweiter Weg,
+und E23 erwähnte ihn nicht. Gefunden bei einer echten Neuinstallation auf einer
+frischen Maschine (#156).
+
+**Warum es nicht einfach gestrichen werden konnte:** `port-ermitteln` kannte
+nur `port_regel`, also Ports, die erst ermittelt werden müssen. Ein Katalogspiel
+mit festem Port hätte ohne die Installationszeile **nie** einen Port bekommen.
+Das Weglassen allein hätte jeden neuen Server unerreichbar gemacht — schlimmer
+als das Fenster, das es schließen sollte.
+
+**Deshalb ein neuer Schritt, derselbe Weg:** Die Installation hält die
+öffentlichen Ports in `panel.json` unter `ports_ausstehend` zurück;
+`spiel-einrichtung` ruft nach dem Passwort `port-ermitteln` auf, und das trägt
+sie ein. Zwei Anlässe — `port_regel` und `ports_ausstehend` —, ein Weg.
+
+**Zwei Ausnahmen, beide ohne Fenster:** Ein Passwort über die **Umgebung** steht
+in der compose.yaml, bevor der Server zum ersten Mal startet — alle Ports dürfen
+sofort. Und **Verwaltungsports auf `127.0.0.1`** (Grenze 4) öffnen nichts nach
+außen.
+
+**Was bewusst offen bleibt:** Findet `spiel-einrichtung` nach sechs Stunden gar
+kein Passwortfeld, erklärt es die Einrichtung für beendet — und dann trägt
+`port-ermitteln` die Ports trotzdem ein. Der Server ist dann ohne Passwort
+erreichbar, wie schon vorher. Ob in diesem Fall überhaupt veröffentlicht werden
+soll, ist eine Verhaltensfrage und keine technische; `platzwart-wache` meldet
+den Zustand, und die Statusseite blendet solche Server aus.
+
+> *E23 put the port at the end of setup — but only the one `port-ermitteln`
+> discovers. The install wrote catalogue ports before any password: a second
+> path, unmentioned. It could not simply be removed, because `port-ermitteln`
+> only knew ports that must be discovered; a catalogue game with a fixed port
+> would never have been published, making every new server unreachable. So a
+> new step on the same path: public ports wait in `panel.json` under
+> `ports_ausstehend`, and `port-ermitteln` publishes them after the password.
+> Two exceptions without a window: an environment password (in the compose file
+> before first start) and localhost-bound management ports. Deliberately left
+> open: the six-hour give-up case still publishes without a password.*
+
