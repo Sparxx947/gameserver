@@ -143,25 +143,69 @@ def setze_ini(text, muster, wert):
     return neu, treffer
 
 
+# Kommentarfelder. Factorio schreibt seine Erklaerung als "_comment_<feld>"
+# NEBEN das Feld, das sie erklaert - der Name enthaelt den echten Feldnamen also
+# vollstaendig und trifft jedes Muster, das auf das Feld passt. Eine Erklaerung
+# mit einer Spielerzahl zu ueberschreiben zerstoert keine Funktion, aber es
+# zerstoert die Datei fuer den naechsten Menschen, der sie liest.
+# *A comment field carries the real field name in full, so it matches every
+#  pattern that matches the field itself.*
+KOMMENTARFELD = re.compile(r"(^|[-_. ])comment([-_. ]|$)", re.I)
+
+
+def darf_ersetzen(alt, zahl):
+    """Darf der vorhandene Wert ueberschrieben werden? Nur gleiche Art gegen
+    gleiche Art.
+
+    Ein Boolean ist keine Zahl, und ein Erklaertext ist auch keine. Genau daran
+    ist Factorio gestorben (#154): "ignore_player_limit_for_returning_players"
+    stand auf false, traf das Spielerzahl-Muster ueber den Namensbestandteil
+    "player_limit", bekam die 4 - und der Server verweigerte mit
+    "Value must be a bool" den Start, waehrend die Einrichtung Erfolg meldete.
+
+    bool wird ZUERST ausgeschlossen: isinstance(True, int) ist in Python True.
+    Ohne diese Zeile faengt die Pruefung ausgerechnet den Fall nicht, fuer den
+    sie gebaut ist.
+
+    Diese Regel braucht kein Wissen ueber ein einzelnes Spiel - das ist ihr
+    Wert. Sie traegt allerdings nur, wo es Typen GIBT: .ini, .cfg und .xml
+    kennen nur Text, dort schuetzt weiter allein das Muster.
+
+    *Same kind for same kind. A boolean is not a number and neither is an
+     explanatory text. bool is excluded first because isinstance(True, int) is
+     True in Python - without that line the check misses exactly the case it
+     was built for. The rule needs no per-game knowledge, but it only carries
+     where types exist: ini, cfg and xml know only text.*
+    """
+    if isinstance(alt, bool):
+        return False
+    if zahl:
+        return isinstance(alt, (int, float))
+    return isinstance(alt, str)
+
+
 def setze_json(text, muster, wert, zahl=False):
-    treffer = []
+    treffer, uebersprungen = [], []
     try:
         daten = json.loads(text)
     except Exception:
-        return text, treffer
+        return text, treffer, uebersprungen
     def geh(o):
         if isinstance(o, dict):
             for k, v in list(o.items()):
                 if isinstance(v, (dict, list)):
                     geh(v)
                 elif muster.search(k):
+                    if KOMMENTARFELD.search(k) or not darf_ersetzen(v, zahl):
+                        uebersprungen.append(k)
+                        continue
                     o[k] = int(wert) if zahl else str(wert)
                     treffer.append(k)
         elif isinstance(o, list):
             for x in o:
                 geh(x)
     geh(daten)
-    return (json.dumps(daten, indent=2) if treffer else text), treffer
+    return (json.dumps(daten, indent=2) if treffer else text), treffer, uebersprungen
 
 
 def setze_xml(text, muster, wert):
@@ -238,8 +282,9 @@ def bearbeite(pfad: Path, muster, wert, zahl=False):
         text = pfad.read_text(errors="replace")
     except Exception:
         return []
+    uebersprungen = []
     if pfad.suffix.lower() == ".json":
-        neu, treffer = setze_json(text, muster, wert, zahl)
+        neu, treffer, uebersprungen = setze_json(text, muster, wert, zahl)
     elif pfad.suffix.lower() == ".xml":
         neu, treffer = setze_xml(text, muster, wert)
     else:
@@ -252,6 +297,13 @@ def bearbeite(pfad: Path, muster, wert, zahl=False):
             neu, treffer = setze_cfg(text, muster, wert)
     if treffer and neu != text:
         pfad.write_text(neu)
+    # Stilles Ueberspringen war schon einmal die Ursache: Beim Minecraft-Fall
+    # passte das Feld nicht, und niemand erfuhr davon. Wer uebersprungen wird,
+    # steht deshalb im Journal - mit dem Grund.
+    # *Silent skipping was the cause once before; a skipped field goes to the
+    #  journal, with the reason.*
+    for k in uebersprungen:
+        meldung(f"    uebersprungen: {pfad.name}:{k} (Kommentarfeld oder andere Art)")
     return treffer
 
 
