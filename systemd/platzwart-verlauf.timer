@@ -1,0 +1,18 @@
+[Unit]
+Description=Platzwart: alle fuenf Minuten einen Messwert schreiben
+
+[Timer]
+# Fuenf Minuten: 2016 Werte je Server sind damit eine Woche. Feiner zu messen
+# wuerde die Datei ohne Erkenntnisgewinn aufblaehen - die Frage lautet "steigt
+# das seit Tagen?", nicht "was war vor 40 Sekunden?".
+OnBootSec=4min
+OnUnitActiveSec=5min
+# Persistent=false: Ein verpasster Lauf soll NICHT nachgeholt werden. Er wuerde
+# einen Messwert mit falschem Zeitstempel schreiben - und die Luecke, die man
+# sehen soll, damit zuschuetten.
+# *A missed run must not be caught up: it would write a sample with the wrong
+#  timestamp and fill in the very gap one is meant to see.*
+Persistent=false
+
+[Install]
+WantedBy=timers.target

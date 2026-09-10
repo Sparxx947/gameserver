@@ -1,0 +1,163 @@
+#!/usr/bin/env python3
+"""platzwart-verlauf — schreibt mit, was die Uebersicht sonst nur als "jetzt" zeigt.
+
+Alles im Panel war eine Momentaufnahme. Es konnte zeigen, dass foundry 4,3 von
+6 GiB belegt - aber nicht, ob das seit Wochen so ist oder seit drei Tagen
+steigt. Und genau das ist die Frage, die man stellt.
+
+*Everything in the panel was a snapshot: it could show that a server uses 4.3 of
+ 6 GiB, but not whether that has been true for weeks or climbing for three days -
+ which is the question one actually asks.*
+
+  platzwart-verlauf [--zeigen] [--selbsttest]
+
+Geschrieben wird nach /var/lib/platzwart-verlauf.json, ein Ringpuffer je Server:
+
+    {"foundry": [[zeit, mem_mb, cpu_prozent, spieler|null], ...]}
+
+Ein Ringpuffer, keine Zeitreihendatenbank. 2016 Werte je Server sind bei fuenf
+Minuten Abstand eine Woche und kosten rund 60 kB - dafuer braucht es keinen
+Dienst, keinen Port und keine Aufbewahrungsregel, ueber die man streiten kann.
+
+Die Zeit steht bei JEDEM Wert dabei und wird nicht aus einem festen Abstand
+gerechnet. Faellt ein Lauf aus, entsteht dadurch eine LUECKE, die man sehen
+kann - eine Linie, die einfach durchgezogen wird, behauptet Messwerte, die es
+nie gab.
+
+*A ring buffer, not a time-series database. Every sample carries its own
+ timestamp rather than being derived from a fixed interval: a missed run then
+ leaves a visible gap, and a line drawn straight across one claims readings that
+ never existed.*
+"""
+import json
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+STAND = Path(os.environ.get("VERLAUF_STAND", "/var/lib/platzwart-verlauf.json"))
+SPIELER = Path("/var/lib/platzwart-spieler.json")
+# Eine Woche bei fuenf Minuten Abstand.
+MAX_WERTE = int(os.environ.get("VERLAUF_MAX", "2016"))
+SPIELER_FRISCH_S = 180
+
+
+def _bytes(s: str) -> float:
+    """"1.259GiB" -> Bytes. Docker mischt die Einheiten je nach Groesse."""
+    s = s.strip()
+    for endung, faktor in (("GiB", 1024**3), ("MiB", 1024**2), ("KiB", 1024),
+                           ("GB", 1e9), ("MB", 1e6), ("kB", 1e3), ("B", 1)):
+        if s.endswith(endung):
+            try:
+                return float(s[: -len(endung)]) * faktor
+            except ValueError:
+                return 0.0
+    return 0.0
+
+
+def messen() -> dict:
+    try:
+        aus = subprocess.run(
+            ["docker", "stats", "--no-stream", "--format",
+             "{{.Name}}\t{{.MemUsage}}\t{{.CPUPerc}}"],
+            capture_output=True, text=True, timeout=60).stdout
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    werte = {}
+    for z in aus.splitlines():
+        teil = z.split("\t")
+        if len(teil) < 3:
+            continue
+        name, mem, cpu = teil[0], teil[1], teil[2]
+        mb = int(_bytes(mem.split("/")[0]) / 1024 / 1024)
+        try:
+            p = int(float(cpu.rstrip("% ")))
+        except ValueError:
+            p = 0
+        werte[name] = (mb, p)
+    return werte
+
+
+def spieler_jetzt() -> dict:
+    """Nur frische Zahlen. Eine alte Spielerzahl in den Verlauf zu schreiben
+    hiesse, sie spaeter als Messwert dieses Zeitpunkts zu lesen."""
+    try:
+        d = json.loads(SPIELER.read_text())
+    except (OSError, ValueError):
+        return {}
+    jetzt = time.time()
+    return {n: v.get("spieler") for n, v in d.items()
+            if jetzt - float(v.get("zeit", 0)) <= SPIELER_FRISCH_S}
+
+
+def laden() -> dict:
+    try:
+        return json.loads(STAND.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def main() -> int:
+    if "--selbsttest" in sys.argv:
+        print("== Selbsttest ==")
+        schlecht = 0
+        for roh, erwartet in (("1.259GiB", 1024**3 * 1.259), ("10.5MiB", 1024**2 * 10.5),
+                              ("512B", 512), ("quatsch", 0.0)):
+            ist = _bytes(roh)
+            ok = abs(ist - erwartet) < 1
+            print(f"  {'ok ' if ok else 'FEHLER'}  {roh:>10} -> {ist:.0f}")
+            schlecht += 0 if ok else 1
+        # Der wichtigere Nachweis: Der Ringpuffer wirft ALT weg, nicht NEU.
+        # Andersherum waere er stumm kaputt - die Datei bliebe gleich gross und
+        # der Verlauf endete vor Wochen.
+        # *The buffer must drop OLD, not NEW: the reverse fails silently, with
+        #  the file the same size and the history ending weeks ago.*
+        reihe = [[i, i, 0, None] for i in range(MAX_WERTE + 50)]
+        gekuerzt = reihe[-MAX_WERTE:]
+        if len(gekuerzt) == MAX_WERTE and gekuerzt[-1][0] == reihe[-1][0] \
+                and gekuerzt[0][0] == 50:
+            print(f"  ok   Ringpuffer behaelt die {MAX_WERTE} JUENGSTEN Werte")
+        else:
+            print("  FEHLER: Ringpuffer schneidet falsch"); schlecht += 1
+        return 1 if schlecht else 0
+
+    if "--zeigen" in sys.argv:
+        d = laden()
+        jetzt = time.time()
+        for n, reihe in sorted(d.items()):
+            if not reihe:
+                continue
+            alter = (jetzt - reihe[-1][0]) / 60
+            mems = [w[1] for w in reihe]
+            print(f"  {n:14} {len(reihe):>5} Werte  ueber "
+                  f"{(reihe[-1][0]-reihe[0][0])/3600:>5.1f} h  "
+                  f"Speicher {min(mems)}-{max(mems)} MB  "
+                  f"zuletzt vor {alter:.0f} min")
+        return 0
+
+    jetzt = int(time.time())
+    werte, sp = messen(), spieler_jetzt()
+    if not werte:
+        print("verlauf: docker stats lieferte nichts", file=sys.stderr)
+        return 1
+    d = laden()
+    for name, (mb, cpu) in werte.items():
+        reihe = d.get(name) or []
+        reihe.append([jetzt, mb, cpu, sp.get(name)])
+        d[name] = reihe[-MAX_WERTE:]
+    # Server, die es nicht mehr gibt, verschwinden - sonst waechst die Datei mit
+    # jedem entfernten Spiel weiter und der Verlauf zeigt Geister.
+    d = {n: r for n, r in d.items() if n in werte}
+    try:
+        STAND.parent.mkdir(parents=True, exist_ok=True)
+        STAND.write_text(json.dumps(d, separators=(",", ":")))
+        STAND.chmod(0o644)          # das Panel liest als unprivilegierter Nutzer
+    except OSError as e:
+        print(f"verlauf: {e}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
