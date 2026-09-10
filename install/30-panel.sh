@@ -41,10 +41,13 @@ log "Werkzeuge nach /usr/local/bin"
 # spiele-sicherung (Stufe 50) gerufen, muss also vor beiden liegen.
 # *Installed here although it is not part of the panel: both stage 30 and
 #  stage 50 call it, so it has to exist before either.*
-for w in dns-pflegen compose-feld katalog-vorpruefung katalogbilder-holen konfig-datei panel-aktion platzwart-melden platzwart-wache port-ermitteln spieler-zaehlen spiel-einrichtung spiel-verwalten spiele-wiederanlauf spiele-autoupdate; do
+for w in dns-pflegen compose-feld katalog-vorpruefung katalogbilder-holen konfig-datei panel-aktion platzwart-melden platzwart-wache platzwart-status port-ermitteln spieler-zaehlen spiel-einrichtung spiel-verwalten spiele-wiederanlauf spiele-autoupdate; do
   einsetzen "$REPO/bin/$w" "/usr/local/bin/$w" 0755 root:root
 done
 einsetzen "$REPO/etc/spiele-katalog.json" /etc/spiele-katalog.json 0644 root:root
+# Die Beitrittsadressen lesen ZWEI Programme: das Panel und platzwart-status.
+# Deshalb eine Datei und nicht eine Tabelle im Quelltext.
+einsetzen "$REPO/etc/spiele-adressen.json" /etc/spiele-adressen.json 0644 root:root
 
 # Die sudo-Regel ist die einzige Rechteerweiterung der Oberflaeche. visudo -c
 # prueft sie VOR dem Einbau: eine kaputte Datei in /etc/sudoers.d legt sudo
@@ -81,6 +84,8 @@ einsetzen "$REPO/systemd/panel.service" /etc/systemd/system/panel.service
 einsetzen "$REPO/systemd/spiel-einrichtung.service" /etc/systemd/system/spiel-einrichtung.service
 einsetzen "$REPO/systemd/spiel-einrichtung.timer"   /etc/systemd/system/spiel-einrichtung.timer
 einsetzen "$REPO/systemd/spiele-wiederanlauf.service" /etc/systemd/system/spiele-wiederanlauf.service
+einsetzen "$REPO/systemd/platzwart-status.service" /etc/systemd/system/platzwart-status.service
+einsetzen "$REPO/systemd/platzwart-status.timer"   /etc/systemd/system/platzwart-status.timer
 einsetzen "$REPO/systemd/spieler-zaehlen.service"  /etc/systemd/system/spieler-zaehlen.service
 einsetzen "$REPO/systemd/spieler-zaehlen.timer"    /etc/systemd/system/spieler-zaehlen.timer
 einsetzen "$REPO/systemd/platzwart-wache.service"  /etc/systemd/system/platzwart-wache.service
@@ -99,6 +104,7 @@ systemctl enable spiele-wiederanlauf.service
 # passiert nichts.
 # *The timer runs but the automation is off: it only finds servers explicitly
 #  enabled in their panel.json.*
+systemctl enable --now platzwart-status.timer
 systemctl enable --now spieler-zaehlen.timer
 systemctl enable --now platzwart-wache.timer
 systemctl enable --now spiele-autoupdate.timer

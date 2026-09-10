@@ -70,6 +70,7 @@ PAARE=(
   "bin/platzwart-melden:/usr/local/bin/platzwart-melden"
   "bin/platzwart-wache:/usr/local/bin/platzwart-wache"
   "bin/spieler-zaehlen:/usr/local/bin/spieler-zaehlen"
+  "bin/platzwart-status:/usr/local/bin/platzwart-status"
   "systemd/spiele-autoupdate.service:/etc/systemd/system/spiele-autoupdate.service"
   "systemd/spiele-autoupdate.timer:/etc/systemd/system/spiele-autoupdate.timer"
   "systemd/spiele-wiederanlauf.service:/etc/systemd/system/spiele-wiederanlauf.service"
@@ -77,6 +78,9 @@ PAARE=(
   "systemd/platzwart-wache.timer:/etc/systemd/system/platzwart-wache.timer"
   "systemd/spieler-zaehlen.service:/etc/systemd/system/spieler-zaehlen.service"
   "systemd/spieler-zaehlen.timer:/etc/systemd/system/spieler-zaehlen.timer"
+  "systemd/platzwart-status.service:/etc/systemd/system/platzwart-status.service"
+  "systemd/platzwart-status.timer:/etc/systemd/system/platzwart-status.timer"
+  "etc/spiele-adressen.json:/etc/spiele-adressen.json"
 )
 # Diese Liste wird VON HAND gepflegt, und genau daran ist sie gescheitert: Sie
 # wuchs nicht mit, als spiele-autoupdate und spiele-wiederanlauf dazukamen. Neun

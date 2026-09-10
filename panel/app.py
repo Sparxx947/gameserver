@@ -56,19 +56,28 @@ SICHERUNG_AN = "@@BORG_REPO@@" != "aus"
 SITZUNG_MAXALTER = 8 * 3600
 SPERRE_AB, SPERRE_DAUER = 5, 15 * 60
 
-# Beitrittsadressen. Bewusst hier gepflegt und nicht aus der compose-Datei
-# geraten: der DNS-Name steht dort nicht, und die veroeffentlichten Ports
-# weichen teils vom Spielstandard ab (7777 hat Satisfactory, deshalb liegt
-# StarRupture auf 7779 und Windrose auf 7780).
-ADRESSEN = {
-    "enshrouded":   ("enshrouded.@@DNS_ZONE@@", 15637, "Direktbeitritt, Passwort je Rolle"),
-    "palworld":     ("palworld.@@DNS_ZONE@@", 8211, "über die Community-Liste als „@@WELT_NAME@@“"),
-    "satisfactory": ("satisfactory.@@DNS_ZONE@@", 7777, "Server im Spiel hinzufügen"),
-    "foundry":      ("foundry.@@DNS_ZONE@@", 3724, "Direktbeitritt"),
-    "starrupture":  ("starrupture.@@DNS_ZONE@@", 7779, "Direktbeitritt"),
-    "windrose":     ("windrose.@@DNS_ZONE@@", 7780, "Direktbeitritt"),
-    "teamspeak":    ("ts.@@DNS_ZONE@@", 9987, "Standardport, im Client genügt der Name"),
-}
+# Beitrittsadressen der von Hand gebauten Server. Sie liegen seit dem
+# 2026-09-10 in einer eigenen Datei, weil ZWEI Programme sie lesen: diese
+# Oberflaeche und platzwart-status, das die oeffentliche Seite schreibt. Zwei
+# Stellen, die dieselbe Tabelle fuehren, laufen frueher oder spaeter
+# auseinander - und dann steht auf der oeffentlichen Seite ein anderer Port als
+# im Panel.
+# *Kept in a file of its own since two programs read it: this panel and the
+#  renderer of the public page. Two copies of one table drift apart, and then
+#  the public page names a different port than the panel does.*
+ADRESSDATEI = Path("/etc/spiele-adressen.json")
+
+
+def adressen() -> dict:
+    try:
+        d = json.loads(ADRESSDATEI.read_text())["adressen"]
+        return {k: tuple(v) for k, v in d.items()}
+    except Exception:
+        # Faellt die Datei aus, bleibt die Oberflaeche benutzbar: die ueber den
+        # Katalog installierten Server haben ihre Angabe in der panel.json,
+        # die von Hand gebauten zeigen dann eben keine Adresse.
+        return {}
+
 
 KATALOG = Path("/etc/spiele-katalog.json")
 KATALOGBILDER = Path("/opt/panel/bilder/katalog")
@@ -94,7 +103,7 @@ def kategorien_liste() -> dict:
 
 def stackinfo(name: str) -> dict:
     """Angaben zu einem ueber den Katalog installierten Server. Die von Hand
-    gebauten Stacks haben keine panel.json - fuer sie greift ADRESSEN."""
+    gebauten Stacks haben keine panel.json - fuer sie greift die Adressdatei."""
     try:
         return json.loads((Path("/opt/stacks") / name / "panel.json").read_text())
     except Exception:
@@ -102,8 +111,9 @@ def stackinfo(name: str) -> dict:
 
 
 def adresse_von(name: str) -> tuple:
-    if name in ADRESSEN:
-        return ADRESSEN[name]
+    a = adressen()
+    if name in a:
+        return a[name]
     p = stackinfo(name)
     if p:
         port = p.get("adresse_port", 0)

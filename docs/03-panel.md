@@ -194,6 +194,96 @@ stillschweigend „an, wegen eines Servers, den es nicht mehr gibt". Gemessen am
 
 ---
 
+
+---
+
+## Die öffentliche Statusseite `/status`
+
+Wer wissen wollte, ob ein Server läuft und wie man beitritt, brauchte einen
+Panel-Zugang oder musste fragen. Das Panel ist dafür das falsche Werkzeug: Es
+ist eine Verwaltungsoberfläche hinter Passwort, TOTP und Passkeys, und jemandem
+ein Konto zu geben, damit er eine Beitrittsadresse ablesen kann, ist verkehrt
+herum.
+
+`https://<panel-domain>/status` zeigt ohne Anmeldung: welcher Server läuft,
+unter welcher Adresse man beitritt, und — wo abrufbar — wie viele gerade drauf
+sind.
+
+### Eine Datei, keine Route im Panel
+
+Das war die offene Frage, und sie ist bewusst gegen die naheliegende Lösung
+entschieden. Eine öffentliche Route **im Panelprozess** teilt sich mit der
+Verwaltung den Speicher, die Darstellungsfunktionen und die
+Sicherheitskopfzeilen. Ein vergessener Schalter in einer gemeinsam benutzten
+Funktion gibt dann alles preis — das Panel hat diese Lehre schon einmal gezogen,
+deshalb gibt es `ohne_geheimnis()`.
+
+Stattdessen schreibt `platzwart-status` jede Minute eine fertige Datei nach
+`/var/lib/platzwart-status/index.html`, und Caddy liefert sie unmittelbar aus:
+**kein `reverse_proxy`, kein `forward_auth`, keine Sitzung.** Die Seite erreicht
+das Panel nie und kann nichts verraten, was sie nicht selbst geladen hat.
+
+Geschrieben wird daneben und dann umbenannt — Caddy liefert die Datei laufend
+aus, und ein halb geschriebener Stand wäre eine halbe Seite.
+
+### Die Kopfzeilen sind strenger als beim Panel, nicht lockerer
+
+```
+Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline';
+                         base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+Cache-Control: public, max-age=60
+```
+
+Die Seite enthält **kein JavaScript und kein einziges Bild**, deshalb bleibt
+`default-src 'none'` und nur `style-src` wird geöffnet. `no-store` wäre hier
+falsch: Es gibt nichts zu schützen, und 60 Sekunden Zwischenspeicher halten
+Neugierige von der Platte fern — länger nicht, weil die Seite jede Minute neu
+entsteht.
+
+### Was bewusst nicht daraufsteht
+
+* **Server, deren Einrichtung nicht abgeschlossen ist.** `einrichtung_offen`
+  markiert genau den Zustand, in dem ein Port veröffentlicht sein kann, bevor
+  das Beitrittspasswort steht (E23). So einen Server auch noch anzukündigen wäre
+  derselbe Fehler mit einem Megafon.
+* **Server ohne Adresse.** Für einen Mitspieler haben sie keinen Wert.
+* Keine Verwaltungsdaten: keine Pfade, keine Fassungen, keine Protokollauszüge,
+  keine Benutzernamen, keine Ports außer dem Beitrittsport.
+
+Nach dem Ausrollen von außen gegengeprüft — `panel.sparxx…`, `/opt/`,
+`127.0.0.1`, `sudo`, `docker`, `einrichtung` kommen nicht vor; die zwei Treffer
+auf „Passwort" sind Hinweise *für Mitspieler* („Passwort je Rolle", „Passwort im
+Spiel"), und `root` steht im CSS (`:root{…}`).
+
+### Eine Falle beim Einbau
+
+`handle /status*` mit `root * /var/lib/platzwart-status` allein ergibt **404**:
+Caddy sucht dann `<root>/status`. Dabei sieht die Route richtig aus und die
+Datei liegt richtig da. `uri strip_prefix /status` gehört dazu.
+
+### Die Beitrittsadressen stehen jetzt in einer Datei
+
+`/etc/spiele-adressen.json` — vorher waren sie eine Tabelle im Quelltext des
+Panels. Zwei Programme lesen sie jetzt: die Oberfläche und der Seitenschreiber.
+Zwei Stellen, die dieselbe Tabelle führen, laufen auseinander, und dann nennt
+die öffentliche Seite einen anderen Port als das Panel.
+
+> *Finding out whether a server is up meant having a panel account or asking —
+> backwards for a management surface behind password, TOTP and passkeys. The
+> open question was route-versus-file, decided against the obvious option: a
+> public route inside the panel process shares memory, renderers and headers
+> with the management surface, and one forgotten flag in a shared renderer gives
+> everything away. Instead a timer writes a finished file every minute and Caddy
+> serves it directly — no reverse_proxy, no forward_auth, no session — so the
+> page never reaches the panel and cannot leak what it never loaded. Written
+> beside and renamed, since a half-written file would be half a page. Its headers
+> are stricter than the panel's, not looser: no JavaScript and no images, so
+> `default-src 'none'` stays. Servers whose setup is unfinished are omitted —
+> announcing one that may be open without a join password would be the same
+> mistake with a megaphone. The install trap: without `uri strip_prefix /status`
+> Caddy looks for `<root>/status` and returns 404 while everything looks right.
+> Join addresses moved into `/etc/spiele-adressen.json` because two programs read
+> them now, and two copies of one table drift apart.*
 ## Spieler, wo es geht — Verkehr, wo nicht
 
 Auf der Karte eines laufenden Servers steht entweder eine **echte Spielerzahl**

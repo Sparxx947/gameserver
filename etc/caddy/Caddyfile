@@ -49,6 +49,48 @@
 		reverse_proxy 127.0.0.1:7681
 	}
 
+	# --- Oeffentliche Statusseite ----------------------------------------
+	# Steht VOR den anderen handle-Bloecken und liefert eine fertige Datei aus.
+	# Sie erreicht das Panel nie: kein reverse_proxy, kein forward_auth, keine
+	# Sitzung. Was hier ausgeliefert wird, hat platzwart-status geschrieben -
+	# eine oeffentliche Route IM Panelprozess haette sich Vorlagen und
+	# Kopfzeilen mit der Verwaltung geteilt, und ein vergessener Schalter in
+	# einer gemeinsamen Darstellungsfunktion gibt dann alles preis.
+	#
+	# Die Kopfzeilen sind strenger als beim Panel, nicht lockerer: Die Seite
+	# enthaelt kein JavaScript und kein einziges Bild, deshalb bleibt
+	# default-src 'none' und nur style-src wird geoeffnet.
+	#
+	# Cache-Control mit 60 s: Die Seite wird jede Minute neu geschrieben,
+	# laenger zwischenzuspeichern hiesse einen alten Stand als aktuellen
+	# auszuliefern. "no-store" waere hier falsch - es gibt nichts zu schuetzen,
+	# und ein bisschen Zwischenspeicher haelt Neugierige von der Platte fern.
+	#
+	# *Serves a finished file and never reaches the panel: no reverse_proxy, no
+	#  forward_auth, no session. Headers are stricter than the panel's, not
+	#  looser - the page carries no JavaScript and no images.*
+	handle /status* {
+		header {
+			Strict-Transport-Security "max-age=31536000; includeSubDomains"
+			X-Content-Type-Options "nosniff"
+			X-Frame-Options "DENY"
+			Referrer-Policy "no-referrer"
+			Content-Security-Policy "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+			Cache-Control "public, max-age=60"
+			-Server
+		}
+		root * /var/lib/platzwart-status
+		# Der Praefix MUSS weg. Ohne strip_prefix sucht Caddy die Datei unter
+		# <root>/status und liefert 404 - dabei sieht die Route korrekt aus und
+		# die Datei liegt richtig da (gemessen 2026-09-10).
+		# *Without strip_prefix Caddy looks for <root>/status and returns 404,
+		#  while the route looks correct and the file is in place.*
+		uri strip_prefix /status
+		# Kein "browse": ein Verzeichnislisting waere genau das, was diese Route
+		# nicht sein soll.
+		file_server
+	}
+
 	# --- Anmeldung und Konto: die einzigen Seiten mit JavaScript ----------
 	#
 	# WebAuthn (Passkeys) ist ausschliesslich ueber navigator.credentials

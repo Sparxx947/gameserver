@@ -1,0 +1,13 @@
+[Unit]
+Description=Platzwart: oeffentliche Statusseite schreiben
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/platzwart-status
+# Keine Haertung, die NoNewPrivileges impliziert - der Docker-Socket wird
+# gebraucht, und ohne ihn saehe dieser Dienst still keine laufenden Server
+# und schriebe eine Seite, auf der alles gestoppt ist.
+ProtectHome=yes
+PrivateTmp=yes

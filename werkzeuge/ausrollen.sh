@@ -36,6 +36,7 @@ wohin() {
     bin/*)               echo "/usr/local/bin/${1#bin/} 0755 root:root" ;;
     panel/app.py)        echo "/opt/panel/app.py 0644 root:root" ;;
     etc/spiele-katalog.json) echo "/etc/spiele-katalog.json 0644 root:root" ;;
+    etc/spiele-adressen.json) echo "/etc/spiele-adressen.json 0644 root:root" ;;
     etc/borg-ausschluss.txt) echo "/etc/borg-ausschluss.txt 0644 root:root" ;;
     etc/caddy/Caddyfile) echo "/etc/caddy/Caddyfile 0644 root:root" ;;
     etc/fail2ban/jail.local) echo "/etc/fail2ban/jail.local 0644 root:root" ;;
