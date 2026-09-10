@@ -227,6 +227,39 @@ if ! python3 werkzeuge/katalog-doku.py --pruefen 2>&1 | sed 's/^/  /'; then
   fehler=1
 fi
 
+# --- 7b. Wird alles Ausgerollte auch verglichen? ----------------------------
+# abgleich.sh fuehrt eine Liste von Hand. Am 2026-09-10 fehlten neun Dateien
+# darin - darunter spiele-autoupdate, das jede Nacht unbeaufsichtigt laeuft, und
+# spiele-wiederanlauf, das nach einem Neustart entscheidet, was zurueckkommt.
+# Der Lauf meldete trotzdem "abweichend: 0". Eine Zahl, die "alles stimmt"
+# suggeriert und "alles, was ich zufaellig ansehe, stimmt" bedeutet, ist
+# schlimmer als gar keine - man hoert auf nachzusehen.
+#
+# Geprueft wird nur EINE Richtung: Was install/ ausrollt, muss verglichen
+# werden. Umgekehrt nicht - in abgleich.sh stehen zu Recht Dateien, die andere
+# Stufen auf anderem Weg anlegen (sudoers.d/panel, die dns-ziel-, palworld- und
+# Sicherungs-Einheiten).
+# *One direction only: what install/ deploys must be compared. Not the reverse -
+#  abgleich.sh rightly lists files other stages create by other means.*
+echo "== Wird jede ausgerollte Datei auch verglichen? =="
+{
+  grep -rhoE 'einsetzen "\$REPO/[^"]+" +/[^ ]+' install/*.sh \
+    | sed -E 's|einsetzen "\$REPO/([^"]+)" +(/\S+)|\1|'
+  for n in $(grep -oE 'for w in [a-z0-9 -]+' install/30-panel.sh | sed 's/for w in //'); do
+    echo "bin/$n"
+  done
+} | LC_ALL=C sort -u > /tmp/vs-soll.$$
+grep -oE '^[[:space:]]*"[^":]+:[^"]+"' werkzeuge/abgleich.sh \
+  | tr -d ' "' | cut -d: -f1 | LC_ALL=C sort -u > /tmp/vs-ist.$$
+fehlend=$(LC_ALL=C comm -23 /tmp/vs-soll.$$ /tmp/vs-ist.$$)
+rm -f /tmp/vs-soll.$$ /tmp/vs-ist.$$
+if [ -n "$fehlend" ]; then
+  echo "  install/ rollt aus, abgleich.sh vergleicht NICHT:"
+  sed 's/^/    /' <<<"$fehlend"
+  echo "    -> Paar in die Liste PAARE in werkzeuge/abgleich.sh eintragen."
+  fehler=1
+fi
+
 # --- 8. Entscheidungsnummern: keine doppelt, keine ins Leere ----------------
 # Am 2026-09-09 wurde E24 zweimal vergeben. Der Grund ist eine Falle, die beim
 # naechsten Mal genauso aussieht: die Ueberschriften in 10-entscheidungen.md

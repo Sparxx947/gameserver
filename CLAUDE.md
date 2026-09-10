@@ -157,7 +157,12 @@ werkzeuge/abgleich.sh gameserver                      # vergleichen
 werkzeuge/ausrollen.sh gameserver bin/panel-aktion    # ausrollen
 ```
 
-33 Prüfpunkte, muss `abweichend: 0` melden. Weicht etwas ab, ist **zuerst zu
+Vergleicht **jede Datei, die `install/` ausrollt**, und muss `abweichend: 0`
+melden. Keine Zahl hier, weil eine Zahl lautlos altert: Die Liste in
+`abgleich.sh` wird von Hand geführt und wuchs zweimal nicht mit — neun
+ausgerollte Dateien wurden nie verglichen, während der Lauf `abweichend: 0`
+meldete. `vollstaendigkeit.sh` prüft seit dem 2026-09-10, dass die Liste
+vollständig ist. Weicht etwas ab, ist **zuerst zu
 klären, welche Seite recht hat** — nicht blind in eine Richtung angleichen.
 
 **Voraussetzung:** eine ausgefüllte `konfiguration.env` (Vorlage:
