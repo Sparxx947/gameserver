@@ -362,6 +362,37 @@ Maschine.
 > it. It needs neither borg nor the passphrase nor Docker, so it is recognised
 > before the passphrase is read and runs anywhere.*
 
+### Und dieselbe Prüfung bei jedem Lauf
+
+Der Selbsttest steht an genau der Stelle, an der die Schleife läuft — er **fängt**
+den Reihenfolgefehler also. Gemessen, mit `in_bytes()` versuchsweise dahinter:
+
+```
+spiele-sicherung --selbsttest    ->  FEHLER  in_bytes() ist hier NICHT definiert
+spiele-sicherung --nur teamspeak ->  Sicherung abgeschlossen
+```
+
+Der Selbsttest sieht es. **Der echte Lauf im selben Zustand meldet weiter
+Erfolg.** Und das Fehlerbild, gegen das hier gebaut wird, ist genau „hastige
+Änderung, danach kein Selbsttest" — beide Vorfälle des 2026-09-10 waren das.
+
+Deshalb steht dieselbe Prüfung noch einmal unmittelbar vor der Schleife, bei
+jedem Lauf. Fünf `declare`-Aufrufe kosten nichts und machen aus dem stillen
+Erfolg ein Abbrechen mit Rückgabewert **3**:
+
+```
+ABBRUCH: in_bytes() ist an dieser Stelle noch nicht definiert.
+  Die Funktion steht hinter der Schleife, die sie ruft. Bash definiert
+  erst beim Ausfuehren - der Lauf wuerde sonst Erfolg melden und nichts tun.
+```
+
+> *The self-test sits exactly where the loop runs, so it does catch the ordering
+> trap. But a real run in the same state still reports success — and the failure
+> guarded against is precisely "hasty edit, no self-test", which is what both
+> incidents of that day were. So the same check runs immediately before the loop
+> on every run, turning a silent success into exit 3.*
+
+
 ### Einmal am Tag, nicht alle drei Stunden
 
 Diese beiden Meldungen gehen mit einer Ruhezeit von **einem Tag** hinaus. Der
