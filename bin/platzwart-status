@@ -115,6 +115,7 @@ def sammeln() -> list:
 KOPF = """<!doctype html><html lang=de><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
 <title>Platzwart</title>
+<!--ICON-->
 <style>
 :root{color-scheme:dark light;--bg:#14161a;--k:#1d2026;--r:#2b303a;--t:#e6e8ec;
       --d:#9aa1ad;--g:#4caf7d;--x:#d9534f}
@@ -148,6 +149,56 @@ footer{color:var(--d);font-size:12px;margin-top:28px;border-top:1px solid var(--
 ZEICHEN = Path("/opt/panel/bilder/favicon.svg")
 
 
+# Der Marker im Kopf ist ein HTML-Kommentar und sieht mit Absicht NICHT aus wie
+# ein Ausroll-Platzhalter. Die Konvention dafuer sind zwei At-Zeichen um einen
+# Namen, und ausrollen.sh bricht bei jedem uebrig gebliebenen Vorkommen ab - zu
+# Recht, denn ein nicht ersetzter Platzhalter waere ein Wert, den es nicht gibt.
+#
+# Beim ersten Versuch hiess der Marker so, und die Datei wurde deshalb gar nicht
+# ausgerollt. Die Seite entstand weiter aus der alten Fassung: ohne Symbol, ohne
+# sichtbaren Fehler. Beim zweiten Versuch stand die Zeichenfolge dann in genau
+# dem Kommentar, der davor warnte - und die Abgabe scheiterte erneut.
+#
+# *The marker is an HTML comment and deliberately does not look like a
+#  deployment placeholder. The convention is a name between doubled at-signs,
+#  and the deploy tool aborts on any leftover - rightly, since an unsubstituted
+#  placeholder is a value that does not exist. The first attempt used that form
+#  and was silently not deployed at all; the second had the sequence sitting in
+#  the very comment warning about it.*
+def icon_tag() -> str:
+    """Das Tab-Symbol als data:-URI, nicht als Verweis auf /favicon.svg.
+
+    Zwei Gruende, und der zweite ist der wichtigere:
+
+    1. Die Seite bleibt in sich geschlossen. Ein Verweis auf /favicon.svg
+       liesse den Browser das Panel anfragen - genau das, was diese Seite
+       vermeidet. Sie wird von Caddy als Datei ausgeliefert und soll den
+       Panelprozess auch nicht mittelbar beschaeftigen.
+    2. Die CSP muss dafuer nur "img-src data:" zulassen und KEINEN Wirt. Mit
+       "img-src 'self'" duerfte die Seite jedes Bild dieser Herkunft laden;
+       mit "data:" darf sie nur, was sie selbst mitbringt.
+
+    Ohne beides fehlt das Symbol stillschweigend: Der Browser faellt auf
+    /favicon.ico zurueck, das Panel liefert es mit HTTP 200 aus - und die
+    eigene CSP der Seite verwirft es. Gemessen am 2026-09-10; im Tab blieb das
+    leere Blatt, ohne dass irgendwo ein Fehler auftauchte.
+
+    *A data: URI rather than a link to /favicon.svg: the page stays
+     self-contained and does not make the browser ask the panel, and the policy
+     needs only "img-src data:" - no host at all. Without it the icon is
+     silently absent: the browser falls back to /favicon.ico, the panel serves
+     it with 200, and the page's own CSP discards it.*
+    """
+    try:
+        roh = ZEICHEN.read_bytes()
+    except OSError:
+        return ""
+    import base64
+    b = base64.b64encode(roh).decode()
+    return ('<link rel=icon type="image/svg+xml" '
+            f'href="data:image/svg+xml;base64,{b}">')
+
+
 def zeichen() -> str:
     """Das Zeichen als Inline-SVG, gelesen aus der Datei, die werkzeuge/logo.py
     erzeugt hat. NICHT hier noch einmal hingeschrieben: logo.py gibt es genau
@@ -171,7 +222,7 @@ def zeichen() -> str:
 
 
 def bauen() -> str:
-    zeilen = [KOPF,
+    zeilen = [KOPF.replace("<!--ICON-->", icon_tag()),
               f'<div class=m>{zeichen()}<h1>Platzwart</h1></div>',
               '<p class=u>Was gerade läuft und wie man beitritt.</p>']
     eintraege = sammeln()
