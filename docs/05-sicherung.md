@@ -306,6 +306,62 @@ die Prüfungen, die es gab, hätten es nicht gesagt.
 > `teamspeak`, whose data legitimately sits unchanged for days; a rule that flags
 > it gets muted and takes the real findings with it.*
 
+### Was der Selbsttest beweist
+
+```bash
+spiele-sicherung --selbsttest
+```
+
+Die drei Prüfungen oben wurden bei ihrer Entstehung sorgfältig belegt — die
+Nachweise standen aber in Pull-Request-Beschreibungen, also an einem Ort, an dem
+sie sich nicht noch einmal ausführen lassen. Jetzt stehen die Fälle im Skript
+selbst und laufen wieder.
+
+Geprüft werden **zwei verschiedene Dinge**, und das zweite ist das, was schon
+zweimal gefehlt hat:
+
+**1. Entscheiden die Prüfungen richtig?** Die Entscheidungen sind dafür vom
+Melden getrennt — `befund_leer`, `befund_einbruch`, `befund_neu`,
+`ist_ausgenommen` und `befund_still` fassen weder eine Datei noch Docker an.
+Neben jedem stillen Fall steht einer, der melden *muss*, und wo eine Schwelle
+liegt, stehen beide Werte daneben: 2047 Byte gelten als „nichts Neues", 2048
+nicht. Die Ausnahmeliste wird in beide Richtungen geprüft — `teamspeak` still,
+`windrose` meldet, und `team` ist kein Treffer, weil `grep -w` auf ganze Wörter
+sieht.
+
+**2. Sind die Helfer an dieser Stelle überhaupt definiert?** Bash definiert eine
+Funktion erst, wenn die Zeile ausgeführt wird. Der Selbsttest steht dort, wo auch
+die Schleife läuft — was hier fehlt, findet sie ebenso wenig. Am 2026-09-10 ist
+genau das an *einem Tag zweimal* passiert: erst `in_bytes`, dann `melden`, beide
+hinter der Schleife, beide zur Laufzeit `command not found`, und beide Male
+meldete der Lauf Erfolg und schrieb „Sicherung abgeschlossen".
+
+Das ist der Grund, warum die zweite Prüfung nicht überflüssig ist: **Die
+Rechnungen waren richtig und lieferten nichts.** Ein Test, der nur rechnet, hätte
+das nie gesehen.
+
+Der Selbsttest braucht weder Borg noch die Passphrase noch Docker — er wird
+deshalb erkannt, *bevor* die Passphrase gelesen wird, und läuft auf jeder
+Maschine.
+
+> *The three checks above were carefully proven when written, but the proofs sat
+> in pull request descriptions, where they cannot be run again. The cases now
+> live in the script. Two different things are checked. First, whether the checks
+> decide correctly: the decisions are separated from the reporting into pure
+> functions touching neither files nor Docker, each silent case paired with one
+> that must report, and both values quoted wherever a threshold sits — 2047 bytes
+> count as "nothing new", 2048 does not; the exemption list is tested in both
+> directions, including that `team` does not match `teamspeak`, because `grep -w`
+> looks at whole words. Second, whether the helpers are defined at that point at
+> all: bash defines a function when the line runs, the self-test sits where the
+> loop sits, and what is missing here is missing there. On 2026-09-10 that
+> happened twice in one day — first `in_bytes`, then `melden`, both behind the
+> loop, both `command not found` at runtime while the run reported success. That
+> is why the second check is not redundant: the arithmetic was right and
+> delivered nothing, and a test that only does arithmetic would never have seen
+> it. It needs neither borg nor the passphrase nor Docker, so it is recognised
+> before the passphrase is read and runs anywhere.*
+
 ### Einmal am Tag, nicht alle drei Stunden
 
 Diese beiden Meldungen gehen mit einer Ruhezeit von **einem Tag** hinaus. Der
@@ -342,6 +398,7 @@ journalctl -u spiele-sicherung -n 30 --no-pager        # letzter Lauf
 borg list --short "$REPO" | tail -20                   # jüngste Archive
 borg info "$REPO"                                      # Größe, Verdichtung
 borg check --repository-only "$REPO"                   # Unversehrtheit
+spiele-sicherung --selbsttest                          # entscheiden die Prüfungen richtig?
 ```
 
 Eine gute Zahl ist erst dann beruhigend, wenn sie auch schlecht werden könnte.

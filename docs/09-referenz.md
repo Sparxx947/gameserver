@@ -114,6 +114,7 @@ Nach dem Schreiben vergleicht es die `compose.yaml` mit sich selbst **ohne** den
 spiele-sicherung                 nur laufende Spiele
 spiele-sicherung --alle          auch gestoppte, dazu /opt/stacks und /etc
 spiele-sicherung --nur <name>    ein einzelnes Spiel
+spiele-sicherung --selbsttest    die drei Pruefungen und die Verdrahtung
 ```
 
 Ein Archiv je Spiel, Name `<spiel>-JJJJMMTT-HHMMSS`. `prune` je Präfix,

@@ -11,11 +11,19 @@
 # Aufbewahrung: Die "Sohn"-Stufe waere binnen zwei Tagen mit Kopien desselben
 # Standes gefuellt.
 #
-#   spiele-sicherung [--alle] [--nur <name>]
+#   spiele-sicherung [--alle] [--nur <name>] [--selbsttest]
 #     --alle       auch gestoppte Spiele sichern (fuer den taeglichen Lauf)
 #     --nur <name> nur dieses eine Spiel/den Dienst
+#     --selbsttest die drei Pruefungen und die Verdrahtung durchspielen
 set -o pipefail
 REPO="@@BORG_REPO@@"
+
+# Der Selbsttest braucht weder Borg noch Passphrase noch Docker. Er wird deshalb
+# VOR beidem erkannt: sonst scheiterte er auf jeder Maschine ohne eingerichtete
+# Sicherung an einer Datei, die er gar nicht anfasst - und eine Pruefung, die
+# man nur dort laufen lassen kann, wo schon alles steht, laesst niemand laufen.
+SELBSTTEST=0
+for a in "$@"; do [ "$a" = "--selbsttest" ] && SELBSTTEST=1; done
 
 # Abgeschaltete Sicherung (BORG_REPO=aus). Die Pruefung steht VOR dem Lesen der
 # Passphrase: die Datei gibt es dann gar nicht, und ein "cat: kein Zugriff"
@@ -30,13 +38,15 @@ REPO="@@BORG_REPO@@"
 #  Returns 0 on purpose: spiel-verwalten aborts an uninstall when this fails,
 #  and nothing is broken here. The missing safety net is stated on the
 #  confirmation page instead — before the click, not after.*
-if [ "$REPO" = "aus" ]; then
+if [ "$REPO" = "aus" ] && [ "$SELBSTTEST" -eq 0 ]; then
   echo "Sicherung ist abgeschaltet (BORG_REPO=aus) - es wird nichts gesichert." >&2
   exit 0
 fi
 
-export BORG_PASSPHRASE=$(cat /root/.borg-passphrase)
-export BORG_RSH="ssh -o BatchMode=yes -o ConnectTimeout=15"
+if [ "$SELBSTTEST" -eq 0 ]; then
+  export BORG_PASSPHRASE=$(cat /root/.borg-passphrase)
+  export BORG_RSH="ssh -o BatchMode=yes -o ConnectTimeout=15"
+fi
 ZEIT=$(date +%Y%m%d-%H%M%S)
 
 ALLE=0; NUR=""
@@ -44,6 +54,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --alle) ALLE=1; shift ;;
     --nur) NUR="$2"; shift 2 ;;
+    --selbsttest) shift ;;
     *) echo "Unbekannt: $1" >&2; exit 1 ;;
   esac
 done
@@ -192,6 +203,43 @@ melden() { /usr/local/bin/platzwart-melden "$@" 2>/dev/null || true; }
 # *A day, not the usual three hours: this runs every 15 minutes, and eight
 #  messages a day about a long-known problem stop being read. The failed-
 #  backup message keeps the short window - that one is urgent.*
+# --- Die Entscheidungen, getrennt vom Melden --------------------------------
+# Rein: kein melden, keine Datei, kein docker. Nur so laesst sich fragen "was
+# entscheidet das bei 2047 Byte?", ohne ein Borg-Repositorium, einen laufenden
+# Container und eine Zustandsdatei zu haben - und ohne diese Frage gibt es
+# keinen Nachweis, der ein zweites Mal laufen kann (#147). Die Faelle, mit denen
+# die drei Pruefungen in #140, #141 und #145 belegt wurden, stehen jetzt in
+# --selbsttest statt in einer geschlossenen PR-Beschreibung.
+#
+# Rueckgabe wie bei test(1): 0 = zutreffend (melden), 1 = nicht.
+#
+# *The decisions, separated from the reporting: no melden, no file, no docker.
+#  Otherwise there is no way to ask what this decides for 2047 bytes without a
+#  borg repository, a running container and a state file - and no proof that can
+#  be run a second time. The cases from #140, #141 and #145 now live in
+#  --selbsttest instead of in a closed pull request description.*
+befund_leer() {        # befund_leer <bytes>
+  [ "$1" -lt "$MIN_BYTES" ]
+}
+
+befund_einbruch() {    # befund_einbruch <bytes> <vorher_bytes>
+  [ -n "$2" ] || return 1
+  [ "$2" -ge "$MIN_BYTES" ] || return 1
+  [ $(($1 * 100)) -lt $(($2 * EINBRUCH_ANTEIL)) ]
+}
+
+befund_neu() {         # befund_neu <neu_bytes> - kam etwas Neues dazu?
+  [ -n "$1" ] && [ "$1" -ge "$NEU_SCHWELLE" ]
+}
+
+ist_ausgenommen() {    # ist_ausgenommen <name>
+  grep -qw "$1" <<<"$OHNE_ALTERSPRUEFUNG"
+}
+
+befund_still() {       # befund_still <still_h> <laufzeit_h>
+  [ "$1" -ge "$STILL_STUNDEN" ] && [ "$2" -ge "$STILL_STUNDEN" ]
+}
+
 pruefe_plausibel() {   # pruefe_plausibel <name> <bytes> <neu_bytes>
   local name="$1" zahl="$2" neu="${3:-}" vorher="" seit="" jetzt
   [ -n "$zahl" ] || return 0
@@ -201,15 +249,14 @@ pruefe_plausibel() {   # pruefe_plausibel <name> <bytes> <neu_bytes>
     seit=$(grep -E "^$name " "$ZAEHLER" 2>/dev/null | awk '{print $3}')
   }
 
-  if [ "$zahl" -lt "$MIN_BYTES" ]; then
+  if befund_leer "$zahl"; then
     PLATZWART_MELDEN_RUHE_MIN=1440 melden stoerung "Sicherung von $name ist praktisch leer" \
 "Das Archiv enthaelt $((zahl / 1024)) kB. Eine Sicherung, die nichts einfaengt,
 meldet trotzdem Erfolg - der Rueckgabewert sagt nur, dass das Archiv entstanden
 ist, nicht dass etwas drin steht.
 
 Nachsehen mit:  panel-aktion archive $name"
-  elif [ -n "$vorher" ] && [ "$vorher" -ge "$MIN_BYTES" ] \
-       && [ $((zahl * 100)) -lt $((vorher * EINBRUCH_ANTEIL)) ]; then
+  elif befund_einbruch "$zahl" "$vorher"; then
     PLATZWART_MELDEN_RUHE_MIN=1440 melden stoerung "Sicherung von $name eingebrochen" \
 "Vorher $((vorher / 1024)) kB, jetzt $((zahl / 1024)) kB. Das ist unter $EINBRUCH_ANTEIL Prozent.
 
@@ -223,11 +270,11 @@ Lauf weniger ein, als sie soll."
   # zuruecksetzen und die Stille von vorn beginnen lassen.
   # *The moment of the last real change is stored, not a count of quiet runs:
   #  restarting the timer would reset a counter and start the silence over.*
-  if [ -n "$neu" ] && [ "$neu" -ge "$NEU_SCHWELLE" ]; then
+  if befund_neu "$neu"; then
     seit="$jetzt"
   else
     [ -n "$seit" ] || seit="$jetzt"
-    if ! grep -qw "$name" <<<"$OHNE_ALTERSPRUEFUNG"; then
+    if ! ist_ausgenommen "$name"; then
       local still_h=$(( (jetzt - seit) / 3600 ))
       # Der Container muss auch SO LANGE schon laufen. "Laeuft seit gestern und
       # hat nichts geschrieben" ist eine Aussage; "wurde vor zehn Minuten
@@ -237,7 +284,7 @@ Lauf weniger ein, als sie soll."
       local start laufzeit_h=0
       start=$(docker inspect "$name" --format '{{.State.StartedAt}}' 2>/dev/null)
       [ -n "$start" ] && laufzeit_h=$(( (jetzt - $(date -d "$start" +%s 2>/dev/null || echo "$jetzt")) / 3600 ))
-      if [ "$still_h" -ge "$STILL_STUNDEN" ] && [ "$laufzeit_h" -ge "$STILL_STUNDEN" ]; then
+      if befund_still "$still_h" "$laufzeit_h"; then
         PLATZWART_MELDEN_RUHE_MIN=1440 melden stoerung "$name schreibt seit $still_h Stunden nichts" \
 "Der Server laeuft seit $laufzeit_h Stunden, und seit $still_h Stunden kam in der
 Sicherung nichts Neues dazu. Das Archiv ist gross genug und faellt nicht - es ist
@@ -283,6 +330,89 @@ sichere() {   # sichere <name> <pfad>
 }
 
 laeuft() { docker ps --format "{{.Names}}" | grep -qx "$1"; }
+
+# --- Selbsttest ---------------------------------------------------------------
+# Der OK-Fall beweist nichts. Neben jedem stillen Fall steht deshalb einer, der
+# melden MUSS, und wo eine Schwelle liegt, stehen beide Werte daneben - 2047
+# meldet, 2048 nicht.
+#
+# Die Faelle stammen aus #140, #141 und #145, wo sie einmal von Hand belegt
+# wurden. Dort standen sie in einer PR-Beschreibung; hier laufen sie wieder.
+# *The cases come from #140, #141 and #145, where they were proven once by hand.
+#  There they sat in a pull request description; here they run again.*
+if [ "$SELBSTTEST" -eq 1 ]; then
+  MIN_BYTES=51200; EINBRUCH_ANTEIL=25; NEU_SCHWELLE=2048
+  STILL_STUNDEN=24; OHNE_ALTERSPRUEFUNG=teamspeak
+  schlecht=0
+
+  pruef() {   # pruef <soll: ja|nein> <beschreibung> -- <befehl...>
+    local soll="$1" text="$2"; shift 3
+    local ist=nein; "$@" && ist=ja
+    if [ "$ist" = "$soll" ]; then printf '  ok      %s\n' "$text"
+    else printf '  FEHLER  %s (ergab %s, erwartet %s)\n' "$text" "$ist" "$soll"; schlecht=1; fi
+  }
+
+  echo "== Untergrenze: ist das Archiv praktisch leer? (Schwelle $((MIN_BYTES/1024)) kB) =="
+  pruef ja   "13 kB - der FOUNDRY-Fall"                  -- befund_leer 13800
+  pruef ja   "51199 B - ein Byte darunter"               -- befund_leer 51199
+  pruef nein "51200 B - genau auf der Schwelle"          -- befund_leer 51200
+  pruef nein "253 kB - satisfactory, vier .sav-Dateien"  -- befund_leer 259072
+
+  echo "== Einbruch: hat es Inhalt verloren? (unter ${EINBRUCH_ANTEIL} %) =="
+  pruef nein "erster Lauf, kein Vorgaenger"              -- befund_einbruch 100000 ""
+  pruef nein "Vorgaenger war selbst zu klein"            -- befund_einbruch 1000 20000
+  pruef ja   "2 MB -> 100 kB, also 5 %"                  -- befund_einbruch 100000 2000000
+  pruef nein "2 MB -> 1,9 MB, normales Schwanken"        -- befund_einbruch 1900000 2000000
+  pruef nein "genau 25 % - noch kein Einbruch"           -- befund_einbruch 500000 2000000
+  pruef ja   "ein Byte unter 25 %"                       -- befund_einbruch 499999 2000000
+
+  echo "== Kam etwas Neues dazu? (Schwelle ${NEU_SCHWELLE} B) =="
+  pruef ja   "181 kB neu - windrose schreibt"            -- befund_neu 181310
+  pruef nein "639 B - nur Borgs Verwaltungsdaten"        -- befund_neu 639
+  pruef nein "2047 B - ein Byte unter der Schwelle"      -- befund_neu 2047
+  pruef ja   "2048 B - genau auf der Schwelle"           -- befund_neu 2048
+  pruef nein "gar keine Angabe"                          -- befund_neu ""
+
+  echo "== Ausnahmeliste (${OHNE_ALTERSPRUEFUNG}) =="
+  pruef ja   "teamspeak ist ausgenommen"                 -- ist_ausgenommen teamspeak
+  pruef nein "windrose ist es nicht"                     -- ist_ausgenommen windrose
+  pruef nein "team ist kein Treffer - -w, nicht Teilwort" -- ist_ausgenommen team
+
+  echo "== Stille: laeuft lange und schreibt nichts? (Schwelle ${STILL_STUNDEN} h) =="
+  pruef ja   "48 h still, 48 h Laufzeit"                 -- befund_still 48 48
+  pruef ja   "24 h und 24 h - genau auf der Schwelle"    -- befund_still 24 24
+  pruef nein "23 h still - noch nicht lange genug"       -- befund_still 23 24
+  pruef nein "frisch gestartet trotz altem Stand"        -- befund_still 48 0
+  pruef nein "beides null"                               -- befund_still 0 0
+
+  # --- Und die VERDRAHTUNG ---------------------------------------------------
+  # Der Selbsttest steht an genau der Stelle, an der auch die Schleife laeuft -
+  # was hier nicht definiert ist, findet sie ebenso wenig. Bash definiert eine
+  # Funktion erst, wenn die Zeile ausgefuehrt wird.
+  #
+  # Das ist keine Vorsicht auf Verdacht: Am 2026-09-10 ist es an EINEM Tag
+  # zweimal passiert (#141). Erst stand in_bytes hinter der Schleife, die
+  # Groesse blieb leer und die Pruefung stieg stumm aus; dann melden, womit
+  # ueberhaupt keine Meldung mehr hinausging. Beide Male meldete der Lauf Erfolg
+  # und schrieb "Sicherung abgeschlossen". Die Pruefungen waren RICHTIG und
+  # lieferten NICHTS - ein Test, der nur rechnet, haette das nie gesehen.
+  # *Not a precaution on suspicion: this happened twice in one day (#141). The
+  #  checks were right and delivered nothing; a test that only does arithmetic
+  #  would never have seen it.*
+  echo "== Verdrahtung: sind die Helfer hier schon definiert? =="
+  for helfer in melden in_bytes laeuft pruefe_plausibel \
+                befund_leer befund_einbruch befund_neu ist_ausgenommen befund_still; do
+    if declare -F "$helfer" >/dev/null; then
+      echo "  ok      $helfer() steht vor der Schleife"
+    else
+      echo "  FEHLER  $helfer() ist hier NICHT definiert - zur Laufzeit 127"
+      schlecht=1
+    fi
+  done
+
+  [ "$schlecht" -eq 0 ] && echo "alles gruen." || echo "FEHLER - siehe oben."
+  exit $schlecht
+fi
 
 for d in /srv/games/*/ /srv/dienste/*/; do
   [ -d "$d" ] || continue
