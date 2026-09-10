@@ -43,7 +43,7 @@ log "Werkzeuge nach /usr/local/bin"
 # spiele-sicherung (Stufe 50) gerufen, muss also vor beiden liegen.
 # *Installed here although it is not part of the panel: both stage 30 and
 #  stage 50 call it, so it has to exist before either.*
-for w in dns-pflegen compose-feld katalog-vorpruefung katalogbilder-holen konfig-datei panel-aktion platzwart-melden platzwart-wache mod-verwalten platzwart-schlaf platzwart-status platzwart-verlauf port-ermitteln spieler-zaehlen spiel-einrichtung spiel-verwalten spiele-wiederanlauf spiele-autoupdate; do
+for w in dns-pflegen compose-feld katalog-vorpruefung katalogbilder-holen konfig-datei panel-aktion platzwart-melden platzwart-wache mod-verwalten platzwart-schlaf sicherung-probe platzwart-status platzwart-verlauf port-ermitteln spieler-zaehlen spiel-einrichtung spiel-verwalten spiele-wiederanlauf spiele-autoupdate; do
   einsetzen "$REPO/bin/$w" "/usr/local/bin/$w" 0755 root:root
 done
 einsetzen "$REPO/etc/spiele-katalog.json" /etc/spiele-katalog.json 0644 root:root

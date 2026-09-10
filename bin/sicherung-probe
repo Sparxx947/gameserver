@@ -1,0 +1,293 @@
+#!/usr/bin/env python3
+"""sicherung-probe — spielt ein Archiv probeweise zurueck, OHNE den Server anzufassen.
+
+Die echte Wiederherstellung wurde nie gemacht. Sie haelt einen Server an,
+loescht seine Daten und schreibt das Archiv darueber - deshalb braucht sie ein
+ausdrueckliches Okay. Aber die Haelfte, die die wichtige Frage beantwortet,
+braucht keinen Stillstand: auspacken in ein Wegwerfverzeichnis, hineinsehen,
+wegwerfen.
+
+*The real restore was never run: it stops a server, deletes its data and writes
+ the archive over it. But the half that answers the important question needs no
+ outage: extract to a scratch directory, look inside, throw away.*
+
+  sicherung-probe <stack> [--archiv NAME]
+  sicherung-probe --selbsttest
+
+== Warum das gerade jetzt wichtig ist ==
+
+Am 2026-09-10 drei Funde mit derselben Form: FOUNDRYs Archive enthielten zwei
+Dateien und meldeten Erfolg (#138); die Untergrenze haette einen Stand, der
+einmal geschrieben und dann aufgehoert hat, nicht bemerkt (#142); abgleich.sh
+meldete null Abweichungen fuer neun Dateien, die es nie ansah (#123). Jedes Mal
+meldete sich etwas heil, ohne dass jemand hineingesehen hatte.
+
+Eine Sicherung, die nie zurueckgespielt wurde, ist eine Behauptung.
+
+*Three findings that day with one shape: something reported itself intact while
+ holding nothing. A backup that was never restored is a claim.*
+
+== Was es NICHT tut ==
+
+  * Es schreibt NIE nach /srv/games - das ist kein Restore, sondern ein Blick.
+  * Es laesst sein Wegwerfverzeichnis nicht liegen, auch nicht bei Fehlern.
+  * Es laeuft nicht unbeaufsichtigt auf einem Zeitgeber. Jede Nacht einige GB
+    auszupacken, um etwas zu beweisen, kostet mehr, als es belegt.
+"""
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+REPO = "@@BORG_REPO@@"
+GAMES = Path("/srv/games")
+PASSPHRASE = Path("/root/.borg-passphrase")
+# Das Wegwerfverzeichnis braucht Platz; mindestens so viel muss danach noch frei
+# bleiben. Eine Probe, die die Platte fuellt, braeche genau die Sicherung, die
+# sie pruefen soll.
+RESERVE_GB = float(os.environ.get("PROBE_RESERVE_GB", "10"))
+
+
+# Die Sicherung laeuft alle 15 Minuten und haelt dabei die Sperre des
+# Repositoriums. Der erste Probelauf gegen valheim brach genau daran ab: "Failed
+# to create/acquire the lock ... (timeout)", waehrend nebenan borg create lief.
+# Die Probe ist nicht eilig - sie wartet, statt zu scheitern.
+# *The backup runs every 15 minutes and holds the repository lock. The first
+#  probe against valheim failed on exactly that. The probe is not urgent; it
+#  waits rather than fails.*
+SPERRE_WARTEN = os.environ.get("PROBE_LOCK_WAIT", "900")
+
+
+def borg(*a, timeout=1800):
+    """borg mit Sperrenwartezeit.
+
+    Der Python-Timeout muss die Sperrenwartezeit EINSCHLIESSEN. Der erste
+    Entwurf gab borg "--lock-wait 900" mit und liess subprocess nach 120 s
+    abbrechen: borg wartete ordnungsgemaess auf die Sperre, und Python brach es
+    mitten im Warten ab - mit einem Traceback statt einer Meldung. Zwei
+    Zeitgrenzen, die sich widersprechen, und die kuerzere gewinnt.
+    *The Python timeout must include the lock wait. The first draft gave borg
+     --lock-wait 900 and let subprocess abort after 120 s: borg was waiting
+     properly, and Python killed it mid-wait. Two contradicting limits, and the
+     shorter one wins.*
+    """
+    env = dict(os.environ)
+    env["BORG_PASSPHRASE"] = PASSPHRASE.read_text().strip()
+    env["BORG_RSH"] = "ssh -o BatchMode=yes -o ConnectTimeout=15"
+    try:
+        return subprocess.run(["borg", "--lock-wait", SPERRE_WARTEN, *a],
+                              capture_output=True, text=True,
+                              timeout=timeout + int(SPERRE_WARTEN), env=env)
+    except subprocess.TimeoutExpired:
+        fehler(f"borg {a[0]} kam nach {timeout + int(SPERRE_WARTEN)} s nicht "
+               "zurueck - vermutlich haelt ein anderer Lauf das Repositorium")
+
+
+def fehler(*t):
+    print("FEHLER: " + " ".join(str(x) for x in t), file=sys.stderr)
+    sys.exit(1)
+
+
+def frei_gb(pfad: Path) -> float:
+    s = os.statvfs(pfad)
+    return s.f_bavail * s.f_frsize / 1024**3
+
+
+def neuestes_archiv(stack: str) -> str | None:
+    r = borg("list", "--glob-archives", f"{stack}-*", "--format",
+             "{archive}{NL}", REPO, timeout=120)
+    if r.returncode != 0:
+        fehler("Archive nicht lesbar:", (r.stderr or r.stdout).strip()[:200])
+    namen = [z for z in r.stdout.split() if z]
+    return namen[-1] if namen else None
+
+
+def archivgroesse(archiv: str) -> int:
+    r = borg("info", "--json", f"{REPO}::{archiv}", timeout=120)
+    try:
+        return int(json.loads(r.stdout)["archives"][0]["stats"]["original_size"])
+    except (ValueError, KeyError, IndexError):
+        return 0
+
+
+AUSSCHLUSS = Path("/etc/borg-ausschluss.txt")
+
+
+def ausschluesse() -> list:
+    """Die Pfade, die die Sicherung bewusst NICHT einfaengt.
+
+    Ohne sie waere der Vergleich Aepfel mit Obstkoerben: Valheims Archiv haelt
+    2,4 GB, das Verzeichnis auf der Platte ein Mehrfaches - die
+    Spielinstallation ist ausgeschlossen, weil sie sich neu herunterladen
+    laesst. Jedes gesunde Archiv sahe dann aus, als halte es nur einen
+    Bruchteil.
+    *Without these the comparison would be apples against fruit baskets: the
+     game installation is excluded, so every healthy archive would look as if
+     it held only a fraction.*
+    """
+    try:
+        zeilen = AUSSCHLUSS.read_text().splitlines()
+    except OSError:
+        return []
+    raus = []
+    for z in zeilen:
+        z = z.strip()
+        if not z or z.startswith("#"):
+            continue
+        raus.append((z.split(":", 1)[1] if z.startswith("sh:") else z).rstrip("*").rstrip("/"))
+    return [r for r in raus if r]
+
+
+def vermessen(wurzel: Path, ohne: list | None = None) -> dict:
+    """Was steckt in einem Verzeichnisbaum? Dateizahl, Groesse, juengste Datei.
+    'ohne' nimmt Pfade aus - fuer den Live-Vergleich die Sicherungsausschluesse."""
+    n, groesse, juengst = 0, 0, 0.0
+    ohne = ohne or []
+    for p in wurzel.rglob("*"):
+        if ohne and any(str(p).startswith(o) for o in ohne):
+            continue
+        if p.is_file() and not p.is_symlink():
+            st = p.stat()
+            n += 1
+            groesse += st.st_size
+            juengst = max(juengst, st.st_mtime)
+    return {"dateien": n, "bytes": groesse, "juengst": juengst}
+
+
+def urteil(archiv: dict, live: dict, archiv_zeit: float) -> list:
+    """Rein rechnend, damit pruefbar: Was faellt am Vergleich auf?
+
+    Nicht Byte fuer Byte - ein laufendes Spiel schreibt staendig. Aber nah genug,
+    um ein Archiv zu bemerken, das nur einen Bruchteil der Live-Daten haelt.
+    """
+    befunde = []
+    if archiv["dateien"] == 0:
+        befunde.append("Das Archiv ist LEER - es laesst sich auspacken, aber es kommt nichts heraus.")
+        return befunde
+    if live["bytes"] > 0 and archiv["bytes"] * 4 < live["bytes"]:
+        befunde.append(
+            f"Das Archiv haelt nur {archiv['bytes'] * 100 // live['bytes']} % dessen, "
+            "was jetzt auf der Platte liegt (ohne ausgeschlossene Pfade gerechnet).")
+    if archiv["juengst"] and archiv_zeit - archiv["juengst"] > 2 * 86400:
+        tage = (archiv_zeit - archiv["juengst"]) / 86400
+        befunde.append(
+            f"Die juengste Datei im Archiv war beim Sichern schon {tage:.1f} Tage alt - "
+            "eine treue Kopie eines Standes, der sich nicht mehr aendert.")
+    return befunde
+
+
+def probe(stack: str, archiv: str | None) -> int:
+    archiv = archiv or neuestes_archiv(stack)
+    if not archiv:
+        fehler(f"keine Archive fuer {stack}")
+    if not archiv.startswith(f"{stack}-"):
+        fehler(f"{archiv} gehoert nicht zu {stack}")
+
+    groesse = archivgroesse(archiv)
+    frei = frei_gb(Path("/tmp"))
+    noetig = groesse / 1024**3
+    print(f"  Archiv:   {archiv}")
+    print(f"  Groesse:  {noetig:.2f} GB")
+    if frei - noetig < RESERVE_GB:
+        fehler(f"zu wenig Platz: {frei:.1f} GB frei, {noetig:.2f} GB gebraucht, "
+               f"{RESERVE_GB:.0f} GB muessen danach bleiben. Eine Probe, die die "
+               "Platte fuellt, braeche genau die Sicherung, die sie pruefen soll.")
+
+    # Zeitpunkt des Archivs, fuer den Altersvergleich
+    r = borg("info", "--json", f"{REPO}::{archiv}", timeout=120)
+    try:
+        start = json.loads(r.stdout)["archives"][0]["start"]
+        archiv_zeit = time.mktime(time.strptime(start[:19], "%Y-%m-%dT%H:%M:%S"))
+    except (ValueError, KeyError, IndexError):
+        archiv_zeit = time.time()
+
+    wurzel = Path(tempfile.mkdtemp(prefix=f"probe-{stack}-", dir="/tmp"))
+    try:
+        # Die Archive tragen absolute Pfade (srv/games/<stack>/...). borg
+        # extract schreibt relativ zum aktuellen Verzeichnis - also ZWINGEND aus
+        # dem Wegwerfverzeichnis heraus. Aus "/" gestartet, schriebe es direkt
+        # ueber den laufenden Server - das ist genau der Unterschied zwischen
+        # dieser Probe und der echten Wiederherstellung.
+        # *Archives carry absolute paths; borg extract writes relative to the
+        #  current directory. From "/" it would write over the live server -
+        #  which is precisely the difference between this probe and a restore.*
+        t0 = time.time()
+        r = subprocess.run(["borg", "--lock-wait", SPERRE_WARTEN,
+                            "extract", f"{REPO}::{archiv}"],
+                           cwd=wurzel, capture_output=True, text=True,
+                           timeout=3600 + int(SPERRE_WARTEN),
+                           env={**os.environ,
+                                "BORG_PASSPHRASE": PASSPHRASE.read_text().strip(),
+                                "BORG_RSH": "ssh -o BatchMode=yes -o ConnectTimeout=15"})
+        dauer = time.time() - t0
+        if r.returncode != 0:
+            print(f"  AUSPACKEN FEHLGESCHLAGEN nach {dauer:.0f} s:")
+            print("    " + (r.stderr or r.stdout).strip()[-400:])
+            return 1
+
+        ausgepackt = wurzel / "srv" / "games" / stack
+        a = vermessen(ausgepackt) if ausgepackt.exists() else {"dateien": 0, "bytes": 0, "juengst": 0}
+        live = vermessen(GAMES / stack, ausschluesse())
+        print(f"  Ausgepackt in {dauer:.0f} s")
+        print(f"  Im Archiv: {a['dateien']:>7} Dateien  {a['bytes'] / 1024**2:>10.1f} MB"
+              + (f"   juengste: {time.strftime('%d.%m. %H:%M', time.localtime(a['juengst']))}"
+                 if a["juengst"] else ""))
+        print(f"  Live:      {live['dateien']:>7} Dateien  {live['bytes'] / 1024**2:>10.1f} MB"
+              "   (ohne ausgeschlossene Pfade)")
+
+        befunde = urteil(a, live, archiv_zeit)
+        print()
+        if befunde:
+            for b in befunde:
+                print(f"  BEFUND: {b}")
+            return 1
+        print("  Das Archiv laesst sich zurueckspielen und haelt, was es halten soll.")
+        return 0
+    finally:
+        # Auch bei Fehlern: Das Wegwerfverzeichnis darf nicht liegen bleiben.
+        # Mehrere GB unter /tmp, die niemand wegraeumt, fuellen die Platte - und
+        # dann scheitert als Erstes die Sicherung.
+        shutil.rmtree(wurzel, ignore_errors=True)
+
+
+def main() -> int:
+    a = sys.argv[1:]
+    if "--selbsttest" in a:
+        print("== Selbsttest: was fiele am Vergleich auf? ==")
+        jetzt = time.time()
+        tag = 86400
+        faelle = [
+            ("leeres Archiv (der FOUNDRY-Fall)",
+             {"dateien": 0, "bytes": 0, "juengst": 0}, {"dateien": 50, "bytes": 10**9, "juengst": jetzt}, 1),
+            ("gesundes Archiv",
+             {"dateien": 1000, "bytes": 9 * 10**8, "juengst": jetzt}, {"dateien": 1100, "bytes": 10**9, "juengst": jetzt}, 0),
+            ("haelt nur 10 % der Live-Daten",
+             {"dateien": 100, "bytes": 10**8, "juengst": jetzt}, {"dateien": 1100, "bytes": 10**9, "juengst": jetzt}, 1),
+            ("genau 25 % - noch in Ordnung",
+             {"dateien": 100, "bytes": 25 * 10**7, "juengst": jetzt}, {"dateien": 1100, "bytes": 10**9, "juengst": jetzt}, 0),
+            ("juengste Datei 3 Tage alt",
+             {"dateien": 1000, "bytes": 9 * 10**8, "juengst": jetzt - 3 * tag}, {"dateien": 1100, "bytes": 10**9, "juengst": jetzt}, 1),
+            ("juengste Datei 1 Tag alt - noch in Ordnung",
+             {"dateien": 1000, "bytes": 9 * 10**8, "juengst": jetzt - tag}, {"dateien": 1100, "bytes": 10**9, "juengst": jetzt}, 0),
+        ]
+        schlecht = 0
+        for titel, arch, live, soll in faelle:
+            ist = len(urteil(arch, live, jetzt))
+            ok = (ist > 0) == (soll > 0)
+            print(f"  {'ok     ' if ok else 'FEHLER '} {titel}")
+            schlecht += 0 if ok else 1
+        return 1 if schlecht else 0
+
+    if not a or a[0].startswith("-"):
+        print(__doc__.split("\n\n")[3], file=sys.stderr)
+        return 2
+    archiv = a[a.index("--archiv") + 1] if "--archiv" in a else None
+    return probe(a[0], archiv)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
