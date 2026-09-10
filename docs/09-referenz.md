@@ -640,6 +640,7 @@ schon einmal dazu geführt, dass Aufrufe still fehlschlugen.
 | `/var/lib/platzwart-spieler.stumm` | `0644 root` | wer zuletzt nicht antwortete — Wiedervorlage nach 30 min |
 | `/var/lib/platzwart-wache.zustand` | `0600 root` | welche Befunde beim letzten Lauf offen waren — daraus entsteht Störung vs. Entwarnung |
 | `/var/lib/platzwart-melden.gesehen` | `0600 root` | zuletzt verschickte Meldungen, gegen Wiederholung (Standard 180 min) |
+| `/var/lib/spiele-sicherung.dateizahlen` | `0600 root` | Dateizahl je Spiel aus dem letzten Archiv — daraus entsteht der Einbruchsvergleich |
 | `/var/lib/spiele-sicherung.stoerung` | `0600 root` | Marke: die letzte Sicherung schlug fehl — der nächste Erfolg meldet Entwarnung |
 | `/opt/panel/statisch/passkey.js` | `0644 root` | das einzige JavaScript des Panels (WebAuthn) |
 | `/opt/panel/daten/audit.jsonl` | `0644 panel` | Protokoll: wer hat wann was getan (Rotation bei 4 MB nach `.jsonl.1`) |

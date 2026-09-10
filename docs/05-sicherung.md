@@ -191,6 +191,65 @@ kann, verliert den Fortschritt der Sitzung.
 
 ---
 
+---
+
+## Wenn ein Archiv nichts enthält
+
+Am 2026-09-10 stellte sich heraus, dass FOUNDRY seit dem 06.09. gesichert wurde
+und **jedes Archiv zwei Dateien enthielt** — vier leere Verzeichnisse. Der Lauf
+meldete jedes Mal Erfolg, der Rückgabewert war 0, das Archiv entstand.
+
+```
+borg info … foundry-20260910-164531
+Number of files: 2
+```
+
+Das ist nicht „der Spielstand fehlt", sondern das Schlimmere: **Das Netz meldet
+sich heil und fängt nichts.** Eine Wiederherstellung hätte eine leere Welt
+wiederhergestellt, und keine Überwachung hätte den Unterschied gesehen — weil
+alles, was sie prüft, in Ordnung war.
+
+`spiele-sicherung` prüft deshalb nach jedem Archiv zwei Dinge, und **die erste
+Prüfung ist die wichtigere**:
+
+| Prüfung | Schlägt an bei | Findet |
+|---|---|---|
+| **Untergrenze** | ≤ 5 Dateien | ein Archiv, das von Anfang an leer ist |
+| **Einbruch** | unter 25 % des letzten Laufs | etwas, das Inhalt hatte und ihn verliert |
+
+Ohne die Untergrenze hätte es FOUNDRY **nie** gefunden: Ein Vergleich mit dem
+Vorgänger schlägt nicht an, wenn der genauso leer war.
+
+Die Dateizahl kommt aus `borg create --stats` — ein zweiter borg-Aufruf nur zum
+Zählen wäre bei einem Lauf alle 15 Minuten unnötig teuer. Gemerkt wird sie in
+`/var/lib/spiele-sicherung.dateizahlen`, und zwar **nach** der Prüfung; sonst
+verglichen die folgenden Läufe gegen den eingebrochenen Wert und schwiegen.
+
+### Einmal am Tag, nicht alle drei Stunden
+
+Diese beiden Meldungen gehen mit einer Ruhezeit von **einem Tag** hinaus. Der
+Lauf kommt alle 15 Minuten; mit der üblichen Sperre von drei Stunden wären das
+acht Nachrichten täglich über ein längst bekanntes Problem, und nach dem zweiten
+Tag liest sie niemand mehr. Ein Fund, der sich selbst in die Bedeutungslosigkeit
+nagt, ist so gut wie keiner.
+
+Die Meldung über eine **fehlgeschlagene** Sicherung bleibt bei drei Stunden —
+die ist dringend.
+
+> *FOUNDRY had been backed up since 06.09. with two files in every archive: four
+> empty directories, reported as success every time. Not "the save is missing"
+> but the worse thing — the safety net reporting itself intact while holding
+> nothing; a restore would have restored an empty world and no monitoring would
+> have seen the difference, because everything it checks was fine. Two checks
+> now follow every archive, and the absolute floor matters more than the drop:
+> comparing against the previous archive never fires when that one was equally
+> empty. The file count comes from `borg create --stats` rather than a second
+> borg call, and is recorded after the check, or later runs would compare
+> against the collapsed value and stay quiet. Both messages carry a one-day
+> quiet period: this runs every 15 minutes, and eight messages a day about a
+> known problem stop being read. The failed-backup message keeps the short
+> window — that one is urgent.*
+
 ## Prüfen
 
 ```bash
