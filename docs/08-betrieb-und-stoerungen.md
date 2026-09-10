@@ -118,12 +118,59 @@ Geschickt wird nach Discord, über zwei Webhooks:
 
 | Kanal | Was dort landet |
 |---|---|
-| `#platzwart-stoerung` | Server abgestürzt, Sicherung fehlgeschlagen, Platte knapp, **Arbeitsspeicher knapp**, Server ohne Beitrittspasswort, Update fehlgeschlagen |
+| `#platzwart-stoerung` | Server abgestürzt, **Server in der Neustartschleife**, **Server meldet sich als ungesund**, Sicherung fehlgeschlagen, Platte knapp, Arbeitsspeicher knapp, Server ohne Beitrittspasswort, Update fehlgeschlagen |
 | `#platzwart-meldungen` | Update wirklich eingespielt, Entwarnung nach einer Störung |
 
 **Zwei Kanäle, mit Absicht.** Ein Kanal, in dem täglich „Update geprüft, nichts
 Neues" steht, wird nach einer Woche stummgeschaltet — und dann fällt auch die
 Störung nicht mehr auf.
+
+### Ein laufender Container ist kein laufender Server
+
+Bis zum 2026-09-10 sah die Wache ausschließlich nach Containern im Zustand
+`exited`. Das findet genau die Fälle **nicht**, in denen ein Server tot ist, der
+Container aber lebt:
+
+| Lage | Was `docker ps` sagt | Was `--filter status=exited` findet |
+|---|---|---|
+| Neustartschleife | `Restarting (1) 4 seconds ago` | nichts |
+| Gesundheitstest schlägt fehl | `Up 37 minutes (unhealthy)` | nichts |
+
+Beim ersten Aufbau auf einer frischen Maschine gemessen: Ein Spielserver lief
+zwanzig Minuten in der Schleife, ein zweiter war sechsunddreißig Minuten
+`unhealthy` — die Wache meldete keinen von beiden.
+
+Sie prüft deshalb zusätzlich `docker inspect`. Bei der Schleife müssen **zwei**
+Bedingungen zusammenkommen:
+
+* mindestens `WACHE_NEUSTART_WARN` Neustarts (Vorgabe 3) — und
+* der Container startet **gerade** neu oder ist erst seit weniger als
+  `WACHE_FRISCH_MIN` Minuten (Vorgabe 10) oben.
+
+Die zweite Bedingung ist nicht Zierat: `RestartCount` fällt nie wieder. Ohne sie
+stünde ein Container, der vorletzte Woche fünfmal abstürzte und seither
+durchläuft, dauerhaft als Störung im Kanal — und ein Alarm, der nie endet, wird
+stummgeschaltet. Beruhigt er sich, wächst die Laufzeit über die Frist und die
+Entwarnung geht von selbst hinaus.
+
+`RestartCount` zählt nur, was die Neustartregel ausgelöst hat. Ein `docker
+restart` von Hand erhöht ihn **nicht** — der Zähler beschreibt Abstürze, nicht
+Bedienung.
+
+> *Until 2026-09-10 the watchdog only looked for containers in state `exited`,
+> which finds neither of the two cases where the server is dead but the container
+> is alive: a restart loop shows as `Restarting`, and a failing health check
+> shows as `Up (unhealthy)`. Measured on a first install: one server looped for
+> twenty minutes, another was unhealthy for thirty-six, and neither was
+> reported. It now also reads `docker inspect`. A restart loop needs two
+> conditions together — at least `WACHE_NEUSTART_WARN` restarts (default 3)
+> **and** the container is restarting right now or has been up for less than
+> `WACHE_FRISCH_MIN` minutes (default 10). The second is not decoration:
+> `RestartCount` never falls, so without it a container that crashed a fortnight
+> ago would sit in the channel forever, and an alarm that never ends gets muted.
+> Once it settles, uptime grows past the window and the all-clear goes out by
+> itself. `RestartCount` counts only policy restarts — a manual `docker restart`
+> does not raise it.*
 
 ### Die drei Regeln, an denen das hängt
 

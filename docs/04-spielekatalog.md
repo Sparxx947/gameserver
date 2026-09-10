@@ -246,6 +246,33 @@ das Feld nicht, und niemand erfuhr davon.
 
 Findet er nach sechs Stunden nichts, gibt er auf und meldet sichtbar:
 **„KEIN Passwortfeld gefunden – der Server läuft ohne Beitrittspasswort."**
+
+**Dieser Satz gilt aber nur, wenn der Server auch wirklich lief.** Vorher wurde
+er unbesehen ausgegeben, und beim ersten Aufbau auf einer frischen Maschine war
+er dreimal falsch — in die *alarmierende* Richtung: Wer ihn liest, sucht einen
+offenen Port ohne Passwort. Es gab keinen, weil es keinen Server gab.
+
+Der Schritt sieht deshalb vor jeder Meldung nach, ob hinter dem Container
+überhaupt etwas läuft, und benennt sonst den wahren Grund:
+
+| Lage des Containers | Meldung |
+|---|---|
+| läuft | „KEIN Passwortfeld gefunden …" (unverändert) |
+| startet immer wieder neu | „SERVER STARTET NICHT – der Container startet immer wieder neu (N Neustarts)" |
+| läuft nicht | „SERVER STARTET NICHT – der Container läuft nicht" |
+| meldet sich ungesund | „SERVER STARTET NICHT – der Container meldet seinen eigenen Gesundheitstest als fehlgeschlagen" |
+
+Auch die Wartemeldung sagt es: „wartet auf die Konfigurationsdatei des Servers
+— **aber der Container läuft nicht**". Ein Server, der nie startet, wartet nicht,
+er ist kaputt.
+
+> *That sentence only holds if the server was actually running. It used to be
+> printed unseen, and on a first install on a fresh machine it was wrong three
+> times out of three — wrong in the alarming direction, because whoever reads it
+> goes looking for an open port without a password, and there was none, because
+> there was no server. The step now checks whether anything is running behind
+> the container and names the real reason otherwise; the waiting message says it
+> too. A server that never starts is not waiting, it is broken.*
 Diese Meldung ist der Kern der Sache: ein Server ohne Passwort darf nicht
 unauffällig sein.
 
