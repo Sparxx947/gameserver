@@ -205,6 +205,13 @@ ist eine Verwaltungsoberfläche hinter Passwort, TOTP und Passkeys, und jemandem
 ein Konto zu geben, damit er eine Beitrittsadresse ablesen kann, ist verkehrt
 herum.
 
+Die Seite trägt **Platzwart** als Namen und das Zeichen aus `werkzeuge/logo.py`
+— als **Inline-SVG**, gelesen aus der Datei, die dieses Werkzeug erzeugt hat.
+Nicht als `<img>`: Die Seite lädt kein einziges Bild, deshalb bleibt
+`default-src 'none'` stehen. Ein eingebettetes SVG ist Auszeichnung, keine
+Ressource, und braucht keine Lockerung. Und nicht noch einmal abgetippt:
+`logo.py` gibt es genau deshalb, damit die Formen einmal als Zahlen stehen.
+
 `https://<panel-domain>/status` zeigt ohne Anmeldung: welcher Server läuft,
 unter welcher Adresse man beitritt, und — wo abrufbar — wie viele gerade drauf
 sind.
