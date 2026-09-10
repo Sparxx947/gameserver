@@ -1,0 +1,13 @@
+{
+  "_hinweis": "Beitrittsadressen der von Hand gebauten Server. Bewusst hier gepflegt und nicht aus der compose-Datei geraten: der DNS-Name steht dort nicht, und die veroeffentlichten Ports weichen teils vom Spielstandard ab (7777 hat Satisfactory, deshalb liegt Windrose auf 7780). Ueber den Katalog installierte Server brauchen keinen Eintrag - fuer sie steht die Angabe in ihrer panel.json. Diese Datei liegt getrennt, weil ZWEI Programme sie lesen: das Panel und platzwart-status. Zwei Stellen, die dieselbe Tabelle fuehren, laufen auseinander.",
+  "_english": "Join addresses for hand-built servers; catalogue installs carry theirs in panel.json. Kept in a file of its own because two programs read it - the panel and platzwart-status - and two copies of one table drift apart.",
+  "adressen": {
+    "enshrouded":   ["enshrouded.@@DNS_ZONE@@", 15637, "Direktbeitritt, Passwort je Rolle"],
+    "palworld":     ["palworld.@@DNS_ZONE@@", 8211, "über die Community-Liste als „@@WELT_NAME@@“"],
+    "satisfactory": ["satisfactory.@@DNS_ZONE@@", 7777, "Server im Spiel hinzufügen"],
+    "foundry":      ["foundry.@@DNS_ZONE@@", 3724, "Direktbeitritt"],
+    "windrose":     ["windrose.@@DNS_ZONE@@", 7780, "Direktbeitritt"],
+    "valheim":      ["valheim.@@DNS_ZONE@@", 2456, "Direktbeitritt, Passwort im Spiel"],
+    "teamspeak":    ["ts.@@DNS_ZONE@@", 9987, "Standardport, im Client genügt der Name"]
+  }
+}

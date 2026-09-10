@@ -252,13 +252,32 @@ echo "== Wird jede ausgerollte Datei auch verglichen? =="
 grep -oE '^[[:space:]]*"[^":]+:[^"]+"' werkzeuge/abgleich.sh \
   | tr -d ' "' | cut -d: -f1 | LC_ALL=C sort -u > /tmp/vs-ist.$$
 fehlend=$(LC_ALL=C comm -23 /tmp/vs-soll.$$ /tmp/vs-ist.$$)
-rm -f /tmp/vs-soll.$$ /tmp/vs-ist.$$
 if [ -n "$fehlend" ]; then
   echo "  install/ rollt aus, abgleich.sh vergleicht NICHT:"
   sed 's/^/    /' <<<"$fehlend"
   echo "    -> Paar in die Liste PAARE in werkzeuge/abgleich.sh eintragen."
   fehler=1
 fi
+
+# Dieselbe Tabelle steht ein DRITTES Mal in ausrollen.sh, und auch die wurde
+# vergessen: etc/spiele-adressen.json liess sich am 2026-09-10 nicht ausrollen
+# ("UNBEKANNT wohin"), waehrend das Panel schon ohne seine Adressdatei lief.
+# bin/* und systemd/* fangen dort Mustereintraege ab und brauchen keinen
+# eigenen Fall - geprueft wird deshalb nur, was einen braucht.
+# *The same table exists a third time in ausrollen.sh and was forgotten too.
+#  bin/* and systemd/* are covered by wildcards there, so only the rest is
+#  checked.*
+nicht_rollbar=$(while read -r p; do
+    case "$p" in bin/*|systemd/*) continue ;; esac
+    grep -qF "    $p)" werkzeuge/ausrollen.sh || echo "$p"
+  done < /tmp/vs-soll.$$)
+if [ -n "$nicht_rollbar" ]; then
+  echo "  install/ rollt aus, ausrollen.sh kennt das Ziel NICHT:"
+  sed 's/^/    /' <<<"$nicht_rollbar"
+  echo "    -> Fall in die Funktion wohin() in werkzeuge/ausrollen.sh eintragen."
+  fehler=1
+fi
+rm -f /tmp/vs-soll.$$ /tmp/vs-ist.$$
 
 # --- 8. Entscheidungsnummern: keine doppelt, keine ins Leere ----------------
 # Am 2026-09-09 wurde E24 zweimal vergeben. Der Grund ist eine Falle, die beim

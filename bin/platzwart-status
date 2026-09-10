@@ -1,0 +1,210 @@
+#!/usr/bin/env python3
+"""platzwart-status — schreibt die oeffentliche Statusseite als fertige Datei.
+
+Wer wissen will, ob ein Server laeuft und wie man beitritt, brauchte bisher
+einen Panel-Zugang oder musste fragen. Das Panel ist dafuer das falsche
+Werkzeug: Es ist eine Verwaltungsoberflaeche hinter Passwort, TOTP und
+Passkeys, und jemandem ein Konto zu geben, damit er eine Beitrittsadresse
+ablesen kann, ist verkehrt herum.
+
+*Finding out whether a server is up meant having a panel account or asking. The
+ panel is a management surface behind password, TOTP and passkeys; handing out
+ an account so somebody can read a join address is backwards.*
+
+Warum eine DATEI und keine Route im Panel - das war die offene Frage in #116:
+
+Eine oeffentliche Seite im Panelprozess teilt sich mit der Verwaltung den
+Speicher, die Vorlagen und die Sicherheitskopfzeilen. Ein vergessener Schalter
+in einer gemeinsam benutzten Darstellungsfunktion gibt dann alles preis. Diese
+Seite entsteht dagegen in einem eigenen Programm, wird von Caddy unmittelbar
+ausgeliefert und **erreicht das Panel nie**. Sie kann nichts verraten, was sie
+nicht selbst geladen hat, und sie enthaelt kein einziges Byte JavaScript.
+
+*A public route inside the panel process shares memory, templates and headers
+ with the management surface; one forgotten flag in a shared renderer gives away
+ everything. This page is built by a separate program, served directly by Caddy
+ and never reaches the panel. It cannot leak what it never loaded.*
+
+  platzwart-status [--zeigen] [--ziel VERZEICHNIS]
+"""
+import html
+import json
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+ZIEL = Path(os.environ.get("STATUS_ZIEL", "/var/lib/platzwart-status"))
+ADRESSEN = Path("/etc/spiele-adressen.json")
+SPIELER = Path("/var/lib/platzwart-spieler.json")
+STACKS = Path("/opt/stacks")
+SPIELER_FRISCH_S = 180
+
+
+def e(x) -> str:
+    return html.escape(str(x), quote=True)
+
+
+def laufende() -> set:
+    try:
+        return set(subprocess.run(["docker", "ps", "--format", "{{.Names}}"],
+                                  capture_output=True, text=True,
+                                  timeout=30).stdout.split())
+    except (OSError, subprocess.SubprocessError):
+        return set()
+
+
+def alle_stacks() -> list:
+    return sorted(p.name for p in STACKS.iterdir() if p.is_dir()) \
+        if STACKS.is_dir() else []
+
+
+def adressen() -> dict:
+    try:
+        return {k: tuple(v) for k, v in
+                json.loads(ADRESSEN.read_text())["adressen"].items()}
+    except Exception:
+        return {}
+
+
+def stackinfo(name: str) -> dict:
+    try:
+        return json.loads((STACKS / name / "panel.json").read_text())
+    except Exception:
+        return {}
+
+
+def spieler() -> dict:
+    try:
+        d = json.loads(SPIELER.read_text())
+    except (OSError, ValueError):
+        return {}
+    jetzt = time.time()
+    return {n: v for n, v in d.items()
+            if jetzt - float(v.get("zeit", 0)) <= SPIELER_FRISCH_S}
+
+
+def sammeln() -> list:
+    """Was auf die Seite darf - und nur das."""
+    an, adr, sp = laufende(), adressen(), spieler()
+    raus = []
+    for name in alle_stacks():
+        p = stackinfo(name)
+        # E23: Das Veroeffentlichen des Ports ist der Schritt, der nach aussen
+        # oeffnet. Ein Server, dessen Einrichtung dabei stehen blieb, kann ohne
+        # Beitrittspasswort erreichbar sein. Ihn hier auch noch anzukuendigen
+        # waere derselbe Fehler mit einem Megafon.
+        # *A server whose setup stalled can be reachable without a join
+        #  password; advertising it would be the same mistake with a megaphone.*
+        if p.get("einrichtung_offen"):
+            continue
+        host, port, hinweis = adr.get(name, ("", 0, ""))
+        if not host and p:
+            host, port, hinweis = f"{name}.?", p.get("adresse_port", 0), \
+                (p.get("hinweis") or "")[:150]
+        # Ohne Adresse hat der Eintrag fuer einen Mitspieler keinen Wert.
+        if not host or "?" in host:
+            continue
+        raus.append({"name": name, "an": name in an, "host": host,
+                     "port": port, "hinweis": hinweis,
+                     "spieler": sp.get(name)})
+    return raus
+
+
+KOPF = """<!doctype html><html lang=de><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<title>Spieleserver</title>
+<style>
+:root{color-scheme:dark light;--bg:#14161a;--k:#1d2026;--r:#2b303a;--t:#e6e8ec;
+      --d:#9aa1ad;--g:#4caf7d;--x:#d9534f}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--t);
+     font:16px/1.6 system-ui,-apple-system,Segoe UI,sans-serif}
+.w{max-width:760px;margin:0 auto;padding:32px 18px 64px}
+h1{font-size:26px;margin:0 0 4px}
+.u{color:var(--d);font-size:14px;margin:0 0 28px}
+.s{background:var(--k);border:1px solid var(--r);border-radius:10px;
+   padding:14px 16px;margin:0 0 12px}
+.z{display:flex;flex-wrap:wrap;gap:10px;align-items:baseline}
+.n{font-weight:600;font-size:17px}
+.p{margin-left:auto;font-size:13px;color:var(--d)}
+.p.an{color:var(--g);font-weight:600}
+.b{display:inline-block;font-size:12px;padding:1px 8px;border-radius:99px;
+   border:1px solid var(--r)}
+.b.an{color:var(--g);border-color:var(--g)}
+.b.aus{color:var(--d)}
+code{background:#0d0f12;border:1px solid var(--r);border-radius:5px;
+     padding:2px 7px;font-size:14px;word-break:break-all}
+.h{color:var(--d);font-size:13px;margin-top:6px}
+footer{color:var(--d);font-size:12px;margin-top:28px;border-top:1px solid var(--r);
+       padding-top:12px}
+</style></head><body><div class=w>
+"""
+
+
+def bauen() -> str:
+    zeilen = [KOPF, "<h1>Spieleserver</h1>",
+              '<p class=u>Was gerade läuft und wie man beitritt.</p>']
+    eintraege = sammeln()
+    if not eintraege:
+        zeilen.append("<p>Zurzeit ist nichts eingerichtet.</p>")
+    for s in eintraege:
+        marke = ('<span class="b an">läuft</span>' if s["an"]
+                 else '<span class="b aus">gestoppt</span>')
+        sp = ""
+        if s["an"] and s["spieler"]:
+            n, m = s["spieler"].get("spieler"), s["spieler"].get("max")
+            if n is not None:
+                sp = (f'<span class="p{" an" if n else ""}">'
+                      f'{e(n)}{"/" + e(m) if m else ""} Spieler</span>')
+        zeilen.append(
+            f'<div class=s><div class=z><span class=n>{e(s["name"])}</span>'
+            f'{marke}{sp}</div>')
+        if s["an"]:
+            ziel = f'{s["host"]}{":" + str(s["port"]) if s["port"] else ""}'
+            zeilen.append(f'<div class=h><code>{e(ziel)}</code></div>')
+            if s["hinweis"]:
+                zeilen.append(f'<div class=h>{e(s["hinweis"])}</div>')
+        zeilen.append("</div>")
+    # Die Uhrzeit gehoert dazu: Eine Statusseite ohne Alter ist eine Behauptung.
+    # Steht der Zeitgeber, sieht man es an der Uhrzeit - sonst liest man einen
+    # Stand von gestern als "jetzt".
+    # *A status page without an age is a claim: if the timer stops, the time
+    #  shows it, otherwise yesterday reads as now.*
+    zeilen.append('<footer>Stand: '
+                  + time.strftime("%d.%m.%Y %H:%M") + " Uhr. "
+                  "Diese Seite wird jede Minute neu geschrieben.</footer>")
+    zeilen.append("</div></body></html>")
+    return "\n".join(zeilen)
+
+
+def main() -> int:
+    args = sys.argv[1:]
+    if "--ziel" in args:
+        globals()["ZIEL"] = Path(args[args.index("--ziel") + 1])
+    seite = bauen()
+    if "--zeigen" in args:
+        for s in sammeln():
+            print(f"  {s['name']:14} {'laeuft ' if s['an'] else 'gestoppt'} "
+                  f"{s['host']}:{s['port']}")
+        return 0
+    try:
+        ZIEL.mkdir(parents=True, exist_ok=True)
+        # Erst daneben schreiben, dann umbenennen: Caddy liefert die Datei
+        # laufend aus, und ein halb geschriebener Stand waere eine halbe Seite.
+        # *Written beside and renamed: Caddy serves this continuously, and a
+        #  half-written file would be half a page.*
+        vor = ZIEL / "index.html.neu"
+        vor.write_text(seite)
+        vor.chmod(0o644)
+        vor.rename(ZIEL / "index.html")
+        ZIEL.chmod(0o755)
+    except OSError as ex:
+        print(f"platzwart-status: {ex}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

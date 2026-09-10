@@ -1,0 +1,12 @@
+[Unit]
+Description=Platzwart: Statusseite jede Minute neu schreiben
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+# Persistent=false: Die Seite zeigt den Zustand JETZT. Einen verpassten Lauf
+# nachzuholen hiesse, einen alten Zustand neu zu schreiben.
+Persistent=false
+
+[Install]
+WantedBy=timers.target
