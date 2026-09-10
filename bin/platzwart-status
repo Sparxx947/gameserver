@@ -114,7 +114,7 @@ def sammeln() -> list:
 
 KOPF = """<!doctype html><html lang=de><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
-<title>Spieleserver</title>
+<title>Platzwart</title>
 <style>
 :root{color-scheme:dark light;--bg:#14161a;--k:#1d2026;--r:#2b303a;--t:#e6e8ec;
       --d:#9aa1ad;--g:#4caf7d;--x:#d9534f}
@@ -122,7 +122,9 @@ KOPF = """<!doctype html><html lang=de><head><meta charset=utf-8>
 body{margin:0;background:var(--bg);color:var(--t);
      font:16px/1.6 system-ui,-apple-system,Segoe UI,sans-serif}
 .w{max-width:760px;margin:0 auto;padding:32px 18px 64px}
-h1{font-size:26px;margin:0 0 4px}
+.m{display:flex;align-items:center;gap:10px;margin:0 0 4px}
+.m svg{width:30px;height:30px;flex:none}
+h1{font-size:26px;margin:0}
 .u{color:var(--d);font-size:14px;margin:0 0 28px}
 .s{background:var(--k);border:1px solid var(--r);border-radius:10px;
    padding:14px 16px;margin:0 0 12px}
@@ -143,8 +145,34 @@ footer{color:var(--d);font-size:12px;margin-top:28px;border-top:1px solid var(--
 """
 
 
+ZEICHEN = Path("/opt/panel/bilder/favicon.svg")
+
+
+def zeichen() -> str:
+    """Das Zeichen als Inline-SVG, gelesen aus der Datei, die werkzeuge/logo.py
+    erzeugt hat. NICHT hier noch einmal hingeschrieben: logo.py gibt es genau
+    deshalb, damit die Formen einmal als Zahlen stehen und nicht in vier
+    Fassungen, von denen drei alt sind.
+
+    Inline und nicht als <img>: Die Kopfzeilen dieser Seite lassen
+    default-src 'none' stehen, weil sie kein einziges Bild laedt. Ein
+    eingebettetes SVG ist Auszeichnung, keine Ressource - es braucht keine
+    Lockerung. Fehlt die Datei, steht die Ueberschrift eben allein da.
+
+    *Read from the file logo.py produced rather than written out again - that
+     tool exists so the shapes live once. Inline rather than <img>, because the
+     page keeps default-src 'none': embedded SVG is markup, not a resource.*
+    """
+    try:
+        s = ZEICHEN.read_text().strip()
+    except OSError:
+        return ""
+    return s if s.startswith("<svg") else ""
+
+
 def bauen() -> str:
-    zeilen = [KOPF, "<h1>Spieleserver</h1>",
+    zeilen = [KOPF,
+              f'<div class=m>{zeichen()}<h1>Platzwart</h1></div>',
               '<p class=u>Was gerade läuft und wie man beitritt.</p>']
     eintraege = sammeln()
     if not eintraege:
