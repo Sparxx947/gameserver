@@ -196,6 +196,54 @@ Admin    : admin oder owner zusammen mit einem Passwortwort, aber NICHT rcon
 Spieler  : maxplayer, maxclients, slots, playerlimit …, aber NICHT reserved, min
 ```
 
+**Ein Muster allein reicht aber nicht.** In JSON-Dateien wird zusätzlich
+geprüft, **was dort vorher stand** — ersetzt wird nur Gleiches durch Gleiches:
+eine Zahl durch eine Zahl, ein Text durch einen Text. Felder, deren Name auf
+`comment` deutet, bleiben grundsätzlich unangetastet.
+
+Der Grund ist gemessen, nicht vorsorglich. Factorios `server-settings.json`
+enthält neben `max_players` auch:
+
+| Feld | Inhalt |
+|---|---|
+| `_comment_max_players` | ein Erklärtext — enthält den Feldnamen vollständig |
+| `ignore_player_limit_for_returning_players` | ein **Boolean** — enthält `player_limit` |
+
+Beide treffen das Spielerzahl-Muster. Ohne die Typprüfung bekamen sie die
+Spielerzahl `4` eingetragen, und Factorio verweigerte den Start mit
+*„Value must be a bool in property tree at
+ROOT.ignore_player_limit_for_returning_players"* — in einer Neustartschleife,
+während das Panel die Einrichtung als **abgeschlossen** führte. Zwei weitere
+Felder (`_comment_max_upload_slots`, `_comment_autosave_slots`) wären über
+`slots` genauso getroffen worden.
+
+Diese Regel braucht kein Wissen über ein einzelnes Spiel — das ist ihr Wert. Sie
+trägt aber **nur, wo es Typen gibt**: `.ini`, `.cfg` und `.xml` kennen nur Text,
+dort schützt weiterhin allein das Muster.
+
+Ein übersprungenes Feld wird **genannt**, nicht stillschweigend ausgelassen:
+
+```
+uebersprungen: server-settings.json:ignore_player_limit_for_returning_players
+               (Kommentarfeld oder andere Art)
+```
+
+Stilles Überspringen war schon einmal die Ursache — beim Minecraft-Fall passte
+das Feld nicht, und niemand erfuhr davon.
+
+> *A pattern alone is not enough. In JSON files the existing value is checked
+> too: like replaces like — a number a number, a text a text — and fields whose
+> name reads as a comment are never touched. The reason is measured, not
+> precautionary: Factorio's `server-settings.json` holds
+> `_comment_max_players` (an explanatory text carrying the full field name) and
+> `ignore_player_limit_for_returning_players` (a **boolean** containing
+> `player_limit`). Both match the player-limit pattern, both received the number
+> 4, and Factorio refused to start with "Value must be a bool" in a restart loop
+> while the panel showed the setup as complete. The rule needs no per-game
+> knowledge, which is its value, but it only carries where types exist — ini,
+> cfg and xml know only text. A skipped field is named rather than passed over
+> in silence: silent skipping was the cause once before.*
+
 Findet er nach sechs Stunden nichts, gibt er auf und meldet sichtbar:
 **„KEIN Passwortfeld gefunden – der Server läuft ohne Beitrittspasswort."**
 Diese Meldung ist der Kern der Sache: ein Server ohne Passwort darf nicht

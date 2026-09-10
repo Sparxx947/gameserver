@@ -250,6 +250,7 @@ Jeder Punkt ist ein realer Vorfall, nicht eine Vermutung.
 | HTTP/2 und WebSockets | Caddy gab über h2 auf den Terminal-Upgrade `404`. Deshalb `protocols h1`. |
 | `\s` in Zeilenregeln | Frisst den Zeilenumbruch; bei leerem Wert wird die Folgezeile als Wert verschluckt. `[ \t]*` und `[^\r\n]*` verwenden. |
 | Feldnamen-Muster | Trennzeichen sind beliebig: `max-players`, `max_players`, `MaxPlayerCount`. Ein Muster, das nur Unterstrich kennt, lässt Minecraft still auf 20 Plätzen laufen. |
+| Feldnamen-Muster, die andere Hälfte | Dasselbe Muster weit genug für alle Schreibweisen trifft auch `_comment_max_players` und `ignore_player_limit_for_returning_players` — ein Erklärtext und ein **Boolean**. Factorio startete danach nicht mehr, während die Einrichtung Erfolg meldete. In JSON deshalb **nur Gleiches durch Gleiches** ersetzen und den vorhandenen Wert ansehen, bevor man ihn überschreibt. |
 | Portkollisionen auflösen | Gegen die **tatsächlich gebundenen** Ports prüfen und installierte Spiele ausnehmen — sonst verschiebt man einen laufenden Server von seinem Port und jeder Client verliert ihn. |
 | `dig` zur Existenzprüfung | Wertlos, wenn die Zone ein Wildcard hat: es beantwortet jeden erfundenen Namen. Immer die API fragen. |
 | Cloudflare `proxied` | Der Proxy kann nur HTTP(S). Ein Spielport dahinter ist von außen tot. |
