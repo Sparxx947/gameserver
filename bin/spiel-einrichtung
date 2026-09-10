@@ -431,7 +431,12 @@ def lauf(nur=None):
         #  setup has settled - either the password is in place, or we have given
         #  up on finding a field and said so loudly. The gate keys off the result,
         #  not the format, so an unknown config format cannot slip past it.*
-        if p.get("port_regel") and not p.get("einrichtung_offen", True):
+        # Zwei Anlaesse, EIN Weg: ein zu ermittelnder Port (port_regel) oder
+        # beim Installieren zurueckgehaltene Katalogports (ports_ausstehend, #156).
+        # Beide gehen durch port-ermitteln, und beide erst hier - nach dem Passwort.
+        # *Two occasions, ONE path, both only here - after the password.*
+        warten_ports = p.get("port_regel") or p.get("ports_ausstehend")
+        if warten_ports and not p.get("einrichtung_offen", True):
             r = subprocess.run(["/usr/local/bin/port-ermitteln", stack, "--aus-einrichtung"],
                                capture_output=True, text=True, timeout=600)
             p = json.loads(verz.read_text())   # port-ermitteln hat sie ggf. geaendert
@@ -441,7 +446,7 @@ def lauf(nur=None):
                 meldung(f"{stack}: Port noch nicht ermittelbar - {r.stdout.strip()[:120]}")
             else:
                 meldung(f"{stack}: Portermittlung fehlgeschlagen - {r.stderr.strip()[:120]}")
-        elif p.get("port_regel"):
+        elif warten_ports:
             meldung(f"{stack}: Port bleibt unveroeffentlicht, solange kein "
                     "Beitrittspasswort gesetzt ist")
 
