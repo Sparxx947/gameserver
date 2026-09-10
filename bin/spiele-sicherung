@@ -56,14 +56,85 @@ done
 prune_regeln=(--keep-within 2d --keep-daily 14 --keep-weekly 8 --keep-monthly 12)
 
 fehler=0
+
+# Ab wieviel Dateien gilt ein Archiv als "nicht praktisch leer"? Und auf welchen
+# Bruchteil des Vorgaengers darf es fallen, ohne dass jemand hinsieht?
+MIN_DATEIEN="${SICHERUNG_MIN_DATEIEN:-5}"
+EINBRUCH_ANTEIL="${SICHERUNG_EINBRUCH_ANTEIL:-25}"   # Prozent
+ZAEHLER=/var/lib/spiele-sicherung.dateizahlen
+
+
+# --- Ist das Archiv plausibel? ----------------------------------------------
+# Am 2026-09-10 stellte sich heraus, dass FOUNDRY seit dem 06.09. gesichert
+# wurde und jedes Archiv ZWEI Dateien enthielt: vier leere Verzeichnisse. Der
+# Lauf meldete jedes Mal Erfolg, der Rueckgabewert war 0, das Archiv entstand -
+# und es hielt nichts. Nicht "der Spielstand fehlt", sondern: das Netz meldet
+# sich heil und faengt nichts.
+#
+# ZWEI Pruefungen, und die erste ist die wichtigere:
+#
+#  1. Eine absolute Untergrenze. FOUNDRY war von ANFANG an hohl - ein Vergleich
+#     mit dem Vorgaenger haette nie angeschlagen, weil der genauso leer war.
+#  2. Ein Einbruch gegenueber dem letzten Lauf. Der findet den anderen Fall:
+#     etwas, das einmal Inhalt hatte und ihn verliert.
+#
+# *FOUNDRY had been backed up since 06.09. with two files in every archive: four
+#  empty directories. Every run reported success. Two checks, and the first
+#  matters more - FOUNDRY was hollow from the start, so comparing against the
+#  previous archive would never have fired.*
+# Diese beiden Meldungen gehen mit einer Ruhezeit von einem TAG hinaus, nicht
+# den ueblichen drei Stunden: Dieser Lauf kommt alle 15 Minuten, und acht
+# Nachrichten taeglich ueber ein laengst bekanntes Problem liest nach dem
+# zweiten Tag niemand mehr. Ein Fund, der sich selbst in die
+# Bedeutungslosigkeit nagt, ist so gut wie keiner. Die Meldung ueber eine
+# FEHLGESCHLAGENE Sicherung bleibt bei drei Stunden - die ist dringend.
+# *A day, not the usual three hours: this runs every 15 minutes, and eight
+#  messages a day about a long-known problem stop being read. The failed-
+#  backup message keeps the short window - that one is urgent.*
+pruefe_plausibel() {   # pruefe_plausibel <name> <dateizahl>
+  local name="$1" zahl="$2" vorher=""
+  [ -n "$zahl" ] || return 0
+  [ -f "$ZAEHLER" ] && vorher=$(grep -E "^$name " "$ZAEHLER" 2>/dev/null | awk '{print $2}')
+
+  if [ "$zahl" -le "$MIN_DATEIEN" ]; then
+    PLATZWART_MELDEN_RUHE_MIN=1440 melden stoerung "Sicherung von $name ist praktisch leer" \
+"Das Archiv enthaelt $zahl Datei(en). Eine Sicherung, die nichts einfaengt,
+meldet trotzdem Erfolg - der Rueckgabewert sagt nur, dass das Archiv entstanden
+ist, nicht dass etwas drin steht.
+
+Nachsehen mit:  panel-aktion archive $name"
+  elif [ -n "$vorher" ] && [ "$vorher" -gt "$MIN_DATEIEN" ] \
+       && [ $((zahl * 100)) -lt $((vorher * EINBRUCH_ANTEIL)) ]; then
+    PLATZWART_MELDEN_RUHE_MIN=1440 melden stoerung "Sicherung von $name eingebrochen" \
+"Vorher $vorher Dateien, jetzt $zahl. Das ist unter $EINBRUCH_ANTEIL Prozent.
+
+Wenn dort nicht gerade etwas geloescht wurde, faengt die Sicherung seit diesem
+Lauf weniger ein, als sie soll."
+  fi
+
+  # Zahl merken - erst NACH der Pruefung, sonst vergleicht der naechste Lauf
+  # gegen den eingebrochenen Wert und schweigt.
+  local tmp; tmp=$(mktemp)
+  grep -vE "^$name " "$ZAEHLER" 2>/dev/null > "$tmp" || true
+  echo "$name $zahl" >> "$tmp"
+  sort -o "$ZAEHLER" "$tmp" 2>/dev/null && chmod 600 "$ZAEHLER"
+  rm -f "$tmp"
+}
+
 sichere() {   # sichere <name> <pfad>
-  local name="$1" pfad="$2"
-  borg create --compression zstd,6 --exclude-from /etc/borg-ausschluss.txt \
-       "$REPO::${name}-${ZEIT}" "$pfad" 2>&1 | grep -vE "^$" 
-  local rc=${PIPESTATUS[0]}
+  local name="$1" pfad="$2" aus
+  # --stats gibt die Dateizahl gleich mit aus - ein zweiter borg-Aufruf nur zum
+  # Zaehlen waere bei einem Lauf alle 15 Minuten unnoetig teuer.
+  aus=$(borg create --stats --compression zstd,6 \
+        --exclude-from /etc/borg-ausschluss.txt \
+        "$REPO::${name}-${ZEIT}" "$pfad" 2>&1)
+  local rc=$?
+  printf '%s\n' "$aus" | grep -vE "^$"
   if [ $rc -ne 0 ]; then
     echo "FEHLER: borg create fuer $name endete mit $rc" >&2; fehler=1; return
   fi
+  pruefe_plausibel "$name" "$(grep -oE "Number of files: *[0-9]+" <<<"$aus" \
+                              | grep -oE "[0-9]+" | head -1)"
   # prune NUR innerhalb dieses Praefixes, sonst wuerde ein Spiel die Staende
   # eines anderen wegraeumen. Borg 1.2 nennt das --glob-archives.
   borg prune --glob-archives "${name}-*" "${prune_regeln[@]}" "$REPO" >/dev/null 2>&1 \
@@ -103,6 +174,11 @@ borg compact "$REPO" >/dev/null 2>&1
 # *Runs every 15 minutes. The text carries no timestamp, or the repeat guard
 #  would never match and one fault would become 96 messages a day. And recovery
 #  is reported too: an alarm whose end is invisible becomes permanent.*
+# EINE Definition, absichtlich. Sie stand kurzzeitig zweimal da - Bash nimmt
+# dann die letzte, das Verhalten war gleich, aber zwei gleiche Zeilen laufen
+# frueher oder spaeter auseinander.
+# *One definition on purpose: it briefly existed twice, which Bash resolves
+#  to the last one - same behaviour, but two identical lines drift apart.*
 melden() { /usr/local/bin/platzwart-melden "$@" 2>/dev/null || true; }
 MARKE=/var/lib/spiele-sicherung.stoerung
 if [ $fehler -ne 0 ]; then
