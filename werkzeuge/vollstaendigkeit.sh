@@ -314,6 +314,17 @@ while read -r v; do
 done < <(grep -rhoE '\bE[0-9]{1,2}\b' docs/*.md CLAUDE.md README.md 2>/dev/null \
          | sort -u)
 
+# --- 9. Ports des Spielekatalogs --------------------------------------------
+# Am 2026-09-10 veroeffentlichte der Katalog die gotty-Webkonsole von FiveM und
+# RedM (Serverkonsole ohne Anmeldung) und RCON bei gut fuenfzig Spielen - die
+# Regel dagegen gab es, sie sah nur die falsche Spalte an. Dazu Beitrittsadressen
+# auf Ports, auf denen das Spiel nicht lauscht. Regeln und Ausnahmen stehen im
+# Werkzeug selbst (#163).
+# *The catalogue published FiveM's console and RCON for some fifty games; the
+#  rule against it existed but looked at the wrong column.*
+echo "== Ports des Spielekatalogs (Grenze 4, Beitrittsport, Kollisionen) =="
+python3 werkzeuge/katalog-ports.py || fehler=1
+
 echo
 [ $fehler -eq 0 ] && echo "vollstaendig." || echo "UNVOLLSTAENDIG — siehe oben."
 exit $fehler

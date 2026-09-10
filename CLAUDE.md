@@ -108,6 +108,10 @@ aufweicht, macht aus einem abgesicherten System ein offenes. Begründung in
    dort ein Volume `/:/host` eintragen kann, ist root.
 4. **Verwaltungsports binden auf `127.0.0.1`.** RCON, Webkonsolen, ServerQuery,
    Telnet, API — dreiteilige Portform im Katalog: `127.0.0.1:8080:8080/tcp`.
+   Geprüft von `werkzeuge/katalog-ports.py` (Teil von `vollstaendigkeit.sh`).
+   Bis #163 stand die Regel nur als Kopie im Generator, verglich dort ihr
+   Namensmuster mit der Portnummer und griff nie — die Serverkonsole von FiveM
+   stand offen.
 5. **Ein Spielport wird erst veröffentlicht, wenn das Beitrittspasswort steht.**
    Das Eintragen des Ports ist der Schritt, der den Server nach außen öffnet;
    er gehört ans **Ende** der Einrichtung, nie an den Anfang. `port-ermitteln`
@@ -261,6 +265,8 @@ Jeder Punkt ist ein realer Vorfall, nicht eine Vermutung.
 | Feldnamen-Muster | Trennzeichen sind beliebig: `max-players`, `max_players`, `MaxPlayerCount`. Ein Muster, das nur Unterstrich kennt, lässt Minecraft still auf 20 Plätzen laufen. |
 | Feldnamen-Muster, die andere Hälfte | Dasselbe Muster weit genug für alle Schreibweisen trifft auch `_comment_max_players` und `ignore_player_limit_for_returning_players` — ein Erklärtext und ein **Boolean**. Factorio startete danach nicht mehr, während die Einrichtung Erfolg meldete. In JSON deshalb **nur Gleiches durch Gleiches** ersetzen und den vorhandenen Wert ansehen, bevor man ihn überschreibt. |
 | Portkollisionen auflösen | Gegen die **tatsächlich gebundenen** Ports prüfen und installierte Spiele ausnehmen — sonst verschiebt man einen laufenden Server von seinem Port und jeder Client verliert ihn. |
+| „Lokal kollidiert mit nichts" | Falsch. `127.0.0.1:N` und `0.0.0.0:N` schließen sich aus, in beiden Richtungen, für TCP wie UDP (gemessen, #163) — `docker-proxy` bindet echte Sockets. Lokale Ports gehören in jede Kollisionsprüfung. |
+| TCP und UDP getrennt verschieben | Derselbe Containerport landet auf zwei Hostports; die Beitrittsadresse zeigt dann auf den falschen, und Spiele wie FiveM, die beide auf einem Port brauchen, sind tot. Immer **einen** Hostport für beide. |
 | `dig` zur Existenzprüfung | Wertlos, wenn die Zone ein Wildcard hat: es beantwortet jeden erfundenen Namen. Immer die API fragen. |
 | Cloudflare `proxied` | Der Proxy kann nur HTTP(S). Ein Spielport dahinter ist von außen tot. |
 | `borg extract` | Läuft von `/` aus, weil die Archive absolute Pfade tragen. Aus einem anderen Verzeichnis entsteht ein Unterbaum an falscher Stelle, und der Server startet mit leerer Welt — ohne Fehlermeldung. |

@@ -34,17 +34,26 @@ Praktische Folgen:
 **Verwaltungsports gehören immer auf `127.0.0.1`.** RCON, Webkonsolen,
 ServerQuery, Telnet — das sind Administrationszugänge mit Passwort und beliebte
 Ziele. Necesse veröffentlichte seine Webkonsole auf `0.0.0.0:8080`; der Katalog
-bindet sie deshalb lokal, ebenso bei sieben weiteren Spielen. Zugriff bei Bedarf
-über einen SSH-Tunnel:
+bindet sie deshalb lokal. Bis #163 galt das nur für eine Handvoll Spiele: Die
+Regel dafür verglich ihr Namensmuster mit der Portnummer und griff nie, und so
+standen unter anderem die Serverkonsolen von FiveM und RedM und das RCON von 52
+Source-Spielen offen. Seitdem prüft `werkzeuge/katalog-ports.py` den ganzen
+Katalog bei jedem Lauf von `vollstaendigkeit.sh` — siehe
+[04-spielekatalog.md](04-spielekatalog.md#portregeln-im-katalog). Den genauen
+lokalen Port nennt der Hinweistext des Spiels. Zugriff bei Bedarf über einen
+SSH-Tunnel:
 
 ```bash
 ssh -L 10011:127.0.0.1:10011 gameserver
 ```
 
 > *Management ports always bind to 127.0.0.1: RCON, web consoles, ServerQuery
-> and telnet are password-protected admin interfaces and popular targets. Necesse
-> published its web console on 0.0.0.0:8080; the catalogue binds it locally, as
-> for seven other games. Reach them through an SSH tunnel.*
+> and telnet are password-protected admin interfaces and popular targets. Until
+> #163 the rule covered only a handful of games — it matched its name pattern
+> against the port number and never fired, leaving FiveM's and RedM's server
+> consoles and the RCON of 52 Source games open. `werkzeuge/katalog-ports.py` now
+> checks the whole catalogue on every completeness run; each game's note names
+> its local port. Reach them through an SSH tunnel.*
 
 ---
 
