@@ -214,16 +214,31 @@ Prüfung ist die wichtigere**:
 
 | Prüfung | Schlägt an bei | Findet |
 |---|---|---|
-| **Untergrenze** | ≤ 5 Dateien | ein Archiv, das von Anfang an leer ist |
+| **Untergrenze** | unter 50 kB | ein Archiv, das von Anfang an leer ist |
 | **Einbruch** | unter 25 % des letzten Laufs | etwas, das Inhalt hatte und ihn verliert |
 
 Ohne die Untergrenze hätte es FOUNDRY **nie** gefunden: Ein Vergleich mit dem
 Vorgänger schlägt nicht an, wenn der genauso leer war.
 
-Die Dateizahl kommt aus `borg create --stats` — ein zweiter borg-Aufruf nur zum
-Zählen wäre bei einem Lauf alle 15 Minuten unnötig teuer. Gemerkt wird sie in
-`/var/lib/spiele-sicherung.dateizahlen`, und zwar **nach** der Prüfung; sonst
+**Gemessen wird die Größe, nicht die Dateizahl.** Der erste Entwurf zählte
+Dateien und meldete prompt `satisfactory` als praktisch leer — dort liegen genau
+vier `.sav`-Dateien, und das *ist* der vollständige Spielstand. Vier Dateien mit
+258 kB und zwei mit 13 kB sehen als Zahl ähnlich aus und sind es nicht. Ein
+Fehlalarm ist hier besonders teuer: Diese Meldung soll man ernst nehmen, und
+eine, die bei einem gesunden Spiel losgeht, nimmt man nach dem zweiten Mal nicht
+mehr ernst.
+
+Die Größe kommt aus `borg create --stats` — ein zweiter borg-Aufruf nur zum
+Messen wäre bei einem Lauf alle 15 Minuten unnötig teuer. Gemerkt wird sie in
+`/var/lib/spiele-sicherung.groessen`, und zwar **nach** der Prüfung; sonst
 verglichen die folgenden Läufe gegen den eingebrochenen Wert und schwiegen.
+
+Die Umrechnung der Einheit steht in einer **eigenen Funktion**. Im ersten
+Entwurf stand das `awk`-Programm mitten in der Aufrufzeile, und die
+verschachtelten Anführungszeichen zerbrachen dabei (`awk: runaway string
+constant`). Der Lauf meldete daraufhin für fünf Spiele `Exit 2`, **obwohl die
+Sicherung selbst durchgelaufen war** — ein Werkzeug, dessen Auswertung den
+ganzen Lauf scheitern lässt, ist schlimmer als eines ohne Auswertung.
 
 ### Einmal am Tag, nicht alle drei Stunden
 
@@ -243,9 +258,12 @@ die ist dringend.
 > have seen the difference, because everything it checks was fine. Two checks
 > now follow every archive, and the absolute floor matters more than the drop:
 > comparing against the previous archive never fires when that one was equally
-> empty. The file count comes from `borg create --stats` rather than a second
-> borg call, and is recorded after the check, or later runs would compare
-> against the collapsed value and stay quiet. Both messages carry a one-day
+> empty. Size rather than file count: the first draft counted files and promptly
+> flagged satisfactory, where four .sav files ARE the complete save — and a
+> false alarm is expensive here, since an alert that fires on a healthy game
+> stops being taken seriously. The size comes from `borg create --stats` rather
+> than a second borg call, and is recorded after the check, or later runs would
+> compare against the collapsed value and stay quiet. Both messages carry a one-day
 > quiet period: this runs every 15 minutes, and eight messages a day about a
 > known problem stop being read. The failed-backup message keeps the short
 > window — that one is urgent.*
