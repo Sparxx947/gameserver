@@ -13,7 +13,9 @@ install -d -m 0755 -o panel -g panel /opt/panel/daten /opt/panel/bilder /opt/pan
 
 einsetzen "$REPO/panel/app.py" /opt/panel/app.py 0644 root:root
 cp "$REPO"/panel/bilder/favicon.svg "$REPO"/panel/bilder/favicon.ico \
-   "$REPO"/panel/bilder/apple-touch-icon.png /opt/panel/bilder/
+   "$REPO"/panel/bilder/apple-touch-icon.png \
+   "$REPO"/panel/bilder/icon-192.png "$REPO"/panel/bilder/icon-512.png \
+   /opt/panel/bilder/
 # Selbst gezeichnete Titelbilder fuer Spiele ohne Steam-Eintrag (appid 0).
 # spiel-verwalten greift darauf zurueck, wenn Steam nichts liefert.
 # *Self-drawn artwork for games with no Steam entry; the installer falls back

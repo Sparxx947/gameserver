@@ -127,7 +127,7 @@
 			X-Content-Type-Options "nosniff"
 			X-Frame-Options "DENY"
 			Referrer-Policy "no-referrer"
-			Content-Security-Policy "default-src 'none'; script-src 'self'; connect-src 'self'; style-src 'unsafe-inline'; img-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
+			Content-Security-Policy "default-src 'none'; script-src 'self'; connect-src 'self'; style-src 'unsafe-inline'; img-src 'self'; manifest-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
 			Cache-Control "no-store, no-cache, must-revalidate"
 			-Server
 		}
@@ -141,11 +141,18 @@
 			X-Content-Type-Options "nosniff"
 			X-Frame-Options "DENY"
 			Referrer-Policy "no-referrer"
+			# manifest-src: Ohne diese Erlaubnis laedt der Browser das
+			# Manifest nicht, und die Oberflaeche laesst sich nicht als App
+			# installieren - ohne sichtbaren Fehler, das Symbol bleibt
+			# einfach aus. default-src 'none' deckt manifest-src NICHT ab,
+			# es ist eine eigene Direktive.
+			# *Without it the manifest is not fetched and the page cannot be
+			#  installed, with no visible error.*
 			# ACHTUNG: CSP-Schluesselwoerter MUESSEN einfach gequotet sein.
 			# Ohne die Anfuehrungszeichen liest der Browser 'self' und 'none'
 			# als HOSTNAMEN — am 2026-09-06 blockierte form-action dadurch das
 			# Login-Formular, und im Protokoll kam nicht einmal ein POST an.
-			Content-Security-Policy "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
+			Content-Security-Policy "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; manifest-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
 			# Nichts zwischenspeichern: die Seite zeigt Zugangsdaten, und ein
 			# gecachter Stand haelt auch alte Sicherheitskopfzeilen am Leben.
 			Cache-Control "no-store, no-cache, must-revalidate"

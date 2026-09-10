@@ -147,10 +147,18 @@ def main() -> int:
         print(f"  Vorschau: {ziel}  (Groessen: {', '.join(map(str, groessen))} px)")
         return 0
 
+    # 192 und 512 verlangt der Web-App-Manifest-Standard; Android nimmt 192 fuer
+    # das Startsymbol und 512 fuer den Startbildschirm beim Oeffnen. Sie stehen
+    # hier und nicht als von Hand gezeichnete Dateien daneben - genau dafuer
+    # gibt es dieses Werkzeug.
+    # *192 and 512 are what the web app manifest wants; drawn here rather than
+    #  kept as hand-made files, which is the whole point of this tool.*
     dateien = {
         "favicon.svg": None,
         "favicon.ico": [16, 32, 48],
         "apple-touch-icon.png": 180,
+        "icon-192.png": 192,
+        "icon-512.png": 512,
     }
     if not schreiben:
         print("  wuerde schreiben:")
@@ -163,6 +171,8 @@ def main() -> int:
     (BILDER / "favicon.svg").write_text(svg(32) + "\n")
     grund = zeichnen(256)
     grund.resize((180, 180), 1).save(BILDER / "apple-touch-icon.png")
+    grund.resize((192, 192), 1).save(BILDER / "icon-192.png")
+    zeichnen(512).save(BILDER / "icon-512.png")
     zeichnen(48).save(BILDER / "favicon.ico",
                       sizes=[(16, 16), (32, 32), (48, 48)])
     for n in dateien:
