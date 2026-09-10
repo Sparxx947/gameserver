@@ -412,6 +412,32 @@ except Exception:
     chmod 600 "$liste"
     echo "ok	auto-update fuer $s: $wert"
     ;;
+  schlaf)
+    # Leerlauf-Abschaltung je Server. Eigene Liste, aus demselben Grund wie beim
+    # Auto-Update: Die panel.json haben nur ueber den Katalog installierte
+    # Stacks, und damit erreichte der Schalter einen von sieben.
+    # *Its own list, for the same reason as auto-update: only catalogue-installed
+    #  stacks have a panel.json, so the switch would reach one server of seven.*
+    s="${2:-}"; wert="${3:-}"; pruefe_stack "$s"
+    case "$wert" in an|aus) ;; *) fehler "nur 'an' oder 'aus'" ;; esac
+    liste=/var/lib/platzwart-schlaf.liste
+    touch "$liste"; chmod 644 "$liste"
+    tmp=$(mktemp); grep -vFx "$s" "$liste" > "$tmp" 2>/dev/null || true
+    [ "$wert" = "an" ] && echo "$s" >> "$tmp"
+    sort -u "$tmp" > "$liste"; rm -f "$tmp"; chmod 644 "$liste"
+    # Beim Abschalten sofort aufwecken: Ein Server, der schlaeft und dessen
+    # Automatik gerade abgeschaltet wurde, bliebe sonst liegen - und niemand
+    # koennte sich das erklaeren.
+    # *Switching off wakes a sleeping server at once; otherwise it would stay
+    #  down with nothing left to wake it, and nobody could explain why.*
+    if [ "$wert" = "aus" ]; then
+      /usr/local/bin/platzwart-schlaf --wecken "$s" >/dev/null 2>&1 || true
+    fi
+    echo "ok	leerlauf fuer $s: $wert"
+    ;;
+  schlaf-liste)
+    [ -f /var/lib/platzwart-schlaf.liste ] && cat /var/lib/platzwart-schlaf.liste || true
+    ;;
   fremd-entfernen)
     # Fuer Stacks OHNE panel.json - die von Hand gebauten. Eigene Aktion mit
     # eigener Pruefung; die Katalogdeinstallation bleibt unangetastet.

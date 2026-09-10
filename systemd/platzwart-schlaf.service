@@ -1,0 +1,11 @@
+[Unit]
+Description=Platzwart: leere Server schlafen legen
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/platzwart-schlaf --pruefen
+# Der Verkehrsweg misst zweimal mit 10 s Abstand je Server ohne Spielerzahl.
+TimeoutStartSec=600
+PrivateTmp=yes

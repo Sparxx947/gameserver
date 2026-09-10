@@ -878,6 +878,8 @@ def uebersicht(request: Request, meldung: str = "", bearbeiten: str = ""):
     # *Fetched once for all cards, not per card.*
     _, au_roh = aktion("auto-update-liste", timeout=30)
     auto_an = {z.strip() for z in au_roh.splitlines() if z.strip()}
+    _, sl_roh = aktion("schlaf-liste", timeout=30)
+    schlaf_an = {z.strip() for z in sl_roh.splitlines() if z.strip()}
     karten, systemleiste, kerne = [], "", 6
     for z in aus.splitlines():
         if z.startswith("SYSTEM\t"):
@@ -993,6 +995,21 @@ def uebersicht(request: Request, meldung: str = "", bearbeiten: str = ""):
                 # *"auto" alone does not say what is automatic, next to a button
                 #  labelled "aktualisieren".*
                 f'autoupdate {"an" if auto else "aus"}</button></form>')
+            # Leerlauf: schlaeft, wenn leer - und wacht auf, wenn jemand sich
+            # verbindet. Der Knopf sagt "leerlauf" und nicht "schlafen": Er
+            # schaltet die AUTOMATIK, nicht den Server. Wer "schlafen" liest,
+            # erwartet, dass der Server jetzt anhaelt.
+            # *The button switches the automatism, not the server: "schlafen"
+            #  would read as "stop it now".*
+            sl = name in schlaf_an
+            aktualisieren_knopf += (
+                f'<form method=post action=/leerlauf style=display:contents>'
+                f'<input type=hidden name=csrf value="{s["csrf"]}">'
+                f'<input type=hidden name=stack value="{name}">'
+                f'<input type=hidden name=wert value="{"aus" if sl else "an"}">'
+                f'<button class="b{" y" if sl else ""}" '
+                f'title="Leere Server anhalten und beim Beitritt wieder starten">'
+                f'leerlauf {"an" if sl else "aus"}</button></form>')
         if darf_verwalten(s):
             # "+=", NICHT "=": Hier stand eine Zuweisung, und die warf den
             # Auto-Schalter von oben weg - er wurde gebaut und im selben Atemzug
@@ -1911,6 +1928,20 @@ def aktualisieren(request: Request, csrf: str = Form(""), stack: str = Form(""))
               "ok" if rc == 0 else "fehlgeschlagen", ergebnis_art=art or "—")
     m = (teile[2] if rc == 0 and len(teile) > 2 else
          f"Nicht aktualisiert: {aus.strip()[:220]}")
+    return RedirectResponse(f"/?meldung={quote(m)}", 303)
+
+
+@app.post("/leerlauf")
+def leerlauf_schalten(request: Request, csrf: str = Form(""),
+                      stack: str = Form(""), wert: str = Form("")):
+    s = pruefe(request, csrf)
+    if not darf_verwalten(s):
+        return RedirectResponse("/", 303)
+    rc, aus = aktion("schlaf", stack, wert, timeout=120)
+    protokoll(s, "Leerlauf-Abschaltung umgestellt", stack,
+              "ok" if rc == 0 else "fehlgeschlagen", auf=wert)
+    m = (f"Leerlauf-Abschaltung für {stack}: {wert}." if rc == 0
+         else f"Nicht umgestellt: {aus.strip()[:200]}")
     return RedirectResponse(f"/?meldung={quote(m)}", 303)
 
 

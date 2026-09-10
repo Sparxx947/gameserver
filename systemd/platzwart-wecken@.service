@@ -1,0 +1,31 @@
+[Unit]
+# Wird von platzwart-wecken-<stack>.socket gestartet, die platzwart-schlaf
+# beim Schlafenlegen erzeugt. %i ist der Name des Stacks.
+Description=Platzwart: %i beim Beitritt wecken
+After=docker.service
+Wants=docker.service
+# Conflicts + After: systemd haelt den Weckposten an, BEVOR dieser Dienst
+# laeuft, und zwar als Teil derselben Transaktion. Der erste Entwurf rief
+# stattdessen "systemctl stop" AUS dem Dienst heraus, den systemd gerade
+# startete - das verklemmt sich gegenseitig, der Dienst endete mit Status 1
+# und der Container startete nie. Von Hand lief derselbe Befehl anstandslos,
+# was die Suche unnoetig lang machte.
+# *systemd stops the listener before this unit runs, in one transaction. The
+#  first draft called "systemctl stop" from inside the very unit systemd was
+#  starting, which deadlocks: the unit failed with status 1 and the container
+#  never came up, while the same command by hand worked fine.*
+Conflicts=platzwart-wecken-%i.socket
+After=platzwart-wecken-%i.socket
+
+[Service]
+Type=oneshot
+# --wecken haelt ZUERST den Weckposten an und gibt damit den Port frei, DANN
+# startet es den Container. Andersherum kann der Container nicht binden -
+# systemd haelt den Port noch, und compose scheitert mit "address already in
+# use".
+ExecStart=/usr/local/bin/platzwart-schlaf --wecken %i
+# Sagt dem Programm, dass systemd den Socket schon angehalten hat.
+Environment=PLATZWART_VOM_SOCKET=1
+# Keine Haertung, die NoNewPrivileges impliziert - Docker-Socket und systemctl
+# werden gebraucht.
+PrivateTmp=yes

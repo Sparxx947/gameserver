@@ -30,7 +30,13 @@ while read -r pfad; do
     continue
   fi
   [ -e "$pfad" ] || { echo "  FEHLT: ${pfad#$REPO/}"; fehler=1; }
-done < <(grep -rhoE '"\$REPO"[/a-zA-Z0-9_.-]+|\$REPO/[a-zA-Z0-9_./*-]+' install/ \
+# Das "@" gehoert in die Zeichenklasse: systemd-Vorlagen heissen
+# "platzwart-wecken@.service". Ohne es schnitt das Muster am @ ab und meldete
+# "FEHLT: systemd/platzwart-wecken" - eine Datei, die es nie geben sollte.
+# *The "@" belongs in the class: systemd template units are named foo@.service,
+#  and without it the pattern cut at the @ and reported a file that should never
+#  exist.*
+done < <(grep -rhoE '"\$REPO"[/a-zA-Z0-9_.@-]+|\$REPO/[a-zA-Z0-9_./*@-]+' install/ \
          | sed 's|"\$REPO"|'"$REPO"'|; s|\$REPO|'"$REPO"'|' | sort -u)
 
 # --- 2. Nichts davon darf von .gitignore verschluckt werden -----------------
