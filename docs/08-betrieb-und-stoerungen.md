@@ -18,25 +18,31 @@ df -h / && free -h
 ## Speicher: die Grenzen sind überbucht
 
 Die Summe aller `mem_limit` übersteigt den vorhandenen Arbeitsspeicher deutlich.
-Das ist **beabsichtigt und funktioniert**, solange nicht alle Server gleichzeitig
-laufen — nur eben nicht mehr, wenn doch.
+Das ist **beabsichtigt**. Getragen hat es bisher ein Satz, der hier stand:
+*„solange nicht alle Server gleichzeitig laufen"*.
 
-Beispiel von der dokumentierten Maschine (23,5 GiB RAM):
+**Dieser Satz gilt nicht mehr.** Am 2026-09-10 nachgemessen: alle sieben laufen
+gleichzeitig. Die Voraussetzung, auf der der Entwurf ruht, hat lautlos aufgehört
+zu stimmen — sie wurde von nichts geprüft, also hat es niemand bemerkt.
 
-| Container | Grenze |
-|---|---|
-| starrupture | 16 G |
-| palworld | 12 G |
-| satisfactory | 10 G |
-| windrose | 8 G |
-| foundry | 6 G |
-| enshrouded | 6 G |
-| teamspeak | 1 G |
-| **Summe** | **59 G** |
+Stand vom 2026-09-10, Maschine mit **23 GiB** RAM:
+
+| Container | Grenze | Herkunft |
+|---|---|---|
+| palworld | 12 G | |
+| satisfactory | 10 G | von Hand gebaut |
+| windrose | 8 G | von Hand gebaut |
+| enshrouded | 6 G | |
+| foundry | 6 G | von Hand gebaut |
+| valheim | 4 G | |
+| teamspeak | 1 G | |
+| **Summe** | **47 G** | |
 
 Was dabei zu wissen ist: Der Kernel gibt nur her, was da ist. Wird es eng, greift
 **nicht** die saubere Container-Grenze, sondern der OOM-Killer der Maschine — und
-der trifft nicht unbedingt den Schuldigen.
+der trifft nicht unbedingt den Schuldigen. So starb StarRupture, und das Bild war
+kein sauberer Fehlschlag, sondern ein Server, der nie mit der Weltgenerierung
+fertig wurde.
 
 Vor dem Start prüfen:
 
@@ -45,14 +51,59 @@ free -m | awk '/^Mem/ {print "frei:", $7 "M"}'
 docker inspect -f '{{.Name}} {{.HostConfig.Memory}}' $(docker ps -q)
 ```
 
-`spiel-verwalten` prüft das bei Katalog-Installationen selbst und startet nicht,
-wenn der freie Speicher zum `mem_limit` nicht reicht.
+### Wer die Überbuchung bewacht — und wer nicht
 
-> *Memory limits are deliberately oversubscribed and work fine until several
-> servers run at once. Then it is not the clean per-container limit that applies
-> but the host OOM killer, which does not necessarily hit the culprit. Check
-> free memory before starting; the catalogue installer does this itself and
-> refuses to start a server that does not fit.*
+`spiel-verwalten` prüft den freien Speicher vor einer **Katalog-Installation**
+und startet nicht, wenn er zum `mem_limit` nicht reicht. Das ist eine Tür von
+zweien: Die drei von Hand gebauten Server haben keine `panel.json`, kommen nie
+an dieser Prüfung vorbei — und stellen mit 24 der 47 G mehr als die Hälfte.
+
+Die zweite Tür ist seit dem 2026-09-10 `platzwart-wache`. Sie misst alle fünf
+Minuten den **tatsächlich belegten** Speicher und meldet ab 85 % nach
+`#platzwart-stoerung`, mit der Entwarnung, wenn es sich wieder entspannt
+(Schwelle: `WACHE_SPEICHER_WARN`). Gemessen wird über `docker ps`, nicht über den
+Katalog — sonst fehlten genau die drei, um die es geht.
+
+**Gemessen wird der belegte Speicher, nicht die Summe der Grenzen.** Die Summe
+liegt dauerhaft und mit Absicht über dem RAM; ein Alarm darauf stünde an jedem
+einzelnen Tag im Kanal und wäre nach einer Woche stummgeschaltet. Die Summe steht
+stattdessen **im Meldungstext**: Sie beantwortet die Frage, die man sich in
+diesem Moment stellt — wie viel dürften die laufenden Server noch nehmen?
+
+### Was offen bleibt
+
+Ob die Grenzen selbst richtig sind, ist damit **nicht** beantwortet. Dafür
+bräuchte man, was jeder Server unter Last tatsächlich als Spitze zieht, nicht im
+Leerlauf — `platzwart-verlauf` schreibt das seit Kurzem mit. Eine Grenze zu tief
+macht aus einem vollen Abend einen Kill, eine zu hoch einen OOM, der einen
+*anderen* Server trifft. Zahlen ohne diese Messung zu ändern hieße, eine
+Vermutung durch die nächste zu ersetzen.
+
+> *The limits are deliberately oversubscribed, and what carried that was a
+> sentence in this section: "as long as not all servers run at once". **That
+> sentence no longer holds** — measured on 2026-09-10, all seven run at once. The
+> premise the design rests on quietly stopped being true, and nobody noticed
+> because nothing checked it. The table above is the state on 2026-09-10: seven
+> containers totalling 47 G on a 23 GiB machine. When memory runs short it is not
+> the clean per-container limit that applies but the host OOM killer, which does
+> not necessarily hit the culprit — that is how StarRupture died, and the symptom
+> was not a clean failure but a server that never finished generating its world.
+> Two doors guard this. `spiel-verwalten` checks free memory before a **catalogue**
+> installation; the three hand-built servers have no `panel.json`, never pass it,
+> and account for 24 of the 47 G. Since 2026-09-10 the second door is
+> `platzwart-wache`: every five minutes it measures **actually used** memory and
+> reports above 85 % (`WACHE_SPEICHER_WARN`), with an all-clear when it eases,
+> reading the limits from `docker ps` rather than the catalogue so the hand-built
+> three are included. It measures used memory, not the sum of the limits: that sum
+> permanently exceeds RAM by design, so alarming on it would put a message in the
+> channel every single day and be muted within a week — the sum goes into the
+> message text instead, where it answers the question one actually asks at that
+> moment. What remains open is whether the limits themselves are right. That needs
+> each server's real peak under load, not at idle — `platzwart-verlauf` has
+> recently started recording it. A limit set too low turns a busy evening into a
+> kill; one set too high turns it into an OOM that hits a different server.
+> Changing the numbers without that measurement would only swap one guess for
+> another.*
 
 ---
 
@@ -67,7 +118,7 @@ Geschickt wird nach Discord, über zwei Webhooks:
 
 | Kanal | Was dort landet |
 |---|---|
-| `#platzwart-stoerung` | Server abgestürzt, Sicherung fehlgeschlagen, Platte knapp, Server ohne Beitrittspasswort, Update fehlgeschlagen |
+| `#platzwart-stoerung` | Server abgestürzt, Sicherung fehlgeschlagen, Platte knapp, **Arbeitsspeicher knapp**, Server ohne Beitrittspasswort, Update fehlgeschlagen |
 | `#platzwart-meldungen` | Update wirklich eingespielt, Entwarnung nach einer Störung |
 
 **Zwei Kanäle, mit Absicht.** Ein Kanal, in dem täglich „Update geprüft, nichts
@@ -107,7 +158,8 @@ der Maschine. Fehlt sie, tut der Melder nichts und meldet Erfolg.
 platzwart-melden --test      # schickt in beide Kanäle und weist nach,
                              # dass eine ungültige URL erkennbar scheitert
 platzwart-wache --trocken    # zeigt die Lage, ohne zu melden
-platzwart-wache --selbsttest # spielt den Vergleich mit erfundenen Lagen durch
+platzwart-wache --selbsttest # spielt Vergleich und Speicherpruefung mit
+                             # erfundenen Zahlen durch, je Fall still und laut
 ```
 
 **Die URL ist das Geheimnis.** Discords Webhook-Endpunkt prüft keine Signatur;
