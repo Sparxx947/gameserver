@@ -75,7 +75,15 @@
 			X-Content-Type-Options "nosniff"
 			X-Frame-Options "DENY"
 			Referrer-Policy "no-referrer"
-			Content-Security-Policy "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+			# "img-src data:" laesst KEINEN Wirt zu, nur was die Seite selbst
+			# mitbringt - das Tab-Symbol steckt als data:-URI im Kopf. Ohne
+			# diese eine Erlaubnis fehlt es stillschweigend: Der Browser faellt
+			# auf /favicon.ico zurueck, das Panel liefert es mit 200 aus, und
+			# die CSP dieser Seite verwirft es - ohne sichtbaren Fehler.
+			# *No host, only what the page carries itself. Without it the icon
+			#  is silently absent: the fallback is served with 200 and then
+			#  discarded by this page's own policy.*
+			Content-Security-Policy "default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 			Cache-Control "public, max-age=60"
 			-Server
 		}

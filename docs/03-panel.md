@@ -205,6 +205,18 @@ ist eine Verwaltungsoberfläche hinter Passwort, TOTP und Passkeys, und jemandem
 ein Konto zu geben, damit er eine Beitrittsadresse ablesen kann, ist verkehrt
 herum.
 
+Das Tab-Symbol steckt als **`data:`-URI** im Kopf, nicht als Verweis auf
+`/favicon.svg`. Zwei Gründe, und der zweite wiegt schwerer: Die Seite bleibt in
+sich geschlossen — ein Verweis ließe den Browser das Panel anfragen, genau das,
+was diese Seite vermeidet —, und die CSP braucht dafür nur `img-src data:` und
+**keinen Wirt**. Mit `img-src 'self'` dürfte die Seite jedes Bild dieser Herkunft
+laden; mit `data:` nur, was sie selbst mitbringt.
+
+Ohne beides fehlt das Symbol **stillschweigend**: Der Browser fällt auf
+`/favicon.ico` zurück, das Panel liefert es mit HTTP 200 aus — und die eigene
+CSP der Seite verwirft es. Im Tab blieb das leere Blatt, ohne dass irgendwo ein
+Fehler auftauchte.
+
 Die Seite trägt **Platzwart** als Namen und das Zeichen aus `werkzeuge/logo.py`
 — als **Inline-SVG**, gelesen aus der Datei, die dieses Werkzeug erzeugt hat.
 Nicht als `<img>`: Die Seite lädt kein einziges Bild, deshalb bleibt
