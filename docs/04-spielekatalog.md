@@ -59,7 +59,7 @@ im Katalog nach, und den Katalog kann die Oberfläche nur lesen.
 | `platte_gb` | erwarteter Platzbedarf; die Installation lehnt ab, wenn weniger als dieser Wert plus 10 GB Reserve frei ist |
 | `ports` | Docker-Portangaben. Dreiteilige Form (`127.0.0.1:8080:8080/tcp`) bindet **nur lokal** |
 | `volumes` | Bind-Mounts, immer unter `/srv/games/<schluessel>` |
-| `env` | Umgebung. `{PASSWORT}` und `{ADMIN}` werden beim Installieren durch die frisch gewürfelten Passwörter ersetzt |
+| `env` | Umgebung. `{PASSWORT}` und `{ADMIN}` werden beim Installieren durch die frisch gewürfelten Passwörter ersetzt, `{SPIELER}` durch den Wert aus `spieler` — bei Spielen, deren Spielerzahl als Startparameter steht (#177) |
 | `passwort.art` | `env` (Passwort steht in der Umgebung), `datei` (der Server legt eine Konfigurationsdatei an), `params` (Passwort als Startparameter in `GAME_PARAMS`; der Port folgt erst, wenn der laufende Server per A2S „Passwort nötig“ meldet — E27), `keins` |
 | `adresse_port` | der Port, der in der Beitrittsadresse steht |
 | `spieler` | Sollwert für die Spielerzahl |

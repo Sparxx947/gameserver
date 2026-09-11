@@ -526,6 +526,16 @@ def aufgabe_a2s(stack: str, p: dict):
     return antwort
 
 
+def spieler_im_start(stack: str, p: dict) -> bool:
+    """Steht die Soll-Spielerzahl als +/-maxplayers in GAME_PARAMS?"""
+    try:
+        c = (STACKS / stack / "compose.yaml").read_text()
+    except OSError:
+        return False
+    m = re.search(r"[+-]maxplayers\s+(\d+)", c)
+    return bool(m) and int(m.group(1)) == int(p.get("spieler") or 0)
+
+
 def params_urteil(bestaetigt, datei_gesetzt: bool, alter_h: float):
     """(fertig, stand, neustarten) fuer die Passwortart "params" - rein, ohne Seiteneffekt.
 
@@ -586,6 +596,11 @@ def lauf(nur=None):
         #  max-players sat untouched at 20. A subtask nobody accounts for fails
         #  silently.*
         spieler_offen = not erg["spieler"]
+        # Bei "params" steht die Spielerzahl in GAME_PARAMS (#177), nicht in einer
+        # Datei. Ohne diesen Blick warnte die Karte fuer immer "NICHT gesetzt".
+        # *For "params" the limit lives in GAME_PARAMS, not in a file.*
+        if params and spieler_im_start(stack, p):
+            spieler_offen = False
 
         p["einrichtung_gefunden"] = erg
 

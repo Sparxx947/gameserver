@@ -182,7 +182,7 @@
    ],
    "env": {
     "GAME_ID": "635",
-    "GAME_PARAMS": "+map lobby -maxplayers 4 +exec server.cfg +sv_password {PASSWORT}",
+    "GAME_PARAMS": "+map lobby -maxplayers {SPIELER} +exec server.cfg +sv_password {PASSWORT}",
     "UID": "4711",
     "GID": "4711",
     "UMASK": "000",
@@ -220,7 +220,7 @@
    ],
    "env": {
     "GAME_ID": "563560",
-    "GAME_PARAMS": "+map lobby -maxplayers 4 +exec server.cfg +sv_password {PASSWORT}",
+    "GAME_PARAMS": "+map lobby -maxplayers {SPIELER} +exec server.cfg +sv_password {PASSWORT}",
     "UID": "4711",
     "GID": "4711",
     "UMASK": "000",
@@ -1741,7 +1741,7 @@
    ],
    "env": {
     "GAME_ID": "90",
-    "GAME_PARAMS": "+maxplayers 32 +map de_dust +sv_password {PASSWORT}",
+    "GAME_PARAMS": "+maxplayers {SPIELER} +map de_dust +sv_password {PASSWORT}",
     "UID": "4711",
     "GID": "4711",
     "UMASK": "000",
@@ -1856,7 +1856,7 @@
    ],
    "env": {
     "GAME_ID": "462310",
-    "GAME_PARAMS": "+map sicily +mp_gamemode frontline +sv_password {PASSWORT}",
+    "GAME_PARAMS": "+map sicily +mp_gamemode frontline +maxplayers {SPIELER} +sv_password {PASSWORT}",
     "UID": "4711",
     "GID": "4711",
     "UMASK": "000",
@@ -2390,7 +2390,7 @@
    ],
    "env": {
     "GAME_ID": "295230",
-    "GAME_PARAMS": "+maxplayers 20 +map fof_fistful +sv_password {PASSWORT}",
+    "GAME_PARAMS": "+maxplayers {SPIELER} +map fof_fistful +sv_password {PASSWORT}",
     "UID": "4711",
     "GID": "4711",
     "UMASK": "000",
@@ -2505,7 +2505,7 @@
    ],
    "env": {
     "GAME_ID": "4020",
-    "GAME_PARAMS": "-secure +maxplayers 12 +map gm_flatgrass +sv_password {PASSWORT}",
+    "GAME_PARAMS": "-secure +maxplayers {SPIELER} +map gm_flatgrass +sv_password {PASSWORT}",
     "UID": "4711",
     "GID": "4711",
     "UMASK": "000",
@@ -2581,7 +2581,7 @@
    ],
    "env": {
     "GAME_ID": "90",
-    "GAME_PARAMS": "-secure +maxplayers 32 +map gasworks.bsp +sv_password {PASSWORT}",
+    "GAME_PARAMS": "-secure +maxplayers {SPIELER} +map gasworks.bsp +sv_password {PASSWORT}",
     "UID": "4711",
     "GID": "4711",
     "UMASK": "000",
@@ -2817,7 +2817,7 @@
    ],
    "env": {
     "GAME_ID": "237410",
-    "GAME_PARAMS": "+map market_coop +maxplayers 6 +sv_password {PASSWORT}",
+    "GAME_PARAMS": "+map market_coop +maxplayers {SPIELER} +sv_password {PASSWORT}",
     "UID": "4711",
     "GID": "4711",
     "UMASK": "000",
@@ -3256,7 +3256,7 @@
    ],
    "env": {
     "GAME_ID": "222840",
-    "GAME_PARAMS": "+maxplayers 4 +map l4d_farm04_barn +sv_password {PASSWORT}",
+    "GAME_PARAMS": "+maxplayers {SPIELER} +map l4d_farm04_barn +sv_password {PASSWORT}",
     "UID": "4711",
     "GID": "4711",
     "UMASK": "000",
@@ -4035,7 +4035,7 @@
    ],
    "env": {
     "GAME_ID": "313600",
-    "GAME_PARAMS": "+maxplayers 32 +map nt_dawn_ctg +sv_password {PASSWORT}",
+    "GAME_PARAMS": "+maxplayers {SPIELER} +map nt_dawn_ctg +sv_password {PASSWORT}",
     "UID": "4711",
     "GID": "4711",
     "UMASK": "000",
@@ -4614,7 +4614,7 @@
    ],
    "env": {
     "GAME_ID": "17575",
-    "GAME_PARAMS": "-maxplayers 18 +map bt_island +sv_password {PASSWORT}",
+    "GAME_PARAMS": "-maxplayers {SPIELER} +map bt_island +sv_password {PASSWORT}",
     "UID": "4711",
     "GID": "4711",
     "UMASK": "000",
@@ -5795,7 +5795,7 @@
    ],
    "env": {
     "GAME_ID": "232250",
-    "GAME_PARAMS": "+sv_pure 1 +randommap +maxplayers 24 +sv_password {PASSWORT}",
+    "GAME_PARAMS": "+sv_pure 1 +randommap +maxplayers {SPIELER} +sv_password {PASSWORT}",
     "UID": "4711",
     "GID": "4711",
     "UMASK": "000",

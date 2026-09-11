@@ -204,8 +204,13 @@ def compose_bauen(g: dict, pw: str, admin: str) -> str:
     z.append('    volumes:')
     z += [f'      - {v}' for v in g["volumes"]]
     # Platzhalter des Katalogs fuellen. {PASSWORT} und {ADMIN} koennen in jedem
-    # Wert stehen - bei Soulmask etwa mitten in GAME_PARAMS.
+    # Wert stehen - bei Soulmask etwa mitten in GAME_PARAMS. {SPIELER} seit #177:
+    # Bei den Startparameter-Spielen steht die Spielerzahl in GAME_PARAMS, und
+    # ohne Platzhalter blieb dort der Vorlagenwert (bis 32) stehen.
+    # *{SPIELER} since #177: for start-parameter games the player limit lives in
+    #  GAME_PARAMS; without a placeholder the template value (up to 32) stayed.*
     umg = {k: str(v).replace("{PASSWORT}", pw).replace("{ADMIN}", admin)
+                    .replace("{SPIELER}", str(g.get("spieler", 4)))
            for k, v in g["env"].items()}
     z.append('    environment:')
     z += [f'      {k}: {yaml_wert(v)}' for k, v in umg.items()]
