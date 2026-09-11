@@ -31,6 +31,15 @@ VARIABLEN=(DNS_ZONE DNS_ZIEL PANEL_DOMAIN SERVER_IPV4 WELT_NAME ADMIN_USER
            ADMIN_NETZ ADMIN_IP BORG_REPO BORG_TAILSCALE_IP FREMD_IPV4
            SSH_PASSWORT_AUTH SSH_ROOT_LOGIN)
 
+# Jeder Wert muss in konfiguration.env stehen. Fehlt einer, bricht ${!v} unter
+# "set -u" ab, und JEDE Datei erschien als abweichend - nach #187 geschehen,
+# weil zwei neue Werte in einer aelteren konfiguration.env fehlten (#189).
+# *Every value must be set; a missing one made every file look different.*
+for v in "${VARIABLEN[@]}"; do
+  [ -n "${!v+x}" ] || { echo "konfiguration.env: $v fehlt - Vorlage: konfiguration.env.beispiel"; exit 2; }
+done
+
+
 # Repo-Pfad -> Serverpfad, Rechte, Eigentuemer
 wohin() {
   case "$1" in
