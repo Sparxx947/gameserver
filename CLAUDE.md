@@ -98,6 +98,22 @@ Zeit spart. Beispiel aus `install/lib.sh`:
 
 > *No pull request without matching documentation; if something is deliberately
 > left undocumented, the reason belongs in the PR text. Comments explain **why**
+
+**Das Wiki mitpflegen.** Das
+[Wiki](https://github.com/Sparxx947/gameserver/wiki) (eigenes Repositorium
+`gameserver.wiki`) beschreibt jede Funktion für Mitspieler, Betreiber und
+Mitentwickler — zweisprachig wie `docs/`, ohne Standortdaten, weil es öffentlich
+ist. Maßgeblich bleibt `docs/`; wer eine Funktion ändert, die dort beschrieben ist,
+passt die Wiki-Seite im selben Zug an. Ein Wiki kennt keine Pull Requests: Die
+Änderung geht direkt auf `master` des Wiki-Repositoriums (`GIT_PUSH_MAIN_OK=1`),
+das Issue im Hauptrepositorium bleibt Pflicht.
+
+> *Keep the wiki in step: the wiki (its own repository) describes every function
+> for players, operators and contributors — bilingual like `docs/`, without site
+> data, since it is public. `docs/` stays authoritative; whoever changes a function
+> described there updates the wiki page in the same go. A wiki has no pull
+> requests, so changes go straight to the wiki repository's master
+> (`GIT_PUSH_MAIN_OK=1`); the issue in the main repository is still required.*
 > the code is the way it is — which failure forced it, what one would naively do
 > instead and why that does not work — never what it does.*
 
