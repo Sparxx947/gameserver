@@ -77,6 +77,19 @@ sudo install/einrichten.sh          # 10 bis 50 der Reihe nach (25 nur mit Token
 sudo install/einrichten.sh 30-panel # oder eine einzelne Stufe
 ```
 
+Jede Stufe liest `konfiguration.env` über `install/lib.sh`, bricht bei einer
+leeren Pflichtvariable, einem unzulässigen Wert (`SERVER_IPV4`,
+`ZERTIFIKAT_WEG`, `SSH_*`) oder einem übrig gebliebenen Platzhalter ab und
+sichert jede vorhandene Zieldatei vor dem Überschreiben nach
+`<datei>.vor-<datum>`. Jede eingesetzte Datei setzt außerdem den Stempel
+`/etc/gameserver-version`.
+
+> *Every stage reads `konfiguration.env` through `install/lib.sh`, aborts on an
+> empty mandatory variable, an invalid value or a left-over placeholder, backs
+> up every existing target to `<file>.vor-<date>` before overwriting it, and
+> updates the version stamp `/etc/gameserver-version` with each file it
+> installs.*
+
 ### 10 — Grundsystem
 
 Pakete, die drei Benutzer (`<admin>`, `panel`, `spiele` mit UID 4711),
@@ -123,8 +136,11 @@ unangetastet, auch wenn er woandershin zeigt — er gehört dann einem Menschen
 (siehe [E21](10-entscheidungen.md)). Das Nachführen bleibt Sache von
 `ziel-setzen` und des Zeitgebers aus Stufe 70.
 
-Ohne `/etc/dns-gameserver.conf` (oder den älteren Ort) wird die Stufe übersprungen, nicht
-abgebrochen: DNS von Hand zu pflegen ist ein zulässiger Betrieb. Nachholen
+Ohne `/etc/dns-gameserver.conf` wird die Stufe übersprungen, nicht abgebrochen.
+Liegt noch die alte `/etc/cloudflare-gameserver.conf` da, übernimmt die Stufe
+sie **einmal** in die neue Datei und verschiebt die alte nach `.vor-<datum>` —
+`dns-pflegen` selbst liest den alten Ort nicht mehr. Übersprungen ist die Stufe
+kein Fehler: DNS von Hand zu pflegen ist ein zulässiger Betrieb. Nachholen
 lässt sie sich einzeln:
 
 ```bash
@@ -134,12 +150,41 @@ sudo install/einrichten.sh 25-dns-grundgeruest
 > *Stage 25 creates what must exist before the certificate: the `DNS_ZIEL` A
 > record and `PANEL_DOMAIN` if it lies inside the zone. Only missing records are
 > created — an existing one is never touched, even pointing elsewhere. Skipped
-> without a token, since hand-maintained DNS is legitimate.*
+> without a token, since hand-maintained DNS is legitimate; an old
+> `/etc/cloudflare-gameserver.conf` is migrated once into the new file and moved
+> aside, since `dns-pflegen` no longer reads it. It also installs the
+> `dns-ziel` timer and switches it according to `SERVER_IPV4`.*
 
 ### 30 — Panel
 
-Virtuelle Python-Umgebung, `app.py`, die Werkzeuge nach `/usr/local/bin`, der
-Katalog, die sudo-Regel und die Dienste.
+Die größte Stufe. Sie setzt ein:
+
+* die virtuelle Python-Umgebung unter `/opt/panel/venv` aus
+  `panel/requirements.txt`, `app.py`, `passkey.js` und die Symbole;
+* **alle Werkzeuge** aus `bin/` nach `/usr/local/bin` (außer
+  `spiele-sicherung`, das Stufe 50 einsetzt) — `vollstaendigkeit.sh` prüft, dass
+  keines fehlt;
+* den Katalog `/etc/spiele-katalog.json` und gleich danach
+  `spiel-verwalten katalog-abgleich`, damit schon installierte Server
+  Katalogänderungen mitbekommen (Sicherungsausschlüsse, neue Variablen);
+* `/etc/spiele-adressen.json`, `/etc/spiele-mods.json`,
+  `/etc/spiele-workshop.json`;
+* die sudo-Regel `/etc/sudoers.d/panel`, **vorher** mit `visudo -c` geprüft;
+* `/etc/borg-ausschluss.txt`, falls sie noch fehlt — `panel.service` gibt genau
+  diese Datei über `ReadWritePaths` frei, und systemd verweigert den Start, wenn
+  der Pfad nicht existiert (`226/NAMESPACE`, mit `Restart=on-failure` eine
+  Neustartschleife);
+* die Units und Zeitgeber: `panel.service`, `spiel-einrichtung`,
+  `kanal-abgleich`, `spiele-wiederanlauf` (nur `enable`, es gehört zum nächsten
+  Hochfahren), `platzwart-schlaf` samt `platzwart-wecken@.service`,
+  `platzwart-verlauf`, `platzwart-status`, `spieler-zaehlen`, `platzwart-wache`
+  und `spiele-autoupdate`. Die Zeitgeber laufen sofort; die Automatiken
+  (Auto-Update, Leerlauf, Kanäle) bleiben trotzdem aus, bis sie je Server bzw.
+  auf der Seite Integrationen eingeschaltet werden;
+* den ersten Benutzer (Rolle `admin`) samt Sitzungs-Secret und TOTP-Geheimnis,
+  eine leere `zugangsdaten.json`;
+* zuletzt die Titelbilder der Katalogseite (`katalogbilder-holen`) — ein
+  Fehlschlag ist erlaubt, die Kacheln bleiben dann blass.
 
 Am Ende erscheint **einmal** die Erstanmeldung:
 
@@ -160,7 +205,14 @@ Die sudo-Regel wird mit `visudo -c` geprüft, **bevor** sie eingebaut wird. Eine
 kaputte Datei in `/etc/sudoers.d` legt sudo systemweit lahm — auch für den
 Menschen, der sie reparieren müsste.
 
-> *Stage 30: venv, app, tools, catalogue, sudo rule, services. The initial login
+> *Stage 30 is the largest: the Python venv, the app, the passkey script and
+> icons; every tool from `bin/` except the backup tool; the catalogue, followed
+> by the catalogue sync so installed servers pick up changes; the address, mod
+> and Workshop files; the sudo rule, validated first; the backup exclusion list
+> if missing, because `panel.service` opens exactly that file via
+> `ReadWritePaths` and systemd refuses to start without it; all units and timers
+> (the timers run at once, the automations stay off until switched on); the
+> first user; and finally the catalogue artwork, allowed to fail. The initial login
 > is printed once; only the Argon2id hash is stored. The TOTP secret is created
 > but never printed — printing it would put it in the session log. The sudo rule
 > is validated with `visudo -c` before installation: a broken file in
@@ -224,17 +276,28 @@ sudo install/60-spiele.sh                         # zeigt die Liste
 sudo install/60-spiele.sh teamspeak enshrouded
 ```
 
-Erzeugt je Stack frische Passwörter, schreibt die compose-Datei (`0600 root`)
-und legt das Datenverzeichnis unter UID 4711 an. Ein bereits eingerichteter
-Stack wird **übersprungen**, nicht überschrieben — sonst wären beim zweiten Lauf
-alle Passwörter neu und niemand käme mehr auf den Server.
+Verfügbar sind `enshrouded`, `foundry`, `palworld`, `satisfactory`,
+`teamspeak` und `windrose`. Erzeugt je Stack frische Passwörter, schreibt die
+compose-Datei (`0600 root`) und legt das Datenverzeichnis unter UID 4711 an
+(`/srv/dienste/` für TeamSpeak). Ein bereits eingerichteter Stack wird
+**übersprungen**, nicht überschrieben — sonst wären beim zweiten Lauf alle
+Passwörter neu und niemand käme mehr auf den Server.
 
-Gestartet wird von Hand oder über das Panel.
+**Palworld bekommt dabei seinen Neustart-Zeitgeber** (`palworld-neustart.timer`,
+05:30 und 17:30, gegen das Speicherleck des Spiels) — auch dann, wenn der Stack
+schon eingerichtet war. Bis #252 setzte ihn keine Stufe ein; die laufende
+Maschine hatte ihn von Hand, ein Neuaufbau hätte ihn still verloren.
 
-> *Stage 60: fresh passwords per stack, compose file at 0600 root, data
-> directory as UID 4711. An already configured stack is skipped, not
-> overwritten — a second run would otherwise change every password and lock
-> everyone out.*
+Gestartet wird von Hand oder über das Panel. Die Beitrittsadressen dieser
+Server stehen in `/etc/spiele-adressen.json` (Stufe 30).
+
+> *Stage 60 sets up the six hand-maintained stacks: fresh passwords per stack,
+> compose file at 0600 root, data directory as UID 4711 (`/srv/dienste/` for
+> TeamSpeak). An already configured stack is skipped, not overwritten — a second
+> run would otherwise change every password and lock everyone out. Palworld also
+> gets its restart timer, even when the stack already existed; until #252 no
+> stage installed it, so a rebuild would have silently lost it. Start by hand or
+> from the panel; the join addresses come from `/etc/spiele-adressen.json`.*
 
 ### 70 — DNS (optional)
 
@@ -262,8 +325,8 @@ Der Timer liegt in beiden Fällen auf der Maschine; ein Wechsel ist eine Zeile i
 `dns_ziel_zeitgeber()` aus `install/lib.sh`. Bis dahin tat es nur diese Stufe —
 und die läuft in der dokumentierten Einrichtung nicht mit. Mit
 `SERVER_IPV4=dynamic` versprach `konfiguration.env` einen Zeitgeber, den niemand
-anlegte; alle Stufen meldeten „fertig", und die Adresse veraltete still (von
-Janik auf einer frischen Maschine gemessen). Optional ist Stufe 70 jetzt nur
+anlegte; alle Stufen meldeten „fertig", und die Adresse veraltete still (auf einer
+frischen Maschine gemessen). Optional ist Stufe 70 jetzt nur
 noch für die DNS-Namen je Spiel.
 
 > *Stage 25 now installs and switches the timer (#195), through the same
@@ -289,18 +352,52 @@ noch für die DNS-Namen je Spiel.
 ```bash
 cat /etc/gameserver-version                        # welche Fassung liegt hier
 systemctl is-active panel caddy ttyd docker fail2ban
-systemctl list-timers --no-pager | grep -E 'sicherung|einrichtung'
+systemctl list-timers --no-pager | grep -E 'sicherung|einrichtung|platzwart|spieler|kanal|autoupdate|palworld|dns-ziel'
 curl -sI https://<PANEL_DOMAIN>/ | head -3        # 200 oder 303
+curl -sI https://<PANEL_DOMAIN>/status | head -1  # 200, ohne Anmeldung
 borg list --short "$BORG_REPO" | tail -5
 ufw status verbose
 docker ps
+spiele-sicherung --selbsttest && platzwart-wache --selbsttest && kanal-verwalten --selbsttest
 ```
 
-Erwartet: alle Dienste `active`, beide Sicherungs-Timer mit einem `NEXT`, das
-Panel antwortet über HTTPS, im Borg-Repositorium liegen Archive.
+Erwartet: alle Dienste `active`, jeder Zeitgeber mit einem `NEXT`, das Panel und
+die Statusseite antworten über HTTPS, im Borg-Repositorium liegen Archive, die
+Selbsttests sind grün. Vom Arbeitsrechner aus muss danach
+`werkzeuge/abgleich.sh <ziel>` ohne Abweichung durchlaufen. Die vollständige
+Prüfliste für einen Neuaufbau steht in [ABNAHME.md](../ABNAHME.md).
 
-> *Post-install checks: all services active, both backup timers scheduled, the
-> panel answering over HTTPS, and archives present in the Borg repository.*
+> *Post-install checks: all services active, every timer scheduled, panel and
+> status page answering over HTTPS, archives in the Borg repository, the
+> self-tests green, and afterwards `werkzeuge/abgleich.sh <target>` from the
+> workstation reporting no deviation. The full acceptance list for a rebuild is
+> `ABNAHME.md`.*
+
+---
+
+## Was danach von Hand bleibt
+
+Die Einrichtung legt bewusst **kein** Geheimnis an, das von außen kommt. Diese
+Schritte bleiben — alle optional bis auf den ersten:
+
+| Schritt | Wo | Wozu |
+|---|---|---|
+| Erstanmeldung, zweiten Faktor einrichten, Wiederherstellungscodes aufheben | Panel, `/einrichten` | ohne das kommt niemand hinein |
+| weitere Benutzer mit Rolle anlegen | Panel, **Benutzer** | jeder richtet seinen zweiten Faktor selbst ein |
+| `/etc/platzwart-melden.conf` mit zwei Discord-Webhooks anlegen (`0600 root`, Vorlage `etc/platzwart-melden.conf.beispiel`), danach `platzwart-melden --test` | Maschine | Störungen und Mitteilungen nach Discord; ohne Datei meldet nichts |
+| Steam-Web-API-Schlüssel eintragen | Panel, **Integrationen** | Workshop-Suche und Größen |
+| TeamSpeak-ServerQuery-Zugang und Discord-Bot eintragen, Kanäle einschalten | Panel, **Integrationen** | ein Kanal je Spielserver |
+| Auto-Update und Leerlauf je Server einschalten | Panel, Einstellungen des Servers | aus per Voreinstellung |
+| Spiele ohne Beitrittspasswort freigeben (Minecraft, TeamSpeak) | Panel, Einstellungen des Servers | ihr Port bleibt sonst zu |
+| Kopie von `/root/.borg-passphrase` außer Haus | Passwortmanager, Papier | ohne sie ist das Repositorium wertlos |
+
+> *What remains manual: the setup deliberately creates no secret that comes from
+> outside. The first login with second-factor enrolment and keeping the recovery
+> codes is mandatory; everything else is optional — further users, the Discord
+> webhook file for notifications (test with `platzwart-melden --test`), the
+> Steam Web API key, the TeamSpeak and Discord credentials for channels,
+> per-server auto-update and idle sleep, releasing games without a join
+> password, and an off-machine copy of the Borg passphrase.*
 
 ---
 

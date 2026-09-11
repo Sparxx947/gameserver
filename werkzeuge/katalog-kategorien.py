@@ -20,6 +20,14 @@ Sammelkategorie zu rutschen.
  and are named, rather than quietly slipping into a catch-all.*
 
   katalog-kategorien.py <katalog.json> [--schreiben]
+  katalog-kategorien.py <katalog.json> --pruefen     Exit 1, wenn ein Eintrag
+                                                    keine gueltige Kategorie hat
+
+--pruefen gibt es wegen #251: Die Generatoren legten 17 Spiele ohne das Feld an,
+und dieses Werkzeug lief nur von Hand. Die Spiele fehlten danach in JEDEM
+Kategoriefilter, auch in "Sonstiges" - und nichts sagte es.
+*--pruefen exists because of #251: 17 generated entries had no category and
+ vanished from every category filter, silently.*
 """
 import json, sys
 from pathlib import Path
@@ -39,17 +47,19 @@ KATEGORIEN = [
 ZUORDNUNG = {
     # --- Aufbau & Simulation ------------------------------------------------
     "aufbau": """factorio openttd openrct2 mindustry eco colonysurvival
-        terratechworlds memoriesofmars""",
+        terratechworlds memoriesofmars st""",
     # --- Survival & Koop ----------------------------------------------------
     "survival": """7daystodie abioticfactor ark astroneer barotrauma citadelforgedwithfire
         conanexiles corekeeper craftopia creativerse dayz dontstarvetogether frozenflame
         hurtworld hz icarus lastoasis lifeisfeudalyourown lotrreturntomoria necesse
         projectzomboid rust sonsoftheforest soulmask subsistence survivethenights
         theforest thefront ti unturned valheim vrising wurmunlimited minecraft
-        terraria terrariatshock starbound vintagestory windward dodr""",
+        terraria terrariatshock starbound vintagestory windward dodr rw
+        minecraftbedrock minecraftfabric minecraftforge minecraftneoforge
+        minecraftpaper minecraftpurpur minecraftquilt minecraftspigot""",
     # --- Sandbox & Rollenspiel ---------------------------------------------
     "sandbox": """garrysmod starmade openmwtes3mp avorion fivem redm samp multitheftauto
-        tu jk2""",
+        tu jk2 jc2 jc3 onset""",
     # --- Shooter ------------------------------------------------------------
     "shooter": """americasarmyprovinggrounds arma3 cod cod2 cod4 coduo codwaw cs cs2 cscz
         csgo css cstrike16 dayofdefeatsource dayofinfamy daysofwar dod insurgency
@@ -58,12 +68,14 @@ ZUORDNUNG = {
         scpslsm sof2 squad squad44 svencoop teamfortress2 tf2c tfc chivalrymedievalwarfare
         alienswarm alienswarmreactivedrop bb bb2 bd bmdm bs btl cc dab dys em
         fistfuloffrags hcu halflife2deathmatch halflifedeathmatch hldms jbep3 opfor
-        pvkii sbots sfc ts vs zmr zps""",
+        pvkii sbots sfc ts vs zmr zps
+        armar bf1942 bfv etl wet ro""",
     # --- Arena & Klassiker --------------------------------------------------
     "arena": """q2 q3 q4 quakelive qw xonotic zandronum urbanterror ut ut3 teeworlds ddnet
-        counterstrike2d altitude ahl ahl2 dmc ricochet ios wf""",
+        counterstrike2d altitude ahl ahl2 dmc ricochet ios wf
+        bo sol ut2k4 ut99""",
     # --- Rennen & Fahren ----------------------------------------------------
-    "rennen": """assettocorsa americantrucksimulator eurotrucksimulator2""",
+    "rennen": """assettocorsa americantrucksimulator eurotrucksimulator2 pc pc2""",
     # --- Dienste ------------------------------------------------------------
     "dienst": """teamspeak""",
 }
@@ -74,6 +86,21 @@ def main():
         print("Aufruf: katalog-kategorien.py <katalog.json> [--schreiben]"); sys.exit(1)
     pfad = Path(sys.argv[1])
     d = json.loads(pfad.read_text())
+
+    if "--pruefen" in sys.argv:
+        # Geprueft wird der KATALOG, nicht die Zuordnung hier: entscheidend ist,
+        # was die Oberflaeche liest. "sonstiges" ist gueltig - es ist sichtbar.
+        gueltig = set(d.get("_kategorien", {}))
+        falsch = [g["schluessel"] for g in d["spiele"] if g.get("kategorie") not in gueltig]
+        if not gueltig:
+            print("FEHLER: _kategorien fehlt im Katalog"); sys.exit(1)
+        if falsch:
+            print(f"FEHLER: {len(falsch)} Eintraege ohne gueltige Kategorie: {' '.join(falsch)}")
+            print("  Zuordnung in werkzeuge/katalog-kategorien.py ergaenzen, dann")
+            print("  werkzeuge/katalog-kategorien.py etc/spiele-katalog.json --schreiben")
+            sys.exit(1)
+        print(f"ok: {len(d['spiele'])} Eintraege, alle mit Kategorie")
+        return
 
     nach_spiel = {}
     doppelt = []

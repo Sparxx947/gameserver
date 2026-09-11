@@ -16,6 +16,9 @@ git clone <repo-url> /root/gameserver
 claude "Arbeite /root/gameserver/ABNAHME.md ab und halte dich an die Regeln darin."
 ```
 
+> *Start on the server as root: install git, clone the repository and ask Claude
+> Code to work through this file following its rules.*
+
 ---
 
 ## Regeln
@@ -39,7 +42,19 @@ Diese sechs gelten für den gesamten Lauf.
 
 **Vorher zu erfragen:** DNS-Zone, Panel-Name, API-Token des DNS-Anbieters,
 Admin-Benutzer, Admin-Netz (CIDR), und ob gesichert werden soll (`BORG_REPO`,
-sonst `aus`).
+sonst `aus`). Geheimnisse nie in die Kommandozeile tippen lassen, sondern in
+eine Datei mit `0600`.
+
+> *Six rules for the whole run: the machine is disposable — abort at once if
+> anything else runs there; never the production zone — insist on a test zone
+> or at least a subzone, because real DNS records are created and deleted, and
+> ask rather than guess; invent nothing — every finding comes from output you
+> saw, and a step that did not run is "not run", not "fine"; carry on after
+> failures, except in section 1, without which there is nothing to test; write
+> the report as you go, not from memory at the end; and section 6 last, since it
+> tears everything down. Ask beforehand for the DNS zone, panel name, DNS token,
+> admin user, admin network and whether to back up; secrets go into a 0600
+> file, never onto the command line.*
 
 ---
 
@@ -73,14 +88,23 @@ mv /tmp/dns-gameserver.conf /etc/
 Erwartet: `KEIN TOKEN` plus Warnblock **vor** der Rückfrage. Kommt die Warnung
 erst mitten im Lauf, ist das ein Fehler — dann hat sie ihren Zweck verfehlt.
 
+> *Set up: copy the configuration template, fill in each value with sed and read
+> it back, place the DNS token file, run the installer. Expected: the preview
+> shows the DNS provider and file rather than "no token", the run ends with
+> "Grundgeruest steht." and no stage aborts, and the panel password appears once
+> at the end of stage 30. Cross-check 1.4: without the token file the installer
+> must warn before its confirmation prompt — a warning halfway through the run
+> has missed its purpose.*
+
 ---
 
 ## 2 — Läuft, was laufen soll
 
 ```bash
 systemctl is-active panel caddy ttyd docker fail2ban
-systemctl list-timers --no-pager | grep -E 'sicherung|einrichtung|dns-ziel'
+systemctl list-timers --no-pager | grep -E 'sicherung|einrichtung|platzwart|spieler|kanal|autoupdate|dns-ziel'
 curl -sI https://<PANEL_DOMAIN>/ | head -3
+curl -sI https://<PANEL_DOMAIN>/status | head -3
 ufw status verbose
 docker ps
 ```
@@ -89,9 +113,11 @@ docker ps
 |---|---|
 | 2.1 Dienste | alle `active` |
 | 2.2 Panel über HTTPS | `200` oder `303`, **gültiges** Zertifikat (kein `curl -k`) |
-| 2.3 Zeitgeber | Sicherungs-Timer mit `NEXT`; `dns-ziel.timer` an bei `SERVER_IPV4=dynamic`, sonst aus |
+| 2.3 Zeitgeber | Sicherung (ohne `BORG_REPO=aus`), Einrichtung, Kanäle, Wache, Spieler, Verlauf, Status, Leerlauf, Auto-Update mit `NEXT`; `dns-ziel.timer` an bei `SERVER_IPV4=dynamic`, sonst aus |
 | 2.4 ufw | 22 nur aus `ADMIN_NETZ`, 80/443 offen, **keine** Spielports |
 | 2.5 Neustartzähler | `systemctl show panel -p NRestarts` — muss klein sein |
+| 2.6 Statusseite | `/status` antwortet **ohne** Anmeldung mit `200`, CSP `default-src 'none'` |
+| 2.7 Erstanmeldung | im Browser: Passwort, QR-Code, Code, danach einmalig zehn Wiederherstellungscodes |
 
 **2.5 ist eine bekannte Regression.** `panel.service` gibt
 `/etc/borg-ausschluss.txt` über `ReadWritePaths` frei; fehlte die Datei,
@@ -103,9 +129,23 @@ test -f /etc/borg-ausschluss.txt && echo "da"
 systemctl show panel -p NRestarts
 ```
 
+> *Is everything running: services active; the panel over HTTPS with a valid
+> certificate; every timer scheduled (backup unless switched off, setup,
+> channels, watchdog, players, history, status, idle sleep, auto-update), the
+> dynamic DNS timer only with `SERVER_IPV4=dynamic`; ufw with SSH from the admin
+> network only, 80/443 open and no game ports; a small restart counter for the
+> panel; the status page answering without login under the strictest CSP; and
+> the first login in a browser — password, QR code, code, then ten recovery
+> codes shown once. 2.5 is a known regression: the panel unit opens the backup
+> exclusion file via `ReadWritePaths`, and when it was missing systemd refused
+> to start with 226/NAMESPACE, which `Restart=on-failure` turned into a loop —
+> the counter once stood at 17790.*
+
 ---
 
 ## 3 — Die Werkzeuge einzeln
+
+> *Each tool on its own, subsections 3.1 to 3.5.*
 
 ### 3.1 DNS
 
@@ -131,23 +171,43 @@ dns-pflegen entfernen fremd     # MUSS abbrechen, Exit 1
 Löscht es den Eintrag trotzdem, ist das der schwerste denkbare Fehler in diesem
 Werkzeug — sofort melden.
 
+> *DNS: provider and file, the list, a measuring comparison that changes
+> nothing, and a second `grundgeruest` that must create nothing. No record may
+> be proxied. A foreign record — a CNAME pointing elsewhere, created by hand —
+> must refuse deletion with exit 1; deleting it anyway would be the worst
+> possible fault in this tool.*
+
 ### 3.2 Ein Spiel, ganz herum
 
 ```bash
-spiel-verwalten installieren teeworlds     # klein und schnell
+panel-aktion installieren teeworlds       # klein und schnell, so wie das Panel es tut
 docker ps | grep teeworlds
+python3 -c "import json;print(json.load(open('/opt/stacks/teeworlds/panel.json'))['einrichtung_stand'])"
+grep -c 30131 /opt/stacks/teeworlds/compose.yaml   # 0, solange das Passwort nicht steht
+# einige Minuten warten, bis spiel-einrichtung das Passwort gesetzt hat:
+journalctl -u spiel-einrichtung -n 20 --no-pager
+grep -c 30131 /opt/stacks/teeworlds/compose.yaml   # jetzt > 0
 dns-pflegen liste | grep teeworlds
-spiel-verwalten deinstallieren teeworlds
+panel-aktion deinstallieren teeworlds
 dns-pflegen liste | grep teeworlds         # muss leer sein
 ```
 
 | Prüfpunkt | Erwartet |
 |---|---|
-| 3.2.1 | Container läuft, Port offen, Verzeichnis unter `/srv/games/` |
-| 3.2.2 | CNAME wird angelegt und beim Entfernen wieder gelöscht |
-| 3.2.3 | Bei aktiver Sicherung: Endsicherung **vor** dem Löschen |
-| 3.2.4 | Bei `BORG_REPO=aus`: Deinstallation läuft trotzdem durch |
-| 3.2.5 | Danach kein Rest in `/opt/stacks`, `/srv/games`, `/etc/borg-ausschluss.txt` |
+| 3.2.1 | Container läuft, Verzeichnis unter `/srv/games/` mit UID 4711 |
+| 3.2.2 | **Der Spielport steht erst nach dem Passwort** in der compose-Datei — vorher `ports_ausstehend` in `panel.json` (Grenze 5) |
+| 3.2.3 | CNAME wird angelegt und beim Entfernen wieder gelöscht |
+| 3.2.4 | Bei aktiver Sicherung: Endsicherung **vor** dem Löschen |
+| 3.2.5 | Bei `BORG_REPO=aus`: Deinstallation läuft trotzdem durch |
+| 3.2.6 | Danach kein Rest in `/opt/stacks`, `/srv/games`, `/etc/borg-ausschluss.txt`, Zugangsdaten |
+
+> *One game all the way round, through the same entry point the panel uses:
+> install teeworlds, confirm the container runs with its data directory as UID
+> 4711, confirm the game port is absent from the compose file until the setup
+> timer has set the join password (it waits in `panel.json` as pending —
+> boundary 5) and present afterwards, the CNAME appearing and disappearing, the
+> final backup before deletion when backups are on, a clean removal when they
+> are off, and no leftovers in stacks, data, exclusion list or credentials.*
 
 ### 3.3 Titelbilder — reden sie?
 
@@ -166,14 +226,44 @@ zu 43 Minuten an dieser Stelle. Wenn du es hart prüfen willst: den CDN per
 `/etc/hosts` auf `127.0.0.1` umbiegen und erneut laufen lassen — nach fünf
 Netzfehlern hintereinander muss Schluss sein, nicht nach 128.
 
+> *Catalogue artwork: the tool must print one line per image, with the game's
+> name before the fetch, rather than staying silent until the end. This too is a
+> regression: without a route to Steam the installer once sat silent for up to 43
+> minutes here. For a hard test, point the CDN at 127.0.0.1 in `/etc/hosts` — it
+> must give up after five network errors in a row, not after 128.*
+
 ### 3.4 Sicherung
 
 ```bash
 spiele-sicherung --alle
 borg list --short "$BORG_REPO" | tail -5
+sicherung-probe teamspeak            # probeweise zurückspielen, ohne den Server anzufassen
 ```
 
 Bei `BORG_REPO=aus` erwartet: sagt deutlich, dass nichts gesichert wird, Exit 0.
+Mit Sicherung: Archive `config-*`, `etc-*`, `panel-*` und je Spiel eines; die
+Probe packt aus, vergleicht und räumt ihr Wegwerfverzeichnis weg.
+
+> *Backup: a full run, the newest archives and a test restore. With
+> `BORG_REPO=aus` it must say plainly that nothing is backed up and exit 0.
+> Otherwise expect `config-*`, `etc-*`, `panel-*` and one archive per game, and
+> a probe that extracts, compares and removes its scratch directory.*
+
+### 3.5 Selbsttests
+
+```bash
+for w in spiele-sicherung platzwart-wache platzwart-schlaf platzwart-verlauf \
+         spieler-zaehlen sicherung-probe mod-verwalten workshop kanal-verwalten; do
+  echo "== $w"; $w --selbsttest >/dev/null 2>&1 && echo gruen || echo ROT
+done
+```
+
+| Prüfpunkt | Erwartet |
+|---|---|
+| 3.5.1 | alle `gruen` — jeder Selbsttest prüft neben dem stillen Fall einen, der anschlagen **muss** |
+
+> *Self-tests: every tool with a `--selbsttest` must pass; each self-test checks,
+> beside the quiet case, one that must fire.*
 
 ---
 
@@ -189,12 +279,12 @@ python3 werkzeuge/katalog-doku.py --pruefen
 |---|---|
 | 4.1 | `vollstaendigkeit.sh` endet mit `vollstaendig.` |
 | 4.2 | `abgleich.sh` meldet 0 abweichend, 0 fehlend |
+| 4.3 | `katalog-doku.py --pruefen` meldet `Doku stimmt.` |
 
 `abgleich.sh` spricht über SSH — auf der Maschine selbst also `root@localhost`,
 wofür ein Schlüssel in `authorized_keys` liegen muss. Geht das nicht, ist der
 Punkt **nicht gelaufen**; das ist ein zulässiges Ergebnis, „bestanden" wäre es
 nicht.
-| 4.3 | `katalog-doku.py --pruefen` meldet `Doku stimmt.` |
 
 **4.4 — Merken die Prüfer überhaupt etwas?** Ein Prüfwerkzeug, das nie anschlägt,
 ist ununterscheidbar von einem kaputten. Also absichtlich brechen:
@@ -214,6 +304,18 @@ geprüft wird. Wer ihn verstellt, prüft die Prüfung gegen sich selbst.
 | 4.4.3 | Danach `katalog-doku.py` richtet es, `--pruefen` ist wieder still |
 
 Alles wieder herstellen (`rm /usr/local/bin/attrappe`, `git checkout -- docs/`).
+
+> *The checking tools themselves: the completeness check must end with
+> "vollstaendig.", the comparison must report zero deviations and zero missing,
+> and the catalogue doc check "Doku stimmt.". The comparison talks SSH, so on
+> the machine itself it needs a key for root@localhost; if that is not possible
+> the point is "not run", a legitimate result — "passed" would not be. 4.4: does
+> a checker notice anything at all? A checker that never fires is
+> indistinguishable from a broken one, so break things on purpose — an orphaned
+> tool and a stale number in the docs, never the catalogue itself, which is the
+> source being checked against. Expected: the comparison lists the orphan, the
+> doc check reports "41 instead of 179" with exit 1, and after the fix it is
+> quiet again. Restore everything afterwards.*
 
 ---
 
@@ -240,6 +342,16 @@ zeigt bei `DNS-Zugang` „Stufe 25 ist nicht dabei", ohne Warnblock.
 **5.4 Aufräumen.** `werkzeuge/aufraeumen.sh <ziel>` erst im Planlauf, dann mit
 `--wirklich`. Erwartet: je Datei bleiben die neuesten Kopien stehen.
 
+**5.5 Palworld bekommt seinen Zeitgeber.** `install/60-spiele.sh palworld`,
+danach `systemctl is-enabled palworld-neustart.timer` → `enabled` (#252).
+
+> *Transitions and edges: the old DNS config path is migrated once (both paths
+> logged, new file 0600 with provider and token, old one moved aside); a second
+> full run changes nothing — no new panel password, no new secrets, no flood of
+> backup copies; a single stage runs on its own and reports stage 25 as not
+> included, without a warning block; the cleanup tool keeps the newest copies per
+> file; and setting up the Palworld stack enables its restart timer (#252).*
+
 ---
 
 ## 6 — Rückbau (zuletzt)
@@ -262,6 +374,15 @@ werkzeuge/rueckbau.sh <ssh-ziel> --mit-spielstaenden --mit-benutzern --mit-dns -
 Meldet die Gegenprobe „nichts", aber der Kontrollwert fehlt ebenfalls, dann hat
 die Maschine nur aufgehört zu antworten — dann untersucht man den Messpunkt
 statt das Ziel.
+
+> *Teardown, last: without `--wirklich` nothing changes; confirmation demands
+> the target's name, not "yes"; the cross-check ends with "nichts."; the control
+> value — docker, the admin user and the Borg passphrase — is still there; no DNS
+> tool remains in `/usr/local/bin`; and the DNS records are gone with
+> `--mit-dns`. 6.4 is where the teardown proves it measures rather than guesses:
+> if the cross-check reports "nothing" but the control value is missing too, the
+> machine has merely stopped answering, and one would be examining the probe
+> instead of the target.*
 
 ---
 
@@ -294,6 +415,13 @@ nicht die Vermutung. Im Text: Befehl, Erwartet, Bekommen, Journal — und was du
 Beim Anlegen: `Closes #N` nur, wenn wirklich etwas geschlossen wird — und keine
 echte Domäne im Text, für Beispiele `beispiel.de`.
 
+> *Report to `/root/abnahme-bericht.md` in the shape above and summarise in the
+> terminal. One GitHub issue per failed point, titled by the effect rather than
+> the suspicion, with command, expected, received and journal — and what you
+> could not rule out; never sell a guess as a finding. `Closes #N` only when
+> something is really closed, and no real domain in the text — use
+> `beispiel.de` for examples.*
+
 ## Was diese Abnahme nicht prüft
 
 Ehrlichkeitshalber mitschreiben, damit niemand mehr Deckung annimmt als da ist:
@@ -305,3 +433,19 @@ Ehrlichkeitshalber mitschreiben, damit niemand mehr Deckung annimmt als da ist:
 * **Der Anbieter `hetzner`** — er ist nach Dokumentation geschrieben und nie
   gegen eine echte Zone gelaufen (Issue #60). Wer eine Hetzner-Zone hat: die
   Prüfliste in `docs/06-netz-dns-firewall.md` gilt genau dafür.
+* **Alles mit fremden Zugängen** — Meldungen nach Discord (`platzwart-melden
+  --test` braucht zwei Webhooks), Kanäle auf TeamSpeak und Discord, die
+  Workshop-Suche mit einem Steam-Schlüssel. Wer die Zugänge hat, prüft sie
+  nach [03-panel.md](docs/03-panel.md) und schreibt sie als eigene Punkte in den
+  Bericht.
+* **Passkeys und Leerlauf** — beide brauchen einen echten Browser bzw. einen
+  echten Spielclient von außen.
+
+> *What this acceptance run does not test, stated so nobody assumes more
+> coverage than there is: long-term operation (reboots, certificate renewal
+> after 60 days, backup rotation over weeks), load (several servers at once, disk
+> pressure, memory limits), restores beyond a real data loss, the `hetzner`
+> provider (never run against a real zone, #60), anything needing outside
+> credentials (Discord notifications, TeamSpeak and Discord channels, the
+> Workshop search), and passkeys and idle sleep, which need a real browser and a
+> real game client from outside.*

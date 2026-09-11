@@ -118,10 +118,11 @@ systemctl enable --now panel.service spiel-einrichtung.timer
 #  that does not exist right now anyway.*
 systemctl enable spiele-wiederanlauf.service
 # Der Timer laeuft, die Automatik ist trotzdem aus: er findet nur Server, die in
-# ihrer panel.json ausdruecklich freigeschaltet sind. Ohne Freischaltung
-# passiert nichts.
-# *The timer runs but the automation is off: it only finds servers explicitly
-#  enabled in their panel.json.*
+# /var/lib/platzwart-schlaf.liste stehen (Schalter "leerlauf" auf der
+# Einstellungsseite). Ohne Freischaltung passiert nichts. Dasselbe gilt fuer
+# spiele-autoupdate und /var/lib/spiele-autoupdate.liste.
+# *The timer runs but the automation is off: it only finds servers listed in
+#  /var/lib/platzwart-schlaf.liste. Same for auto-update and its list.*
 systemctl enable --now platzwart-schlaf.timer
 # Wie beim Leerlauf: Der Timer laeuft, die Kanaele sind trotzdem aus, bis sie
 # auf der Seite Integrationen eingeschaltet werden (#137) - vorher verbindet er

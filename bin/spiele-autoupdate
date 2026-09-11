@@ -2,13 +2,14 @@
 # spiele-autoupdate — aktualisiert die Server, die dafür freigeschaltet sind.
 #
 # Wird vom Timer gerufen. Aus per Voreinstellung: Ein Server wird nur angefasst,
-# wenn in seiner panel.json "auto_update": true steht. Es gibt keinen globalen
-# Schalter — eine Automatik, die alles auf einmal betrifft, ist genau die, die
-# man später nicht mehr zuordnen kann.
+# wenn er in /var/lib/spiele-autoupdate.liste steht (Schalter "Auto-Update" auf
+# seiner Karte, geschrieben von "panel-aktion auto-update"). Es gibt keinen
+# globalen Schalter — eine Automatik, die alles auf einmal betrifft, ist genau
+# die, die man später nicht mehr zuordnen kann.
 #
 # Vier Bedingungen, jede einzeln geprüft und einzeln gemeldet:
 #
-#   1. Freigeschaltet?      auto_update in der panel.json
+#   1. Freigeschaltet?      Zeile in /var/lib/spiele-autoupdate.liste
 #   2. Sicherung möglich?   sonst gibt es keinen Rückweg, wenn das Update den
 #                           Spielstand unbrauchbar macht
 #   3. Ruhig?               kein nennenswerter Netzverkehr — ein Update mitten

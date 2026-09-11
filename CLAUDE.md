@@ -60,9 +60,21 @@ naheliegende Lösung verworfen wurde und warum.
 
 **Niemals direkt auf `main` pushen.** Auch nicht „nur schnell".
 
+**Keine Werkzeug-Attribution in Commit-Nachrichten** — kein `Co-Authored-By:
+Claude …`, kein „Generated with …". GitHub baut daraus seine
+Contributor-Liste, und entfernen ließe sich das nur durch Umschreiben der ganzen
+Historie. Ein lokaler `commit-msg`-Haken in der Arbeitskopie weist solche
+Nachrichten ab; er wird nicht mitgeklont, die Regel gilt trotzdem. In
+PR-Beschreibungen ist ein Hinweis erlaubt.
+
 > *Every change: English issue describing the problem (not the solution), branch,
 > work with documentation, green completeness check, pull request with
-> `Fixes #<n>`, merge, delete branch. Never push to `main` directly.*
+> `Fixes #<n>`, merge, delete branch. Never push to `main` directly. No tool
+> attribution in commit messages — no `Co-Authored-By: Claude`, no "Generated
+> with": GitHub builds its contributor list from them, and removing them would
+> mean rewriting the entire history. A local commit-msg hook in the working copy
+> rejects such messages; it is not cloned, but the rule applies regardless. A
+> note in pull request descriptions is fine.*
 
 ---
 
@@ -156,7 +168,11 @@ werkzeuge/vollstaendigkeit.sh      # muss grün sein
 
 Prüft: Existiert jede von `install/` referenzierte Datei **und wird sie von git
 verfolgt**? Parsen alle Skripte? Steckt irgendwo ein Geheimnis? Ist jeder
-`@@PLATZHALTER@@` in `konfiguration.env.beispiel` erklärt?
+`@@PLATZHALTER@@` in `konfiguration.env.beispiel` erklärt? Dazu Katalogports,
+Kategorien und Titelbilder, Doku gegen Katalog und Routen, die Vergleichsliste
+von `abgleich.sh`, typische Fehler in `app.py` — und ob jeder Abschnitt der
+Dokumentation seinen englischen Absatz hat. Die vollständige Liste steht in
+`docs/09-referenz.md`.
 
 Als automatische Bremse:
 
@@ -167,9 +183,12 @@ ln -sf ../../werkzeuge/git-hooks/pre-commit .git/hooks/pre-commit
 Bewusst als Symlink und **nicht** über `git config core.hooksPath` — das ersetzt
 das gesamte Hook-Verzeichnis und schaltet vorhandene Haken ab.
 
-> *Run the completeness check before every commit; wire it in as a symlinked
-> pre-commit hook, never via `core.hooksPath`, which would replace the entire
-> hooks directory.*
+> *Run the completeness check before every commit — it checks files, syntax,
+> secrets and placeholders, and also catalogue ports, categories and artwork,
+> docs against catalogue and routes, the comparison list, typical `app.py`
+> mistakes and whether every documentation section has its English paragraph.
+> Wire it in as a symlinked pre-commit hook, never via `core.hooksPath`, which
+> would replace the entire hooks directory.*
 
 ---
 
@@ -205,10 +224,21 @@ klären, welche Seite recht hat** — nicht blind in eine Richtung angleichen.
   Sitzungs-Secret, die Borg-Passphrase, das Cloudflare-Token. Alle entstehen bei
   der Einrichtung auf der Zielmaschine.
 * **Standortdaten.** Domains, IP-Adressen, Netze, Benutzernamen — dafür gibt es
-  `@@PLATZHALTER@@` und `konfiguration.env`.
+  `@@PLATZHALTER@@` und `konfiguration.env`. Auch nicht als Beispiel in einem
+  Kommentar oder einer Messung: `vollstaendigkeit.sh` sucht die Werte der
+  eigenen `konfiguration.env` und die Wörter aus `.standortdaten` (lokal, nie
+  eingecheckt — dort Kontonamen und Ähnliches eintragen) in jeder verfolgten
+  Datei. Ein echter Kontoname kam so schon einmal zurück, nachdem er entfernt
+  worden war.
 * **Bilder aus Steam.** Die Kopfgrafiken sind Werke Dritter und werden zur
   Laufzeit geladen. Nur die selbst erzeugten Symbole liegen hier.
 * **Spielstände.** Die gehören in die Sicherung.
+
+**Geheimnisse gehen nie als Kommandozeilenargument** durch ein Werkzeug —
+Argumente stehen für jeden Benutzer der Maschine in der Prozessliste. Sie kommen
+über stdin (`panel-aktion kanaele pruefen`, `compose-setzen`,
+`konfig-datei-schreiben`) oder aus einer `0600`-Datei (`dns-abnahme.sh
+--token-datei`).
 
 **Nach dem ersten Push an der Quelle gegenprüfen**, nicht lokal:
 
@@ -220,7 +250,13 @@ Genau so wurde gefunden, dass die Regel `*.local` die Datei
 `etc/fail2ban/jail.local` verschluckt hatte — lokal lag sie sichtbar da, sie war
 nur nicht verfolgt.
 
-> *Never commit secrets, site-specific values, Steam artwork or save games. After
+> *Never commit secrets, site-specific values, Steam artwork or save games — not
+> even as an example in a comment or a measurement: the completeness check
+> searches every tracked file for the values of the local `konfiguration.env`
+> and the words in the local, never committed `.standortdaten` (put account
+> names there); a real account name once came back after being removed.
+> Secrets never travel as a command-line argument — arguments are visible to
+> every user in the process list — but on stdin or from a 0600 file. After
 > the first push, verify at the source rather than locally: that is how a
 > `*.local` rule swallowing `etc/fail2ban/jail.local` was caught — the file sat
 > visibly in the working tree, it just was not tracked.*
@@ -281,10 +317,45 @@ Jeder Punkt ist ein realer Vorfall, nicht eine Vermutung.
 | Cloudflare `proxied` | Der Proxy kann nur HTTP(S). Ein Spielport dahinter ist von außen tot. |
 | `borg extract` | Läuft von `/` aus, weil die Archive absolute Pfade tragen. Aus einem anderen Verzeichnis entsteht ein Unterbaum an falscher Stelle, und der Server startet mit leerer Welt — ohne Fehlermeldung. |
 | ich777-Images | Erwarten `UID`/`GID`, **nicht** `PUID`/`PGID`, und brauchen `steamcmd/` und `serverfiles/` vor dem ersten Start. |
-| Pfadprüfung | **Erst auflösen, dann prüfen.** Unter StarRupture liegt ein Symlink `z: -> /`; eine Prüfung vor dem Auflösen macht aus jedem Editor einen Root-Schreibzugriff aufs ganze System. |
+| Pfadprüfung | **Erst auflösen, dann prüfen.** Unter StarRupture lag ein Symlink `z: -> /` (jedes Wine-Präfix legt ihn an); eine Prüfung vor dem Auflösen macht aus jedem Editor einen Root-Schreibzugriff aufs ganze System. |
 | Spielserver und ihre Konfiguration | Viele schreiben sie beim Start **selbst neu**. Bei Minecraft nachgemessen: geänderte Werte überleben, eigene Kommentare und unbekannte Zeilen verschwinden. |
 | Dateien auf die Maschine bringen | Nie `scp` direkt — die `@@PLATZHALTER@@` gehen sonst mit. `werkzeuge/ausrollen.sh` benutzen; es bricht bei einem übrig gebliebenen Platzhalter ab. |
 | `sudo` aus einem systemd-Dienst | Wechselt den Benutzer, **nicht den Mount-Namensraum**. `ProtectSystem=full` lässt Schreibzugriffe auf `/etc` auch als root scheitern. `/proc/<pid>/mountinfo` prüfen, nicht die Dateirechte. |
+| Borg-Sperre | Der Viertelstundenlauf hält das Repository rund vier Minuten gesperrt; Borg gibt ohne `--lock-wait` nach **einer Sekunde** auf. Vollsicherung, Endsicherung vor dem Entfernen, Archivliste und Wiederherstellung scheiterten daran (#171, #234). Jeder Borg-Aufruf braucht `--lock-wait`, und die Meldung muss „Sicherung läuft" sagen, nicht „nicht erreichbar". |
+| Borgs `sh:`-Muster | `*` überspringt kein `/`. Wer Ausschlüsse mit `startswith` vergleicht oder Zeilen wörtlich verschiebt, trifft Platzhalterzeilen nie — ein Restore hätte Enshrouded 32 Spieldateien gekostet (#231). Muster wie Borg auflösen, an denselben **relativen** Ort zurücklegen. |
+| TeamSpeak-ServerQuery | Verbindungen über das Docker-Gateway stehen nicht auf der Allowlist: drei schnelle Anmeldungen, und der Flutschutz sperrt rund zehn Minuten — jeder weitere Versuch verlängert. Befehle takten, eine Verbindung je Lauf, bei einer Sperre **warten**. |
+| `pkill -f` / `pgrep -f` mit Muster | Trifft die eigene Befehlszeile mit: Ein Muster, das im SSH-Befehl selbst steht, beendete die eigene Shell, und eine Warteschleife fand sich selbst und wartete ewig. Nach PID beenden (`ss -ltnpH "sport = :PORT"`). |
+| `echo "…\t…"` | Gibt `\t` wörtlich aus; das Panel zeigte beim ersten echten Restore „ok\tIst-Stand …". `printf` benutzen. |
+| `docker compose stop` | Ist ein **ausdrückliches** Anhalten und schaltet `restart: unless-stopped` über den Neustart hinweg ab. Und `restart: on-failure` startet nach einem `docker stop` (Exit 143) doch wieder. |
+| A2S-Abfragen | Die erste `A2S_INFO` bekommt seit 2020 einen Challenge (`0x41`), erst die Wiederholung Daten. Ohne das wirkt ein antwortender Server stumm. |
+| Spiele, die ihren Port selbst melden | KF2 meldete der Serverliste den Port **im** Container; die Abbildung `30116:7777` ist für Docker korrekt und für Spieler tot. Solche Server im Container schon auf dem Hostport lauschen lassen (#228). |
+| Server über Steams Relay | Unturned ist per „Server Code" erreichbar, **ohne** dass ein Port veröffentlicht ist — dort ist das Passwort die einzige Sperre und muss vor dem ersten Start stehen (E31). |
+| Steams Workshop-API | Die Detailabfrage heißt das Feld `consumer_app_id`, die Suche `consumer_appid`; und ohne Schlüssel meldet sie bei manchen Spielen `file_size: 0`. Beides führte zu falschen Urteilen. |
+| Discord prüfen | Ein Bot ohne Message-Content-Intent sieht bei fremden Nachrichten leeren Inhalt — das sieht aus wie ein Zustellfehler. Webhooks mit `?wait=true` aufrufen und die Antwort prüfen. |
+| Generatoren und Handwerkzeuge | Was ein Generator anlegt, bekommt nicht von selbst, was ein Handwerkzeug später setzt: 17 Katalogspiele standen ohne Kategorie da (#251). Solche Felder gehören in `vollstaendigkeit.sh`. |
+
+> *Traps that have already cost time, each a real incident: mkdir's mode is
+> masked by the umask; some systemd hardening options imply NoNewPrivileges and
+> break sudo silently; ProtectSystem=strict stops borg's cache; bash resolves
+> functions at call time, so a helper defined after its loop is "command not
+> found" while the run reports success; `grep -q` in a pipe with pipefail fails
+> valid input; CSP keywords need single quotes; HTTP/2 broke the terminal's
+> WebSocket; `\s` swallows newlines; field-name patterns must allow any
+> separator and then hit comment fields and booleans; resolve port collisions
+> against really bound ports, local ones included, and never split TCP and UDP;
+> `dig` is worthless with a wildcard; Cloudflare's proxy kills game ports; borg
+> extract must run from `/`; ich777 images want UID/GID and pre-created folders;
+> resolve paths before checking them; game servers rewrite their configs; never
+> scp files with placeholders; sudo from a unit keeps its mount namespace. Newer
+> ones: the borg lock needs `--lock-wait` everywhere and an honest message;
+> borg's `sh:` patterns do not cross `/`; TeamSpeak's ServerQuery flood ban
+> after three quick logins; `pkill -f`/`pgrep -f` match their own command line;
+> `echo` prints `\t` literally; `docker compose stop` disables unless-stopped
+> and `on-failure` restarts after a stop; A2S needs the challenge step; some
+> games announce their container port; relay-capable servers are reachable
+> without a published port; Steam's Workshop API names one field two ways and
+> reports size 0 without a key; a Discord bot without the message content intent
+> sees empty messages; and generators do not set what hand tools add later.*
 
 ---
 

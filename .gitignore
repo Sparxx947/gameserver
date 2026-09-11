@@ -23,3 +23,6 @@ panel/bilder/*.jpg
 
 __pycache__/
 *.pyc
+
+# Lokale Liste von Namen, die nie ins Repositorium duerfen (vollstaendigkeit.sh 4c)
+.standortdaten

@@ -470,7 +470,8 @@
     "protokolle": [
      "udp"
     ]
-   }
+   },
+   "kategorie": "shooter"
   },
   {
    "schluessel": "assettocorsa",
@@ -788,7 +789,8 @@
      "udp",
      "tcp"
     ]
-   }
+   },
+   "kategorie": "shooter"
   },
   {
    "schluessel": "bfv",
@@ -832,7 +834,8 @@
      "udp",
      "tcp"
     ]
-   }
+   },
+   "kategorie": "shooter"
   },
   {
    "schluessel": "bmdm",
@@ -914,7 +917,8 @@
     "protokolle": [
      "udp"
     ]
-   }
+   },
+   "kategorie": "arena"
   },
   {
    "schluessel": "bs",
@@ -2304,7 +2308,8 @@
     "protokolle": [
      "udp"
     ]
-   }
+   },
+   "kategorie": "shooter"
   },
   {
    "schluessel": "eurotrucksimulator2",
@@ -2998,7 +3003,8 @@
     "protokolle": [
      "udp"
     ]
-   }
+   },
+   "kategorie": "sandbox"
   },
   {
    "schluessel": "jc3",
@@ -3041,7 +3047,8 @@
     "protokolle": [
      "udp"
     ]
-   }
+   },
+   "kategorie": "sandbox"
   },
   {
    "schluessel": "jk2",
@@ -4295,7 +4302,8 @@
     "protokolle": [
      "udp"
     ]
-   }
+   },
+   "kategorie": "sandbox"
   },
   {
    "schluessel": "openmwtes3mp",
@@ -4476,7 +4484,8 @@
     "protokolle": [
      "udp"
     ]
-   }
+   },
+   "kategorie": "rennen"
   },
   {
    "schluessel": "pc2",
@@ -4519,7 +4528,8 @@
     "protokolle": [
      "udp"
     ]
-   }
+   },
+   "kategorie": "rennen"
   },
   {
    "schluessel": "postscriptum",
@@ -4986,7 +4996,8 @@
      "udp",
      "tcp"
     ]
-   }
+   },
+   "kategorie": "shooter"
   },
   {
    "schluessel": "rtcw",
@@ -5112,7 +5123,8 @@
      "udp",
      "tcp"
     ]
-   }
+   },
+   "kategorie": "survival"
   },
   {
    "schluessel": "samp",
@@ -5390,7 +5402,8 @@
      "udp",
      "tcp"
     ]
-   }
+   },
+   "kategorie": "arena"
   },
   {
    "schluessel": "sonsoftheforest",
@@ -5592,7 +5605,8 @@
     "protokolle": [
      "udp"
     ]
-   }
+   },
+   "kategorie": "aufbau"
   },
   {
    "schluessel": "starbound",
@@ -6412,7 +6426,8 @@
     "protokolle": [
      "udp"
     ]
-   }
+   },
+   "kategorie": "arena"
   },
   {
    "schluessel": "ut3",
@@ -6495,7 +6510,8 @@
     "protokolle": [
      "udp"
     ]
-   }
+   },
+   "kategorie": "arena"
   },
   {
    "schluessel": "valheim",
@@ -6698,7 +6714,8 @@
     "protokolle": [
      "udp"
     ]
-   }
+   },
+   "kategorie": "shooter"
   },
   {
    "schluessel": "wf",

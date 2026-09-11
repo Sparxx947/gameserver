@@ -48,7 +48,7 @@ DISCORD_KONF = Path("/opt/panel/daten/discord.conf")
 # Selbst gepflegte Zugangsdaten. Noetig, weil manche Server ihre Passwoerter nur
 # GEHASHT oder VERSCHLUESSELT ablegen und sie sich nicht auslesen lassen:
 # Satisfactory (Hash+Salt in der binaeren .sav), TeamSpeak (Hash in SQLite),
-# StarRupture (RSA-verschluesselt). Diese Eintraege koennen veralten — deshalb
+# frueher StarRupture (RSA-verschluesselt). Diese Eintraege koennen veralten — deshalb
 # werden sie in der Anzeige deutlich von den automatisch gelesenen getrennt.
 EIGENE = Path("/opt/panel/daten/zugangsdaten.json")
 BILDER = Path("/opt/panel/bilder")
@@ -2009,12 +2009,12 @@ def nutzer_finden(eingabe: str) -> str:
     """Gespeicherter Name zu einer Eingabe - ohne Ruecksicht auf Gross- und
     Kleinschreibung, "" wenn es keinen gibt (#248).
 
-    Vorher ein exaktes dict.get: "Ropax85" fand das Konto "ropax85" nicht, und
+    Vorher ein exaktes dict.get: "Karla7" fand das Konto "karla7" nicht, und
     die Seite sagte nur "Anmeldung fehlgeschlagen" - ein Tippfehler in der
     Schreibweise sah aus wie ein falsches Passwort. Das einzige Konto mit der
     Rolle "verwalten" ist so nie hineingekommen.
     *Stored name for an input, case-insensitive; "" if none. An exact lookup
-     made "Ropax85" miss "ropax85" with a message that looked like a wrong
+     made "Karla7" miss "karla7" with a message that looked like a wrong
      password.*
     """
     e = eingabe.strip().casefold()
@@ -3231,7 +3231,7 @@ Alle Verbindungen brechen ab, auch diese Oberfläche ist ein bis zwei Minuten we
 damit die Spiele ihre Stände schreiben.{" Läuft gerade eine Sicherung, wird der Neustart abgebrochen — ein unterbrochener Borg-Lauf hinterlässt eine Sperre, die man von Hand lösen muss." if SICHERUNG_AN else ""}</p>
 <p style=font-size:14px>Läuft gerade: <b>{laufende.strip() or "nichts"}</b><br>
 <span class=z>Diese Server werden nach dem Hochfahren <b>wieder gestartet</b> — genau
-diese und keine anderen. StarRupture bleibt bewusst aus.</span></p>
+diese und keine anderen.</span></p>
 <form method=post action=/neustart><input type=hidden name=csrf value="{s['csrf']}">
 <button class=x>Ja, Maschine neu starten</button></form> <a class=b href=/>Abbrechen</a>""" + FUSS)
 
@@ -3361,7 +3361,9 @@ def nutzer_liste(request: Request, neu: str = "", fehler: str = ""):
             knoepfe += (f'<form method=post action=/mfa-zuruecksetzen>'
                         f'<input type=hidden name=csrf value="{s["csrf"]}">'
                         f'<input type=hidden name=name value="{name}">'
-                        f'<button class=y>2FA zurücksetzen</button></form> ')
+                        f'<button class=y title="Neues TOTP-Geheimnis; Wiederherstellungscodes und '
+                        f'Passkeys werden ungültig. Eingerichtet wird bei der nächsten Anmeldung.">'
+                        f'2FA zurücksetzen</button></form> ')
         knoepfe += ("<span class=z>(eigenes Konto)</span>" if name == s["nutzer"] else
                     f'<form method=post action=/nutzer-loeschen><input type=hidden name=csrf value="{s["csrf"]}">'
                     f'<input type=hidden name=name value="{name}"><button class=x>löschen</button></form>')
@@ -3799,8 +3801,8 @@ def nutzer_anlegen(request: Request, csrf: str = Form(""), name: str = Form(""),
         return RedirectResponse("/", 303)
     d = laden()
     # Klein gespeichert (#248): Beim Anmelden spielt die Schreibweise keine Rolle
-    # mehr, zwei Konten "Ropax" und "ropax" darf es deshalb auch nicht geben.
-    # *Stored in lower case; login ignores case, so "Ropax" and "ropax" cannot
+    # mehr, zwei Konten "Karla" und "karla" darf es deshalb auch nicht geben.
+    # *Stored in lower case; login ignores case, so "Karla" and "karla" cannot
     #  both exist.*
     name = name.strip().lower()
     # Jede Bedingung einzeln, mit eigenem Text. Vorher war es eine einzige
@@ -3837,9 +3839,9 @@ def nutzer_anlegen(request: Request, csrf: str = Form(""), name: str = Form(""),
 
 @app.post("/mfa-zuruecksetzen")
 def mfa_zuruecksetzen(request: Request, csrf: str = Form(""), name: str = Form("")):
-    """Neues Geheimnis, Bestaetigung zurueck auf offen — fuer den Fall, dass
-    jemand sein Geraet verliert. Danach richtet er bei der naechsten Anmeldung
-    neu ein."""
+    """Neues Geheimnis, Bestaetigung zurueck auf offen, Wiederherstellungscodes
+    und Passkeys entwertet — fuer den Fall, dass jemand sein Geraet verliert.
+    Danach richtet er bei der naechsten Anmeldung neu ein."""
     s = pruefe(request, csrf)
     if not ist_admin(s):
         return RedirectResponse("/", 303)
@@ -3854,8 +3856,16 @@ def mfa_zuruecksetzen(request: Request, csrf: str = Form(""), name: str = Form("
         #  factor, and leaving them would make the reset meaningless.*
         alt_anzahl = len(d["nutzer"][name].get("codes") or [])
         d["nutzer"][name]["codes"] = []
+        # Die Passkeys ebenso (#254). Sie blieben bis dahin gueltig - ein Passkey
+        # auf dem verlorenen Geraet war nach dem "Zuruecksetzen" weiter ein
+        # zweiter Faktor, genau der Fall, fuer den es diesen Knopf gibt.
+        # *Passkeys too (#254): one on the lost device used to stay valid after
+        #  the reset - exactly the case this button exists for.*
+        alt_passkeys = len(d["nutzer"][name].get("passkeys") or [])
+        d["nutzer"][name]["passkeys"] = []
         speichern(d)
-        protokoll(s, "Zweiter Faktor zurueckgesetzt", name, entwertete_codes=alt_anzahl)
+        protokoll(s, "Zweiter Faktor zurueckgesetzt", name, entwertete_codes=alt_anzahl,
+                  entwertete_passkeys=alt_passkeys)
     return RedirectResponse("/nutzer", 303)
 
 

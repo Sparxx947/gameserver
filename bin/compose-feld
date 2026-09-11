@@ -63,7 +63,7 @@ def yaml_skalar(w: str) -> str:
     Noetig, weil GAME_PARAMS - bei 37 der 41 Katalogspiele die einzige
     Stellschraube - selbst Anfuehrungszeichen enthaelt:
 
-        -SteamServerName="mjfabrix" -MaxPlayers=4 -PSW="geheim"
+        -SteamServerName="meinserver" -MaxPlayers=4 -PSW="geheim"
 
     In doppelte Anfuehrungszeichen gesetzt zerlegt das die Datei; der
     Strukturvergleich rollte die Aenderung dann zwar korrekt zurueck, aber der

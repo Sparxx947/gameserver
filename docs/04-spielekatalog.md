@@ -75,19 +75,21 @@ im Katalog nach, und den Katalog kann die Oberfläche nur lesen.
 
 ---
 
-## Zwei Bauarten
+## Drei Bauarten
 
-| | ich777 | LinuxGSM |
-|---|---|---|
-| Image | `ghcr.io/ich777/steamcmd:<spiel>` und eigene | `gameservermanagers/gameserver:<kürzel>` |
-| Datenverzeichnis | `/serverdata` | `/data` |
-| Umgebung | `GAME_ID`, `GAME_PARAMS`, `UID`/`GID` | `GAMESERVER`, `UID`/`GID` |
-| Konfiguration | je Spiel verschieden | `config-lgsm/<gs>/` **und** `serverfiles/` |
-| Einträge | 86 | 68 |
+| | ich777 | LinuxGSM | eigenes Image |
+|---|---|---|---|
+| Image | `ghcr.io/ich777/steamcmd:<spiel>` und 18 eigene ich777-Images | `gameservermanagers/gameserver:<kürzel>` | `itzg/minecraft-server`, `itzg/minecraft-bedrock-server`, `factoriotools/factorio`, `devidian/vintagestory`, `teamspeak` |
+| Datenverzeichnis | `/serverdata` | `/data` | je Image |
+| Umgebung | `GAME_ID`, `GAME_PARAMS`, `UID`/`GID` | `GAMESERVER`, `UID`/`GID` | je Image |
+| Konfiguration | je Spiel verschieden | `config-lgsm/<gs>/` **und** `serverfiles/` | je Image |
+| Einträge | 82 | 85 | 12 |
 
-Erzeugt werden beide aus den Vorlagen der jeweiligen Quelle —
-`werkzeuge/katalog-ergaenzen.py` und `werkzeuge/katalog-lgsm.py`. Das Feld
-`bauart` im Katalog nennt die Herkunft.
+Erzeugt werden sie aus den Vorlagen der jeweiligen Quelle —
+`werkzeuge/katalog-ergaenzen.py`, `werkzeuge/katalog-lgsm.py` und
+`werkzeuge/katalog-varianten.py` (die Minecraft-Varianten); die übrigen eigenen
+Images sind von Hand eingetragen. Das Feld `bauart` im Katalog nennt die
+Herkunft.
 
 **Doppelte Spiele werden über den Namen abgeglichen, nicht über die App-ID.**
 Bei GoldSrc teilen sich **13 Spiele** die Sammel-ID 90 (Half-Life Dedicated
@@ -96,7 +98,11 @@ Selection und zehn weitere fälschlich als Duplikate verworfen. Verglichen wird
 gegen den Katalog **und** gegen die handgebauten Stacks: Palworld und
 Satisfactory laufen, stehen aber in keinem Katalog.
 
-> *Two build styles, both derived from their source's templates. Duplicates are
+> *Three build styles — 82 from ich777 (the shared steamcmd image plus 18 of
+> ich777's own images), 85 from LinuxGSM and 12 with images of their own
+> (Minecraft Java and Bedrock, Factorio, Vintage Story, TeamSpeak) — generated
+> from their source's templates by three generators, the last few entered by
+> hand; `bauart` names the origin. Duplicates are
 > matched by name, never by app id: 13 GoldSrc games share the collective id 90,
 > and matching on it would have discarded Counter-Strike 1.6, Day of Defeat and
 > eleven others. The comparison covers the catalogue and the hand-built stacks —
@@ -130,10 +136,13 @@ Jede der vier machte eine Anpassung an den Werkzeugen nötig:
 
 ## Die Bilder
 
-| Image | Anzahl | Bemerkung |
+| Image | Einträge | Bemerkung |
 |---|---|---|
-| `ghcr.io/ich777/steamcmd:<spiel>` | 37 | Ein Bauplan, 79 Spielserver — unterschieden durch `GAME_ID` und `GAME_PARAMS` |
-| `itzg/minecraft-server` | 1 | Minecraft (Java) |
+| `gameservermanagers/gameserver:<kürzel>` | 85 | LinuxGSM, ein Image, unterschieden durch den Tag |
+| `ghcr.io/ich777/steamcmd:<spiel>` | 64 | ein Bauplan für viele Spielserver — unterschieden durch `GAME_ID` und `GAME_PARAMS` |
+| weitere `ghcr.io/ich777/…` | 18 | eigene ich777-Images (Terraria, FiveM, RedM, OpenTTD, Xonotic …) |
+| `itzg/minecraft-server` | 8 | Minecraft (Java) und sieben Varianten, unterschieden durch `TYPE` |
+| `itzg/minecraft-bedrock-server` | 1 | Minecraft Bedrock |
 | `factoriotools/factorio` | 1 | Factorio |
 | `devidian/vintagestory` | 1 | Vintage Story |
 | `teamspeak` | 1 | kein Spiel |
@@ -144,7 +153,10 @@ Start — fehlen sie, dreht der Container in einer Neustartschleife mit
 „SteamCMD not found!" und lädt nie etwas herunter. `spiel-verwalten` legt sie
 deshalb selbst an.
 
-> *The ich777 images expect `UID`/`GID`, not `PUID`/`PGID`, and need the
+> *The images and how many entries use each: LinuxGSM's one image with a tag per
+> game (85), ich777's steamcmd image (64) and 18 further ich777 images, the
+> Minecraft Java image with seven variants, Bedrock, Factorio, Vintage Story and
+> TeamSpeak. The ich777 images expect `UID`/`GID`, not `PUID`/`PGID`, and need the
 > `steamcmd` and `serverfiles` subdirectories to exist before first start —
 > otherwise the container loops with "SteamCMD not found!" and downloads
 > nothing. The installer creates them.*
@@ -216,7 +228,8 @@ seinen Port behalten müssen — sonst verliert jeder Client den Server.
 
 ## Installation Schritt für Schritt
 
-1. **Nachschlagen.** Schlüssel im Katalog suchen; unbekannt → Abbruch.
+1. **Nachschlagen.** Schlüssel im Katalog suchen; unbekannt oder schon
+   installiert → Abbruch.
 2. **Platz prüfen.** `platte_gb` + 10 GB Reserve müssen frei sein.
 3. **Ports prüfen.** Kollision wird gegen die **tatsächlich belegten** Ports
    geprüft, nicht gegen alle im Katalog vergebenen. Sonst bekäme fast jedes
@@ -226,22 +239,37 @@ seinen Port behalten müssen — sonst verliert jeder Client den Server.
    anderer Container `0.0.0.0:N` hält, und umgekehrt, für TCP wie UDP.
 4. **Passwörter würfeln.** Beitritt und Admin, je 14 Zeichen ohne verwechselbare
    Zeichen.
-5. **Dateien schreiben.** `compose.yaml` (`0600 root`), `panel.json`
-   (`0640 root:panel`), Ausschlussblock in `/etc/borg-ausschluss.txt`,
-   Zugangsdaten, Titelbild.
-6. **Verzeichnis anlegen.** `mkdir`, **dann** `chmod` — der `mode`-Parameter von
-   `mkdir` wird von der `umask` beschnitten. Mit `umask 077` entstand aus
-   `mkdir(mode=0o750)` ein `0700`, die Oberfläche konnte `panel.json` nicht
-   lesen, und in der Übersicht fehlte wortlos die Beitrittsadresse.
-7. **Starten**, aber nur wenn der freie Arbeitsspeicher zum `mem_limit` reicht.
+5. **Verzeichnisse anlegen.** Stack-Verzeichnis: `mkdir`, **dann** `chmod` — der
+   `mode`-Parameter von `mkdir` wird von der `umask` beschnitten. Mit `umask 077`
+   entstand aus `mkdir(mode=0o750)` ein `0700`, die Oberfläche konnte
+   `panel.json` nicht lesen, und in der Übersicht fehlte wortlos die
+   Beitrittsadresse. Datenverzeichnis als UID 4711, bei `/serverdata` dazu
+   `steamcmd/`, `serverfiles/` und die Katalog-`ordner`.
+6. **Dateien schreiben.** `compose.yaml` (`0600 root`) **ohne** die öffentlichen
+   Spielports, `panel.json` (`0640 root:panel`) mit Passwörtern,
+   `einrichtung_offen`, `port_regel`, `ports_ausstehend` und gegebenenfalls
+   `befehlsdatei`; Zugangsdaten, Ausschlussblock in `/etc/borg-ausschluss.txt`,
+   Titelbild.
+7. **Befehlsdatei vorab** — nur bei `passwort.befehle` (Unturned):
+   `spiel-einrichtung --vorab` schreibt sie, bevor der Container je läuft;
+   scheitert das, startet nichts (E31).
+8. **Starten**, aber nur wenn der freie Arbeitsspeicher zum `mem_limit` + 2 GB
+   reicht.
+9. **Nach außen:** `panel-aktion` stößt den Kanal-Abgleich an und legt den
+   DNS-Namen an. Die Spielports trägt erst die Passwort-Einrichtung ein (unten).
 
-> *Install steps: look up the key, check disk space, check ports against
-> actually bound ports (not every port in the catalogue, or nearly every game
-> would be relocated) — local ones included, since `127.0.0.1:N` and `0.0.0.0:N`
-> exclude each other (measured) — generate two passwords, write the files, create the
-> directory with `mkdir` followed by an explicit `chmod` — the `mode` argument is
-> masked by `umask`, which once silently cost the join address in the overview —
-> and start only if free RAM covers the memory limit.*
+> *Install steps: look up the key (unknown or already installed aborts), check
+> disk space, check ports against actually bound ports (not every port in the
+> catalogue, or nearly every game would be relocated) — local ones included,
+> since `127.0.0.1:N` and `0.0.0.0:N` exclude each other (measured) — generate two
+> passwords, create the directories with `mkdir` followed by an explicit `chmod`
+> (the `mode` argument is masked by `umask`, which once silently cost the join
+> address in the overview) plus the folders the image expects, write the compose
+> file without the public game ports and `panel.json` with the setup state, the
+> held-back ports and any command file, write the command file before the first
+> start where the game needs it, start only if free RAM covers the limit plus
+> 2 GB, and let `panel-aktion` trigger the channel sync and create the DNS name.
+> The game ports are added by the password setup below.*
 
 ---
 
@@ -465,7 +493,7 @@ wenn Liste und Katalog auseinandergehen.
 | `americasarmyprovinggrounds` | AmericasArmy ProvingGrounds | shooter | ich777 | `203300` |
 | `ark` | ARK: Survival Evolved | survival | linuxgsm | `346110` |
 | `arma3` | ARMA 3 | shooter | linuxgsm | `107410` |
-| `armar` | Arma Reforger |  | linuxgsm | `1874880` |
+| `armar` | Arma Reforger | shooter | linuxgsm | `1874880` |
 | `assettocorsa` | AssettoCorsa | rennen | ich777 | `244210` |
 | `astroneer` | Astroneer | survival | ich777 | `361420` |
 | `avorion` | Avorion | sandbox | ich777 | `445220` |
@@ -473,10 +501,10 @@ wenn Liste und Katalog auseinandergehen.
 | `bb` | BrainBread | shooter | linuxgsm | — |
 | `bb2` | BrainBread 2 | shooter | linuxgsm | `346330` |
 | `bd` | Base Defense | shooter | linuxgsm | `632730` |
-| `bf1942` | Battlefield 1942 |  | linuxgsm | — |
-| `bfv` | Battlefield: Vietnam |  | linuxgsm | — |
+| `bf1942` | Battlefield 1942 | shooter | linuxgsm | — |
+| `bfv` | Battlefield: Vietnam | shooter | linuxgsm | — |
 | `bmdm` | Black Mesa: Deathmatch | shooter | linuxgsm | — |
-| `bo` | Ballistic Overkill |  | linuxgsm | — |
+| `bo` | Ballistic Overkill | arena | linuxgsm | — |
 | `bs` | Blade Symphony | shooter | linuxgsm | `225600` |
 | `btl` | BATTALION: Legacy | shooter | linuxgsm | `489940` |
 | `cc` | Codename CURE | shooter | linuxgsm | `355180` |
@@ -512,7 +540,7 @@ wenn Liste und Katalog auseinandergehen.
 | `dys` | Dystopia | shooter | linuxgsm | — |
 | `eco` | ECO | aufbau | ich777 | `382310` |
 | `em` | Empires Mod | shooter | linuxgsm | `17740` |
-| `etl` | ET: Legacy |  | linuxgsm | — |
+| `etl` | ET: Legacy | shooter | linuxgsm | — |
 | `eurotrucksimulator2` | EuroTruckSimulator2 | rennen | ich777 | `227300` |
 | `factorio` | Factorio | aufbau | eigenes-image | `427520` |
 | `fistfuloffrags` | FistfulOfFrags | shooter | ich777 | `265630` |
@@ -530,8 +558,8 @@ wenn Liste und Katalog auseinandergehen.
 | `insurgencysandstorm` | InsurgencySandstorm | shooter | ich777 | `581330` |
 | `ios` | IOSoccer | arena | linuxgsm | `673560` |
 | `jbep3` | Jabroni Brawl: Episode 3 | shooter | linuxgsm | `869480` |
-| `jc2` | Just Cause 2 |  | linuxgsm | `8190` |
-| `jc3` | Just Cause 3 |  | linuxgsm | `225540` |
+| `jc2` | Just Cause 2 | sandbox | linuxgsm | `8190` |
+| `jc3` | Just Cause 3 | sandbox | linuxgsm | `225540` |
 | `jk2` | Jedi Knight II: Jedi Outcast | sandbox | linuxgsm | — |
 | `killingfloor` | KillingFloor | shooter | ich777 | `1250` |
 | `killingfloor2` | KillingFloor2 | shooter | ich777 | `232090` |
@@ -563,13 +591,13 @@ wenn Liste und Katalog auseinandergehen.
 | `ns2` | Natural Selection 2 | shooter | linuxgsm | `4920` |
 | `ns2c` | NS2: Combat | shooter | linuxgsm | `310110` |
 | `ohd` | Operation: Harsh Doorstop | shooter | linuxgsm | `736590` |
-| `onset` | Onset |  | linuxgsm | `1105810` |
+| `onset` | Onset | sandbox | linuxgsm | `1105810` |
 | `openmwtes3mp` | OpenMW TES3MP | sandbox | ich777 | — |
 | `openrct2` | OpenRCT2 | aufbau | ich777 | — |
 | `openttd` | OpenTTD | aufbau | ich777 | `1536610` |
 | `opfor` | Opposing Force | shooter | linuxgsm | — |
-| `pc` | Project Cars |  | linuxgsm | `234630` |
-| `pc2` | Project Cars 2 |  | linuxgsm | `378860` |
+| `pc` | Project Cars | rennen | linuxgsm | `234630` |
+| `pc2` | Project Cars 2 | rennen | linuxgsm | `378860` |
 | `postscriptum` | PostScriptum | shooter | ich777 | `746200` |
 | `projectzomboid` | ProjectZomboid | survival | ich777 | `108600` |
 | `pvkii` | PVK II | shooter | ich777 | `17575` |
@@ -581,22 +609,22 @@ wenn Liste und Katalog auseinandergehen.
 | `qw` | Quake World | arena | linuxgsm | — |
 | `redm` | RedM | sandbox | ich777 | — |
 | `ricochet` | Ricochet | arena | linuxgsm | — |
-| `ro` | Red Orchestra: Ostfront 41-45 |  | linuxgsm | `1200` |
+| `ro` | Red Orchestra: Ostfront 41-45 | shooter | linuxgsm | `1200` |
 | `rtcw` | Return to Castle Wolfenstein | shooter | linuxgsm | `9010` |
 | `rust` | RUST | survival | ich777 | `252490` |
-| `rw` | Rising World |  | linuxgsm | `324080` |
+| `rw` | Rising World | survival | linuxgsm | `324080` |
 | `samp` | San Andreas Multiplayer | sandbox | linuxgsm | — |
 | `sbots` | StickyBots | shooter | linuxgsm | `889400` |
 | `scpsecretlaboratory` | SCP SecretLaboratory | shooter | ich777 | `996560` |
 | `scpslsm` | SCP: Secret Laboratory ServerMod | shooter | linuxgsm | — |
 | `sfc` | SourceForts Classic | shooter | linuxgsm | — |
 | `sof2` | Soldier Of Fortune 2: Gold Edition | shooter | linuxgsm | — |
-| `sol` | Soldat |  | linuxgsm | `638490` |
+| `sol` | Soldat | arena | linuxgsm | `638490` |
 | `sonsoftheforest` | SonsOfTheForest | survival | ich777 | `1326470` |
 | `soulmask` | Soulmask | survival | ich777 | `2646460` |
 | `squad` | Squad | shooter | ich777 | `393380` |
 | `squad44` | Squad 44 | shooter | linuxgsm | `736220` |
-| `st` | Stationeers |  | linuxgsm | `544550` |
+| `st` | Stationeers | aufbau | linuxgsm | `544550` |
 | `starbound` | Starbound | survival | ich777 | `211820` |
 | `starmade` | Starmade | sandbox | ich777 | `244770` |
 | `subsistence` | Subsistence | survival | ich777 | `418030` |
@@ -618,14 +646,14 @@ wenn Liste und Katalog auseinandergehen.
 | `unturned` | Unturned | survival | ich777 | `304930` |
 | `urbanterror` | Urban Terror | arena | ich777 | — |
 | `ut` | Unreal Tournament | arena | linuxgsm | — |
-| `ut2k4` | Unreal Tournament 2004 |  | linuxgsm | — |
+| `ut2k4` | Unreal Tournament 2004 | arena | linuxgsm | — |
 | `ut3` | Unreal Tournament 3 | arena | linuxgsm | — |
-| `ut99` | Unreal Tournament 99 |  | linuxgsm | — |
+| `ut99` | Unreal Tournament 99 | arena | linuxgsm | — |
 | `valheim` | Valheim | survival | ich777 | `892970` |
 | `vintagestory` | Vintage Story | survival | eigenes-image | — |
 | `vrising` | V Rising | survival | ich777 | `1604030` |
 | `vs` | Vampire Slayer | shooter | linuxgsm | `3043210` |
-| `wet` | Wolfenstein: Enemy Territory |  | linuxgsm | `1873030` |
+| `wet` | Wolfenstein: Enemy Territory | shooter | linuxgsm | `1873030` |
 | `wf` | Warfork | arena | linuxgsm | `671610` |
 | `windward` | Windward | survival | ich777 | `326410` |
 | `wurmunlimited` | WurmUnlimited | survival | ich777 | `366220` |
@@ -640,20 +668,36 @@ wenn Liste und Katalog auseinandergehen.
 
 ## Deinstallation
 
-1. **Endsicherung** (`spiele-sicherung --nur <stack>`). Schlägt sie fehl,
-   **bricht die Deinstallation ab** — ohne gesicherten Stand wird nichts
-   gelöscht.
-2. `docker compose down`
-3. Datenverzeichnis, Stack-Verzeichnis, Ausschlussblock, Titelbild,
-   Zugangsdaten.
+1. **Endsicherung** (`spiele-sicherung --nur <stack>`, bis 30 min Wartezeit).
+   Schlägt sie fehl, **bricht die Deinstallation ab** — ohne gesicherten Stand
+   wird nichts gelöscht. Ist die Sicherung abgeschaltet, sagt die Rückfrageseite
+   das vorher.
+2. **Leerlauf vergessen** (`platzwart-schlaf --vergessen`): Weckposten,
+   ufw-Regeln und Listeneintrag weg, ohne den Server zu starten.
+3. `docker compose down`.
+4. Datenverzeichnis, Stack-Verzeichnis, Ausschlussblock, Titelbild,
+   Zugangsdaten, Auto-Update-Eintrag.
+5. **Danach** in `panel-aktion`: DNS-Namen entfernen, Kanal-Abgleich anstoßen
+   (die Kanäle gehen nur, wenn sie unberührt sind). Erst nach dem Entfernen —
+   andersherum stand am 2026-09-11 ein Server da, dessen Entfernen an der
+   Sicherung scheiterte, der aber seinen Namen schon verloren hatte.
 
-Verlangt zwingend eine `panel.json`. Die sieben handgepflegten Server haben
-keine und sind damit vor einem Fehlklick geschützt.
+Die Rückfrageseite nennt vorher die Größe dessen, was gelöscht wird, und was mit
+den Kanälen geschieht. Verlangt zwingend eine `panel.json`. Die sechs
+handgepflegten Server haben keine und sind damit vor einem Fehlklick geschützt;
+für sie gibt es den eigenen Weg `fremd-entfernen` (nur `admin`, siehe
+[03-panel.md](03-panel.md#von-hand-gebaute-server-entfernen-entfernen-fragenstack)).
 
-> *Uninstall: a final backup first — if it fails, the uninstall aborts and
-> nothing is deleted — then compose down and removal of data, stack, exclusion
-> block, artwork and credentials. A `panel.json` is mandatory, which protects the
-> seven hand-maintained stacks from a misclick.*
+> *Uninstall: a final backup first (waiting up to 30 minutes) — if it fails,
+> nothing is deleted, and with backups off the confirmation page says so
+> beforehand; then idle sleep is cleared without starting the server, compose
+> down, and data, stack, exclusion block, artwork, credentials and the
+> auto-update entry are removed. Only afterwards does `panel-aktion` remove the
+> DNS name and trigger the channel sync (channels go only if untouched) — the
+> other way round, a server whose removal failed at the backup had already lost
+> its name. The confirmation page shows the size to be deleted and what happens
+> to the channels. A `panel.json` is mandatory, which protects the six
+> hand-maintained stacks from a misclick; they have their own admin-only path.*
 
 ---
 
@@ -686,27 +730,18 @@ hätte den Server nicht mehr gefunden.
 
 ## Bekannt offen
 
-* **Fünf Host-Ports sind mehrfach vergeben** (nachgezählt am 2026-09-07):
-
-  | Port | Spiele |
-  |---|---|
-  | `8766/udp` | dontstarvetogether, sonsoftheforest, theforest, wurmunlimited |
-  | `26900/udp`, `26901/udp` | 7daystodie, creativerse |
-  | `8777/udp` | astroneer, soulmask |
-  | `27020/udp` | avorion, wurmunlimited |
-
-  Das ist unschädlich, solange die betroffenen Spiele nicht gleichzeitig laufen
-  sollen. Bei echter Kollision lehnt die Installation mit „Port bereits belegt"
-  ab — sie prüft gegen die tatsächlich gebundenen Ports, nicht gegen den Katalog.
+* **Mehrfach vergebene Host-Ports gibt es nicht mehr.** Bis zum 2026-09-10
+  teilten sich fünf Ports mehrere Spiele (etwa `26900/udp` 7 Days to Die und
+  Creativerse); seit #163 verbietet `katalog-ports.py` das, lokale Ports
+  eingeschlossen. Die Installation prüft trotzdem weiter gegen die tatsächlich
+  gebundenen Ports.
 
 * **Minecraft hat kein Beitrittspasswort** — das Spiel kennt keins. Der
   Eintrag setzt stattdessen `ENABLE_WHITELIST` und `ENFORCE_WHITELIST`. Das ist
   strenger als ein Passwort, aber es heißt: **nach der Installation kommt
-  niemand rein**, bis der erste Name auf der Liste steht:
-
-  ```bash
-  docker exec minecraft rcon-cli whitelist add <Spielername>
-  ```
+  niemand rein**, bis der Port von Hand freigegeben ist (E26, #183) und der
+  erste Name auf der Liste steht — beides auf der Einstellungsseite des Servers
+  (Abschnitte **Freigabe** und **Whitelist**, #185).
 
   Ebenfalls zu wissen: Die Installation setzt `EULA=TRUE` — das ist die
   Zustimmung zu Mojangs Nutzungsbedingungen.
@@ -715,10 +750,13 @@ hätte den Server nicht mehr gefunden.
   keine Portweiterleitung nötig; der Beitritt läuft über eine GameID, die nach
   dem Start im Protokoll steht.
 
-> *Known open: five host ports are assigned more than once (table above,
-> counted 2026-09-07). Harmless unless two of the affected games should run at
-> the same time; on a real collision the install refuses with "port already in
-> use", checking actually bound ports rather than the catalogue. And
-> `corekeeper` declares no ports at all — per the image's own template no
-> forwarding is needed, and players join via a GameID printed to the log after
-> startup.*
+> *Known open, and what is no longer: host ports assigned more than once are
+> gone — five were shared until 2026-09-10, and since #163 `katalog-ports.py`
+> forbids it, local ports included, while the installer still checks really
+> bound ports. Minecraft has no join password; the entry enforces the whitelist
+> instead, so after installing nobody gets in until the port has been released
+> by hand (E26, #183) and the first name is on the list — both on the server's
+> settings page (#185). Installing also sets `EULA=TRUE`, which is consent to
+> Mojang's terms. And `corekeeper` declares no ports at all — per the image's
+> own template no forwarding is needed, and players join via a GameID printed to
+> the log after startup.*

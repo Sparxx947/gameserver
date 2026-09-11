@@ -9,20 +9,37 @@
 # Positivliste geprueft. Es gibt kein eval, keine Shell-Expansion von Eingaben
 # und keinen Pfad, ueber den die App eigene Befehle einschleusen koennte.
 #
-#   panel-aktion status
-#   panel-aktion start|stop <stack>
-#   panel-aktion archive <stack>
-#   panel-aktion restore <stack> <archivname>
-#   panel-aktion passwoerter
-#   panel-aktion katalog
-#   panel-aktion installieren <schluessel>
-#   panel-aktion deinstallieren <stack>
-#   panel-aktion compose-lesen <stack>
-#   panel-aktion compose-setzen <stack> <name>              (Wert ueber stdin)
-#   panel-aktion konfig-dateien <stack>
+# Auskuenfte (lesend):
+#   panel-aktion status | katalog | passwoerter | einrichtung | laufende-vorher
+#   panel-aktion logs <stack> [zeilen]
+#   panel-aktion konfig-lesen | groesse | compose-lesen | konfig-dateien <stack>
 #   panel-aktion konfig-datei-lesen <stack> <relpfad>
-#   panel-aktion konfig-datei-schreiben <stack> <relpfad>   (Inhalt ueber stdin)
-#   panel-aktion dns <setzen|entfernen> <name>
+#   panel-aktion auto-update-liste | schlaf-liste
+#   panel-aktion mod-ziel | mod-liste <stack>
+# Server steuern:
+#   panel-aktion start | stop | restart <stack>
+#   panel-aktion alle-anhalten | alle-starten | neustart
+#   panel-aktion aktualisieren <stack>
+#   panel-aktion auto-update | schlaf <stack> <an|aus>
+# Einstellungen:
+#   panel-aktion konfig-setzen <stack> <feld> <wert>
+#   panel-aktion compose-setzen <stack> <name>                (Wert ueber stdin)
+#   panel-aktion konfig-datei-schreiben <stack> <relpfad>     (Inhalt ueber stdin)
+#   panel-aktion whitelist <stack> <liste|hinzu|weg> [spieler]
+# Mods:
+#   panel-aktion mod-annehmen <stack> <dateiname>             (Datei ueber stdin)
+#   panel-aktion mod-entfernen <stack> <name>
+#   panel-aktion workshop <kann|liste|pruefen|suche|hinzu|weg> <stack> [...]
+# Sicherung:
+#   panel-aktion archive <stack>
+#   panel-aktion archiv-groesse | archiv-strom | restore <stack> <archivname>
+# Installieren und Entfernen:
+#   panel-aktion installieren <schluessel>
+#   panel-aktion deinstallieren | fremd-entfernen <stack>
+#   panel-aktion port-ermitteln | port-freigeben <stack>
+# Nach aussen:
+#   panel-aktion dns <setzen|entfernen> <name> | dns <liste|pruefen>
+#   panel-aktion kanaele <abgleich|vorschau <stack>|pruefen|pruefen-discord>
 set -uo pipefail
 umask 077
 
@@ -584,6 +601,15 @@ except Exception:
     s="${2:-}"; pruefe_stack "$s"
     [ -f "/opt/stacks/$s/panel.json" ] && fehler "Dieser Server kam aus dem Katalog - dafuer ist 'deinstallieren' zustaendig."
     /usr/local/bin/spiel-verwalten fremd-entfernen "$s" || exit 1
+    # DNS-Namen auch hier (#253), wie bei "deinstallieren" erst NACH dem
+    # Entfernen. Stufe 70 legt fuer JEDEN Stack einen an; bis #253 blieb er
+    # stehen - starrupture.<zone> zeigte Tage spaeter noch auf die Maschine.
+    # dns-pflegen loescht nur, was auf DNS_ZIEL zeigt.
+    # *DNS name here too (#253), after the removal; stage 70 creates one for
+    #  every stack, and it used to stay behind.*
+    if [ -f /etc/dns-gameserver.conf ]; then
+      /usr/local/bin/dns-pflegen entfernen "$s" >/dev/null 2>&1 || true
+    fi
     systemctl start --no-block kanal-abgleich.service >/dev/null 2>&1 || true
     ;;
   groesse)

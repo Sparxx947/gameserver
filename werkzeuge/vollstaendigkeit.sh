@@ -226,6 +226,37 @@ if [ -n "$treffer" ]; then
   fehler=1
 fi
 
+# --- 4c. Keine Standortwerte aus konfiguration.env, keine lokal gelisteten Namen
+# Muster finden Geheimnisse und IP-Adressen, aber keine Namen. So stand der Name
+# der Welt (auch Teil der Zone) in einer Messung und in einem Kommentar, und ein
+# echter Kontoname kam mit #248 zurueck, nachdem ihn 013ee7b schon einmal
+# entfernt hatte. Geprueft werden deshalb die WERTE der eigenen
+# konfiguration.env (Zone, Ziel, Panel-Domain, Weltname) und die Woerter aus
+# .standortdaten - einer lokalen, nie eingecheckten Liste fuer Kontonamen und
+# Aehnliches. Ohne beide Dateien entfaellt die Pruefung (frischer Klon).
+# ADMIN_USER bewusst nicht: der Vorname steht als Entscheider in der Doku.
+# *Patterns catch secrets and IPs, not names: the world name sat in a
+#  measurement, and a real account name came back with #248 after being removed
+#  once. So the VALUES from the local konfiguration.env and the words from the
+#  local, never committed .standortdaten are searched for in tracked files.*
+echo "== Keine Standortwerte aus konfiguration.env und .standortdaten? =="
+woerter=$( { [ -f konfiguration.env ] && sed -nE 's/^(DNS_ZONE|DNS_ZIEL|PANEL_DOMAIN|WELT_NAME)=//p' konfiguration.env
+             [ -f .standortdaten ] && grep -vE '^[[:space:]]*(#|$)' .standortdaten; } \
+           | tr -d "\"'" | awk 'length($0) >= 4' | LC_ALL=C sort -u)
+if [ -z "$woerter" ]; then
+  echo "  entfaellt: weder konfiguration.env noch .standortdaten vorhanden"
+else
+  treffer=$(git ls-files -z | xargs -0 grep -nIiF -f <(printf '%s\n' "$woerter") -- 2>/dev/null || true)
+  if [ -n "$treffer" ]; then
+    echo "  STANDORTDATEN — ein Wert aus konfiguration.env/.standortdaten steht im Repositorium:"
+    sed 's/^/    /' <<<"$treffer"
+    echo "    Durch einen Platzhalter oder ein neutrales Beispiel ersetzen (meinserver, beispiel.de)."
+    fehler=1
+  else
+    echo "  ok: $(wc -l <<<"$woerter") Werte gesucht, keiner gefunden"
+  fi
+fi
+
 # --- 5. Jeder Platzhalter muss in der Vorlage erklaert sein ------------------
 echo "== Platzhalter in konfiguration.env.beispiel erklaert? =="
 while read -r p; do
@@ -265,6 +296,26 @@ if ! python3 werkzeuge/katalog-doku.py --pruefen 2>&1 | sed 's/^/  /'; then
   fehler=1
 fi
 
+# --- 7a. Hat jedes Katalogspiel eine Kategorie? ------------------------------
+# Die Generatoren legten 17 Spiele ohne das Feld an; katalog-kategorien.py lief
+# nur von Hand. Die Spiele fehlten danach in jedem Kategoriefilter der
+# Katalogseite, auch in "Sonstiges" - und nichts sagte es (#251).
+# *17 generated entries had no category and vanished from every filter (#251).*
+echo "== Hat jedes Katalogspiel eine Kategorie? =="
+if ! python3 werkzeuge/katalog-kategorien.py etc/spiele-katalog.json --pruefen 2>&1 | sed 's/^/  /'; then
+  fehler=1
+fi
+
+# --- 7c. Ist die Dokumentation zweisprachig? ---------------------------------
+# Die Regel stand nur als Satz in CLAUDE.md. Am 2026-09-11 fehlte der englische
+# Absatz in 83 Abschnitten, und niemand hatte es bemerkt.
+# *The rule was only a sentence in CLAUDE.md; 83 sections lacked the English
+#  paragraph on 2026-09-11 and nobody had noticed.*
+echo "== Hat jeder Doku-Abschnitt seinen englischen Absatz? =="
+if ! python3 werkzeuge/doku-englisch.py; then
+  fehler=1
+fi
+
 # --- 7b. Wird alles Ausgerollte auch verglichen? ----------------------------
 # abgleich.sh fuehrt eine Liste von Hand. Am 2026-09-10 fehlten neun Dateien
 # darin - darunter spiele-autoupdate, das jede Nacht unbeaufsichtigt laeuft, und
@@ -275,8 +326,9 @@ fi
 #
 # Geprueft wird nur EINE Richtung: Was install/ ausrollt, muss verglichen
 # werden. Umgekehrt nicht - in abgleich.sh stehen zu Recht Dateien, die andere
-# Stufen auf anderem Weg anlegen (sudoers.d/panel, die dns-ziel-, palworld- und
-# Sicherungs-Einheiten).
+# Stufen auf anderem Weg anlegen (sudoers.d/panel, die dns-ziel- und
+# Sicherungs-Einheiten). Die Palworld-Einheiten standen hier auch - als Datei,
+# die "anders" angelegt werde. Angelegt hat sie keine Stufe (#252).
 # *One direction only: what install/ deploys must be compared. Not the reverse -
 #  abgleich.sh rightly lists files other stages create by other means.*
 echo "== Wird jede ausgerollte Datei auch verglichen? =="

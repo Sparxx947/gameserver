@@ -34,20 +34,6 @@ sh:/srv/games/windrose/server/R5/Content
 sh:/srv/games/windrose/server/R5/Binaries
 sh:/srv/games/windrose/server/R5/Plugins
 sh:/srv/games/windrose/server/R5/.sentry-native
-# StarRupture: Wine-Praefix und Spielinstallation raus.
-# StarRupture: die Installation liegt unter starrupture/starrupture — dort
-# stecken aber AUCH die Spielstaende (StarRupture/Saved). Deshalb NICHT den
-# ganzen Zweig ausschliessen, sondern die dicken Brocken einzeln; Saved und
-# DSSettings.txt bleiben drin.
-sh:/srv/games/starrupture/starrupture/Engine/Binaries
-sh:/srv/games/starrupture/starrupture/Engine/Content
-sh:/srv/games/starrupture/starrupture/Engine/Plugins
-sh:/srv/games/starrupture/starrupture/StarRupture/Content
-sh:/srv/games/starrupture/starrupture/StarRupture/Binaries
-sh:/srv/games/starrupture/starrupture/StarRupture/Plugins
-sh:/srv/games/starrupture/starrupture/Licenses
-sh:/srv/games/starrupture/.wine
-sh:/srv/games/starrupture/Steam
 # Ab hier haengt spiel-verwalten Bloecke der Form
 #   # >>> panel:<spiel> ... # <<< panel:<spiel>
 # an, sobald ein Spiel aus dem Katalog installiert wird. Diese Bloecke gehoeren
