@@ -643,29 +643,38 @@ def lauf(nur=None):
                 f"Server meldet per Abfrage KEIN Beitrittspasswort, und in {ENDLOS_NACH_H} Stunden "
                 "fand sich kein Feld dafür - der Port bleibt zu. Passwort von Hand setzen "
                 "(Konfigdateien); danach gibt die Einrichtung den Port selbst frei.")
-        elif alter_h > ENDLOS_NACH_H:
+        elif alter_h > ENDLOS_NACH_H and p.get("a2s_bestaetigt"):
+            # Kein Feld, aber der Server VERLANGT ein Passwort (A2S) - dann darf
+            # der Port auf. Der alte Satz "laeuft ohne Beitrittspasswort" waere
+            # hier falsch, und zwar in die alarmierende Richtung.
+            # *No field, but the server requires a password: the port may open.*
             p["einrichtung_offen"] = False
+            p["einrichtung_stand"] = ("kein Passwortfeld gefunden, aber der Server verlangt "
+                                      "laut Abfrage (A2S) ein Passwort - Port freigegeben.")
+        elif alter_h > ENDLOS_NACH_H:
+            # E26 ENTSCHIEDEN (Jens, 2026-09-11): "Ein Server ohne Passwort darf
+            # nicht automatisch ans Netz gehen." Bis dahin gab die Einrichtung
+            # nach sechs Stunden auf, und port-ermitteln veroeffentlichte - auch
+            # wenn niemand wusste, ob ein Passwort gilt, und auch bei einem
+            # Server, der gar nicht lief (sobald er startete, stand er offen).
+            # Jetzt bleibt die Einrichtung offen und der Port zu. Findet ein
+            # spaeterer Lauf ein Passwortfeld oder bestaetigt der Server eines per
+            # A2S, geht der Port von selbst auf - der Weg bleibt der eine (Grenze 5).
+            # *E26 decided: no server goes online automatically without a
+            #  confirmed password. Setup stays open, the port stays closed; a
+            #  password found or confirmed later opens it through the one path.*
             kurz, warum = serverlage(stack)
-            if p.get("a2s_bestaetigt"):
-                # Kein Feld, aber der Server VERLANGT ein Passwort - dann ist der
-                # alte Satz "laeuft ohne Beitrittspasswort" falsch, und zwar in
-                # die alarmierende Richtung.
-                # *No field, but the server requires a password: the old sentence
-                #  would be false in the alarming direction.*
-                p["einrichtung_stand"] = ("kein Passwortfeld gefunden, aber der Server verlangt "
-                                          "laut Abfrage (A2S) ein Passwort - Port freigegeben.")
-            elif kurz in ("laeuft", "unbekannt"):
-                # Der Server LIEF und hat trotzdem kein Passwortfeld hergegeben -
-                # nur dann stimmt dieser Satz, und app.py haengt seine Warnung an
-                # den Wortlaut "KEIN Passwortfeld".
-                p["einrichtung_stand"] = ("KEIN Passwortfeld gefunden - der Server läuft ohne "
-                                          "Beitrittspasswort. Bitte von Hand setzen.")
+            if kurz in ("laeuft", "unbekannt"):
+                p["einrichtung_stand"] = (
+                    f"in {ENDLOS_NACH_H} Stunden kein Passwortfeld gefunden, und der Server "
+                    "beantwortet keine Abfrage - ob ein Passwort gilt, ist unbekannt. Der Port "
+                    "bleibt zu (E26). Passwort von Hand setzen (Konfigdateien); findet die "
+                    "Einrichtung es, gibt sie den Port frei.")
             else:
                 p["einrichtung_stand"] = (
                     f"SERVER STARTET NICHT - {warum}. In {ENDLOS_NACH_H} Stunden ist keine "
-                    "Konfigurationsdatei entstanden, weil der Server nie so weit kam. "
-                    "Es ist also kein Beitrittspasswort gesetzt - erreichbar ist der "
-                    "Server aber auch nicht.")
+                    "Konfigurationsdatei entstanden, weil der Server nie so weit kam. Der Port "
+                    "bleibt zu (E26).")
         else:
             kurz, warum = serverlage(stack)
             p["einrichtung_stand"] = ("wartet auf die Konfigurationsdatei des Servers"

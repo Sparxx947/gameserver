@@ -92,8 +92,9 @@ dokumentiert; sie aus Foren abzuschreiben hätte in den meisten Fällen still
 danebengelegen.
 **Stattdessen:** Mustersuche über `.ini`, `.json`, `.xml` und `.cfg`, mit
 negativen Ausschlüssen (nicht `rcon`, nicht `steam`, nicht `db`).
-**Und entscheidend:** Nach sechs Stunden **gibt der Schritt auf und meldet es**.
-Ein Server ohne Beitrittspasswort darf nicht unauffällig sein.
+**Und entscheidend:** Nach sechs Stunden **meldet der Schritt es sichtbar**.
+Ein Server ohne Beitrittspasswort darf nicht unauffällig sein — und seit E26
+geht er dann auch nicht ans Netz.
 
 > *Obvious: record path and field name per game. Against: 36 of 41 games write
 > their config only on first start, and the field names are not reliably
@@ -603,6 +604,14 @@ Offen bleibt die Frage nur noch für Server, die **gar nicht** antworten
 veröffentlicht, bleibt eine Verhaltensfrage. Die Abfrage probiert alle
 UDP-Ports: Valheim antwortet auf 2457, nicht auf dem Spielport.
 
+**Entschieden am 2026-09-11 (Jens, #181):** *„Ein Server ohne Passwort darf nicht
+automatisch ans Netz gehen."* Nach sechs Stunden ohne Feld und ohne
+A2S-Bestätigung bleibt die Einrichtung offen und der Port zu — auch bei einem
+Server, der gar nicht läuft (er stünde sonst offen, sobald er startet). Ein
+später gefundenes Feld oder ein A2S-„Passwort nötig" gibt ihn frei, über
+denselben einen Weg. Nachgespielt mit allen vier Lagen: nein, ja, keine Antwort,
+Server gestoppt — veröffentlicht wird nur bei „ja".
+
 > *E23 put the port at the end of setup — but only the one `port-ermitteln`
 > discovers. The install wrote catalogue ports before any password: a second
 > path, unmentioned. It could not simply be removed, because `port-ermitteln`
@@ -616,7 +625,10 @@ UDP-Ports: Valheim antwortet auf 2457, nicht auf dem Spielport.
 > since #175: before giving up, setup asks the server via A2S — "no password"
 > keeps the port closed (and a password set by hand opens it later),
 > "password required" publishes with an accurate message. Only servers that do
-> not answer at all remain the open behavioural question.*
+> not answer at all remain the open behavioural question. Decided on 2026-09-11
+> (#181): no server goes online automatically without a confirmed password —
+> setup stays open and the port closed, also for a server that is not running;
+> a password found or confirmed later releases it through the one path.*
 
 ---
 

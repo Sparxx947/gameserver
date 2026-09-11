@@ -334,15 +334,20 @@ docker inspect -f '{{.State.ExitCode}} {{.State.OOMKilled}}' <name>
 journalctl -u spiel-einrichtung -n 50 --no-pager
 ```
 
-Steht dort **„KEIN Passwortfeld gefunden"**, hat der Einrichtungsschritt sechs
-Stunden lang keine passende Konfigurationsdatei gefunden. Dann von Hand: die
-Konfigurationsdatei des Servers suchen, Feld eintragen, Container neu starten —
-und den Fund als `passwort.pfad`/`passwort.feld` in den Katalog nachtragen,
-damit es beim nächsten Mal klappt.
+Steht dort **„kein Passwortfeld gefunden … der Port bleibt zu"**, hat der
+Einrichtungsschritt sechs Stunden lang keine passende Konfigurationsdatei
+gefunden, und der Server hat kein Passwort bestätigt. Seit E26 geht er dann
+**nicht** ans Netz. Von Hand: die Konfigurationsdatei des Servers suchen, Feld
+eintragen (Konfigdateien im Panel), Container neu starten. Findet der nächste
+Lauf das Feld — oder meldet der Server per A2S „Passwort nötig" —, gibt die
+Einrichtung den Port selbst frei. Den Fund als `passwort.pfad`/`passwort.feld`
+in den Katalog nachtragen, damit es beim nächsten Mal von selbst klappt.
 
-> *If the setup step reports "no password field found" after six hours, set it by
-> hand and record the path and field name in the catalogue so the next install
-> works.*
+> *"No password field found … the port stays closed" means six hours without a
+> matching config file and no password confirmed by the server. Since E26 it
+> does not go online. Set the field by hand and restart; the next run that
+> finds it, or an A2S "password required", releases the port. Record path and
+> field in the catalogue.*
 
 ### Sicherung läuft nicht
 

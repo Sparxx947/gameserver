@@ -299,8 +299,12 @@ das Feld nicht, und niemand erfuhr davon.
 > cfg and xml know only text. A skipped field is named rather than passed over
 > in silence: silent skipping was the cause once before.*
 
-Findet er nach sechs Stunden nichts, gibt er auf und meldet sichtbar:
-**„KEIN Passwortfeld gefunden – der Server läuft ohne Beitrittspasswort."**
+Findet er nach sechs Stunden nichts, meldet er es sichtbar — veröffentlicht
+wird dann aber **nicht** (E26, entschieden am 2026-09-11: „Ein Server ohne
+Passwort darf nicht automatisch ans Netz gehen."). Der Port geht erst auf, wenn
+ein späterer Lauf ein Feld findet oder der Server per A2S „Passwort nötig"
+meldet. Bis dahin lautete die Meldung „KEIN Passwortfeld gefunden – der Server
+läuft ohne Beitrittspasswort", und der Port wurde trotzdem veröffentlicht.
 
 **Dieser Satz gilt aber nur, wenn der Server auch wirklich lief.** Vorher wurde
 er unbesehen ausgegeben, und beim ersten Aufbau auf einer frischen Maschine war
