@@ -484,6 +484,23 @@ Speicherverlauf der letzten 24 Stunden. Der Tooltip nennt Bereich und Zeitraum.
 60 kB. Dafür braucht es keinen Dienst, keinen Port und keine
 Aufbewahrungsregel, über die man streiten kann.
 
+### Nichts zu messen ist kein Fehler
+
+Läuft kein Container — frische Maschine, letztes Spiel entfernt, alles
+angehalten —, endet `platzwart-verlauf` ohne Fehler und schreibt keine Zeile
+(#191). Bis dahin endete es mit Exit 1, und seit die Wache fehlgeschlagene
+Dienste meldet (#171), schlug jede neue Maschine vor ihrem ersten Spiel Alarm.
+Antwortet Docker **nicht**, bleibt es ein Fehler: Ein Verlauf, der still
+aufhört, ist schlimmer als einer, der sich beschwert. Und entfernt wird nur,
+was es als Container nicht mehr gibt — bis #191 verlor ein **angehaltener**
+Server bei jedem Lauf seine ganze Woche, weil `docker stats` nur laufende
+Container kennt.
+
+> *Nothing running is not an error (#191): no row, exit 0 — it used to exit 1,
+> which the wache turned into a false alarm on every fresh machine. Docker not
+> answering still fails. Only containers that no longer exist are dropped; a
+> stopped server used to lose its week on every run.*
+
 ### Die Lücken sind der springende Punkt
 
 **Jeder Wert trägt seine eigene Zeit**, sie wird nicht aus einem festen Abstand

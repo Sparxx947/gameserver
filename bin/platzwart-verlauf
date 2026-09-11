@@ -56,14 +56,25 @@ def _bytes(s: str) -> float:
     return 0.0
 
 
-def messen() -> dict:
+def messen():
+    """{name: (MB, CPU%)} der LAUFENDEN Container; None, wenn Docker nicht antwortet.
+
+    Leer und None sind verschiedene Dinge (#191): Leer heisst "nichts zu
+    messen" - frische Maschine, letztes Spiel entfernt, alles angehalten. None
+    heisst, Docker hat nicht geantwortet, und DAS ist ein Fehler: ein Verlauf,
+    der still aufhoert, ist schlimmer als einer, der sich beschwert.
+    *Empty means nothing to measure; None means Docker did not answer (#191).*
+    """
     try:
-        aus = subprocess.run(
+        r = subprocess.run(
             ["docker", "stats", "--no-stream", "--format",
              "{{.Name}}\t{{.MemUsage}}\t{{.CPUPerc}}"],
-            capture_output=True, text=True, timeout=60).stdout
+            capture_output=True, text=True, timeout=60)
     except (OSError, subprocess.SubprocessError):
-        return {}
+        return None
+    if r.returncode != 0:
+        return None
+    aus = r.stdout
     werte = {}
     for z in aus.splitlines():
         teil = z.split("\t")
@@ -77,6 +88,16 @@ def messen() -> dict:
             p = 0
         werte[name] = (mb, p)
     return werte
+
+
+def vorhandene():
+    """Namen ALLER Container, auch angehaltener; None, wenn Docker nicht antwortet."""
+    try:
+        r = subprocess.run(["docker", "ps", "-a", "--format", "{{.Names}}"],
+                           capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return {z.strip() for z in r.stdout.splitlines() if z.strip()} if r.returncode == 0 else None
 
 
 def spieler_jetzt() -> dict:
@@ -137,18 +158,30 @@ def main() -> int:
         return 0
 
     jetzt = int(time.time())
-    werte, sp = messen(), spieler_jetzt()
-    if not werte:
-        print("verlauf: docker stats lieferte nichts", file=sys.stderr)
+    werte, sp, namen = messen(), spieler_jetzt(), vorhandene()
+    if werte is None or namen is None:
+        print("verlauf: Docker antwortet nicht - der Verlauf bleibt stehen", file=sys.stderr)
         return 1
+    if not werte:
+        # Nichts laeuft: kein Fehler, nur keine Zeile. Frueher Exit 1 - und seit
+        # #171 meldet die Wache fehlgeschlagene Dienste, also schlug eine
+        # frische Maschine vor dem ersten Spiel in #platzwart-stoerung Alarm.
+        # *Nothing running: no error, just no row. It used to exit 1, which the
+        #  wache (#171) turned into a false alarm on every fresh machine.*
+        print("verlauf: kein Container laeuft - nichts zu messen")
     d = laden()
     for name, (mb, cpu) in werte.items():
         reihe = d.get(name) or []
         reihe.append([jetzt, mb, cpu, sp.get(name)])
         d[name] = reihe[-MAX_WERTE:]
     # Server, die es nicht mehr gibt, verschwinden - sonst waechst die Datei mit
-    # jedem entfernten Spiel weiter und der Verlauf zeigt Geister.
-    d = {n: r for n, r in d.items() if n in werte}
+    # jedem entfernten Spiel weiter und der Verlauf zeigt Geister. Gemessen an
+    # ALLEN Containern, nicht an den laufenden: Hier stand "in werte", und
+    # docker stats kennt nur laufende - ein angehaltener Server verlor so bei
+    # jedem Lauf seine ganze Woche (#191).
+    # *Against ALL containers, not the running ones: a stopped server used to
+    #  lose its whole week on every run.*
+    d = {n: r for n, r in d.items() if n in namen}
     try:
         STAND.parent.mkdir(parents=True, exist_ok=True)
         STAND.write_text(json.dumps(d, separators=(",", ":")))
