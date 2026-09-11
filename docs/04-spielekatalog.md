@@ -171,6 +171,15 @@ verglichen. Der Name kam gar nicht an: Der Parser las nur `<HostPort>` und
 Vorlage. Die Regel steht jetzt **einmal**, in `katalog-ports.py`, und beide
 Generatoren benutzen sie. Eine Kopie war genau das, was sie verrotten ließ.
 
+**Was keine Regel sieht: Spiele, die ihren Port selbst melden** (#228). Killing
+Floor 2 meldete sich bei der Serverliste mit `<ip>:7777` — dem Port **im**
+Container; erreichbar war es nur über den Hostport 30116. Die Portprüfung kann
+das nicht wissen: Die Abbildung `30116:7777` ist für Docker völlig korrekt. Gemessen
+lässt sich es nur am laufenden Server (Log bzw. A2S). Bei solchen Spielen lauscht
+der Server deshalb schon im Container auf dem Hostport (KF2: `-Port=30116
+-QueryPort=30117` in `GAME_PARAMS`, Abbildung `30116:30116`); danach meldet er
+`<ip>:30116`. Wer dort die Ports ändert, muss beide Stellen gleich ändern.
+
 **Wo die Prüfung nichts weiß:** Der Katalog speichert keine Portnamen. Die
 Prüfung kennt die Verwaltungsports deshalb als Liste von Containerports
 (`VERWALTUNG` im Werkzeug) — sie fängt die bekannten, ein neues Spiel mit einem
