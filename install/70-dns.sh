@@ -32,20 +32,12 @@ fi
 
 chmod 600 "$KONF"
 
-log "Zeitgeber fuer den A-Eintrag einsetzen"
-for u in dns-ziel.service dns-ziel.timer; do
-  einsetzen "$REPO/systemd/$u" "/etc/systemd/system/$u"
-done
-systemctl daemon-reload
+# Einsetzen und Ein-/Ausschalten macht dns_ziel_zeitgeber() (lib.sh), dieselbe
+# Funktion wie in Stufe 25 (#195). Hier laeuft sie NACH ziel-setzen bzw. der
+# Zielpruefung weiter unten, damit der Zeitgeber erst startet, wenn der Eintrag
+# steht.
+# *Installing and switching is dns_ziel_zeitgeber(), shared with stage 25.*
 
-# Der alte Name des Werkzeugs. Entfernt wird er ERST HIER und nicht in Stufe 25
-# oder 30: bis die Einheit oben neu eingesetzt ist, ruft dns-ziel.service noch
-# /usr/local/bin/cf-dns. Wer ihn frueher wegnimmt, bricht den Zeitgeber fuer die
-# Dauer der Aktualisierung - und zwar an einer Stelle, an der niemand sucht.
-# *Removed here and not earlier: until the unit above is replaced,
-#  dns-ziel.service still calls the old path. Removing it sooner breaks the
-#  timer for the duration of the upgrade, somewhere nobody would look.*
-rm -f /usr/local/bin/cf-dns
 
 if [ "$IP_DYNAMISCH" = "ja" ]; then
   # SERVER_IPV4=dynamic: der A-Eintrag gehoert ab hier diesem Programm. Deshalb
@@ -59,14 +51,13 @@ if [ "$IP_DYNAMISCH" = "ja" ]; then
   #  overwrite foreign records or fail on the first run.*
   log "Adresse messen und A-Eintrag setzen"
   dns-pflegen ziel-setzen || fehler "A-Eintrag ${DNS_ZIEL} konnte nicht gesetzt werden"
-  systemctl enable --now dns-ziel.timer
+  dns_ziel_zeitgeber
 else
   # Feste Adresse: der Zeitgeber bleibt aus. Er liegt trotzdem auf der Maschine,
   # damit ein Wechsel auf "dynamic" nur eine Zeile in konfiguration.env ist.
   # *Fixed address: the timer stays off but is installed, so switching to
   #  "dynamic" is one line in konfiguration.env.*
-  systemctl disable --now dns-ziel.timer 2>/dev/null || true
-  log "SERVER_IPV4 ist fest (${SERVER_IPV4}) — Zeitgeber bleibt aus"
+  dns_ziel_zeitgeber
   log "Zielsatz pruefen"
   # Im festen Betrieb muss der A-Eintrag DNS_ZIEL von Hand existieren — er ist
   # der einzige Ort mit der IP-Adresse und wird deshalb bewusst NICHT
@@ -75,6 +66,15 @@ else
   #  the IP and is therefore deliberately not created automatically.*
   dns-pflegen liste | head -20 || fehler "dns-pflegen kommt nicht an die API — Token pruefen"
 fi
+
+# Der alte Name des Werkzeugs. Entfernt wird er ERST HIER und nicht in Stufe 25
+# oder 30 - und erst NACH dns_ziel_zeitgeber oben: bis die Einheit neu eingesetzt ist, ruft dns-ziel.service noch
+# /usr/local/bin/cf-dns. Wer ihn frueher wegnimmt, bricht den Zeitgeber fuer die
+# Dauer der Aktualisierung - und zwar an einer Stelle, an der niemand sucht.
+# *Removed here and not earlier: until the unit above is replaced,
+#  dns-ziel.service still calls the old path. Removing it sooner breaks the
+#  timer for the duration of the upgrade, somewhere nobody would look.*
+rm -f /usr/local/bin/cf-dns
 
 log "Vorhandene Spielserver eintragen"
 for d in /opt/stacks/*/; do

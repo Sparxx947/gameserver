@@ -70,4 +70,6 @@ dns-pflegen grundgeruest || fehler "DNS-Grundgeruest fehlgeschlagen — Token, Z
 # sein muss; alles andere darf warten, bis es Spiele gibt.
 # *The rest of the DNS work stays in stage 70. Only what must exist before the
 #  certificate belongs here.*
-log "Stufe 25 fertig. Spiel-CNAMEs und Zeitgeber: install/70-dns.sh"
+log "Zeitgeber fuer den A-Eintrag"
+dns_ziel_zeitgeber
+log "Stufe 25 fertig. Spiel-CNAMEs (optional): install/70-dns.sh"

@@ -302,3 +302,28 @@ passwort() {
   local n="${1:-14}"
   tr -dc 'A-HJ-NP-Za-km-z2-9' </dev/urandom | head -c "$n"
 }
+
+# Zeitgeber fuer den A-Eintrag DNS_ZIEL (#195): einsetzen und je nach
+# SERVER_IPV4 ein- oder ausschalten. Stand bis dahin nur in Stufe 70, und die
+# laeuft in der dokumentierten Einrichtung NICHT mit - bei SERVER_IPV4=dynamic
+# versprach konfiguration.env einen Zeitgeber, den niemand anlegte, alle Stufen
+# meldeten "fertig", und die Adresse veraltete still. Jetzt ruft Stufe 25 (laeuft
+# immer, sobald ein DNS-Token da ist) diese Funktion, Stufe 70 dieselbe.
+# *Install the DNS_ZIEL timer and switch it by SERVER_IPV4. It lived only in
+#  stage 70, which the documented install does not run - "dynamic" promised a
+#  timer nobody created. Stage 25 now calls this, stage 70 the same function.*
+dns_ziel_zeitgeber() {
+  for u in dns-ziel.service dns-ziel.timer; do
+    einsetzen "$REPO/systemd/$u" "/etc/systemd/system/$u"
+  done
+  systemctl daemon-reload
+  if [ "$IP_DYNAMISCH" = "ja" ]; then
+    systemctl enable --now dns-ziel.timer
+    log "SERVER_IPV4=dynamic - Zeitgeber fuer ${DNS_ZIEL} laeuft (alle fuenf Minuten)"
+  else
+    # Liegt trotzdem auf der Maschine: ein Wechsel auf "dynamic" ist dann eine
+    # Zeile in konfiguration.env und ein erneuter Lauf dieser Stufe.
+    systemctl disable --now dns-ziel.timer 2>/dev/null || true
+    log "SERVER_IPV4 ist fest (${SERVER_IPV4}) - Zeitgeber bleibt aus"
+  fi
+}
