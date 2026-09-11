@@ -462,12 +462,30 @@ def a2s_passwort(stack: str, p: dict):
         zeilen += re.findall(r'"?([\d.:]+/udp)"?', (STACKS / stack / "compose.yaml").read_text())
     except OSError:
         pass
-    cport = next((int(z.split("/")[0].split(":")[-1]) for z in zeilen if z.endswith("/udp")), None)
+    # ALLE UDP-Containerports, in Reihenfolge: Viele Spiele antworten auf einem
+    # eigenen Abfrageport - Valheim auf 2457, nicht auf dem Spielport 2456 (#175).
+    # *All UDP container ports: many games answer on a separate query port.*
+    cports = []
+    for z in zeilen:
+        if z.endswith("/udp"):
+            c = int(z.split("/")[0].split(":")[-1])
+            if c not in cports:
+                cports.append(c)
     ip = subprocess.run(["docker", "inspect", "-f",
                          "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", stack],
                         capture_output=True, text=True).stdout.strip()
-    if not cport or not ip:
+    if not cports or not ip:
         return None
+    for cport in cports[:6]:
+        antwort = a2s_eine(ip, cport)
+        if antwort is not None:
+            return antwort
+    return None
+
+
+def a2s_eine(ip: str, cport: int):
+    """Eine A2S_INFO-Abfrage an einen Port: True/False/None."""
+    import socket, struct
     anfrage = b"\xff\xff\xff\xffTSource Engine Query\x00"
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
@@ -475,7 +493,7 @@ def a2s_passwort(stack: str, p: dict):
             s.sendto(anfrage, (ip, cport)); d = s.recv(1400)
             if d[4] == 0x41:                       # Challenge (seit 2020)
                 s.sendto(anfrage + d[5:9], (ip, cport)); d = s.recv(1400)
-    except OSError:
+    except (OSError, IndexError):
         return None
     def hinter_zeichenketten(start, anzahl):
         pos = start
@@ -492,6 +510,20 @@ def a2s_passwort(stack: str, p: dict):
     except (ValueError, struct.error, IndexError):
         pass
     return None
+
+
+def aufgabe_a2s(stack: str, p: dict):
+    """Vor dem Aufgeben nach sechs Stunden: was meldet der Server selbst?
+
+    Merkt sich ein "ja" in p, damit der naechste Zweig die richtige Meldung
+    schreibt, ohne ein zweites Mal zu fragen.
+    """
+    kurz, _ = serverlage(stack)
+    if kurz not in ("laeuft", "unbekannt"):
+        return None
+    antwort = a2s_passwort(stack, p)
+    p["a2s_bestaetigt"] = antwort is True
+    return antwort
 
 
 def params_urteil(bestaetigt, datei_gesetzt: bool, alter_h: float):
@@ -583,10 +615,31 @@ def lauf(nur=None):
             if params_neustart and time.time() - p.get("params_neustart", 0) > 1800:
                 p["params_neustart"] = time.time()
                 neustart(stack)
+        elif alter_h > ENDLOS_NACH_H and aufgabe_a2s(stack, p) is False:
+            # Kein Feld gefunden UND der Server meldet selbst "kein Passwort": Dann
+            # wird NICHT veroeffentlicht (#175) - wer ein offenes Ergebnis gemessen
+            # hat, oeffnet nicht (E27). Die Einrichtung bleibt offen und fragt bei
+            # jedem Lauf wieder; setzt jemand das Passwort von Hand, geht der Port
+            # beim naechsten Lauf auf. Offen bleibt nur, was man NICHT messen kann.
+            # *No field AND the server itself says "no password": do not publish.
+            #  Setup stays open and asks again each run; a password set by hand
+            #  opens the port on the next run. Only the unmeasurable case stays E26.*
+            p["einrichtung_stand"] = (
+                f"Server meldet per Abfrage KEIN Beitrittspasswort, und in {ENDLOS_NACH_H} Stunden "
+                "fand sich kein Feld dafür - der Port bleibt zu. Passwort von Hand setzen "
+                "(Konfigdateien); danach gibt die Einrichtung den Port selbst frei.")
         elif alter_h > ENDLOS_NACH_H:
             p["einrichtung_offen"] = False
             kurz, warum = serverlage(stack)
-            if kurz in ("laeuft", "unbekannt"):
+            if p.get("a2s_bestaetigt"):
+                # Kein Feld, aber der Server VERLANGT ein Passwort - dann ist der
+                # alte Satz "laeuft ohne Beitrittspasswort" falsch, und zwar in
+                # die alarmierende Richtung.
+                # *No field, but the server requires a password: the old sentence
+                #  would be false in the alarming direction.*
+                p["einrichtung_stand"] = ("kein Passwortfeld gefunden, aber der Server verlangt "
+                                          "laut Abfrage (A2S) ein Passwort - Port freigegeben.")
+            elif kurz in ("laeuft", "unbekannt"):
                 # Der Server LIEF und hat trotzdem kein Passwortfeld hergegeben -
                 # nur dann stimmt dieser Satz, und app.py haengt seine Warnung an
                 # den Wortlaut "KEIN Passwortfeld".
