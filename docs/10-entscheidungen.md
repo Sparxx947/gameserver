@@ -902,3 +902,48 @@ Start leeren `Commands.dat` steht, die die Einrichtung nicht füllen kann (#223)
 > install (#221), and Unturned is joinable through Steam's relay by server code
 > without any published port while its password file starts empty (#223).*
 
+---
+
+## E31 — Relay-fähige Server: das Passwort ist die einzige Sperre
+
+Grenze 5 und E26 setzen darauf, dass ein Server ohne veröffentlichten Port nicht
+erreichbar ist. **Unturned hält das nicht ein.** Beim ersten Start meldet sein
+Log `Server Code: … join without port forwarding` — der Server meldet sich bei
+Steams Relay an und ist darüber per Code erreichbar, egal was Docker
+veröffentlicht. Gleichzeitig steht sein Beitrittspasswort in
+`Servers/Default/Server/Commands.dat` (ein Befehl je Zeile, `Password …`), und
+diese Datei legt der erste Start **leer** an. Die Einrichtung, die nur
+vorhandene Felder ersetzt, fand darin nie etwas. Gemessen am frischen Server:
+A2S `Passwort nötig: nein`, 8 Plätze (#223).
+
+**Deshalb darf der erste Start nicht ohne Passwort laufen.** Der Katalog nennt
+Datei und Befehle (`passwort.befehle`, gemessen), und `spiel-verwalten` lässt
+`spiel-einrichtung --vorab` die Datei schreiben, **bevor** der Container das
+erste Mal startet; scheitert das, startet nichts. Unturned behält die vorab
+geschriebene Datei. Fertig ist die Einrichtung trotzdem erst, wenn der laufende
+Server per A2S „Passwort nötig" meldet — wie bei `params` (E27): Die Datei
+schreiben wir selbst, ob der Server sie liest, kann nur er sagen. Liest er sie
+nicht (lief er schon vorher), folgt ein Neustart, höchstens alle 30 Minuten.
+`Commands.dat` ist als einzelner Dateiname in den Konfigdateien freigegeben,
+damit „Passwort von Hand setzen" dort überhaupt geht.
+
+**Nachgewiesen:** Unturned frisch installiert — Datei eine Sekunde vor dem
+Containerstart geschrieben, schon der erste Start meldet per A2S „Passwort
+nötig", 0/4 Plätze; die Einrichtung bestätigt nach rund vier Minuten und
+veröffentlicht mit genau einem Neustart; A2S über die öffentliche Adresse:
+„Passwort nötig", SSH als Kontrollmesspunkt offen.
+
+**Offen:** Andere Spiele können denselben Relay-Weg haben, ohne dass es auffällt —
+er zeigt sich nur im Log. Wo einer bekannt wird, gehört das Spiel auf eine
+Passwortart, bei der der Server selbst bestätigt.
+
+> *Boundary 5 and E26 assume a server without a published port is unreachable.
+> Unturned breaks that: it registers with Steam's relay and is joinable by
+> server code regardless of Docker, while its password lives in a
+> one-command-per-line Commands.dat that the first start creates empty — setup
+> never found a field (measured: no password, 8 slots). So the catalogue names
+> the file and commands, the install writes them before the first start
+> (nothing starts if that fails), and setup finishes only when the running
+> server confirms a password via A2S, as for `params`. Proven on a fresh
+> install, from outside too. Other games may have the same relay path unnoticed.*
+

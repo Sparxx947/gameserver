@@ -1262,7 +1262,10 @@ hat keine Anmeldung; die Absicherung sitzt vollständig davor.
 
 Hier werden die Konfigurationsdateien **des Spielservers** bearbeitet —
 `server.properties`, `PalWorldSettings.ini`, `enshrouded_server.json` und so
-weiter. Zwei Ansichten derselben Datei:
+weiter. Zugelassen sind Textendungen (`.ini`, `.cfg`, `.json`, `.txt` …) und
+einzelne volle Dateinamen mit fremder Endung, die Text-Konfiguration sind:
+bisher nur Unturneds `Commands.dat` mit dem Beitrittspasswort (#223) — `.dat`
+ist sonst oft binär. Zwei Ansichten derselben Datei:
 
 * **Felder** — die Datei wird zerlegt, jeder Schlüssel bekommt ein Eingabefeld.
   `true`/`false` wird zur Auswahlliste, weil das der häufigste Wert ist und der,

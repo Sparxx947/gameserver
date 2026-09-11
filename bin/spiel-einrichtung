@@ -376,6 +376,93 @@ def serverlage(stack: str):
     return "laeuft", ""
 
 
+def befehlsdatei_ziel(basis: Path, angabe: dict):
+    """Pfad der Befehlsdatei - aufgeloest und INNERHALB von basis, sonst None."""
+    rel = str(angabe.get("pfad") or "")
+    if not rel or rel.startswith("/") or "\x00" in rel:
+        return None
+    ziel = (basis / rel).resolve()
+    if basis.resolve() not in ziel.parents:
+        return None
+    return ziel
+
+
+def befehlszeilen(text: str, zeilen: dict) -> str:
+    """Zeilen "<Befehl> <Wert>" setzen: vorhandene ersetzen, fehlende anhaengen.
+    Alle anderen Zeilen bleiben. Rein, damit es sich pruefen laesst.
+    *Set "<command> <value>" lines: replace present ones, append missing ones.*"""
+    for befehl, wert in zeilen.items():
+        muster = re.compile(rf"^[ \t]*{re.escape(befehl)}(?:[ \t][^\r\n]*)?$", re.I | re.M)
+        if muster.search(text):
+            text = muster.sub(lambda m: f"{befehl} {wert}", text)
+        else:
+            if text and not text.endswith("\n"):
+                text += "\n"
+            text += f"{befehl} {wert}\n"
+    return text
+
+
+def befehlsdatei_setzen(basis: Path, angabe: dict, p: dict) -> dict:
+    """Beitrittspasswort und Spielerzahl in eine Befehlsdatei schreiben (#223).
+
+    Unturned liest beides aus Servers/Default/Server/Commands.dat, einem Befehl
+    je Zeile ("Password xyz", "MaxPlayers 4"). Der erste Start legt die Datei
+    LEER an - es gibt also kein Feld, das die Namenssuche finden koennte, und
+    die Einrichtung wartete bis zum Aufgeben. Dabei ist Unturned ueber Steams
+    Relay per "Server Code" erreichbar, OHNE veroeffentlichten Port: Das
+    Passwort ist dort die einzige Sperre, nicht der Port.
+
+    Deshalb steht die Datei samt Befehlen im Katalog (gemessen), und hier
+    werden fehlende Zeilen ANGELEGT, nicht nur vorhandene ersetzt - auch die
+    Datei selbst, wenn es sie noch nicht gibt: spiel-verwalten ruft das VOR dem
+    ersten Start auf, damit der Server nie ohne Passwort laeuft. Ob es wirkt,
+    entscheidet nicht diese Funktion, sondern der Server per A2S (lauf()).
+
+    *Unturned reads join password and player limit from Commands.dat, one
+     command per line, created EMPTY on first start - no field for the name
+     search. Reachable through Steam's relay without any published port, so the
+     password is the only gate. The catalogue names the file and commands; this
+     creates missing lines (and the file, before the first start). Whether it
+     took effect is decided by the server itself via A2S.*
+    """
+    raus = {"passwort": [], "spieler": []}
+    ziel = befehlsdatei_ziel(basis, angabe)
+    if ziel is None:
+        meldung(f"    Befehlsdatei {angabe.get('pfad')!r} liegt nicht im Datenverzeichnis - uebersprungen")
+        return raus
+    werte = {"{PASSWORT}": str(p["passwort"]), "{SPIELER}": str(p.get("spieler", 4))}
+    zeilen, art = {}, {}
+    for befehl, vorlage in (angabe.get("zeilen") or {}).items():
+        wert = werte.get(vorlage, vorlage)
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,40}", befehl) or not re.fullmatch(r"[^\r\n]{1,200}", wert):
+            meldung(f"    Befehlsdatei: Zeile {befehl!r} unzulaessig - uebersprungen")
+            continue
+        zeilen[befehl] = wert
+        art[befehl] = {"{PASSWORT}": "passwort", "{SPIELER}": "spieler"}.get(vorlage)
+    st = basis.stat()
+    # Fehlende Ordner als Eigentuemer der Daten anlegen, 0770 wie DATA_PERM der
+    # Images - root-eigene Ordner koennte der Server nicht beschreiben.
+    # *Create missing folders as the data owner - the server could not write
+    #  into root-owned ones.*
+    for d in reversed([ziel.parent, *ziel.parent.parents]):
+        if d == basis.resolve() or basis.resolve() not in d.parents:
+            continue
+        if not d.exists():
+            d.mkdir()
+            os.chown(d, st.st_uid, st.st_gid)
+            d.chmod(0o770)
+    alt = ziel.read_text(errors="replace") if ziel.is_file() else ""
+    neu = befehlszeilen(alt, zeilen)
+    if neu != alt or not ziel.exists():
+        ziel.write_text(neu)
+        os.chown(ziel, st.st_uid, st.st_gid)
+        ziel.chmod(0o660)
+    for befehl, a in art.items():
+        if a:
+            raus[a].append(f"{ziel.name}:{befehl}")
+    return raus
+
+
 def einrichten(stack: str) -> dict:
     verz = STACKS / stack
     marke = verz / "panel.json"
@@ -387,7 +474,15 @@ def einrichten(stack: str) -> dict:
         return {"fehler": "kein Datenverzeichnis"}
 
     gefunden = {"passwort": [], "admin": [], "spieler": [], "rcon": []}
+    befehle = p.get("befehlsdatei")
+    if befehle:
+        b = befehlsdatei_setzen(basis, befehle, p)
+        gefunden["passwort"] += b["passwort"]
+        gefunden["spieler"] += b["spieler"]
+    bziel = befehlsdatei_ziel(basis, befehle) if befehle else None
     for f in dateien(basis):
+        if bziel is not None and f.resolve() == bziel:
+            continue
         try:
             text = f.read_text(errors="replace")
             neu, tr = rcon_standard_ersetzen(text, p["admin_passwort"])
@@ -536,16 +631,28 @@ def spieler_im_start(stack: str, p: dict) -> bool:
     return bool(m) and int(m.group(1)) == int(p.get("spieler") or 0)
 
 
-def params_urteil(bestaetigt, datei_gesetzt: bool, alter_h: float):
-    """(fertig, stand, neustarten) fuer die Passwortart "params" - rein, ohne Seiteneffekt.
+def params_urteil(bestaetigt, datei_gesetzt: bool, alter_h: float, befehlsdatei: str = ""):
+    """(fertig, stand, neustarten) fuer die Passwortart "params" und fuer
+    Befehlsdateien (#223) - rein, ohne Seiteneffekt.
 
     Getrennt, damit sich jede Antwort pruefen laesst, ohne einen Server zu
     haben, der gerade genau so antwortet.
     *Pure, so every answer can be checked without a server answering that way.*
     """
+    lange = f" Seit über {ENDLOS_NACH_H} Stunden - der Port bleibt zu." if alter_h > ENDLOS_NACH_H else ""
+    if befehlsdatei:
+        if bestaetigt is True:
+            return True, f"in {befehlsdatei} gesetzt, vom Server bestätigt (A2S: Passwort nötig)", False
+        if bestaetigt is False:
+            # Der Server liest die Datei nur beim Start - lief er schon vorher,
+            # hilft nur ein Neustart.
+            return False, (f"in {befehlsdatei} gesetzt, der Server meldet aber noch KEIN "
+                           "Beitrittspasswort - er liest die Datei nur beim Start"
+                           + ("; Neustart" if datei_gesetzt else "") + "." + lange), datei_gesetzt
+        return False, (f"wartet auf den Server: Passwort steht in {befehlsdatei}, "
+                       "die Bestätigung per Abfrage steht aus." + lange), False
     if bestaetigt is True:
         return True, "als Startparameter gesetzt, vom Server bestätigt (A2S: Passwort nötig)", False
-    lange = f" Seit über {ENDLOS_NACH_H} Stunden - der Port bleibt zu." if alter_h > ENDLOS_NACH_H else ""
     if bestaetigt is False:
         return False, ("Server meldet KEIN Beitrittspasswort, obwohl es als Startparameter "
                        "gesetzt ist - vermutlich überschreibt eine Konfigurationsdatei den Wert"
@@ -589,11 +696,17 @@ def lauf(nur=None):
         # *"keins" games have no join password. Since #183 they go online only
         #  after a manual release on the settings page.*
         keins = p.get("passwort_art") == "keins"
+        # Befehlsdatei (#223): Die Datei schreiben wir selbst - ob der Server sie
+        # liest, weiss man erst, wenn er es sagt. Wie bei "params" entscheidet
+        # deshalb A2S, und es gibt kein Aufgeben nach sechs Stunden.
+        # *We write the command file ourselves; whether the server reads it only
+        #  the server can say - so A2S decides, as for "params".*
+        bdatei = Path((p.get("befehlsdatei") or {}).get("pfad") or "").name
         if keins:
             fertig = bool(p.get("freigabe_von_hand"))
-        elif params:
+        elif params or bdatei:
             fertig, params_stand, params_neustart = params_urteil(
-                a2s_passwort(stack, p), bool(erg["passwort"]), alter_h)
+                a2s_passwort(stack, p), bool(erg["passwort"]), alter_h, bdatei)
         else:
             fertig = per_env or bool(erg["passwort"])
 
@@ -616,7 +729,7 @@ def lauf(nur=None):
 
         if fertig:
             p["einrichtung_offen"] = False
-            stand = (params_stand if params else
+            stand = (params_stand if params or bdatei else
                      "kein Beitrittspasswort möglich - von Hand freigegeben am "
                      + time.strftime("%d.%m.%Y %H:%M", time.localtime(p["freigabe_von_hand"]))
                      if keins else "über die Umgebung gesetzt" if per_env else
@@ -630,14 +743,17 @@ def lauf(nur=None):
                 stand += (f"; Spielerzahl NICHT gesetzt (Soll {p['spieler']}) - "
                           "kein passendes Feld gefunden, bitte von Hand setzen")
             p["einrichtung_stand"] = stand
-            if erg["passwort"] or erg["spieler"] or erg["admin"] or erg.get("rcon"):
+            # Bei einer Befehlsdatei hat der Server gerade per A2S bestaetigt,
+            # dass er sie gelesen hat - ein weiterer Neustart braechte nichts.
+            # *With a command file the server just confirmed reading it.*
+            if not bdatei and (erg["passwort"] or erg["spieler"] or erg["admin"] or erg.get("rcon")):
                 neustart(stack)
         elif keins:
             p["einrichtung_stand"] = (
                 "Dieses Spiel kennt kein Beitrittspasswort - der Port bleibt zu, bis ihn "
                 "jemand auf der Einstellungsseite freigibt (Minecraft: Whitelist pruefen, "
                 "TeamSpeak: Serverpasswort im Client setzen).")
-        elif params:
+        elif params or bdatei:
             p["einrichtung_stand"] = params_stand
             # Hoechstens alle 30 Minuten: bearbeite() meldet ein Feld auch dann
             # als Treffer, wenn der Wert schon stimmt. Ohne Bremse startete ein
@@ -770,6 +886,31 @@ def freigeben(stack: str) -> int:
     return 0
 
 
+def vorab(stack: str) -> int:
+    """Befehlsdatei schreiben, BEVOR der Server das erste Mal startet (#223).
+
+    Von spiel-verwalten nach dem Anlegen und vor "docker compose up" gerufen.
+    Nur die Befehlsdatei - kein Suchlauf, kein Neustart, kein Port: Die
+    Freigabe kommt wie immer erst, wenn der laufende Server per A2S bestaetigt.
+    *Called by spiel-verwalten before the first start. Only the command file -
+     no search, no restart, no port; release still waits for A2S.*
+    """
+    if not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?", stack):
+        print("FEHLER: unzulaessiger Name", file=sys.stderr); return 1
+    try:
+        p = json.loads((STACKS / stack / "panel.json").read_text())
+    except (OSError, ValueError):
+        print("FEHLER: kein Katalogspiel", file=sys.stderr); return 1
+    if not p.get("befehlsdatei"):
+        return 0
+    basis = Path(f"/srv/games/{stack}")
+    b = befehlsdatei_setzen(basis, p["befehlsdatei"], p)
+    if not b["passwort"]:
+        print("FEHLER: Befehlsdatei ohne Passwortzeile", file=sys.stderr); return 1
+    print(f"ok\t{stack}: " + ", ".join(b["passwort"] + b["spieler"]))
+    return 0
+
+
 def sperre():
     """Ein Lauf zur Zeit - der Timer, ein Einzelaufruf, eine Freigabe (#183)."""
     f = open(os.environ.get("EINRICHTUNG_SPERRE", "/run/spiel-einrichtung.lock"), "a")
@@ -781,5 +922,7 @@ if __name__ == "__main__":
     _sperre = sperre()
     if len(sys.argv) > 2 and sys.argv[1] == "--freigeben":
         sys.exit(freigeben(sys.argv[2]))
+    if len(sys.argv) > 2 and sys.argv[1] == "--vorab":
+        sys.exit(vorab(sys.argv[2]))
     lauf(sys.argv[1] if len(sys.argv) > 1 else None)
     konfigzahlen()
