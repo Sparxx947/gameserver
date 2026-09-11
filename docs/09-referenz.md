@@ -784,7 +784,6 @@ Alle in `konfiguration.env`, alle Pflicht:
 | `ZERTIFIKAT_WEG` | `http-01` (Vorgabe) **oder** `dns-01` | Stufe 40: `/etc/caddy/zertifikat.conf`, bei `dns-01` zusätzlich ein Caddy-Bau mit DNS-Modul und ein systemd-Drop-in |
 | `SSH_ROOT_LOGIN` | `prohibit-password` (Vorgabe), `no`, `forced-commands-only`, `yes` | `sshd_config.d/99-gameserver.conf`: `PermitRootLogin`; `yes` nur zusammen mit `SSH_PASSWORT_AUTH=yes` |
 | `BORG_REPO` | `ssh://borg@…/…` **oder** `aus` | `spiele-sicherung`, `panel-aktion`, `spiel-verwalten`, `app.py`; `aus` schaltet die Sicherung ab |
-| `BORG_TAILSCALE_IP` | `100.100.100.100` | Dokumentation, Prüfungen (bei `BORG_REPO=aus` ebenfalls `aus`) |
 | `FREMD_IPV4` | `198.51.100.10` | Kommentar in `dns-pflegen` (Wildcard-Ziel) |
 
 Bleibt beim Einbau ein `@@PLATZHALTER@@` stehen, bricht die Einrichtung ab.

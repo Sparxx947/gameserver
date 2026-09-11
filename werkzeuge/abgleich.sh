@@ -26,7 +26,7 @@ ssh -o ConnectTimeout=10 -o BatchMode=yes "$ZIEL" true 2>/dev/null \
   || { echo "Nicht erreichbar: $ZIEL"; exit 2; }
 
 VARIABLEN=(DNS_ZONE DNS_ZIEL PANEL_DOMAIN SERVER_IPV4 WELT_NAME ADMIN_USER
-           ADMIN_NETZ ADMIN_IP BORG_REPO BORG_TAILSCALE_IP FREMD_IPV4
+           ADMIN_NETZ ADMIN_IP BORG_REPO FREMD_IPV4
            SSH_PASSWORT_AUTH SSH_ROOT_LOGIN ZERTIFIKAT_WEG)
 
 # Jeder Wert muss in konfiguration.env stehen. Fehlt einer, bricht ${!v} unter
