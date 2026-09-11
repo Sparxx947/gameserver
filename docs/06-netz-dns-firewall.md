@@ -155,10 +155,11 @@ Anywhere on tailscale0   ALLOW IN  Anywhere          # Notzugang und Sicherungen
 443/tcp                  ALLOW IN  Anywhere          # Panel
 ```
 
-**Port 80 muss offen bleiben**, auch wenn dort nichts Nützliches steht: Caddy
-erneuert das Zertifikat über HTTP-01, und Let's Encrypt ruft dafür
+**Port 80 muss offen bleiben** — bei `ZERTIFIKAT_WEG=http-01`, und das ist die
+Vorgabe. Caddy erneuert das Zertifikat über HTTP-01, und Let's Encrypt ruft dafür
 `http://<name>/.well-known/…` auf. Zu ist Port 80 nur so lange unauffällig, bis
-das Zertifikat in 60 Tagen abläuft.
+das Zertifikat in 60 Tagen abläuft. Wer Port 80 nicht bekommt, nimmt `dns-01`
+(siehe unten) — dann wird gar kein eingehender Port gebraucht.
 
 **SSH nur aus einem Netz** setzt eine feste Adresse zuhause voraus. Wer keine
 hat, öffnet 22 für alle — der Schutz liegt dann allein bei der Anmeldung selbst
@@ -172,6 +173,80 @@ Rückfallebene bleibt in beiden Fällen das Tailnet.
 > static address at home; without one, open 22 and rely on the login itself plus
 > fail2ban — how strong that login is depends on `SSH_PASSWORT_AUTH`, key-only
 > at its default. Either way Tailscale remains the fallback.*
+
+---
+
+## Das Zertifikat: `http-01` oder `dns-01`
+
+`ZERTIFIKAT_WEG` in `konfiguration.env` entscheidet, wie Caddy an das Zertifikat
+für `PANEL_DOMAIN` kommt. Der Wert ist der Name der ACME-Prüfung — dasselbe Wort,
+das im Caddy-Protokoll und bei Let's Encrypt steht (E29).
+
+| | `http-01` (Vorgabe) | `dns-01` |
+|---|---|---|
+| Wer ruft wen | Let's Encrypt ruft die Maschine auf Port 80 | Caddy ruft die DNS-API |
+| Eingehender Port | 80 muss ankommen | **keiner**, auch nicht 443 |
+| Voraussetzung | Portweiterleitung auf diese Maschine | Token in `/etc/dns-gameserver.conf` |
+| Caddy | aus dem Paket | eigener Bau mit dem DNS-Modul |
+
+**Wann `http-01` nicht geht.** Eine Portweiterleitung zeigt immer auf genau
+**einen** Rechner — steht dort schon etwas anderes (ein zweiter Caddy, ein NAS,
+die Oberfläche des Routers selbst), bekommt diese Maschine Port 80 nicht, und
+keine Einstellung auf ihr ändert das. Hinter CGNAT oder DS-Lite gibt es gar keine
+öffentliche IPv4, die man weiterleiten könnte. Gemessen auf einer solchen
+Maschine: HTTP-01 **und** der automatische Zweitversuch TLS-ALPN-01 auf Port 443
+liefen beide in `Timeout during connect`, während dieselbe Maschine lokal
+ordentlich mit `HTTP 308` antwortete. Caddy war nie das Problem; die Anfrage kam
+nie an.
+
+**Was `dns-01` braucht — und was es bewusst nicht tut.** Es benutzt denselben
+Token, den `dns-pflegen` ohnehin hat: `/etc/dns-gameserver.conf`, `0600 root`.
+Die systemd-Einheit liest **genau diese Datei** als `EnvironmentFile`; es gibt
+kein zweites Exemplar des Geheimnisses, denn zwei Orte für einen Wert laufen
+auseinander, und dann entscheidet ein Vorrang darüber, welches gilt.
+
+**Der Token darf dabei nicht ins Protokoll geraten.** Debians `caddy.service`
+startet mit `caddy run --environ`, und dieser Schalter schreibt die **gesamte**
+Umgebung ins Journal — nachgemessen mit einem Testwert, der danach im Klartext in
+`journalctl -u` stand. Das Drop-in entfernt ihn deshalb; ohne das hätte das
+`EnvironmentFile` den Token aus einer 0600-Datei in ein Protokoll befördert.
+
+**Nur geprüfte Anbieter.** `dns-01` ist bisher gegen Cloudflare gelaufen, und nur
+`ANBIETER=cloudflare` wird angenommen. Es gibt `caddy-dns`-Module für viele
+Anbieter, aber ein Modul, das nie gegen die echte Zone lief, sieht aus als liefe
+es — dieselbe Regel wie für `dns-pflegen` selbst (#60, #66). Ein anderer Anbieter
+bricht die Einrichtung ab, statt zu raten.
+
+**Warum ein eigener Caddy und was das kostet.** Der Caddy aus dem Paket bringt
+keine DNS-Module mit und weist `acme_dns cloudflare` ab. Stufe 40 baut deshalb
+mit `xcaddy` einen Caddy mit `caddy-dns/cloudflare` — auf **dieselbe Version**,
+die das Paket hat, und nach `/usr/local/bin/caddy`. Das Paket bleibt liegen und
+wird weiter aktualisiert; würde der Bau `/usr/bin/caddy` überschreiben, setzte
+`unattended-upgrades` ihn beim nächsten Caddy-Update wortlos zurück — auf einen
+Caddy, der sein eigenes Zertifikat nicht mehr erneuern kann. Aufgefallen wäre das
+60 Tage später. Der erste Bau braucht Go auf der Maschine und einige Minuten.
+
+**Was der Abgleich prüft.** `zertifikat.conf` und das Drop-in werden erzeugt und
+nicht eingesetzt, byteweise vergleichen lässt sich also nichts. `abgleich.sh`
+prüft stattdessen dreierlei: dass `zertifikat.conf` den erwarteten
+`acme_dns`-Eintrag trägt, dass der Dienst wirklich aus `/usr/local/bin/caddy`
+läuft, und dass `--environ` nicht zurückgekommen ist.
+
+> *`ZERTIFIKAT_WEG` picks the ACME challenge, using the same word as the log and
+> the CA. `http-01` needs port 80 to arrive here — a forward points at exactly
+> one host, and behind CGNAT there is nothing to forward; measured on such a
+> machine, both HTTP-01 and the automatic TLS-ALPN-01 fallback timed out while
+> the machine answered correctly on its own port 80. `dns-01` needs no inbound
+> port at all. It uses the same 0600 token file `dns-pflegen` uses, read by the
+> unit as an `EnvironmentFile`, so the secret exists once. Debian's unit starts
+> Caddy with `--environ`, which writes the whole environment to the journal
+> (measured), so the drop-in removes it. Only Cloudflare is accepted, because a
+> provider module that never talked to the real zone looks like it works. The
+> packaged Caddy has no DNS modules, so stage 40 builds one with xcaddy at the
+> package's version into `/usr/local/bin` — overwriting the packaged binary
+> would let unattended-upgrades silently restore a Caddy that cannot renew, and
+> that surfaces 60 days later. Both generated files are checked by `abgleich.sh`
+> against the configured value rather than byte-for-byte.*
 
 ---
 

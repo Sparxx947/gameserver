@@ -20,7 +20,7 @@ set -a; . "$KONF"; set +a
 # Alle Variablen, die in Platzhaltern vorkommen duerfen.
 VARIABLEN=(DNS_ZONE DNS_ZIEL PANEL_DOMAIN SERVER_IPV4 WELT_NAME ADMIN_USER
            ADMIN_NETZ ADMIN_IP BORG_REPO BORG_TAILSCALE_IP FREMD_IPV4
-           SSH_PASSWORT_AUTH SSH_ROOT_LOGIN)
+           SSH_PASSWORT_AUTH SSH_ROOT_LOGIN ZERTIFIKAT_WEG)
 
 for v in "${VARIABLEN[@]}"; do
   [ -n "${!v}" ] || fehler "konfiguration.env: \$$v ist leer"
@@ -190,6 +190,38 @@ version_markieren() {
 #  loudly: the old file is moved aside and both paths are logged.*
 DNS_KONF=/etc/dns-gameserver.conf
 DNS_KONF_ALT=/etc/cloudflare-gameserver.conf
+
+# --- Zertifikat --------------------------------------------------------------
+# ZERTIFIKAT_WEG traegt den Namen der ACME-Pruefung, die Caddy benutzt - also
+# das Wort, das auch im Caddy-Protokoll und bei Let's Encrypt steht. Eine eigene
+# Sprache ("port"/"dns") waere eine Uebersetzung mehr zwischen Meldung und
+# Konfiguration, und beim Suchen eines Fehlers sucht man nach dem Wort aus dem
+# Protokoll.
+#
+#   http-01   Let's Encrypt ruft die Maschine auf Port 80 auf. Vorgabe.
+#   dns-01    Caddy legt einen TXT-Eintrag in der Zone an. Braucht KEINEN
+#             eingehenden Port, aber einen Caddy mit dem passenden
+#             DNS-Modul und den Token aus /etc/dns-gameserver.conf.
+#
+# *Carries the ACME challenge name, so the configuration uses the same word as
+#  the log and the CA. dns-01 needs no inbound port but needs a Caddy with the
+#  provider module compiled in.*
+case "$ZERTIFIKAT_WEG" in
+  http-01|dns-01) ;;
+  *) fehler "konfiguration.env: ZERTIFIKAT_WEG=\"$ZERTIFIKAT_WEG\" ist weder" \
+            "\"http-01\" noch \"dns-01\"." ;;
+esac
+# dns-01 ohne DNS-Zugang ist kein halber Zustand, sondern ein Panel ohne
+# Zertifikat - und das faellt erst auf, wenn niemand mehr hinsieht. Deshalb hier
+# und nicht erst in Stufe 40: die Einrichtung soll anhalten, bevor sie Caddy
+# umbaut.
+# *dns-01 without DNS access is not a partial state but a panel without a
+#  certificate; stop before rebuilding Caddy rather than after.*
+if [ "$ZERTIFIKAT_WEG" = "dns-01" ] && [ ! -s "$DNS_KONF" ]; then
+  fehler "ZERTIFIKAT_WEG=dns-01 braucht $DNS_KONF (ANBIETER= und TOKEN=)." \
+         "Ohne DNS-Zugang kann Caddy den TXT-Eintrag nicht setzen."
+fi
+
 
 dns_konf_uebernehmen() {
   [ -s "$DNS_KONF_ALT" ] || return 0

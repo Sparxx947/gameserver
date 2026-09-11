@@ -645,6 +645,9 @@ schon einmal dazu geführt, dass Aufrufe still fehlschlugen.
 | `/etc/caddy/Caddyfile` | `0644 root` | HTTPS, Vorschaltung, Kopfzeilen |
 | `/etc/fail2ban/jail.local` | `0644 root` | sshd-Jail, Ausnahmen |
 | `/etc/ssh/sshd_config.d/99-gameserver.conf` | `0644 root` | SSH-Härtung aus `SSH_PASSWORT_AUTH` und `SSH_ROOT_LOGIN` |
+| `/etc/caddy/zertifikat.conf` | `0644 root` | **erzeugt**: leer bei `http-01`, `acme_dns …` bei `dns-01` |
+| `/etc/systemd/system/caddy.service.d/dns01.conf` | `0644 root` | **erzeugt**, nur bei `dns-01`: eigener Caddy, `EnvironmentFile`, **kein** `--environ` |
+| `/usr/local/bin/caddy` | `0755 root` | nur bei `dns-01`: Bau mit `caddy-dns`-Modul; das Paket unter `/usr/bin/caddy` bleibt liegen |
 | `/etc/sudoers.d/panel` | `0440 root` | die eine Rechteerweiterung |
 | `/etc/dns-gameserver.conf` | `0600 root` | `ANBIETER=…`, `TOKEN=…` |
 | `/etc/cloudflare-gameserver.conf` | `0600 root` | älterer Ort, wird noch gelesen |
@@ -720,6 +723,7 @@ Alle in `konfiguration.env`, alle Pflicht:
 | `ADMIN_NETZ` | `203.0.113.0/30` | `fail2ban` |
 | `ADMIN_IP` | `203.0.113.1` | `ufw`-Regel auf Port 22 |
 | `SSH_PASSWORT_AUTH` | `no` (Vorgabe) **oder** `yes` | `sshd_config.d/99-gameserver.conf`: `PasswordAuthentication` **und** `KbdInteractiveAuthentication` |
+| `ZERTIFIKAT_WEG` | `http-01` (Vorgabe) **oder** `dns-01` | Stufe 40: `/etc/caddy/zertifikat.conf`, bei `dns-01` zusätzlich ein Caddy-Bau mit DNS-Modul und ein systemd-Drop-in |
 | `SSH_ROOT_LOGIN` | `prohibit-password` (Vorgabe), `no`, `forced-commands-only`, `yes` | `sshd_config.d/99-gameserver.conf`: `PermitRootLogin`; `yes` nur zusammen mit `SSH_PASSWORT_AUTH=yes` |
 | `BORG_REPO` | `ssh://borg@…/…` **oder** `aus` | `spiele-sicherung`, `panel-aktion`, `spiel-verwalten`, `app.py`; `aus` schaltet die Sicherung ab |
 | `BORG_TAILSCALE_IP` | `100.100.100.100` | Dokumentation, Prüfungen (bei `BORG_REPO=aus` ebenfalls `aus`) |

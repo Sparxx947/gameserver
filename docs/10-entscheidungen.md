@@ -779,3 +779,82 @@ zwar sichtbar.
 > previously only the reload was skipped and the rejected file waited for the
 > next restart. None of this touches the five boundaries in `CLAUDE.md`: none of
 > them speaks about SSH.*
+
+---
+
+## E29 — Das Zertifikat kann auch ohne eingehenden Port kommen
+
+**Naheliegend:** Bei HTTP-01 bleiben. Port 80 aufmachen ist eine Zeile in der
+Firewall, und die Regel stand seit dem ersten Tag so in der Dokumentation.
+
+**Dagegen:** Die Zeile hilft nur, wenn Port 80 überhaupt bis zur Maschine kommt.
+Eine Portweiterleitung zeigt auf genau **einen** Rechner — steht dort schon ein
+anderer Dienst, bekommt diese Maschine Port 80 nie. Hinter CGNAT oder DS-Lite
+gibt es gar keine öffentliche IPv4, die man weiterleiten könnte. Gemessen auf
+einer solchen Maschine: HTTP-01 und der automatische Zweitversuch TLS-ALPN-01 auf
+Port 443 liefen beide in `Timeout during connect`, während dieselbe Maschine
+lokal mit `HTTP 308` antwortete. Der Ausfall ist dabei nicht teilweise, sondern
+vollständig — kein Zertifikat heißt kein Panel und kein Webterminal.
+
+**Stattdessen:** `ZERTIFIKAT_WEG` mit `http-01` (Vorgabe, wie bisher) und
+`dns-01`. Der Wert ist der **Name der ACME-Prüfung**, kein eigenes Wort: Wer
+einen Fehler sucht, sucht nach dem Ausdruck aus dem Protokoll, und eine
+Übersetzung mehr zwischen Meldung und Konfiguration kostet genau dort Zeit
+(derselbe Gedanke wie bei den sshd-Werten in E28).
+
+**Der Token wird nicht kopiert.** `dns-01` braucht Schreibrecht auf die Zone —
+also genau das, was in `/etc/dns-gameserver.conf` bereits liegt, weil
+`dns-pflegen` es braucht. Die systemd-Einheit liest **dieselbe** Datei als
+`EnvironmentFile`. Ein zweites Exemplar wäre der Anfang der Frage „welches gilt
+denn nun?", und die Antwort darauf will man nicht im Störungsfall suchen.
+
+**`--environ` musste weg, und das ist der Teil, der beinahe schiefgegangen
+wäre.** Debians `caddy.service` startet mit `caddy run --environ`. Dieser
+Schalter schreibt die **gesamte** Umgebung ins Journal; nachgemessen mit einem
+Testwert, der danach im Klartext in `journalctl -u` stand. Zusammen mit dem
+`EnvironmentFile` hätte das den DNS-Token aus einer Datei mit `0600` in ein
+Protokoll befördert, das deutlich mehr Leute lesen dürfen. Das Drop-in setzt
+`ExecStart` deshalb neu — ohne den Schalter.
+
+**Nur Cloudflare.** Es gibt `caddy-dns`-Module für viele Anbieter, und alle sind
+eine Zeile im Bau. Ausgeliefert wird trotzdem nur, was gegen eine echte Zone
+gelaufen ist — dieselbe Regel, die #60 und #66 offen hält. Ein anderer
+`ANBIETER` bricht die Einrichtung ab, statt zu raten.
+
+**Der eigene Caddy liegt neben dem Paket, nicht darüber.** Der Bau landet unter
+`/usr/local/bin/caddy`; `/usr/bin/caddy` bleibt dem Paket. Andersherum wäre
+bequemer und genau einmal richtig: `unattended-upgrades` läuft scharf, und das
+nächste Caddy-Update hätte die gebaute Datei wortlos ersetzt — durch einen Caddy
+ohne DNS-Modul, der sein eigenes Zertifikat nicht mehr erneuern kann. Bemerkt
+hätte man das 60 Tage später, beim Ablauf. Der Preis dafür ist, dass zwei
+Fassungen auf der Maschine liegen; deshalb baut Stufe 40 ausdrücklich auf die
+Version des Pakets, und `abgleich.sh` prüft, welche davon der Dienst fährt.
+
+**Zwei erzeugte Dateien statt einer Verzweigung in der Vorlage.** Die Caddyfile
+ist eine Vorlage mit Platzhaltern und kennt kein „wenn". Sie importiert deshalb
+unbedingt `/etc/caddy/zertifikat.conf`, und Stufe 40 schreibt dort entweder
+nichts (`http-01`) oder die `acme_dns`-Zeile. Dass ein **fehlender** Import
+`caddy validate` abbrechen lässt, ist dabei erwünscht: Ein stiller Rückfall auf
+`http-01` wäre die schlechteste aller Varianten, weil er erst auffiele, wenn die
+Erneuerung scheitert.
+
+> *Obvious: stay with HTTP-01 and open port 80. Against: that only helps if port
+> 80 reaches the machine at all — a forward points at exactly one host, and
+> behind CGNAT there is nothing to forward. Measured on such a machine, HTTP-01
+> and the automatic TLS-ALPN-01 fallback both timed out while the machine
+> answered correctly on its own port 80, and the outage is total: no certificate,
+> no panel, no terminal. Instead: `ZERTIFIKAT_WEG`, carrying the ACME challenge
+> name rather than a word of our own, for the same reason as the sshd values in
+> E28. The token is not copied — the unit reads the same 0600 file `dns-pflegen`
+> uses, because two places for one secret start the question of which one wins.
+> `--environ` had to go: Debian's unit passes it, it writes the entire
+> environment to the journal (measured), and together with the EnvironmentFile it
+> would have carried the token out of a 0600 file into a log. Only Cloudflare is
+> shipped, because a provider module that never ran against a real zone looks
+> like it works — the rule that keeps #60 and #66 open. The built binary sits
+> beside the package rather than over it: overwriting it would let
+> unattended-upgrades silently restore a Caddy that cannot renew, surfacing 60
+> days later. And the Caddyfile, being a placeholder template with no
+> conditionals, imports a generated file unconditionally — a missing import
+> aborting validation is wanted, because a silent fallback to http-01 is the
+> worst outcome of all.*
