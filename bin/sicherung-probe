@@ -138,8 +138,25 @@ def ausschluesse() -> list:
         z = z.strip()
         if not z or z.startswith("#"):
             continue
-        raus.append((z.split(":", 1)[1] if z.startswith("sh:") else z).rstrip("*").rstrip("/"))
+        raus.append((z.split(":", 1)[1] if z.startswith("sh:") else z).rstrip("/"))
     return [r for r in raus if r]
+
+
+def unter_muster(pfad, muster: str) -> bool:
+    """Faellt pfad unter ein Ausschlussmuster im sh:-Stil von Borg? Rein.
+
+    Wie Borg: "*" passt innerhalb EINES Pfadteils (kein "/"), und ein Treffer
+    auf einem Elternordner schliesst alles darunter aus. Vorher stand hier ein
+    startswith() - ein Muster mit Platzhalter (sh:/srv/games/*/server/*.dat)
+    passte damit nie (#231). Dieselbe Regel steht in sicherung-probe und
+    mod-verwalten und in panel-aktion (verschonen) - aendern nur gemeinsam.
+    *Like borg: "*" matches within one path segment, and a match on an ancestor
+     excludes the whole subtree. Same rule in sicherung-probe, mod-verwalten and
+     panel-aktion - change them together.*
+    """
+    import fnmatch
+    teile, mt = Path(str(pfad)).parts, Path(muster.rstrip("/")).parts
+    return 0 < len(mt) <= len(teile) and all(fnmatch.fnmatchcase(a, b) for a, b in zip(teile, mt))
 
 
 def vermessen(wurzel: Path, ohne: list | None = None) -> dict:
@@ -148,7 +165,7 @@ def vermessen(wurzel: Path, ohne: list | None = None) -> dict:
     n, groesse, juengst = 0, 0, 0.0
     ohne = ohne or []
     for p in wurzel.rglob("*"):
-        if ohne and any(str(p).startswith(o) for o in ohne):
+        if ohne and any(unter_muster(p, o) for o in ohne):
             continue
         if p.is_file() and not p.is_symlink():
             st = p.stat()
@@ -279,6 +296,19 @@ def main() -> int:
             ist = len(urteil(arch, live, jetzt))
             ok = (ist > 0) == (soll > 0)
             print(f"  {'ok     ' if ok else 'FEHLER '} {titel}")
+            schlecht += 0 if ok else 1
+        muster_faelle = [
+            ("/srv/games/enshrouded/server/enshrouded_server_000.dat", "/srv/games/*/server/*.dat", True),
+            ("/srv/games/enshrouded/server/sub/x.dat", "/srv/games/*/server/*.dat", False),
+            ("/srv/games/windrose/server/R5/Content/a.pak", "/srv/games/windrose/server/R5/Content", True),
+            ("/srv/games/windrose/server/R5/Saved/w.sav", "/srv/games/windrose/server/R5/Content", False),
+            ("/srv/games/windrose/server/R5/ContentX", "/srv/games/windrose/server/R5/Content", False),
+            ("/srv/games/palworld/steamclient.so", "/srv/games/palworld/steamclient*", True),
+            ("/srv/games/valheim", "/srv/games/*/steamcmd", False),
+        ]
+        for p, m, soll in muster_faelle:
+            ok = unter_muster(p, m) == soll
+            print(f"  {'ok      ' if ok else 'FEHLER  '} unter_muster({p.split('/srv/games/')[1]!r}, {m!r}) = {not soll if not ok else soll}")
             schlecht += 0 if ok else 1
         return 1 if schlecht else 0
 

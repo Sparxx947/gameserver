@@ -176,6 +176,30 @@ nur Namen dieser Form, und nur solche, die mit dem angefragten Stack beginnen.
 bestätigen. Der Server wird angehalten, das Archiv ausgepackt, der Server wieder
 gestartet — sofern er vorher lief.
 
+**Ausgeschlossene Pfade überleben das Zurückspielen.** Die Spielinstallation
+steht bewusst nicht im Archiv; das Datenverzeichnis wird vor dem Kopieren aber
+geleert. `panel-aktion` legt deshalb vorher jeden Pfad aus
+`/etc/borg-ausschluss.txt` weg, der unter dem Datenverzeichnis liegt, und
+danach **an denselben relativen Ort** zurück. Die erste Fassung verschob jede
+Zeile wörtlich und legte sie mit `basename` zurück (#231): Zeilen mit
+Platzhalter (`sh:/srv/games/*/server/*.dat`) fanden nichts — Enshrouded hätte
+32 Spieldateien zu je rund 250 MB verloren, Palworld `steamclient.so` —, und
+verschachtelte Pfade kamen ganz oben an (Windroses `server/R5/Content` als
+`windrose/Content`). Jetzt werden Platzhalter wie in Borgs `sh:`-Stil
+aufgelöst (`*` innerhalb eines Pfadteils), nichts unterhalb eines schon
+gewählten Pfades doppelt, und scheitert das Weglegen, wird nichts gelöscht.
+Geprüft an einem Nachbau der Lagen von Windrose, Enshrouded und Valheim: jede
+Datei am alten Ort, der Spielstand aus dem Archiv. Dieselbe Musterregel gilt
+jetzt in der Sicherungsprobe und in `mod-verwalten` (beide verglichen vorher
+mit `startswith`, ein `*` passte nie).
+
+> *Excluded paths survive the restore: moved away before the data dir is
+> emptied and put back at the same relative place. The first version moved
+> each line literally and restored by basename (#231) — glob lines matched
+> nothing (Enshrouded would have lost 32 data files), nested paths came back
+> at the top. Globs are now expanded like borg's sh: style; the same rule is
+> used by the backup probe and mod-verwalten.*
+
 ### Von Hand
 
 ```bash
@@ -513,6 +537,12 @@ Verzeichnis auf der Platte ein Mehrfaches — die Spielinstallation ist
 ausgeschlossen, weil sie sich neu herunterladen lässt. Jedes gesunde Archiv sähe
 dann aus, als halte es nur einen Bruchteil. Gelesen wird die echte
 `/etc/borg-ausschluss.txt`.
+
+Bis #231 verglich die Probe mit `startswith` — Zeilen mit Platzhalter wirkten
+nie. Für Enshrouded meldete sie deshalb „Das Archiv hält nur 0 %" (70,8 MB im
+Archiv gegen 9 GB live, davon fast alles Installation) — ein Fehlalarm, der
+den Befund dort wertlos machte. Mit Borgs Musterregel: 33 Dateien und 70,8 MB
+auf beiden Seiten.
 
 ### Die Probe wartet auf die Sicherung
 

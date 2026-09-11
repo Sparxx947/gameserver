@@ -87,10 +87,26 @@ def in_der_sicherung(pfad: Path) -> bool:
         if not z or z.startswith("#"):
             continue
         muster = z.split(":", 1)[1] if z.startswith("sh:") else z
-        muster = muster.rstrip("*").rstrip("/")
-        if muster and str(pfad).startswith(muster):
+        if unter_muster(pfad, muster):
             return False
     return True
+
+
+def unter_muster(pfad, muster: str) -> bool:
+    """Faellt pfad unter ein Ausschlussmuster im sh:-Stil von Borg? Rein.
+
+    Wie Borg: "*" passt innerhalb EINES Pfadteils (kein "/"), und ein Treffer
+    auf einem Elternordner schliesst alles darunter aus. Vorher stand hier ein
+    startswith() - ein Muster mit Platzhalter (sh:/srv/games/*/server/*.dat)
+    passte damit nie (#231). Dieselbe Regel steht in sicherung-probe und
+    mod-verwalten und in panel-aktion (verschonen) - aendern nur gemeinsam.
+    *Like borg: "*" matches within one path segment, and a match on an ancestor
+     excludes the whole subtree. Same rule in sicherung-probe, mod-verwalten and
+     panel-aktion - change them together.*
+    """
+    import fnmatch
+    teile, mt = Path(str(pfad)).parts, Path(muster.rstrip("/")).parts
+    return 0 < len(mt) <= len(teile) and all(fnmatch.fnmatchcase(a, b) for a, b in zip(teile, mt))
 
 
 def eigentuemer(pfad: Path) -> tuple:
@@ -278,6 +294,15 @@ def main() -> int:
         else:
             print(f"  FEHLER  {erlaubt} statt 3 Eintraege kommen durch")
             schlecht += 1
+        # Ausschlussmuster wie Borg (#231) - vorher passte ein "*" nie, und ein
+        # ausgeschlossener Mod galt als gesichert.
+        for p, m, soll in [("/srv/games/e/server/mod.dat", "/srv/games/*/server/*.dat", True),
+                           ("/srv/games/e/server/mods/mod.dat", "/srv/games/*/server/*.dat", False),
+                           ("/srv/games/w/server/R5/Content/x.pak", "/srv/games/w/server/R5/Content", True),
+                           ("/srv/games/w/server/R5/Saved/x", "/srv/games/w/server/R5/Content", False)]:
+            ok = unter_muster(p, m) == soll
+            print(f"  {'ok      ' if ok else 'FEHLER  '} Ausschluss {m!r} trifft {p!r}: {unter_muster(p, m)}")
+            schlecht += 0 if ok else 1
         return 1 if schlecht else 0
 
     if len(a) < 2:
