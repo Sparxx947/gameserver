@@ -86,12 +86,37 @@ handgearbeitet**, weil die Bilder ihre Verzeichnisse unterschiedlich anordnen:
 | StarRupture | Installation und `StarRupture/Saved` teilen sich denselben Zweig |
 | Palworld | Installation raus, aber `Pal/Saved` und `backups/` bleiben |
 | Satisfactory | `gamefiles` und `logs` raus, `saved` und `backups` bleiben |
+| Valheim (ich777) | Die Bilder von ich777 installieren das Spiel **direkt** nach `serverfiles/`, der Spielstand liegt darunter in `serverfiles/.config/unity3d/IronGate/Valheim/` — raus sind deshalb die gemessenen Brocken `valheim_server_Data` (1,9 GB), `linux64`, `docker`, `*.so` |
+
+**Katalogspiele** bekommen ihren Block aus dem Feld `ausschluss` des Katalogs.
+Bis #221 stand dort für alle ich777-Spiele nur `steamcmd` und
+`serverfiles/steamapps` — dort liegen bei diesen Bildern aber nur Manifeste
+(Valheim: 16 KB); die Installation selbst war in jedem Archiv. Wo die
+Spielstände liegen, ist je Spiel verschieden und muss gemessen werden. Deshalb
+gilt: **Ohne Messung bleibt alles drin** — lieber zu viel sichern als einen
+Spielstand verfehlen. Gemessen und eingetragen ist bisher Valheim.
+
+Der Block entsteht bei der Installation. Damit eine spätere Katalogänderung
+auch bestehende Server erreicht, gleicht `spiel-verwalten ausschluesse` alle
+installierten Katalogspiele an — Stufe 30 und `ausrollen.sh` rufen es auf,
+sobald der Katalog neu eingesetzt wird. Ändert sich ein Block, wird die
+gemerkte Archivgröße dieses Stacks verworfen: Die Einbruchprüfung vergleicht nur
+Gleiches mit Gleichem, und ein Archiv, das jetzt absichtlich 2 GB weniger hält,
+ist kein Einbruch. Dass verschachtelte und Platzhalter-Ausschlüsse eine
+Wiederherstellung überleben, sichert seit #231 `panel-aktion` zu.
 
 > *Saves, server config and compose files are backed up; the game installation is
 > not — SteamCMD refetches it, and Enshrouded alone is 8.9 GB of never-changing
 > data. The exclusion list is hand-written per game because the images lay out
 > their directories differently: for several of them the installation and the
-> save data share a branch, so a blanket exclusion would drop the saves.*
+> save data share a branch, so a blanket exclusion would drop the saves.
+> ich777 images install straight into `serverfiles/`, so their catalogue
+> exclusions (`steamcmd`, `serverfiles/steamapps`) left the install in every
+> archive (#221). Save paths must be measured per game; without a measurement
+> everything stays in. Valheim is measured. `spiel-verwalten ausschluesse`
+> brings catalogue changes to installed servers (stage 30 and `ausrollen.sh`
+> call it) and forgets the remembered archive size of a changed stack, so an
+> intended shrink is not reported as a collapse.*
 
 Katalog-Installationen ergänzen ihren eigenen Block automatisch:
 

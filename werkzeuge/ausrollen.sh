@@ -161,6 +161,15 @@ for datei in "$@"; do
     || { echo "FEHLGESCHLAGEN: $datei - vorige Fassung bleibt bzw. ist zurueck"; fehler=1; }
 done
 
+# Ein neuer Katalog muss auch die Sicherungsausschluesse der schon installierten
+# Spiele erreichen (#221) - dieselbe Angleichung wie Stufe 30.
+# *A new catalogue must reach installed games' backup exclusions too.*
+case " $* " in
+  *" etc/spiele-katalog.json "*)
+    am_ziel "[ -x /usr/local/bin/spiel-verwalten ] && /usr/local/bin/spiel-verwalten ausschluesse" \
+      || { echo "FEHLGESCHLAGEN: Ausschluesse nicht angeglichen"; fehler=1; } ;;
+esac
+
 # Wurde etwas von Hand nachgerollt, stimmt der Versionsstempel nicht mehr genau:
 # die Fassung ist noch dieselbe, aber einzelne Dateien sind neuer. Genau das ist
 # spaeter die interessante Auskunft - "Version 1.0.0, aber da wurde noch

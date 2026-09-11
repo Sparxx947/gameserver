@@ -53,6 +53,8 @@ Nichtnumerische abgewiesen. Ein unbegrenztes `--tail` wäre ein Selbstangriff.
 spiel-verwalten katalog                     Katalog als JSON
 spiel-verwalten installieren <schluessel>
 spiel-verwalten deinstallieren <stack>
+spiel-verwalten ausschluesse                Sicherungsausschluesse installierter
+                                            Katalogspiele an den Katalog angleichen
 ```
 
 Der Installer. Prüft Platz und Ports, würfelt Passwörter, schreibt

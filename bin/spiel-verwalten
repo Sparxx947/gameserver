@@ -230,6 +230,57 @@ def ausschluss_setzen(s: str, muster: list):
     AUSSCHLUSS.write_text(text)
 
 
+# Gemerkte Archivgroessen der Sicherung (spiele-sicherung, ZAEHLER). Dieselbe
+# Datei steht dort - aendern nur gemeinsam.
+GROESSEN = Path("/var/lib/spiele-sicherung.groessen")
+
+
+def ausschluesse_abgleichen() -> list:
+    """Ausschlussbloecke aller installierten Katalogspiele an den Katalog angleichen.
+
+    Der Block entsteht bei der Installation - eine spaetere Katalogaenderung
+    erreichte bestehende Server nie (#221: Valheims Installation blieb in jeder
+    Sicherung, nachdem der Katalog laengst mehr ausschloss). Wo sich ein Block
+    aendert, wird die gemerkte Archivgroesse des Stacks verworfen: Die
+    Einbruchpruefung vergleicht nur Gleiches mit Gleichem, und ein Archiv, das
+    jetzt absichtlich 2 GB weniger haelt, ist kein Einbruch.
+    *Align every installed catalogue game's exclusion block with the catalogue;
+     where one changes, forget the stack's remembered archive size so the
+     collapse check does not fire on an intended shrink.*
+    """
+    kat = katalog()
+    text = AUSSCHLUSS.read_text()
+    geaendert = []
+    for marke in sorted(STACKS.glob("*/panel.json")):
+        s = marke.parent.name
+        try:
+            p = json.loads(marke.read_text())
+        except (OSError, ValueError):
+            continue
+        g = kat.get(p.get("schluessel", s))
+        if not p.get("katalog") or not g:
+            continue
+        soll = ausschluss_entfernen_text(text, s)
+        muster = g.get("ausschluss", [])
+        if muster:
+            block = ([f"# >>> panel:{s} (automatisch, nicht von Hand aendern)"]
+                     + [f"sh:/srv/games/{s}/{m}" for m in muster] + [f"# <<< panel:{s}"])
+            soll = soll.rstrip("\n") + "\n" + "\n".join(block) + "\n"
+        alt_block = re.search(rf"^# >>> panel:{re.escape(s)}\b.*?^# <<< panel:{re.escape(s)}\n", text, re.S | re.M)
+        neu_block = re.search(rf"^# >>> panel:{re.escape(s)}\b.*?^# <<< panel:{re.escape(s)}\n", soll, re.S | re.M)
+        if (alt_block and alt_block.group(0)) != (neu_block and neu_block.group(0)):
+            text = soll
+            geaendert.append(s)
+    if geaendert:
+        AUSSCHLUSS.write_text(text)
+        try:
+            zeilen = GROESSEN.read_text().splitlines()
+            GROESSEN.write_text("".join(z + "\n" for z in zeilen if z.split(" ", 1)[0] not in geaendert))
+        except OSError:
+            pass
+    return geaendert
+
+
 def ausschluss_entfernen_text(text: str, s: str) -> str:
     return re.sub(rf"^# >>> panel:{re.escape(s)}\b.*?^# <<< panel:{re.escape(s)}\n",
                   "", text, flags=re.S | re.M)
@@ -608,5 +659,8 @@ if __name__ == "__main__":
         print(stackgroesse(sys.argv[2]))
     elif a == "deinstallieren" and len(sys.argv) == 3:
         deinstallieren(sys.argv[2])
+    elif a == "ausschluesse" and len(sys.argv) == 2:
+        g = ausschluesse_abgleichen()
+        print("ok\t" + (("angeglichen: " + ", ".join(g)) if g else "alle Ausschluesse entsprechen dem Katalog"))
     else:
         fehler("unbekannte Aktion")
