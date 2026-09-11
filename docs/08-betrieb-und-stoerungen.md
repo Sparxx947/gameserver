@@ -276,6 +276,21 @@ systemctl status caddy --no-pager
 Antwortet die App auf `127.0.0.1:8099`, aber nicht über HTTPS, liegt es an
 Caddy — meist am Zertifikat. `journalctl -u caddy | grep -i acme`.
 
+**Zwei Meldungen, zwei Bedeutungen (#197):**
+
+| Im Journal | Bedeutet | Tun |
+|---|---|---|
+| `panel: noch kein Benutzer (… nutzer.json fehlt)` | frische Maschine, erster Benutzer noch nicht angelegt — das Panel **läuft** | Einrichtung abschließen (`install/30-panel.sh`) |
+| `… nutzer.json ist vorhanden, aber nicht lesbar` | echter Vorfall: Datei kaputt oder falscher Eigentümer — das Panel **startet nicht** | Eigentümer `panel:panel`, Modus `600`, Inhalt prüfen; notfalls aus der Sicherung |
+
+Bis #197 sahen beide Fälle gleich aus: ein Traceback über
+`/opt/panel/konfig.json` — die alte Einzelbenutzer-Datei, deren Fehlen auf einer
+neuen Maschine genau richtig ist.
+
+> *Two messages, two meanings: "no user yet" is a fresh machine and the panel
+> runs; "present but unreadable" is a real incident and the panel stops. Until
+> #197 both produced the same traceback about the legacy `konfig.json`.*
+
 ### Übersicht ist leer, aber die Anmeldung geht
 
 Fast immer die sudo-Brücke. Typische Ursachen:
