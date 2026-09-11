@@ -6522,7 +6522,8 @@
     "DATA_PERM": "770",
     "WORLD_NAME": "@@WELT_NAME@@",
     "GAME_PORT": "2456",
-    "SRV_PWD": "{PASSWORT}"
+    "SRV_PWD": "{PASSWORT}",
+    "ENABLE_BEPINEX": "false"
    },
    "passwort": {
     "art": "env",
@@ -6530,7 +6531,7 @@
    },
    "adresse_port": 2456,
    "spieler": 4,
-   "hinweis": "This Docker will download and install SteamCMD. It will also install Valheim and run it. ATTENTION: First Startup can take very long since it downloads the gameserver files! SERVER BROWSER: It could take really long that the serve…",
+   "hinweis": "This Docker will download and install SteamCMD. It will also install Valheim and run it. ATTENTION: First Startup can take very long since it downloads the gameserver files! SERVER BROWSER: It could take really long that the serve… Server-Mods: ENABLE_BEPINEX unter Konfiguration auf true setzen und neu starten - das Image laedt BepInEx dann bei JEDEM Start in der neuesten Version von Thunderstore (keine feste Version). Danach nimmt der Mod-Upload .dll-Mods fuer BepInEx/plugins an; alle Mitspieler brauchen meist dieselben Mods.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps",

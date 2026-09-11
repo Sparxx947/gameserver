@@ -353,6 +353,34 @@ sucht danach.
 Gemessen am 2026-09-10: Von den sieben Servern hat **nur FOUNDRY** überhaupt ein
 Mod-Verzeichnis (`server/Mods`).
 
+**Valheim (#153)** nimmt Mods über **BepInEx** an, einen Lader, den das
+ich777-Image selbst mitbringt: `ENABLE_BEPINEX` unter *Konfiguration* auf `true`
+setzen und neu starten. Das Image lädt dann bei **jedem** Start die neueste
+Fassung von `denikson/BepInExPack_Valheim` von Thunderstore — ohne feste Version
+und ohne Prüfsumme (E32). Die Mods gehören nach `serverfiles/BepInEx/plugins`;
+fehlt `BepInEx/core`, weist der Upload ab und nennt den Schalter, statt eine
+Datei abzulegen, die nie geladen wird (`voraussetzung` in `spiele-mods.json`).
+Gemessen an einem Wegwerf-Container desselben Images: BepInEx 5.4.2350
+installiert, `Chainloader startup complete`, ein Plugin in `plugins` wird geladen
+(`Loading [Jotunn 2.30.0]`). Viele Valheim-Mods verlangen dieselbe Version bei
+jedem Mitspieler — vor dem Hochladen absprechen.
+
+Den Schalter hat der laufende Valheim-Server über `spiel-verwalten
+katalog-abgleich` bekommen: Er trägt Katalogvariablen, die einem schon
+installierten Server fehlen, mit ihrem wörtlichen Vorgabewert nach (nie
+Platzhalter, nie einen gesetzten Wert) — über `compose-feld anlegen`, mit
+demselben Gerüstvergleich wie jede Änderung. Das Panel selbst kann nichts
+anlegen, nur setzen, was dasteht. Stufe 30 und `ausrollen.sh` rufen den Abgleich
+auf, sobald der Katalog neu eingesetzt wird; er startet nichts neu.
+
+> *Valheim takes mods through BepInEx, which the ich777 image installs itself when
+> `ENABLE_BEPINEX` is true — fetching the latest pack from Thunderstore on every
+> start, unpinned (E32). Mods go to `BepInEx/plugins`; without `BepInEx/core` the
+> upload is refused with the way to fix it. Measured on a throwaway container.
+> `spiel-verwalten katalog-abgleich` adds catalogue variables an installed server
+> lacks (literal defaults only) through `compose-feld anlegen` and its structural
+> check; the panel itself can only set what exists.*
+
 ### Zip Slip, und warum jeder Eintrag einzeln geprüft wird
 
 Ein Archiv bringt seine eigene Fassung der Falle mit, die schon `konfig-datei`

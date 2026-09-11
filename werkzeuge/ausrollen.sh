@@ -161,12 +161,13 @@ for datei in "$@"; do
     || { echo "FEHLGESCHLAGEN: $datei - vorige Fassung bleibt bzw. ist zurueck"; fehler=1; }
 done
 
-# Ein neuer Katalog muss auch die Sicherungsausschluesse der schon installierten
-# Spiele erreichen (#221) - dieselbe Angleichung wie Stufe 30.
+# Ein neuer Katalog muss auch die schon installierten Spiele erreichen -
+# Sicherungsausschluesse (#221) und fehlende Umgebungsvariablen (#153), dieselbe
+# Angleichung wie Stufe 30.
 # *A new catalogue must reach installed games' backup exclusions too.*
 case " $* " in
   *" etc/spiele-katalog.json "*)
-    am_ziel "[ -x /usr/local/bin/spiel-verwalten ] && /usr/local/bin/spiel-verwalten ausschluesse" \
+    am_ziel "[ -x /usr/local/bin/spiel-verwalten ] && /usr/local/bin/spiel-verwalten katalog-abgleich" \
       || { echo "FEHLGESCHLAGEN: Ausschluesse nicht angeglichen"; fehler=1; } ;;
 esac
 

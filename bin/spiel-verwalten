@@ -281,6 +281,50 @@ def ausschluesse_abgleichen() -> list:
     return geaendert
 
 
+def umgebung_nachtragen() -> list:
+    """Katalogvariablen, die einem installierten Server fehlen, mit ihrem
+    Vorgabewert nachtragen (#153). ["stack:NAME", ...]
+
+    Anlass: Valheim bekam ENABLE_BEPINEX in den Katalog - der laufende Server,
+    lange vorher installiert, haette den Schalter nie gesehen, und das Panel
+    zeigt nur, was in der compose.yaml steht. Nachgetragen wird NUR, was fehlt,
+    und nur ein woertlicher Vorgabewert: Platzhalter ({PASSWORT}, @@WELT_NAME@@)
+    stehen fuer Werte, die bei der Installation entstehen - die hier zu raten,
+    waere falsch. Einen vorhandenen Wert fasst das nie an. Das Anlegen selbst
+    macht compose-feld, mit demselben Geruestvergleich wie jede Aenderung.
+    *Add catalogue variables an installed server lacks, with their literal
+     default; placeholders are skipped, existing values never touched. The
+     write goes through compose-feld and its structural check.*
+    """
+    kat = katalog()
+    raus = []
+    for marke in sorted(STACKS.glob("*/panel.json")):
+        s = marke.parent.name
+        try:
+            p = json.loads(marke.read_text())
+        except (OSError, ValueError):
+            continue
+        g = kat.get(p.get("schluessel", s))
+        if not p.get("katalog") or not g:
+            continue
+        r = subprocess.run(["/usr/local/bin/compose-feld", "lesen", s],
+                           capture_output=True, text=True, timeout=60)
+        if r.returncode != 0:
+            continue
+        da = {z.split("\t", 1)[0] for z in r.stdout.splitlines() if z.strip()}
+        for name, wert in (g.get("env") or {}).items():
+            wert = str(wert)
+            if name in da or "{" in wert or "@@" in wert:
+                continue
+            a = subprocess.run(["/usr/local/bin/compose-feld", "anlegen", s, name],
+                               input=wert, capture_output=True, text=True, timeout=60)
+            if a.returncode == 0 and "steht schon da" not in a.stdout:
+                raus.append(f"{s}:{name}")
+            elif a.returncode != 0:
+                print(f"FEHLER: {s}:{name} nicht nachgetragen - {a.stderr.strip()[:120]}", file=sys.stderr)
+    return raus
+
+
 def ausschluss_entfernen_text(text: str, s: str) -> str:
     return re.sub(rf"^# >>> panel:{re.escape(s)}\b.*?^# <<< panel:{re.escape(s)}\n",
                   "", text, flags=re.S | re.M)
@@ -662,5 +706,16 @@ if __name__ == "__main__":
     elif a == "ausschluesse" and len(sys.argv) == 2:
         g = ausschluesse_abgleichen()
         print("ok\t" + (("angeglichen: " + ", ".join(g)) if g else "alle Ausschluesse entsprechen dem Katalog"))
+    elif a == "katalog-abgleich" and len(sys.argv) == 2:
+        # Was ein neuer Katalog an installierten Servern angleicht: Sicherungs-
+        # ausschluesse (#221) und fehlende Umgebungsvariablen (#153). Wirkt erst
+        # beim naechsten Start des Servers - nichts wird hier neu gestartet.
+        # *Aligns installed servers with a new catalogue; takes effect on the
+        #  next start, nothing is restarted here.*
+        g = ausschluesse_abgleichen()
+        u = umgebung_nachtragen()
+        print("ok\t" + ("Ausschluesse angeglichen: " + ", ".join(g) + "; " if g else "")
+              + ("nachgetragen: " + ", ".join(u) + " (wirkt beim naechsten Start)" if u
+                 else "keine Umgebungsvariable fehlte"))
     else:
         fehler("unbekannte Aktion")

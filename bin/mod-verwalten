@@ -72,6 +72,15 @@ def ziel_von(stack: str) -> tuple:
                       "Ein Mod im falschen Verzeichnis tut nichts, und es faellt "
                       "niemandem auf - deshalb wird hier nicht geraten. Eintrag "
                       f"in {KONF} ergaenzen.")
+    # Voraussetzung (#153): Valheims Mods laden nur mit BepInEx. Ein Mod ohne
+    # den Lader landet im Ordner und tut nichts - genau der stille Fehlschlag,
+    # gegen den diese Datei gebaut ist. Fehlt die Voraussetzung, wird
+    # abgewiesen, mit dem Weg dorthin.
+    # *A prerequisite (Valheim: BepInEx). Without it a mod lands and does
+    #  nothing - refused, with the way to fix it.*
+    v = e.get("voraussetzung") or {}
+    if v.get("pfad") and not (GAMES / stack / v["pfad"]).exists():
+        return None, v.get("fehlt") or f"Voraussetzung fehlt: {v['pfad']}"
     return (GAMES / stack / e["pfad"]), e.get("hinweis", "")
 
 
@@ -294,6 +303,22 @@ def main() -> int:
         else:
             print(f"  FEHLER  {erlaubt} statt 3 Eintraege kommen durch")
             schlecht += 1
+        # Voraussetzung (#153): ohne BepInEx/core abgewiesen, mit ihm das Ziel.
+        import tempfile as _tf
+        global GAMES, KONF
+        alt_games, alt_konf = GAMES, KONF
+        with _tf.TemporaryDirectory() as tmp:
+            GAMES, KONF = Path(tmp) / "games", Path(tmp) / "mods.json"
+            KONF.write_text(json.dumps({"mods": {"valheim": {"pfad": "serverfiles/BepInEx/plugins",
+                "voraussetzung": {"pfad": "serverfiles/BepInEx/core", "fehlt": "BepInEx fehlt"}}}}))
+            ohne = ziel_von("valheim")
+            (GAMES / "valheim/serverfiles/BepInEx/core").mkdir(parents=True)
+            mit = ziel_von("valheim")
+        GAMES, KONF = alt_games, alt_konf
+        for name, ok in [("ohne BepInEx abgewiesen", ohne == (None, "BepInEx fehlt")),
+                         ("mit BepInEx Ziel plugins", mit[0] is not None and str(mit[0]).endswith("BepInEx/plugins"))]:
+            print(f"  {'ok      ' if ok else 'FEHLER  '} Voraussetzung: {name}")
+            schlecht += 0 if ok else 1
         # Ausschlussmuster wie Borg (#231) - vorher passte ein "*" nie, und ein
         # ausgeschlossener Mod galt als gesichert.
         for p, m, soll in [("/srv/games/e/server/mod.dat", "/srv/games/*/server/*.dat", True),

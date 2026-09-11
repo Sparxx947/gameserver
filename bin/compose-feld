@@ -152,14 +152,7 @@ def geruest(p: Path) -> str:
 
 
 def setzen(p: Path, name: str, wert: str):
-    if not NAME_MUSTER.match(name):
-        fehler("unzulaessiger Variablenname")
-    if name in GESPERRT:
-        fehler(f"{name} ist gesperrt - sie zerlegt den Server oder ist eine Zustimmung")
-    if "\n" in wert or "\r" in wert or any(ord(c) < 32 for c in wert):
-        fehler("der Wert darf keine Zeilenumbrueche oder Steuerzeichen enthalten")
-    if len(wert) > 200:
-        fehler("Wert zu lang")
+    pruefe_name_wert(name, wert)
 
     vorher = geruest(p)
     if not vorher:
@@ -193,6 +186,12 @@ def setzen(p: Path, name: str, wert: str):
     if not getroffen:
         fehler(f"{name} steht nicht im environment-Block dieses Servers")
 
+    schreiben_und_pruefen(p, zeilen, vorher, name)
+
+
+def schreiben_und_pruefen(p: Path, zeilen: list, vorher, name: str):
+    """Sicherung, schreiben, und DER EIGENTLICHE SCHUTZ: das Geruest vorher und
+    nachher vergleichen - weicht es ab, wird zurueckgenommen."""
     sicherung = p.with_name(f"compose.yaml.vor-panel-{time.strftime('%Y%m%d-%H%M%S')}")
     shutil.copy2(p, sicherung)
     p.write_text("".join(zeilen))
@@ -207,6 +206,62 @@ def setzen(p: Path, name: str, wert: str):
     print(f"ok\t{name}\tSicherung: {sicherung.name}")
 
 
+def pruefe_name_wert(name: str, wert: str):
+    if not NAME_MUSTER.match(name):
+        fehler("unzulaessiger Variablenname")
+    if name in GESPERRT:
+        fehler(f"{name} ist gesperrt - sie zerlegt den Server oder ist eine Zustimmung")
+    if "\n" in wert or "\r" in wert or any(ord(c) < 32 for c in wert):
+        fehler("der Wert darf keine Zeilenumbrueche oder Steuerzeichen enthalten")
+    if len(wert) > 200:
+        fehler("Wert zu lang")
+
+
+def anlegen(p: Path, name: str, wert: str):
+    """Eine FEHLENDE Variable im environment-Block anlegen - nur fuer
+    spiel-verwalten katalog-abgleich, das Panel bekommt diese Aktion nicht.
+
+    Anlass (#153): Eine Katalogvariable, die nach der Installation dazukommt
+    (ENABLE_BEPINEX bei Valheim), erreichte bestehende Server nie - und setzen()
+    aendert bewusst nur, was schon dasteht. Hier gelten dieselben Schranken, und
+    der Geruestvergleich prueft auch diesen Weg: ein environment-Eintrag mehr
+    ist erlaubt, alles andere nicht. Steht die Variable schon da, bleibt sie,
+    wie sie ist - ein Nachtrag ueberschreibt nie einen gesetzten Wert.
+    *Add a MISSING variable - for the catalogue alignment only, never exposed to
+     the panel. Same barriers, same structural check; an existing variable is
+     never overwritten.*
+    """
+    pruefe_name_wert(name, wert)
+    vorher = geruest(p)
+    if not vorher:
+        fehler("compose.yaml ist schon jetzt nicht auswertbar - nichts geaendert")
+    zeilen = p.read_text().splitlines(keepends=True)
+    a, e, _ = env_block([z.rstrip("\n") for z in zeilen])
+    if a is None:
+        fehler("kein environment-Block")
+    letzte, form = None, None
+    for i in range(a + 1, e):
+        roh = zeilen[i].rstrip("\r\n")
+        m = re.match(r"^(\s*)(-\s*)?([A-Za-z][A-Za-z0-9_]*)(\s*[:=]\s*)(.*)$", roh)
+        if not m:
+            continue
+        if m.group(3) == name:
+            print(f"ok\t{name}\tsteht schon da - unveraendert")
+            return
+        letzte, form = i, m
+    if letzte is None:
+        fehler("environment-Block ohne Eintrag - hier wird nichts angelegt")
+    ende = "\r\n" if zeilen[letzte].endswith("\r\n") else "\n"
+    if not zeilen[letzte].endswith(("\n", "\r\n")):
+        zeilen[letzte] += ende
+    if form.group(2):
+        neu = f"{form.group(1)}{form.group(2)}{yaml_skalar(name + '=' + wert)}{ende}"
+    else:
+        neu = f"{form.group(1)}{name}: {yaml_skalar(wert)}{ende}"
+    zeilen.insert(letzte + 1, neu)
+    schreiben_und_pruefen(p, zeilen, vorher, name)
+
+
 def main():
     if len(sys.argv) < 3:
         fehler("zu wenige Parameter")
@@ -219,6 +274,10 @@ def main():
         if len(sys.argv) < 4:
             fehler("Name fehlt")
         setzen(p, sys.argv[3], sys.stdin.read().strip("\n"))
+    elif aktion == "anlegen":
+        if len(sys.argv) < 4:
+            fehler("Name fehlt")
+        anlegen(p, sys.argv[3], sys.stdin.read().strip("\n"))
     else:
         fehler("unbekannte Aktion")
 
