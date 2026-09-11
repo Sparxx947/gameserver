@@ -275,14 +275,22 @@ Felder (`_comment_max_upload_slots`, `_comment_autosave_slots`) wären über
 `slots` genauso getroffen worden.
 
 Diese Regel braucht kein Wissen über ein einzelnes Spiel — das ist ihr Wert. Sie
-trägt aber **nur, wo es Typen gibt**: `.ini`, `.cfg` und `.xml` kennen nur Text,
-dort schützt weiterhin allein das Muster.
+trägt aber **nur, wo es Typen gibt**: `.ini`, `.cfg` und `.xml` kennen nur Text.
+Dort gilt seit #227 eine schwächere Fassung: Steht als Wert `true` oder `false`
+(auch in Anführungszeichen, mit Kommentar dahinter), ist das Feld ein Schalter
+und bleibt. Anlass war Killing Floor 2: `bNoPassword=False` im Serverbrowser-
+Filter traf das Passwortmuster über den Namen und bekam das Passwort. Schalter
+mit Zahlenwert (`sv_nopassword 1`) erkennt der Wert nicht — deshalb nimmt das
+Passwortmuster zusätzlich Namen wie `NoPassword`, `UsePassword`,
+`RequirePassword`, `HasPassword` aus. Gegengeprüft über alle 2834
+Konfigurationsdateien der laufenden Server: Genau dieser eine Treffer fällt weg,
+kein echtes Passwortfeld.
 
 Ein übersprungenes Feld wird **genannt**, nicht stillschweigend ausgelassen:
 
 ```
 uebersprungen: server-settings.json:ignore_player_limit_for_returning_players
-               (Kommentarfeld oder andere Art)
+               (Kommentarfeld, Schalter oder andere Art)
 ```
 
 Stilles Überspringen war schon einmal die Ursache — beim Minecraft-Fall passte
@@ -299,7 +307,10 @@ das Feld nicht, und niemand erfuhr davon.
 > while the panel showed the setup as complete. The rule needs no per-game
 > knowledge, which is its value, but it only carries where types exist — ini,
 > cfg and xml know only text. A skipped field is named rather than passed over
-> in silence: silent skipping was the cause once before.*
+> in silence: silent skipping was the cause once before. Since #227 the text
+> formats keep fields whose value is `true`/`false`, and the password pattern
+> excludes switch names like `NoPassword`/`UsePassword` (KF2's `bNoPassword`
+> got the password); across 2834 live config files only that one hit drops.*
 
 Findet er nach sechs Stunden nichts, meldet er es sichtbar — veröffentlicht
 wird dann aber **nicht** (E26, entschieden am 2026-09-11: „Ein Server ohne
