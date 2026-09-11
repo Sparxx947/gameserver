@@ -118,7 +118,7 @@ Geschickt wird nach Discord, über zwei Webhooks:
 
 | Kanal | Was dort landet |
 |---|---|
-| `#platzwart-stoerung` | Server abgestürzt, **Server in der Neustartschleife**, **Server meldet sich als ungesund**, Sicherung fehlgeschlagen, Platte knapp, Arbeitsspeicher knapp, Server ohne Beitrittspasswort, Update fehlgeschlagen |
+| `#platzwart-stoerung` | Server abgestürzt, **Server in der Neustartschleife**, **Server meldet sich als ungesund**, **Dienst fehlgeschlagen** (Sicherung, Einrichtung, Wache …), Sicherungsinhalt unplausibel, Platte knapp, Arbeitsspeicher knapp, Einrichtung nicht abgeschlossen, Update fehlgeschlagen |
 | `#platzwart-meldungen` | Update wirklich eingespielt, Entwarnung nach einer Störung |
 
 **Zwei Kanäle, mit Absicht.** Ein Kanal, in dem täglich „Update geprüft, nichts
@@ -186,6 +186,32 @@ Dauerzustand — man weiß nie, ob das Problem noch besteht.
 Wiederholungen über einen Abgleich des Textes. Die Sicherung läuft alle 15
 Minuten; stünde die Uhrzeit in der Meldung, wäre jeder Lauf ein neuer Text und
 die Sperre wirkungslos.
+
+### Fehlgeschlagene Dienste
+
+Bis zum 2026-09-11 stand in der Tabelle oben „Sicherung fehlgeschlagen" — gemeldet
+wurde das aber von niemandem. `spiele-sicherung` gibt nur „MIT FEHLERN" aus, und
+die Wache sah Container, Platte und Speicher, keine Dienste. Aufgefallen ist es,
+als die tägliche Vollsicherung an der Borg-Sperre scheiterte (#171). Jetzt
+meldet die Wache jeden **fehlgeschlagenen eigenen Dienst** (`spiele-*`,
+`platzwart-*`, `spiel-*`, `sicherung-*`, Panel, Caddy, ttyd) mit den letzten
+Journalzeilen. Ein fehlgeschlagener Dienst bleibt `failed`, bis er wieder
+gelingt — der Zustandsvergleich meldet das Scheitern also einmal und das
+Gelingen als Entwarnung. Nachgewiesen mit einem absichtlich scheiternden
+`systemd-run`-Dienst.
+
+**„Einrichtung nicht abgeschlossen" heißt: der Port ist zu.** Früher lautete die
+Meldung „Server ohne Beitrittspasswort". Seit #156 hält die Installation die
+öffentlichen Ports zurück, solange die Einrichtung offen ist — der alte Wortlaut
+alarmierte in die falsche Richtung.
+
+> *Until 2026-09-11 the table above listed "backup failed", but nobody reported
+> it: the backup only printed "MIT FEHLERN" and the wache looked at containers,
+> disk and memory, not services. Found when the daily full backup failed on the
+> Borg lock (#171). The wache now reports every failed unit of this project with
+> its last journal lines — once on failure, and as all-clear when it succeeds
+> again. "Setup not finished" now says the port is closed; the old "server
+> without join password" alarmed in the wrong direction since #156.*
 
 ### Was ein Absturz ist und was nicht
 
