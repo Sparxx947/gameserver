@@ -10,6 +10,12 @@
       "steamcmd": "/serverdata/steamcmd/steamcmd.sh",
       "install_dir": "/serverdata/serverfiles",
       "gemessen": "2026-09-11, Build 42.20.4: WorkshopItems= und Mods= in servertest.ini, Inhalt unter serverfiles/steamapps/workshop, mod.info unter mods/<Name>/42/ oder common/"
+    },
+    "unturned": {
+      "art": "unturned",
+      "datei": "serverfiles/Servers/Default/WorkshopDownloadConfig.json",
+      "inhalt": "serverfiles/Servers/Default/Workshop/Steam/content/304930",
+      "gemessen": "2026-09-11, ich777-Image: File_IDs in Servers/Default/WorkshopDownloadConfig.json, der Server laedt beim Start selbst nach Servers/Default/Workshop/Steam/content/304930/<id>"
     }
   }
 }

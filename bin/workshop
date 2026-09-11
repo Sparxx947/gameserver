@@ -128,8 +128,15 @@ def urteil(d: dict, appid: int) -> str:
     """'' = in Ordnung, sonst der Grund - rein, damit sich jede Antwort pruefen laesst."""
     if not d or d.get("result") != 1:
         return "bei Steam nicht gefunden"
-    if int(d.get("consumer_app_id") or 0) != int(appid):
-        return f"gehoert zu einem anderen Spiel (App {d.get('consumer_app_id')})"
+    # Zwei Schnittstellen, zwei Namen fuer dasselbe Feld (gemessen 2026-09-11):
+    # GetPublishedFileDetails sagt consumer_app_id, die Suche (QueryFiles)
+    # consumer_appid. Nur den ersten zu kennen, wies JEDEN Suchtreffer als
+    # "anderes Spiel" ab - aufgefallen erst mit echtem Schluessel.
+    # *Two APIs name the same field differently; knowing only one refused every
+    #  search hit as "another game".*
+    app = d.get("consumer_app_id", d.get("consumer_appid"))
+    if int(app or 0) != int(appid):
+        return f"gehoert zu einem anderen Spiel (App {app})"
     if d.get("banned"):
         return "von Steam gesperrt"
     if int(d.get("file_size") or 0) > MAX_BYTES:
@@ -173,6 +180,33 @@ class Anpassung:
             fehler(f"{self.w['datei']} gibt es noch nicht - der Server legt sie beim "
                    "ersten Start an. Danach erneut versuchen.", code=4)
         return p
+
+    def inhalt(self, wid: str) -> Path:
+        """Heruntergeladener Inhalt einer ID - INNERHALB des Datenverzeichnisses."""
+        p = (self.basis / self.w["inhalt"] / wid).resolve()
+        if not str(p).startswith(str(self.basis.resolve()) + "/"):
+            fehler("Inhaltspfad liegt ausserhalb des Datenverzeichnisses")
+        return p
+
+    def aufraeumen(self, ids: list):
+        """Inhalt JEDER nicht eingetragenen ID loeschen - nicht nur der gerade
+        ausgetragenen. Mods werden mitgesichert, und die Sicherung soll nicht mit
+        Dingen wachsen, die niemand mehr laedt.
+
+        Warum alle: Steam stellte am Unturned-Testserver einen geloeschten Ordner
+        beim naechsten Start wieder her - einmal von drei Versuchen, in dem Lauf,
+        in dem ein anderer Download scheiterte (2026-09-11). Geladen wird so ein
+        Ordner nicht (die ID steht nicht in der Liste), er laege aber in jeder
+        Sicherung. So raeumt ihn das naechste Speichern weg.
+        *Delete the content of every id not listed, not just the one removed:
+         Steam once restored a deleted folder on the next start (1 of 3 tries).*"""
+        import shutil
+        ordner = self.inhalt("0").parent
+        if not ordner.is_dir():
+            return
+        for d in ordner.iterdir():
+            if d.is_dir() and not d.is_symlink() and ID_MUSTER.fullmatch(d.name) and d.name not in ids:
+                shutil.rmtree(d)
 
     def liste(self) -> list:
         raise NotImplementedError
@@ -241,12 +275,6 @@ class Zomboid(Anpassung):
         wert = lese_ini(self.datei().read_text(errors="replace"), "WorkshopItems")
         return [x for x in wert.split(";") if ID_MUSTER.fullmatch(x)]
 
-    def inhalt(self, wid: str) -> Path:
-        p = (self.basis / self.w["inhalt"] / wid).resolve()
-        if not str(p).startswith(str(self.basis.resolve()) + "/"):
-            fehler("Inhaltspfad liegt ausserhalb des Datenverzeichnisses")
-        return p
-
     def mod_ids(self, wid: str) -> list:
         ids = []
         for mi in sorted(self.inhalt(wid).glob("mods/*/**/mod.info")):
@@ -305,12 +333,63 @@ class Zomboid(Anpassung):
         vorher = p.stat()
         p.write_text(text)
         os.chown(p, vorher.st_uid, vorher.st_gid)
-        # Inhalt ausgetragener Mods entfernen: sonst waechst die Sicherung
-        # (Mods werden mitgesichert) mit Dingen, die niemand mehr laedt.
-        import shutil
-        for x in alt_ids:
-            if x not in ids and self.inhalt(x).is_dir():
-                shutil.rmtree(self.inhalt(x))
+        self.aufraeumen(ids)
+
+
+def unturned_ids(text: str) -> list:
+    """File_IDs aus WorkshopDownloadConfig.json als Zeichenketten. Rein."""
+    try:
+        d = json.loads(text.lstrip("\ufeff"))
+    except ValueError:
+        fehler("WorkshopDownloadConfig.json ist kein gueltiges JSON")
+    ids = d.get("File_IDs") if isinstance(d, dict) else None
+    if not isinstance(ids, list):
+        fehler("WorkshopDownloadConfig.json hat kein Feld File_IDs")
+    return [str(x) for x in ids]
+
+
+def unturned_setzen(text: str, ids: list) -> str:
+    """File_IDs auf ids setzen; alle anderen Felder bleiben, wie sie sind. Rein.
+
+    Was in File_IDs nicht nach Workshop-ID aussieht, hat jemand von Hand
+    eingetragen - es bleibt im Originalwert stehen, statt beim Speichern still
+    zu verschwinden.
+    *Entries that do not look like a Workshop id stay untouched.*"""
+    unturned_ids(text)                     # bricht bei kaputter Datei ab
+    d = json.loads(text.lstrip("\ufeff"))
+    hand = [x for x in d["File_IDs"] if not ID_MUSTER.fullmatch(str(x))]
+    d["File_IDs"] = hand + [int(x) for x in ids]
+    return json.dumps(d, indent=2, ensure_ascii=False) + "\n"
+
+
+@art("unturned")
+class Unturned(Anpassung):
+    """Unturned: Feld File_IDs in Servers/<Name>/WorkshopDownloadConfig.json.
+
+    Der Server laedt beim Start jede eingetragene ID selbst herunter und
+    installiert sie (Log: "1 workshop item(s) requested ... Successfully
+    downloaded workshop item ... Installed workshop item"), nach
+    Servers/<Name>/Workshop/Steam/content/304930/<id>. Kein Vorabladen noetig:
+    Anders als bei Project Zomboid gibt es keine zweite Liste, die den Inhalt
+    kennen muesste. Der Name ist "Default", weil das ich777-Startskript keinen
+    uebergibt (gemessen am 2026-09-11). Karten aus dem Workshop laedt der Server
+    so auch - SPIELEN muss man sie ueber "Map" in Config.txt, das bleibt Handarbeit.
+    *The server downloads and installs every listed id itself at start; no
+    pre-fetch, no second list. Workshop maps load too but must be selected in
+    Config.txt by hand.*
+    """
+
+    def liste(self) -> list:
+        return [x for x in unturned_ids(self.datei().read_text(errors="replace"))
+                if ID_MUSTER.fullmatch(x)]
+
+    def setzen(self, ids: list):
+        p = self.datei()
+        text = p.read_text(errors="replace")
+        vorher = p.stat()
+        p.write_text(unturned_setzen(text, ids))
+        os.chown(p, vorher.st_uid, vorher.st_gid)
+        self.aufraeumen(ids)
 
 
 # --- Befehle --------------------------------------------------------------------
@@ -405,11 +484,28 @@ def selbsttest() -> int:
                     ({"result": 1, "consumer_app_id": 4000, "file_size": 10}, "anderen Spiel"),
                     ({"result": 9}, "nicht gefunden"),
                     ({"result": 1, "consumer_app_id": 108600, "banned": True}, "gesperrt"),
-                    ({"result": 1, "consumer_app_id": 108600, "file_size": MAX_BYTES + 1}, "groesser")]:
+                    ({"result": 1, "consumer_app_id": 108600, "file_size": MAX_BYTES + 1}, "groesser"),
+                    # So antwortet die Suche (QueryFiles) - anderer Feldname:
+                    ({"result": 1, "consumer_appid": 108600, "file_size": "10"}, ""),
+                    ({"result": 1, "consumer_appid": 4000, "file_size": "10"}, "anderen Spiel")]:
         ist = urteil(d, 108600)
         ok = (soll == "" and ist == "") or (soll and soll in ist)
         schlecht += not ok
         print(f"  {'ok  ' if ok else 'FEHLER'} urteil({d}) = {ist or 'ok'}")
+    vorlage = ('\ufeff{\n  "File_IDs": [],\n  "Ignore_Children_File_IDs": [],\n'
+               '  "Should_Monitor_Updates": true\n}')
+    neu = unturned_setzen(vorlage, ["3485061773", "3692068824"])
+    for name, ok in [
+        ("unturned_ids(leer)", unturned_ids(vorlage) == []),
+        ("unturned_setzen -> Zahlen", '"File_IDs": [\n    3485061773,\n    3692068824\n  ]' in neu),
+        ("unturned_setzen laesst Felder stehen", json.loads(neu)["Should_Monitor_Updates"] is True
+         and json.loads(neu)["Ignore_Children_File_IDs"] == []),
+        ("unturned_ids(gesetzt)", unturned_ids(neu) == ["3485061773", "3692068824"]),
+        ("Handeintrag bleibt", json.loads(unturned_setzen('{"File_IDs": ["notiz", 3485061773]}',
+                                                          []))["File_IDs"] == ["notiz"]),
+    ]:
+        schlecht += not ok
+        print(f"  {'ok  ' if ok else 'FEHLER'} {name}")
     print("alles gruen." if not schlecht else f"{schlecht} FEHLER")
     return 1 if schlecht else 0
 

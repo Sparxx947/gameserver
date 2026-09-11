@@ -207,7 +207,9 @@ hinterlegt ist — eine **Suche**. Entscheidungen von Jens (in #130 festgehalten
 `verwalten` darf das auch, und Mods werden **mitgesichert**.
 
 **Jede ID wird bei Steam nachgeschlagen** und muss zu **genau** dem Spiel dieses
-Servers gehören (`consumer_app_id` = `appid` des Katalogs). Eine eingefügte Zahl
+Servers gehören (`consumer_app_id` = `appid` des Katalogs; die Suche nennt
+dasselbe Feld `consumer_appid` — nur den ersten Namen zu kennen, wies anfangs
+jeden Suchtreffer als „anderes Spiel" ab, aufgefallen mit dem echten Schlüssel). Eine eingefügte Zahl
 eines Mods für ein anderes Spiel, ein gesperrter oder ein unbekannter Eintrag
 kommt nicht in die Konfiguration; die Prüfseite nennt den Grund. Größer als 2 GB
 nimmt das Panel nichts an.
@@ -222,10 +224,29 @@ heruntergeladenen Inhalt — bei Build 42 unter `mods/<Name>/42/` oder
 `mods/<Name>/common/`. Damit nicht zwei Neustarts nötig sind, lädt `workshop`
 den Inhalt beim Eintragen mit dem steamcmd des Images vorab, als Eigentümer der
 Daten, genau dorthin, wo der Server sucht (gemessen: 7–11 s für kleine Mods).
-Von Hand eingetragene Mods in `Mods=` bleiben stehen; der Inhalt ausgetragener
-Mods wird gelöscht, damit die Sicherung nicht mit Totem wächst. Nachgewiesen
-am Testserver: eingetragen, ausgetragen, neu gestartet — das Log zeigt genau die
+Von Hand eingetragene Mods in `Mods=` bleiben stehen. Nachgewiesen am
+Testserver: eingetragen, ausgetragen, neu gestartet — das Log zeigt genau die
 eingetragenen Mods (`loading AreaTasks`, `loading BetterFireExtinguishers`).
+
+**Unturned** hat nur eine Liste: `File_IDs` in
+`Servers/Default/WorkshopDownloadConfig.json` (`Default`, weil das Startskript
+des Images keinen Namen übergibt). Der Server lädt beim Start jede eingetragene
+ID selbst herunter und installiert sie nach
+`Servers/Default/Workshop/Steam/content/304930/<id>` — kein Vorabladen nötig.
+Alle anderen Felder der Datei bleiben, wie sie sind, ebenso Einträge, die nicht
+nach Workshop-ID aussehen. Workshop-**Karten** lädt der Server so auch; spielen
+muss man sie über `Map` in `Config.txt`, das bleibt Handarbeit. Nachgewiesen am
+Testserver: zwei aktuelle Mods eingetragen, neu gestartet — `2 workshop item(s)
+requested … Installed workshop item` für beide; eine Project-Zomboid-ID wird
+abgewiesen („gehört zu einem anderen Spiel (App 108600)").
+
+**Aufräumen.** Beim Speichern löscht `workshop` den Inhalt **jeder** nicht
+eingetragenen ID, nicht nur der gerade ausgetragenen — Mods werden mitgesichert,
+und die Sicherung soll nicht mit Totem wachsen. Alle, weil Steam am
+Unturned-Testserver einen gelöschten Ordner beim nächsten Start einmal
+wiederhergestellt hat (einer von drei Versuchen, in dem Lauf, in dem ein anderer
+Download scheiterte). Geladen wird so ein Ordner nicht; das nächste Speichern
+räumt ihn weg. Nur Ordner mit reinem Zahlennamen, keine Symlinks.
 
 > *Workshop section for games with a binding: installed mods, a field for a
 > link, id or whole collection, and a search once a Steam Web API key is set.
@@ -234,8 +255,10 @@ eingetragenen Mods (`loading AreaTasks`, `loading BetterFireExtinguishers`).
 > download themselves; `bin/workshop` maintains the list where each game
 > expects it (`/etc/spiele-workshop.json`, measured per game). Project Zomboid
 > needs both `WorkshopItems=` and `Mods=`; the mod id comes from `mod.info`, so
-> the content is pre-fetched with the image's steamcmd. Proven end to end on a
-> test server.*
+> the content is pre-fetched with the image's steamcmd. Unturned has one list,
+> `File_IDs` in `WorkshopDownloadConfig.json`, and downloads itself at start.
+> Saving deletes the content of every id not listed (Steam once restored a
+> deleted folder). Both proven end to end on test servers.*
 
 ### Integrationen `/integrationen` (nur admin)
 
