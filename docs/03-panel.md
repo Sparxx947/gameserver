@@ -1357,9 +1357,18 @@ Gegenwert.
 |---|---|
 | `/opt/panel/daten/nutzer.json` | `{"secret": …, "nutzer": {"<name>": {"passwort_hash", "totp", "rolle", "totp_bestaetigt"}}}` |
 | `/opt/panel/daten/zugangsdaten.json` | Liste selbst gepflegter Zugänge |
-| `/opt/panel/konfig.json` | **veraltet** — Einzelnutzer-Fassung, wird beim ersten Start einmalig nach `nutzer.json` übernommen |
 
 Geschrieben wird immer über eine `.tmp`-Datei mit anschließendem `replace()`.
+
+Die frühere Einzelnutzer-Datei `/opt/panel/konfig.json` und ihre einmalige
+Übernahme gibt es seit #216 nicht mehr. Die Datei stand noch auf der Maschine
+und trug das **aktuelle** Sitzungs-Secret, den Passwort-Hash und das
+TOTP-Geheimnis — eine zweite Kopie gültiger Zugangsdaten. Vor dem Löschen wurde
+verglichen, dass jeder Wert in `nutzer.json` steht.
+
+> *The legacy single-user `konfig.json` and its migration are gone since #216;
+> the file still held the current session secret, password hash and TOTP
+> secret. Every value was verified to be in `nutzer.json` before deletion.*
 Ein Absturz mitten im Schreiben hinterlässt sonst eine halbe JSON-Datei, und
 dann kommt niemand mehr an die Oberfläche.
 
