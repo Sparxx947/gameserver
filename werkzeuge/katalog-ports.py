@@ -56,9 +56,9 @@ VERWALTUNG = {
     (10011, "tcp"): "TeamSpeak ServerQuery",
 }
 # Wo derselbe Containerport im Spiel etwas anderes ist. Mit Grund.
-AUSNAHMEN = {
-    ("unturned", 27015, "tcp"): "Vorlage: \"TCP1 - Game Port\"",
-}
+# Unturned stand hier mit 27015/tcp ("TCP1 - Game Port" laut Vorlage) - gemessen
+# lauscht es auf keinem TCP-Port, der Eintrag ist seit #223 weg.
+AUSNAHMEN = {}
 # Spiele, die ueber TCP beitreten - dort ist die Beitrittsadresse ein TCP-Port.
 TCP_SPIELE = {"minecraft", "minecraftfabric", "minecraftforge", "minecraftneoforge",
               "minecraftpaper", "minecraftpurpur", "minecraftquilt", "minecraftspigot",

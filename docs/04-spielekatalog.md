@@ -62,7 +62,7 @@ im Katalog nach, und den Katalog kann die Oberfläche nur lesen.
 | `ordner` | Ordner unter `/serverdata`, die das Image voraussetzt, aber nicht selbst anlegt — die Installation legt sie als Eigentümer der Daten an. Don't Starve Together: `.klei/DoNotStarveTogether` (sein Startskript ruft `mkdir` ohne `-p` auf und legt sich sonst für immer schlafen) |
 | `env` | Umgebung. `{PASSWORT}` und `{ADMIN}` werden beim Installieren durch die frisch gewürfelten Passwörter ersetzt, `{SPIELER}` durch den Wert aus `spieler` — bei Spielen, deren Spielerzahl als Startparameter steht (#177) |
 | `passwort.art` | `env` (Passwort steht in der Umgebung), `datei` (der Server legt eine Konfigurationsdatei an), `params` (Passwort als Startparameter in `GAME_PARAMS`; der Port folgt erst, wenn der laufende Server per A2S „Passwort nötig“ meldet — E27), `keins` (das Spiel kennt kein Beitrittspasswort; der Port geht erst nach einer Freigabe von Hand auf — #183) |
-| `passwort.befehle` | nur mit `passwort.pfad`: Befehle, die in eine Datei mit **einem Befehl je Zeile** gehören, z. B. `{"Password": "{PASSWORT}", "MaxPlayers": "{SPIELER}"}` bei Unturneds `Commands.dat`. Die Installation schreibt sie **vor dem ersten Start**; der Port folgt erst, wenn der laufende Server per A2S „Passwort nötig" meldet (E31) |
+| `passwort.befehle` | nur mit `passwort.pfad`: Befehle, die in eine Datei mit **einem Befehl je Zeile** gehören, z. B. `{"Password": "{PASSWORT}", "MaxPlayers": "{SPIELER}", "Port": "30034"}` bei Unturneds `Commands.dat` — auch der Port steht nur dort (#223). Die Installation schreibt sie **vor dem ersten Start**; der Port folgt erst, wenn der laufende Server per A2S „Passwort nötig" meldet (E31) |
 | `adresse_port` | der Port, der in der Beitrittsadresse steht |
 | `spieler` | Sollwert für die Spielerzahl |
 | `hinweis` | wird in der Oberfläche angezeigt; hier stehen Fallstricke |
@@ -179,6 +179,9 @@ lässt sich es nur am laufenden Server (Log bzw. A2S). Bei solchen Spielen lausc
 der Server deshalb schon im Container auf dem Hostport (KF2: `-Port=30116
 -QueryPort=30117` in `GAME_PARAMS`, Abbildung `30116:30116`); danach meldet er
 `<ip>:30116`. Wer dort die Ports ändert, muss beide Stellen gleich ändern.
+Unturned ist der verwandte Fall: Es liest seinen Port **nur** aus `Commands.dat`
+(`Port 30034`, lauscht dann auf 30034 und 30035); das `-port:` des Images wirkt
+nicht, deshalb lauschte es trotz `GAME_PORT=30032` auf 27015/27016 (#223).
 
 **Wo die Prüfung nichts weiß:** Der Katalog speichert keine Portnamen. Die
 Prüfung kennt die Verwaltungsports deshalb als Liste von Containerports
