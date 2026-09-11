@@ -20,7 +20,7 @@ Netz. Dieser Weg meldet stattdessen ehrlich, was er NICHT gefunden hat.
   spiel-einrichtung            alle offenen Einrichtungen abarbeiten
   spiel-einrichtung <stack>    nur diesen, auch wenn er nicht offen ist
 """
-import json, os, re, subprocess, sys, time
+import fcntl, json, os, re, subprocess, sys, time
 from pathlib import Path
 
 STACKS = Path("/opt/stacks")
@@ -579,9 +579,19 @@ def lauf(nur=None):
         # *"params" no longer counts as done by itself: a shipped server.cfg can
         #  override the parameter. The running server decides, and there is no
         #  six-hour give-up - having measured "no password", nothing is published.*
-        per_env = p.get("passwort_art") in ("env", "keins")
+        per_env = p.get("passwort_art") == "env"
         params = p.get("passwort_art") == "params"
-        if params:
+        # "keins": Das Spiel KENNT kein Beitrittspasswort (Minecraft, TeamSpeak).
+        # Bis #183 galt das als erledigt, und der Port ging kurz nach der
+        # Installation auf. Jens am 2026-09-11: "Ein Server ohne Passwort darf
+        # nicht automatisch ans Netz gehen." Deshalb erst nach einer Freigabe
+        # von Hand auf der Einstellungsseite.
+        # *"keins" games have no join password. Since #183 they go online only
+        #  after a manual release on the settings page.*
+        keins = p.get("passwort_art") == "keins"
+        if keins:
+            fertig = bool(p.get("freigabe_von_hand"))
+        elif params:
             fertig, params_stand, params_neustart = params_urteil(
                 a2s_passwort(stack, p), bool(erg["passwort"]), alter_h)
         else:
@@ -606,7 +616,10 @@ def lauf(nur=None):
 
         if fertig:
             p["einrichtung_offen"] = False
-            stand = (params_stand if params else "über die Umgebung gesetzt" if per_env else
+            stand = (params_stand if params else
+                     "kein Beitrittspasswort möglich - von Hand freigegeben am "
+                     + time.strftime("%d.%m.%Y %H:%M", time.localtime(p["freigabe_von_hand"]))
+                     if keins else "über die Umgebung gesetzt" if per_env else
                      "gesetzt in " + ", ".join(sorted(set(erg["passwort"]))[:4]))
             # Die Spielerzahl haengt hinten an, damit sie in derselben Zeile
             # sichtbar wird, die das Panel ohnehin anzeigt. Wortlaut mit "NICHT",
@@ -619,6 +632,11 @@ def lauf(nur=None):
             p["einrichtung_stand"] = stand
             if erg["passwort"] or erg["spieler"] or erg["admin"] or erg.get("rcon"):
                 neustart(stack)
+        elif keins:
+            p["einrichtung_stand"] = (
+                "Dieses Spiel kennt kein Beitrittspasswort - der Port bleibt zu, bis ihn "
+                "jemand auf der Einstellungsseite freigibt (Minecraft: Whitelist pruefen, "
+                "TeamSpeak: Serverpasswort im Client setzen).")
         elif params:
             p["einrichtung_stand"] = params_stand
             # Hoechstens alle 30 Minuten: bearbeite() meldet ein Feld auch dann
@@ -723,6 +741,45 @@ def neustart(stack):
     subprocess.run(["docker", "compose", "up", "-d"], cwd=STACKS / stack, capture_output=True, timeout=180)
 
 
+def freigeben(stack: str) -> int:
+    """Freigabe von Hand fuer ein Spiel OHNE Beitrittspasswort (#183).
+
+    NUR fuer "keins". Fuer jede andere Passwortart waere das ein Weg an E26
+    vorbei - dort entscheidet das Passwort, nicht ein Klick.
+    Laeuft unter derselben Sperre wie der Timer: Schriebe panel-aktion die
+    Freigabe selbst, koennte ein gleichzeitiger Lauf sie mit seiner aelteren
+    Fassung ueberschreiben (am 2026-09-11 beim Leerlauf genau so passiert).
+    *Only for "keins" - for any other type this would bypass E26. Runs under
+     the same lock as the timer, so a concurrent run cannot drop the release.*
+    """
+    if not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?", stack):
+        print("FEHLER: unzulaessiger Name", file=sys.stderr); return 1
+    marke = STACKS / stack / "panel.json"
+    if not marke.exists():
+        print("FEHLER: kein Katalogspiel", file=sys.stderr); return 1
+    p = json.loads(marke.read_text())
+    if p.get("passwort_art") != "keins":
+        print("FEHLER: Freigabe von Hand gibt es nur fuer Spiele ohne Beitrittspasswort - "
+              "hier entscheidet das Passwort (E26).", file=sys.stderr); return 1
+    if not p.get("freigabe_von_hand"):
+        p["freigabe_von_hand"] = int(time.time())
+        marke.write_text(json.dumps(p, indent=1) + "\n")
+    lauf(stack)
+    p = json.loads(marke.read_text())
+    print(f"ok\t{stack}: {p.get('einrichtung_stand', '')}")
+    return 0
+
+
+def sperre():
+    """Ein Lauf zur Zeit - der Timer, ein Einzelaufruf, eine Freigabe (#183)."""
+    f = open(os.environ.get("EINRICHTUNG_SPERRE", "/run/spiel-einrichtung.lock"), "a")
+    fcntl.flock(f, fcntl.LOCK_EX)
+    return f
+
+
 if __name__ == "__main__":
+    _sperre = sperre()
+    if len(sys.argv) > 2 and sys.argv[1] == "--freigeben":
+        sys.exit(freigeben(sys.argv[2]))
     lauf(sys.argv[1] if len(sys.argv) > 1 else None)
     konfigzahlen()

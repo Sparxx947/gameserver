@@ -384,6 +384,32 @@ localhost-Port einen öffentlichen.
 > counted; flapping is reported. Switching the feature off wakes a sleeping
 > server at once. Management ports bound to localhost never wake anything.*
 
+### Spiele ohne Beitrittspasswort: Freigabe von Hand
+
+Minecraft und TeamSpeak **kennen** kein Beitrittspasswort (`passwort.art: keins`).
+Bis #183 gingen sie deshalb kurz nach der Installation ans Netz. Seit Jens'
+Entscheidung zu E26 — *„Ein Server ohne Passwort darf nicht automatisch ans Netz
+gehen"* — bleibt ihr Port zu, bis jemand mit `verwalten` oder `admin` ihn auf der
+Einstellungsseite freigibt. Die Rückfrageseite sagt **vor** dem Klick, was den
+Server stattdessen schützt: bei Minecraft die Whitelist (`ENFORCE_WHITELIST`,
+`WHITELIST`), bei TeamSpeak das Serverpasswort im Client. Die Freigabe steht im
+Protokoll.
+
+Die Prüfung „nur bei `keins`" sitzt in `spiel-einrichtung --freigeben`, nicht im
+Panel — ein anderer Aufrufweg soll sie nicht umgehen können; für jede andere
+Passwortart wäre die Freigabe ein Weg an E26 vorbei. Und nur `spiel-einrichtung`
+schreibt die Freigabe, unter derselben Sperre wie der Timer: Schriebe
+`panel-aktion` sie selbst, könnte ein gleichzeitiger Lauf sie mit seiner älteren
+Fassung überschreiben. Veröffentlicht wird danach über den einen Weg,
+`port-ermitteln`.
+
+> *Minecraft and TeamSpeak have no join password. Since #183 their port stays
+> closed until someone with verwalten or admin releases it on the settings page;
+> the confirmation page says what protects the server instead (whitelist, client
+> server password). The "keins only" check and the write live in
+> `spiel-einrichtung --freigeben`, under the timer's lock; publishing goes through
+> `port-ermitteln`.*
+
 ### Beim Entfernen verschwindet auch der Leerlauf
 
 Keiner der beiden Entfernwege räumte den Leerlauf ab (#169), und die Prüfschleife
@@ -1267,6 +1293,7 @@ und führte `/konfig` und `/archive` noch als admin-only.
 | POST | `/passkey/anlegen-start` · `/passkey/anlegen-fertig` · `/passkey-loeschen` | alle | eigene Passkeys |
 | GET | `/spiele` · POST `/installieren` | verwalten | Katalog, Spiel installieren |
 | GET | `/deinstallieren-fragen/{stack}` · POST `/deinstallieren` | verwalten | Katalogspiel entfernen |
+| GET | `/freigabe-fragen/{stack}` · POST `/port-freigeben` | verwalten | Spiel ohne Beitrittspasswort von Hand ans Netz geben (nur `keins`) |
 | POST | `/alle` | verwalten | alle anhalten / zuletzt laufende starten |
 | POST | `/aktualisieren` · `/auto-update` · `/leerlauf` | verwalten | Betrieb eines Servers |
 | GET | `/konfig/{stack}` · POST `/konfig-setzen` | verwalten | Umgebungsvariablen (Einzelfelder) |

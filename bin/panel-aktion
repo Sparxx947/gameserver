@@ -580,6 +580,15 @@ PY
       /usr/local/bin/dns-pflegen entfernen "$s" >/dev/null 2>&1 || true
     fi
     ;;
+  port-freigeben)
+    # Freigabe von Hand fuer Spiele OHNE Beitrittspasswort (#183, E26). Die
+    # Pruefung "nur bei passwort_art keins" und das Schreiben der Freigabe
+    # stecken in spiel-einrichtung, unter dessen Sperre - hier nur der Name.
+    # *Release by hand for games without a join password; the "keins only"
+    #  check and the write live in spiel-einrichtung, under its lock.*
+    s="${2:-}"; pruefe_stack "$s"
+    exec /usr/local/bin/spiel-einrichtung --freigeben "$s"
+    ;;
   einrichtung)
     # Stand der Passwort-Einrichtung je Stack (fuer die Anzeige).
     for d in /opt/stacks/*/panel.json; do
