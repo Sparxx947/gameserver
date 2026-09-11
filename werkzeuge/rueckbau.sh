@@ -62,6 +62,37 @@ set -a; . "$KONF"; set +a
 fern() { ssh -n -o BatchMode=yes -o ConnectTimeout=10 "$ZIEL" "$@"; }
 fern true 2>/dev/null || { echo "Nicht erreichbar: $ZIEL"; exit 2; }
 
+# Die Befehle gehen UNVERPACKT hinueber - "systemctl disable", "rm -rf
+# /opt/stacks", "docker compose down". Als gewoehnlicher Benutzer scheitert
+# davon fast alles, und das Werkzeug lief bisher trotzdem bis zum Ende durch:
+# gemessen 77 von 89 Schritten FEHLGESCHLAGEN, danach eine ordentliche
+# Zusammenfassung und eine Gegenprobe. Das liest sich wie ein halber Rueckbau
+# und ist in Wirklichkeit eine fehlende Voraussetzung - eine Unterscheidung, die
+# man aus 77 gleichlautenden Zeilen nicht herausliest.
+#
+# Geprueft wird deshalb hier, in einem Satz, bevor irgendetwas passiert. Das
+# Vorbild steht in install/lib.sh, das sich mit "Als root ausfuehren" weigert.
+#
+# *Commands go across unwrapped, so as an ordinary user almost everything fails
+#  - measured 77 of 89 steps, after which the tool still printed a tidy summary.
+#  That reads like a partial teardown and is actually a missing precondition.
+#  Checked here in one sentence, the way install/lib.sh refuses to start.*
+if [ "$(fern 'id -u' 2>/dev/null)" != "0" ]; then
+  cat >&2 <<TEXT
+FEHLER: $ZIEL meldet sich nicht als root an.
+
+  Dieses Werkzeug schickt systemctl-, rm- und docker-Befehle ohne sudo ueber
+  SSH. Ohne root scheitert fast jeder Schritt einzeln, waehrend der Lauf
+  weiterlaeuft und am Ende eine Zusammenfassung druckt.
+
+  Ein Ziel mit root-Anmeldung verwenden, zum Beispiel root@<maschine> oder
+  einen Eintrag in ~/.ssh/config mit "User root". Auf der Maschine muss dafuer
+  PermitRootLogin eine Schluesselanmeldung zulassen (SSH_ROOT_LOGIN, siehe
+  docs/06-netz-dns-firewall.md).
+TEXT
+  exit 2
+fi
+
 geplant=0; getan=0; fehlschlaege=0
 schritt() {   # schritt <beschreibung> <befehl>
   local text="$1" befehl="$2"

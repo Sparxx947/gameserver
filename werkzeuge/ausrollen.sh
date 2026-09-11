@@ -27,6 +27,19 @@ set -a; . "$KONF"; set +a
 ZIEL="${1:-}"; shift || true
 [ -n "$ZIEL" ] && [ $# -gt 0 ] || { echo "Aufruf: $0 <ssh-ziel> <repo-datei> [...]"; exit 2; }
 
+# Geschrieben wird nach /etc und /usr/local/bin, ohne sudo. Ohne root scheitert
+# jede einzelne Datei mit "Permission denied" aus der fernen Shell - und der
+# Lauf meldet je Datei FEHLGESCHLAGEN, ohne zu sagen, dass es an der Anmeldung
+# liegt. Dieselbe Pruefung wie in rueckbau.sh (#192).
+# *Writes into /etc and /usr/local/bin without sudo; without root every file
+#  fails individually without saying that the login is the reason.*
+if [ "$(ssh -n -o BatchMode=yes -o ConnectTimeout=10 "$ZIEL" 'id -u' 2>/dev/null)" != "0" ]; then
+  echo "FEHLER: $ZIEL meldet sich nicht als root an — ausrollen.sh schreibt nach /etc" >&2
+  echo "        und /usr/local/bin und benutzt kein sudo. Ziel mit root-Anmeldung" >&2
+  echo "        verwenden (root@<maschine> oder \"User root\" in ~/.ssh/config)." >&2
+  exit 2
+fi
+
 # Ziele, bei denen eine kaputte Datei SPAETER und hart zuschlaegt: Caddy liest
 # die Caddyfile erst beim naechsten Neustart (Panel weg), sshd die Haertung
 # ebenso (Aussperrung), sudo die Panel-Regel beim naechsten Aufruf (das Panel
