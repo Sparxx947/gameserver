@@ -83,7 +83,6 @@ handgearbeitet**, weil die Bilder ihre Verzeichnisse unterschiedlich anordnen:
 | Spiel | Warum es nicht pauschal geht |
 |---|---|
 | Windrose | Unter `server/` liegt die Installation **und** `R5/Saved` — ein pauschales `server` nähme den Spielstand mit heraus |
-| StarRupture | Installation und `StarRupture/Saved` teilen sich denselben Zweig |
 | Palworld | Installation raus, aber `Pal/Saved` und `backups/` bleiben |
 | Satisfactory | `gamefiles` und `logs` raus, `saved` und `backups` bleiben |
 | Valheim (ich777) | Die Bilder von ich777 installieren das Spiel **direkt** nach `serverfiles/`, der Spielstand liegt darunter in `serverfiles/.config/unity3d/IronGate/Valheim/` — raus sind deshalb die gemessenen Brocken `valheim_server_Data` (1,9 GB), `linux64`, `docker`, `*.so` |
@@ -197,9 +196,42 @@ nur Namen dieser Form, und nur solche, die mit dem angefragten Stack beginnen.
 
 ### Über die Oberfläche
 
-`Übersicht` → Karte des Servers → `Einstellungen` → `Sicherungen` → Stand wählen → Rückfrage
-bestätigen. Der Server wird angehalten, das Archiv ausgepackt, der Server wieder
-gestartet — sofern er vorher lief.
+`Übersicht` → Karte des Servers → `Einstellungen` → `Sicherungen` → Stand wählen →
+Rückfrage bestätigen (`verwalten` und `admin`). `panel-aktion restore` geht dann
+in dieser Reihenfolge vor:
+
+1. **Auspacken** des Archivs in ein Wegwerfverzeichnis, von `/` aus gerechnet —
+   bei **laufendem** Server; das Archiv ändert sich nicht. Scheitert das, hat sich
+   am Server nichts geändert.
+2. Enthält das Archiv das Datenverzeichnis nicht, Abbruch — ebenfalls ohne
+   Änderung.
+3. Server **anhalten** (sonst schriebe er beim Beenden über das Zurückgespielte).
+4. **Ist-Stand kopieren** nach `/srv/games/<stack>.vor-restore-<zeit>`; geht das
+   nicht, läuft der Server wie vorher weiter.
+5. **Ausgeschlossene Pfade beiseitelegen** (siehe unten); scheitert das, wird
+   nichts gelöscht.
+6. Datenverzeichnis leeren, Stand hineinkopieren, ausgeschlossene Pfade an
+   denselben Ort zurücklegen.
+7. **Eigentümer** vom Ist-Stand übernehmen, nicht hart 4711 — FOUNDRYs Image
+   läuft fest als uid 1000.
+8. Wieder starten — nur, wenn er vorher lief.
+
+Die Meldung nennt den Ort der Kopie aus Schritt 4. Sie gehört nach der Prüfung
+gelöscht (`werkzeuge/aufraeumen.sh --mit-restore-kopien`), sonst sichert der
+nächste Volllauf sie mit.
+
+> *Through the panel: overview → the server's card → settings → backups → pick a
+> state → confirm (verwalten and admin). `panel-aktion restore` then proceeds in
+> this order: extract the archive into a scratch directory while the server keeps
+> running (a failure changes nothing); abort if the archive lacks the data
+> directory; stop the server so it cannot write over the restored state on
+> shutdown; copy the current state to `<dir>.vor-restore-<time>` (if that fails,
+> the server keeps running); move the excluded paths aside (if that fails,
+> nothing is deleted); empty the directory, copy the state in, put the excluded
+> paths back at the same place; take ownership from the previous state rather
+> than forcing 4711; restart only if it was running. The message names the
+> copy's location — delete it after checking, or the next full run archives it
+> too.*
 
 **Während einer Sicherung wird gewartet.** Der 15-Minuten-Lauf hält das
 Repository rund vier Minuten gesperrt. Bis #234 scheiterten Liste, Größe,
@@ -209,6 +241,15 @@ auf die Sperre (Liste und Größe bis 150 s, Auspacken bis 10 min), und
 scheitern sie doch daran, sagt die Meldung „Gerade läuft eine Sicherung".
 Die Wiederherstellung packt das Archiv **zuerst** aus, bei laufendem Server:
 Früher hielt sie ihn vorher an und ließ ihn aus, wenn das Auspacken scheiterte.
+
+> *Waiting during a backup: the 15-minute run holds the repository lock for
+> about four minutes. Until #234, list, size, download and restore failed at
+> once during that time with "repository unreachable" — three times in a row on
+> the first real attempt. They now wait for the lock (list and size up to 150 s,
+> extraction up to 10 minutes, download up to 15), and if they still fail on it,
+> the message says "a backup is running". The restore extracts first, while the
+> server runs; it used to stop the server first and leave it stopped when
+> extraction failed.*
 
 **Ausgeschlossene Pfade überleben das Zurückspielen.** Die Spielinstallation
 steht bewusst nicht im Archiv; das Datenverzeichnis wird vor dem Kopieren aber
@@ -286,16 +327,26 @@ kann, verliert den Fortschritt der Sitzung.
    Hat Stufe 30 schon einen neuen ersten Benutzer angelegt, ersetzt das
    Auspacken ihn — gewollt, denn danach gelten die alten Anmeldungen wieder.
    Probeweise ausgepackt am 2026-09-11: `nutzer.json` und `zugangsdaten.json`
-   bytegleich mit den laufenden.
-6. Container starten, DNS mit `dns-pflegen setzen <name>` neu eintragen.
+   bytegleich mit den laufenden. Mit dem Archiv kommen auch der Steam-Schlüssel,
+   die Zugänge für TeamSpeak und Discord und die Kanalzuordnung zurück.
+6. `/etc` aus dem Archiv `etc-*` nur **gezielt** zurückholen, was fehlt —
+   `/etc/dns-gameserver.conf`, `/etc/platzwart-melden.conf`,
+   `/etc/borg-ausschluss.txt` mit den Katalogblöcken —, nicht das ganze
+   Verzeichnis über eine frische Maschine legen.
+7. Container starten, DNS mit `dns-pflegen setzen <name>` neu eintragen.
+8. Die Schalter je Server von Hand wieder setzen: Auto-Update und Leerlauf
+   stehen in `/var/lib/…liste` und sind **in keinem Archiv**.
 
 > *Total loss: rebuild stages 10–50, restore the passphrase from its off-host
 > copy, extract the `config-*` archive for the compose files, extract each game's
 > latest state, extract the `panel-*` archive (users, second factors, passkeys,
-> credentials, audit log — owner and modes come along) and restart the panel,
-> then start the containers and re-create the DNS records.*
-
----
+> credentials, audit log, the Steam key, the TeamSpeak and Discord logins and the
+> channel mapping — owner and modes come along) and restart the panel, take only
+> the missing files from the `etc-*` archive (DNS token, webhook file, exclusion
+> list) rather than laying the whole directory over a fresh machine, start the
+> containers and re-create the DNS records, and set the per-server switches for
+> auto-update and idle sleep again by hand — their lists under `/var/lib` are in
+> no archive.*
 
 ---
 
@@ -345,6 +396,27 @@ verschachtelten Anführungszeichen zerbrachen dabei (`awk: runaway string
 constant`). Der Lauf meldete daraufhin für fünf Spiele `Exit 2`, **obwohl die
 Sicherung selbst durchgelaufen war** — ein Werkzeug, dessen Auswertung den
 ganzen Lauf scheitern lässt, ist schlimmer als eines ohne Auswertung.
+
+> *On 2026-09-10 it turned out that FOUNDRY had been backed up since 06.09. with
+> two files in every archive — four empty directories — while each run reported
+> success, returned 0 and created its archive. Not "the save is missing" but the
+> worse thing: the net reports itself intact and catches nothing; a restore would
+> have restored an empty world, and no monitoring would have seen the
+> difference, because everything it checked was fine. `spiele-sicherung` now
+> checks every archive twice, the first check being the more important: a floor
+> (under 50 kB, finds an archive empty from the start) and a collapse (under 25 %
+> of the previous run, finds content being lost). Without the floor FOUNDRY
+> would never have been found — comparing with the predecessor does not fire
+> when that one was equally empty. Size is measured, not file count: the first
+> draft counted files and promptly flagged satisfactory, whose four `.sav` files
+> are the complete save; a false alarm is especially costly here. The size comes
+> from `borg create --stats` rather than a second borg call, and is stored in
+> `/var/lib/spiele-sicherung.groessen` after the check, or later runs would
+> compare against the collapsed value and stay quiet. The unit conversion lives
+> in a function of its own: in the first draft the awk program sat inline, its
+> nested quotes broke ("runaway string constant"), and the run reported exit 2
+> for five games although the backup itself had completed — an evaluation that
+> fails the whole run is worse than none.*
 
 ### Die dritte Prüfung: hat sich überhaupt noch etwas geändert?
 
@@ -510,22 +582,12 @@ nagt, ist so gut wie keiner.
 Die Meldung über eine **fehlgeschlagene** Sicherung bleibt bei drei Stunden —
 die ist dringend.
 
-> *FOUNDRY had been backed up since 06.09. with two files in every archive: four
-> empty directories, reported as success every time. Not "the save is missing"
-> but the worse thing — the safety net reporting itself intact while holding
-> nothing; a restore would have restored an empty world and no monitoring would
-> have seen the difference, because everything it checks was fine. Two checks
-> now follow every archive, and the absolute floor matters more than the drop:
-> comparing against the previous archive never fires when that one was equally
-> empty. Size rather than file count: the first draft counted files and promptly
-> flagged satisfactory, where four .sav files ARE the complete save — and a
-> false alarm is expensive here, since an alert that fires on a healthy game
-> stops being taken seriously. The size comes from `borg create --stats` rather
-> than a second borg call, and is recorded after the check, or later runs would
-> compare against the collapsed value and stay quiet. Both messages carry a one-day
-> quiet period: this runs every 15 minutes, and eight messages a day about a
-> known problem stop being read. The failed-backup message keeps the short
-> window — that one is urgent.*
+> *Once a day, not every three hours: the floor, collapse and silence findings go
+> out with a one-day quiet period. The run comes every 15 minutes; with the usual
+> three-hour lock that would be eight messages a day about a long-known problem,
+> and after the second day nobody reads them — a finding that grinds itself into
+> irrelevance is as good as none. The message about a failed backup keeps three
+> hours: that one is urgent.*
 
 ## Probeweise zurückspielen, ohne den Server anzufassen
 
@@ -548,6 +610,16 @@ Datei) und wie das zu dem steht, was jetzt auf der Platte liegt.
 Archive, die Lücke bei stehengebliebenen Ständen, der blinde Abgleich. Jedes Mal
 meldete sich etwas heil, ohne dass jemand hineingesehen hatte.
 
+> *The real restore stops a server, deletes its data and writes the archive over
+> it, so it needs an explicit go-ahead. The half that answers the important
+> question needs no outage: extract into a scratch directory, look inside, throw
+> it away. The report says whether it extracts at all, what comes out (files,
+> size, newest file) and how that compares with what is on disk now. A backup
+> that was never restored is a claim: on 2026-09-10 three findings of the same
+> shape came together — FOUNDRY's hollow archives, the gap for saves that stopped
+> changing, the blind comparison tool — each time something reported itself
+> intact without anybody having looked inside.*
+
 ### Was es nicht tut
 
 * **Es schreibt nie nach `/srv/games`.** `borg extract` schreibt relativ zum
@@ -564,6 +636,16 @@ meldete sich etwas heil, ohne dass jemand hineingesehen hatte.
   danach frei bleiben. Eine Probe, die die Platte füllt, bräche genau die
   Sicherung, die sie prüfen soll.
 
+> *What it does not do: it never writes to `/srv/games` — `borg extract` writes
+> relative to the current directory and the archives carry absolute paths, so
+> started from `/` it would write straight over the running server; the probe
+> therefore always starts from its scratch directory. It leaves nothing behind,
+> not even on errors — several GB under `/tmp` nobody removes fill the disk, and
+> then the backup fails first. It runs on no timer: extracting several GB every
+> night to prove something costs more than it shows. And it refuses when space is
+> short — at least 10 GB must remain free, since a probe filling the disk would
+> break the very backup it checks.*
+
 ### Der Vergleich rechnet die Ausschlüsse heraus
 
 Sonst wäre er Äpfel gegen Obstkörbe: Valheims Archiv hält 2,4 GB, das
@@ -578,12 +660,26 @@ Archiv gegen 9 GB live, davon fast alles Installation) — ein Fehlalarm, der
 den Befund dort wertlos machte. Mit Borgs Musterregel: 33 Dateien und 70,8 MB
 auf beiden Seiten.
 
+> *The comparison subtracts the exclusions, or it would compare apples with fruit
+> baskets: Valheim's archive holds 2.4 GB, the directory on disk several times
+> that, because the game installation is excluded as re-downloadable — every
+> healthy archive would look like a fraction. The real exclusion file is read.
+> Until #231 the probe compared with `startswith`, so glob lines never applied:
+> for Enshrouded it reported "the archive holds only 0 %" (70.8 MB against 9 GB
+> live, almost all installation), a false alarm that made the finding
+> worthless. With borg's pattern rule: 33 files and 70.8 MB on both sides.*
+
 ### Die Probe wartet auf die Sicherung
 
 Die Sicherung läuft alle 15 Minuten und hält dabei die Sperre des Repositoriums.
 Der erste Lauf gegen Valheim brach genau daran ab, während nebenan `borg create`
 lief. Die Probe ist nicht eilig und wartet jetzt bis zu 15 Minuten
 (`--lock-wait`), statt zu scheitern.
+
+> *The probe waits for the backup: that runs every 15 minutes and holds the
+> repository lock meanwhile. The first run against Valheim broke off on exactly
+> that while `borg create` ran next door. The probe is in no hurry and now waits
+> up to 15 minutes (`--lock-wait`) instead of failing.*
 
 ### Was sie am ersten Tag gefunden hat
 

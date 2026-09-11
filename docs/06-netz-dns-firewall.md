@@ -22,6 +22,13 @@ Praktische Folgen:
   ufw.
 * **Ein Port soll nur lokal erreichbar sein?** Dreiteilige Angabe:
   `127.0.0.1:8080:8080/tcp`.
+* **Katalogspiele bekommen ihre öffentlichen Ports erst nach dem Passwort.** Bis
+  dahin stehen sie nicht in der compose-Datei, und damit gibt es auch keine
+  DNAT-Regel (Grenze 5, E26).
+* **Die eine Ausnahme ist der Leerlauf.** Solange ein Server schläft, hört
+  systemd auf dem Wirt auf seinen Ports — dieser Verkehr geht durch `INPUT`, und
+  dafür legt `platzwart-schlaf` für die Dauer des Schlafs eigene ufw-Regeln an
+  (Kommentar `platzwart-schlaf:<stack>`).
 
 > *The key quirk: Docker publishes ports as DNAT rules in a chain that runs
 > before ufw's, so published ports are reachable regardless of what ufw says.
@@ -29,7 +36,11 @@ Praktische Folgen:
 > nothing is worse than no rule, because it misleads. Ports open and close with
 > the container (measured on Satisfactory: stopping it removed the iptables
 > rules). To close a port, change the compose file, not ufw; to bind locally
-> only, use the three-part form `127.0.0.1:8080:8080/tcp`.*
+> only, use the three-part form `127.0.0.1:8080:8080/tcp`. Catalogue games get
+> their public ports only after the join password, so until then there is no
+> DNAT rule at all. The one exception is idle sleep: while a server sleeps,
+> systemd listens on the host, that traffic goes through INPUT, and
+> `platzwart-schlaf` adds ufw rules for the duration of the sleep.*
 
 **Verwaltungsports gehören immer auf `127.0.0.1`.** RCON, Webkonsolen,
 ServerQuery, Telnet — das sind Administrationszugänge mit Passwort und beliebte
@@ -344,7 +355,19 @@ palworld.<zone>    CNAME  gs.<zone>     (dns-only)
 gs.<zone>          A      <SERVER_IPV4>
 ```
 
-Zieht der Server um, ist genau **ein** Eintrag zu ändern.
+Zieht der Server um, ist genau **ein** Eintrag zu ändern. Angelegt werden die
+CNAMEs von Stufe 70 für die handgepflegten Stacks und von `panel-aktion` bei
+jeder Katalog-Installation; entfernt werden sie von `panel-aktion` nach dem
+Entfernen eines Servers — auf beiden Wegen, seit #253 auch beim Entfernen eines
+von Hand gebauten. Wer einen Server per SSH an `panel-aktion` vorbei entfernt,
+muss den Namen selbst mit `dns-pflegen entfernen <name>` löschen.
+
+> *One CNAME per game onto a single A record; moving the server means changing
+> exactly one record. Stage 70 creates the CNAMEs for the hand-maintained stacks
+> and `panel-aktion` for every catalogue install; `panel-aktion` removes them
+> after a server is removed — on both removal paths, since #253 also for
+> hand-built servers. Whoever removes a server over SSH, bypassing
+> `panel-aktion`, has to delete its name with `dns-pflegen entfernen <name>`.*
 
 ### Feste oder wechselnde Adresse
 
@@ -368,6 +391,19 @@ ein CNAME auf `DNS_ZIEL` — dann folgt er ohne weiteres Zutun. Steht
 `ziel-setzen` ihn mit nach und lässt dabei ein gesetztes `proxied` in Ruhe: das
 Panel spricht HTTPS und darf hinter dem Cloudflare-Proxy stehen. Liegt der Name
 außerhalb der Zone, bleibt er Handarbeit; `ziel-setzen` sagt das dann auch.
+
+> *`SERVER_IPV4` in `konfiguration.env` decides who maintains the A record: a
+> fixed IPv4 means a human does it by hand and `dns-ziel.timer` stays off;
+> `dynamic` means the server itself every five minutes. With `dynamic`,
+> `dns-pflegen ziel-setzen` measures the public IPv4 and writes it into the A
+> record; the game CNAMEs keep pointing at that one name and follow along — no
+> CNAME is touched. The A record is served with TTL 60 so the world follows
+> quickly after a change, while the CNAMEs keep 300 seconds because they never
+> move. The panel certificate hangs on this too: ACME needs `PANEL_DOMAIN` to
+> resolve publicly. A CNAME onto `DNS_ZIEL` is simplest; an A record inside the
+> zone is carried along by `ziel-setzen`, leaving a set `proxied` flag alone (the
+> panel speaks HTTPS and may sit behind Cloudflare's proxy); outside the zone it
+> stays manual, and `ziel-setzen` says so.*
 
 ### Anlegen und Nachführen sind zweierlei
 
@@ -396,6 +432,14 @@ Cloudflare mit vollständigen Namen und einem Proxy, Hetzner mit relativen Namen
 und ohne. Wer einen dritten schreibt, findet in einem der beiden schon den
 passenden Fall.
 
+> *Implemented are `cloudflare` (in production) and `hetzner` (written from the
+> documentation and tested against a mocked API, not yet against a real zone).
+> Both live in `bin/dns-pflegen` and are deliberately opposite — Cloudflare with
+> full names and a proxy, Hetzner with relative names and none — so whoever
+> writes a third finds the matching case in one of them. A provider does five
+> things and decides nothing: whether a record is created, changed or left alone
+> is written once above, for all of them (E24).*
+
 **Ein Anbieter kann fünf Dinge und entscheidet nichts.** Ob ein Eintrag angelegt,
 geändert oder in Ruhe gelassen wird, steht einmal darüber und für alle — siehe
 [E24](10-entscheidungen.md). Wer das in der Klasse noch einmal entscheidet, baut
@@ -416,6 +460,10 @@ class MeinAnbieter(Anbieter):
     def loeschen(self, zid, kennung)
 ```
 
+> *The class: a name as used in `ANBIETER=`, whether a HTTP proxy exists in
+> front (`kennt_proxy`), the API base, and five methods — zone id, list records,
+> create, change, delete.*
+
 Ein `satz` ist **immer** dieselbe Form, in beide Richtungen:
 
 ```python
@@ -430,6 +478,11 @@ Ein `satz` ist **immer** dieselbe Form, in beide Richtungen:
 Alles, was die API anders macht, wird in der Klasse übersetzt — `_satz()` beim
 Lesen, `_nutzlast()` beim Schreiben. `Hetzner` zeigt beides.
 
+> *A record always has the same shape in both directions — identifier, type,
+> full name without trailing dot, value without trailing dot, TTL, proxy flag.
+> Everything the API does differently is translated inside the class, `_satz()`
+> when reading and `_nutzlast()` when writing; `Hetzner` shows both.*
+
 #### 2. Eintragen
 
 ```python
@@ -437,6 +490,9 @@ ANBIETER = {"cloudflare": Cloudflare, "hetzner": Hetzner, "meinanbieter": MeinAn
 ```
 
 Mehr nicht. Kein Aufrufer ändert sich, keine Stufe, keine systemd-Einheit.
+
+> *Registering it is one entry in `ANBIETER`. Nothing else changes — no caller,
+> no stage, no systemd unit.*
 
 #### 3. Worauf zu achten ist
 
@@ -449,6 +505,16 @@ Mehr nicht. Kein Aufrufer ändert sich, keine Stufe, keine systemd-Einheit.
 | **Antwort, die kein JSON ist** | Ein Proxy davor schickt HTML, ein Fehlerleib zerfällt zu `null`. Dafür gibt es `lies_json()`; ohne sie steigt die Fehlerbehandlung selbst mit einem Traceback aus. |
 | **Blättern** | Eine Zone mit mehr Einträgen als einer Seite wird sonst still unvollständig gelesen — und „nicht gefunden" heißt hier „wird noch einmal angelegt". |
 | **`kennt_proxy`** | Bei `False` entfällt die Proxy-Prüfung; `pruefen` meldet dann „kennt keinen Proxy" und endet mit 0. |
+
+> *What to watch for: relative names (many APIs use `game` instead of the full
+> name and `@` for the apex — outwards everything must be full names); trailing
+> dots (two different values for the rules, so the check fires on every run and
+> `setzen` rewrites every time); CNAMEs without a dot, which some APIs complete
+> with the zone a second time; errors returned as an empty list — the worst, as
+> "does not exist" makes `grundgeruest` create everything again, so an error must
+> abort; answers that are not JSON (`lies_json()` exists for that); pagination,
+> without which a large zone is read incompletely and "not found" means "create
+> again"; and `kennt_proxy = False`, which skips the proxy check.*
 
 #### 4. Prüfen, bevor sich jemand darauf verlässt
 
@@ -590,13 +656,21 @@ TOKEN=<token>
 Beides steht in **einer** Datei, weil es zusammengehört: ein Token hat immer
 genau die Form, die ein bestimmter Anbieter versteht. Fehlt `ANBIETER`, ist es
 `cloudflare` — der einzige Anbieter, den es gab, als die Angabe noch nicht
-existierte. Die ältere `/etc/cloudflare-gameserver.conf` mit `CF_TOKEN=` wird
-weiter gelesen, damit vorhandene Installationen nicht stehenbleiben.
+existierte. Die ältere `/etc/cloudflare-gameserver.conf` mit `CF_TOKEN=` liest
+`dns-pflegen` **nicht** mehr: Liegt nur sie da, bricht es mit einer Meldung ab,
+die auf die Übernahme verweist. Die Stufen 25 und 70 übernehmen sie einmal in
+die neue Datei und verschieben die alte nach `.vor-<datum>` — zwei Orte für
+dasselbe Geheimnis laufen sonst auseinander, und dann entscheidet ein Vorrang,
+welches gilt.
 
 > *Both live in one file because they belong together: a token always has the
 > shape exactly one provider understands. A missing `ANBIETER` means cloudflare,
-> the only provider that existed before the setting did. The older file is still
-> read so existing installs keep working.*
+> the only provider that existed before the setting did. The older
+> `/etc/cloudflare-gameserver.conf` is no longer read by `dns-pflegen` — if only
+> it exists, the tool aborts with a message pointing at the migration. Stages 25
+> and 70 migrate it once into the new file and move the old one aside: two places
+> for one secret drift apart, and then a precedence rule decides which one
+> applies.*
 
 Berechtigung: **Zone / DNS / Bearbeiten**, Zonenressource **nur die eigene
 Zone**. Nie der globale API-Schlüssel — der darf alles im Konto, auch Zonen

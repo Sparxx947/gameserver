@@ -164,9 +164,17 @@ done
 # Ein neuer Katalog muss auch die schon installierten Spiele erreichen -
 # Sicherungsausschluesse (#221) und fehlende Umgebungsvariablen (#153), dieselbe
 # Angleichung wie Stufe 30.
-# *A new catalogue must reach installed games' backup exclusions too.*
+#
+# Ebenso nach der Ausschlussliste selbst: Die Fassung im Repositorium traegt die
+# Bloecke "# >>> panel:<spiel>" der installierten Katalogspiele nicht, das
+# Ausrollen ersetzte sie also ersatzlos. abgleich.sh blendet genau diese Bloecke
+# aus und merkte es nicht - und der naechste Restore haette die Installation
+# dieser Spiele nicht mehr verschont (gefunden bei der Doku-Durchsicht #250).
+# *A new catalogue must reach installed games' backup exclusions too - and so
+#  must a new exclusion list, whose repository version carries none of the
+#  per-game blocks; rolling it out dropped them silently.*
 case " $* " in
-  *" etc/spiele-katalog.json "*)
+  *" etc/spiele-katalog.json "*|*" etc/borg-ausschluss.txt "*)
     am_ziel "[ -x /usr/local/bin/spiel-verwalten ] && /usr/local/bin/spiel-verwalten katalog-abgleich" \
       || { echo "FEHLGESCHLAGEN: Ausschluesse nicht angeglichen"; fehler=1; } ;;
 esac

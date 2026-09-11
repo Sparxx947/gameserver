@@ -24,8 +24,9 @@ Benutzer panel   ── kein Docker-Socket
                  │
                  └── sudo -n /usr/local/bin/panel-aktion   ← einzige Erweiterung
                        │
-                       └── 14 fest verdrahtete Zweige,
-                           jeder Parameter gegen Positivlisten
+                       └── je Aktion ein fest verdrahteter Zweig,
+                           jeder Parameter gegen eine Positivliste
+                           (anfangs 14, heute über 40 — Liste in 09-referenz.md)
 ```
 
 > *The one boundary that matters: the panel is internet-facing and can start
@@ -57,21 +58,42 @@ kennt.
 |---|---|
 | Stack-Name | `^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$` **und** muss in `/opt/stacks/` existieren |
 | Archivname | `^[a-z0-9-]{1,40}-[0-9]{8}-[0-9]{6}$` **und** muss mit dem Stack beginnen |
-| Konfigurationsfeld | Positivliste von 11 Feldnamen plus `mem_limit` |
-| Katalogschlüssel | muss im Katalog stehen |
+| Konfigurationsfeld (`konfig-setzen`) | Positivliste von 11 Feldnamen plus `mem_limit` (Form `8g`), bei Palworld vier INI-Felder; Wert `^[A-Za-z0-9ÄÖÜäöüß._!?+-]{1,40}$` |
+| Umgebungsvariable (`compose-setzen`) | `compose-feld`: Sperrliste, kein Zeilenumbruch, Gerüstvergleich vor/nach |
+| Konfigurationsdatei | `konfig-datei`: erst auflösen, dann prüfen, bekannte Endungen, 4 B bis 256 KB, keine neuen Dateien |
+| Katalogschlüssel | Form wie Stack; muss im Katalog stehen |
+| Zeilenzahl (Logs) | Zahl, 1–2000 |
+| Schalter | `an` oder `aus` |
+| Mod-Dateiname | `^[A-Za-z0-9._-]{1,100}$`, kein `/`, `\`, kein führender Punkt |
+| Workshop | ID `^[0-9]{3,12}$`; Link `^[A-Za-z0-9:/?=&._%-]{1,200}$`; Suchtext `^[A-Za-z0-9ÄÖÜäöüß ._-]{1,60}$`; Unterbefehl aus fester Liste |
+| Minecraft-Spielername | `^[A-Za-z0-9_]{3,16}$`, nur bei `itzg/minecraft-server` und laufendem Container |
 | DNS-Aktion | nur `setzen`, `entfernen`, `liste`, `pruefen` |
+| Kanalaktion | nur `abgleich`, `vorschau`, `pruefen`, `pruefen-discord`; Zugänge über stdin |
 
 Kein `eval`, keine Shell-Expansion von Eingaben, kein Pfad, über den eigene
-Befehle einzuschleusen wären.
+Befehle einzuschleusen wären. Werte, die groß sind oder Geheimnisse tragen,
+kommen über stdin.
 
-**Die Feldliste ist der Kern.** Die compose-Datei als Ganzes freizugeben wäre
-eine Rechteausweitung: Wer dort ein Volume `/:/host` eintragen kann, ist root.
-Deshalb dürfen nur einzelne, benannte Felder geändert werden.
+**Die compose-Datei als Ganzes ist der Kern.** Sie freizugeben wäre eine
+Rechteausweitung: Wer dort ein Volume `/:/host` eintragen kann, ist root.
+Deshalb gibt es zwei Wege, und beide ändern genau **ein** Feld: die alte
+Positivliste (`konfig-setzen`) und die Umgebungsvariablen über `compose-feld`,
+dessen eigentlicher Schutz nicht die Eingabeprüfung ist, sondern der Vergleich
+der von Docker erzeugten Endfassung vor und nach der Änderung — weichen Volumes,
+Ports, Image, `user`, `privileged` oder `cap_add` ab, wird zurückgerollt.
 
-> *What `panel-aktion` validates is listed above. No eval, no shell expansion of
-> inputs, no path to inject commands. The field allow-list is the crux: exposing
-> the compose file as a whole would be a privilege escalation, since a `/:/host`
-> volume means root.*
+> *What `panel-aktion` validates is listed above, per input: stack and archive
+> names, the allow-listed fields and their value pattern, environment variables
+> through `compose-feld`, config files through `konfig-datei`, catalogue keys,
+> log line counts, switches, mod file names, Workshop ids, links and search
+> text, Minecraft player names, and the DNS and channel sub-commands. No eval, no
+> shell expansion of inputs, no path to inject commands; large or secret values
+> arrive on stdin. The compose file as a whole is the crux: exposing it would be
+> a privilege escalation, since a `/:/host` volume means root. So both editing
+> paths change exactly one field — the old allow-list, and environment variables
+> through `compose-feld`, whose real safeguard is not input validation but a
+> before/after comparison of Docker's rendered config that rolls back if
+> volumes, ports, image, user, privileged or cap_add differ.*
 
 Eine Feinheit aus dem Betrieb: Die Prüfung nutzt einen Here-String, **keine
 Pipe**. `grep -q` beendet sich beim ersten Treffer, die schreibende Seite bekommt
@@ -174,23 +196,40 @@ funktionierende Oberfläche mit leeren Listen, nicht als Fehlermeldung.
 ## Die Sicherheitsrichtlinie im Browser
 
 ```
-default-src 'none'; style-src 'unsafe-inline'; img-src 'self';
+default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; manifest-src 'self';
 form-action 'self'; base-uri 'none'; frame-ancestors 'none'
 ```
 
 `default-src 'none'` heißt: **keine** externen Ressourcen, **kein** JavaScript,
 keine Schriften, keine `data:`-URIs. Deshalb ist die Oberfläche serverseitig
 gerendert und die Symbole liegen als echte Dateien vor — ein Favicon als
-`data:`-URI würde blockiert.
+`data:`-URI würde blockiert. `manifest-src 'self'` braucht es eigens für die
+Handy-App: `default-src` deckt Manifeste nicht ab.
+
+Vier Richtlinien, nachgemessen an den **ausgelieferten** Kopfzeilen:
+
+| Wo | Richtlinie | Warum anders |
+|---|---|---|
+| Panel | wie oben | zeigt Zugangsdaten |
+| `/login`, `/konto`, `/passkey.js` | dazu `script-src 'self'; connect-src 'self'` | WebAuthn geht nur mit JavaScript (unten) |
+| `/terminal/` | `default-src 'self'`, Skripte mit `'unsafe-inline' 'unsafe-eval'`, `connect-src wss://…` | ttyd braucht JavaScript und WebSockets |
+| `/status` | `default-src 'none'; style-src 'unsafe-inline'; img-src data:; form-action 'none'` | öffentlich, ohne Skript und ohne Bild |
+
+Dazu überall `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`,
+`X-Frame-Options: DENY` und `Referrer-Policy: no-referrer`.
 
 `Cache-Control: no-store, no-cache` auf allen Panel-Antworten: Die Seite zeigt
 Zugangsdaten, und ein zwischengespeicherter Stand hält auch alte
 Sicherheitskopfzeilen am Leben.
 
 > *`default-src 'none'` means no external resources, no JavaScript, no fonts and
-> no `data:` URIs — hence server-side rendering and icons as real files. All
-> panel responses are `no-store`: the page shows credentials, and a cached copy
-> keeps stale security headers alive too.*
+> no `data:` URIs — hence server-side rendering and icons as real files;
+> `manifest-src 'self'` is needed separately for the phone app. Four policies,
+> verified against the headers actually served: the panel as above; the three
+> passkey paths with `script-src 'self'`; the terminal with the relaxations ttyd
+> needs; and the public status page, stricter still. HSTS, nosniff, frame denial
+> and no referrer apply everywhere. All panel responses are `no-store`: the page
+> shows credentials, and a cached copy keeps stale security headers alive too.*
 
 ---
 
@@ -233,15 +272,16 @@ nachweislich selbst angelegt hat und was seitdem niemand angefasst hat.
 
 **Der Discord-Bot ist die größere Stufe.** Sein Token liegt in
 `/opt/panel/daten/discord.conf` (`0600 panel`), und dieser Bot hat auf dem
-Discord-Server „Sparxx947" **Administratorrechte** — wer die Maschine übernimmt,
-kann damit den ganzen Community-Server umbauen: Rollen, Mitglieder, Kanäle,
-Einstellungen. Angeboten war ein zweiter Bot, der nur in der einen Kategorie
-Kanäle verwalten darf; **Jens hat sich am 2026-09-11 für den vorhandenen
-Admin-Bot entschieden** (E33). Wer das später einengen will: zweiten Bot im
-Entwicklerportal anlegen, ihm nur „Kanäle verwalten" in der Kategorie
-„Spieleserver" geben und sein Token auf der Seite Integrationen eintragen — der
+Discord-Server der Gemeinschaft **Administratorrechte** — wer die Maschine
+übernimmt, kann damit den ganzen Community-Server umbauen: Rollen, Mitglieder,
+Kanäle, Einstellungen. Angeboten war ein zweiter Bot, der nur in der einen
+Kategorie Kanäle verwalten darf; **Jens hat sich am 2026-09-11 für den
+vorhandenen Admin-Bot entschieden** (E33). Wer das später einengen will: zweiten
+Bot im Entwicklerportal anlegen, ihm nur „Kanäle verwalten" in der Kategorie
+der Spielserver geben und sein Token auf der Seite Integrationen eintragen — der
 Rest bleibt, wie er ist. Das Token wird über stdin geprüft, nie angezeigt, nie
-protokolliert.
+protokolliert. Das Gateway, über das die Belegung der Sprachkanäle gelesen wird,
+braucht nur die nicht privilegierten Intents `GUILDS` und `GUILD_VOICE_STATES`.
 
 > *For per-server channels the TeamSpeak ServerQuery login (`serveradmin`) is
 > stored in `/opt/panel/daten/teamspeak.conf`, 0600 panel — full control of the
@@ -253,7 +293,8 @@ protokolliert.
 > the community server — whoever takes the machine can restructure it. A second
 > bot limited to managing channels in one category was offered; Jens chose the
 > existing admin bot (E33). Narrowing it later only needs a new token entered on
-> the Integrations page.*
+> the Integrations page. The Gateway session that reads voice occupancy needs
+> only the non-privileged `GUILDS` and `GUILD_VOICE_STATES` intents.*
 
 ---
 
@@ -291,8 +332,10 @@ und abgetippt werden.
 3. **Die Form entscheidet, welcher Weg geprüft wird.** Sechs Ziffern sind ein
    TOTP, 16 Zeichen ein Wiederherstellungscode. Sonst liefen bei jedem vertippten
    TOTP zehn Argon2-Prüfungen mit — rund eine Sekunde.
-4. **Ein Zurücksetzen des zweiten Faktors entwertet die Codes.** Sie gehören zum
-   alten Faktor; blieben sie liegen, wäre das Zurücksetzen keines.
+4. **Ein Zurücksetzen des zweiten Faktors entwertet die Codes — und die
+   Passkeys.** Sie gehören zum alten Faktor; blieben sie liegen, wäre das
+   Zurücksetzen keines. Für die Passkeys galt das bis #254 nicht: Ein Passkey
+   auf dem verlorenen Gerät blieb nach dem Zurücksetzen gültig.
 
 Die Einlösung steht **im Protokoll**, mitsamt der Zahl der verbleibenden Codes:
 Es ist der eine Weg hinein, der ohne den zweiten Faktor im üblichen Sinne
@@ -305,7 +348,9 @@ jemand davorsteht.
 > alphabet is 93.3 bits — above NIST's 64-bit minimum, below the ASVS 112-bit
 > threshold, hence Argon2id. The redeemed code is deleted rather than flagged; a
 > reset of the second factor invalidates the codes; and the input shape decides
-> which path is checked, so Argon2 does not run on every mistyped TOTP.*
+> which path is checked, so Argon2 does not run on every mistyped TOTP. A reset
+> of the second factor revokes the codes and, since #254, the passkeys too —
+> until then a passkey on the lost device stayed valid after the reset.*
 
 ---
 
@@ -343,6 +388,14 @@ Hier ist er ein **zusätzlicher** zweiter Faktor, kein Ersatz. Das Passwort blei
 Faktor 1, und wer keinen Passkey einrichtet, meldet sich unverändert mit den
 sechs Ziffern an.
 
+> *A passkey is the second factor without a shared secret: the private key never
+> leaves the device, the server knows only the public one, and it is bound to
+> the domain — a copied login page under another address simply gets no
+> signature, which is why the BSI rates passkeys "good" against real-time
+> phishing and TOTP "poor". Here it is an additional second factor, not a
+> replacement: the password remains factor one, and whoever sets up no passkey
+> keeps logging in with the six digits.*
+
 ### Der Preis: JavaScript auf drei Seiten
 
 WebAuthn ist ausschließlich über `navigator.credentials` erreichbar. Einen Weg
@@ -361,6 +414,19 @@ Vier Dinge halten die Lockerung klein:
 | **Kein `'unsafe-inline'`, kein `'unsafe-eval'`** | `script-src 'self'` allein. Das Skript liegt als eigene Datei; inline stünde es nicht |
 | **`nosniff`** | Ein ausgeliefertes Titelbild kann nicht als Skript durchgehen |
 | **Die Datei gehört root** | `/opt/panel/statisch/passkey.js` ist `0644 root:root` — der Dienst kann Code, den er ausliefert, nicht überschreiben. Dieselbe Überlegung wie bei `app.py` |
+
+> *The price is JavaScript on three pages. WebAuthn is reachable only through
+> `navigator.credentials`; there is no way without JavaScript and there will be
+> none — the W3C request for one (w3c/webauthn#1255) was closed without
+> replacement in February 2025, on the grounds that two ways to the same goal are
+> the bigger nightmare. The panel ran with `default-src 'none'`; that line is now
+> relaxed for three paths: `/login`, `/konto`, `/passkey.js`. Four things keep
+> the relaxation small: only those three paths (overview, games, credentials and
+> audit log keep `default-src 'none'`, verified on the served headers); no
+> `'unsafe-inline'` and no `'unsafe-eval'`, just `script-src 'self'` with the
+> script as its own file; `nosniff`, so a served artwork cannot pass as a
+> script; and the file belongs to root, so the service cannot overwrite code it
+> serves.*
 
 ### Sechs Entscheidungen im Ablauf
 
@@ -448,6 +514,42 @@ Reihenfolgen werden früher oder später verschieden.
 > format yields a server with no port and a visible warning instead of an open
 > server with no password. Exactly one code path publishes ports; the standalone
 > tool hands over via `execv`.*
+
+---
+
+## Weitere Angriffsflächen und ihre Schranken
+
+Jede Fähigkeit, die nach der ersten Fassung dazukam, brachte eine eigene
+Angriffsfläche mit — und eine eigene Schranke, keine gelockerte alte:
+
+| Fähigkeit | Angriffsfläche | Schranke |
+|---|---|---|
+| Konfigdateien bearbeiten | Symlink aus dem Datenverzeichnis hinaus (`z: -> /` in Wine-Präfixen) | Pfad **erst auflösen, dann prüfen**; Eigentümer vom Original |
+| Mods hochladen | Zip Slip, Symlinks im Archiv, riesige Dateien, fremder Code im Server | jeder Eintrag vor dem Entpacken geprüft, Archive mit Symlinks abgewiesen, 512 MB, nur `admin` |
+| Steam-Workshop | eine ID für ein **anderes** Spiel, gesperrte oder übergroße Elemente | jede ID bei Steam nachgeschlagen: `consumer_app_id` muss passen, 2 GB, unbekannte Größe abgewiesen |
+| Steam-Schlüssel, TeamSpeak-Zugang, Discord-Bot | Geheimnisse im Panel | nur zum Schreiben, beim Speichern geprüft, über stdin, `0600 panel`, im Protokoll höchstens die letzten vier Zeichen |
+| Meldungen nach Discord | Passwörter aus Fehlerausgaben landen bei einem fremden Dienst | Filter auf Passwort-, Token- und Webhook-Muster vor dem Senden; Webhooks `0600 root` |
+| Protokoll | Geheimnisse an einer zweiten Stelle | Felder mit Geheimnis-Namen nur als Länge, Dateien nur als Name und Größe, Installationen ohne Ausgabe (#239) |
+| Statusseite | eine öffentliche Seite neben der Verwaltung | eigene Datei, von Caddy ausgeliefert, erreicht das Panel nie; ohne Server mit offener Einrichtung |
+| Leerlauf | systemd hält Spielports auf dem Wirt, an Docker vorbei | ufw-Regeln nur für die Dauer des Schlafs, Verwaltungsports nie |
+| Kanäle | Löschen fremder Kanäle, Verlust von Unterhaltungen | nur Unberührtes, erkannt an der gespeicherten ID; nie im Seitenaufruf |
+| Minecraft-Whitelist | Befehle über den Spielernamen einschleusen | Name streng geprüft, als eigenes Argument an `rcon-cli`, nie durch eine Shell |
+| Wiederherstellen | ein Archiv eines anderen Servers, ein Server ohne Installation danach | Archivname muss mit dem Stack beginnen; ausgeschlossene Pfade werden verschont, Ist-Stand vorher kopiert |
+
+> *Every capability added after the first version brought an attack surface of
+> its own — and a barrier of its own rather than a loosened old one. The table
+> lists them: config editing (resolve first, then check), mod upload (entries
+> checked before extraction, symlink archives refused, size limit, admin only),
+> the Workshop (every id verified at Steam for exactly this game, size limits),
+> stored outside-service credentials (write-only, verified on save, via stdin,
+> 0600, at most the last four characters logged), Discord notifications
+> (secret-shaped text filtered before sending), the audit log (no secrets, no
+> installer output since #239), the status page (a separate file that never
+> reaches the panel), idle sleep (ufw rules only while asleep, never management
+> ports), channels (only untouched ones deleted, never in a page request), the
+> Minecraft whitelist (strict name, own argument, no shell) and restores
+> (archive must belong to the stack, excluded paths spared, current state copied
+> first).*
 
 ---
 

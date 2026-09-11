@@ -15,15 +15,21 @@ konkreter Fehlschlag.
 **Dagegen:** Socket-Zugriff ist gleichbedeutend mit root
 (`docker run -v /:/host`). Ein internet-erreichbarer Webdienst mit root wäre der
 gesamte Sicherheitsentwurf zunichte.
-**Stattdessen:** eine sudo-Brücke mit 14 fest verdrahteten Zweigen, jeder
-Parameter gegen Positivlisten.
+**Stattdessen:** eine sudo-Brücke, `panel-aktion`, in der jede Aktion ein fest
+verdrahteter Zweig ist und jeder Parameter gegen eine Positivliste geprüft wird.
+Anfangs waren es 14 Zweige, heute sind es über 40 Aktionen — jede kam mit einer
+eigenen Prüfung dazu, keine durch Lockern einer bestehenden. Die vollständige
+Liste steht in [09-referenz.md](09-referenz.md#panel-aktion).
 **Kosten:** Jede neue Fähigkeit der Oberfläche braucht eine Erweiterung in
 `panel-aktion`. Das ist der Punkt.
 
 > *Obvious: put `panel` in the `docker` group. Against: socket access equals
-> root, which would void the entire design. Instead: a sudo bridge with 14
-> hard-wired branches. Cost: every new panel capability needs a change in the
-> bridge — which is the point.*
+> root, which would void the entire design. Instead: a sudo bridge,
+> `panel-aktion`, in which every action is a hard-wired branch and every
+> parameter is checked against an allow-list. It started with 14 branches and
+> has over 40 actions today — each arrived with a check of its own, none by
+> loosening an existing one; the full list is in the reference chapter. Cost:
+> every new panel capability needs a change in the bridge — which is the point.*
 
 ---
 
@@ -37,6 +43,12 @@ Hintertür.
 **Kosten:** Ein neues Spiel erfordert einen Katalogeintrag statt eines
 Formulars. Dafür gibt es `katalog-vorpruefung`.
 
+> *Obvious: a form for image, ports and volumes. Against: whoever sets those
+> fields can mount `/:/host` — E1 through the back door. Instead: a catalogue
+> under `/etc` that the panel can only read; the panel passes a key and nothing
+> else. Cost: a new game needs a catalogue entry rather than a form, which is
+> what `katalog-vorpruefung` is for.*
+
 ---
 
 ## E3 — Bind-Mounts statt Docker-Volumes
@@ -49,6 +61,13 @@ Hilfscontainer müsste kopieren.
 lesbar, überlebt `docker system prune`.
 **Kosten:** Rechte muss man selbst setzen. Daher die feste UID/GID 4711.
 
+> *Obvious: named volumes, as in most compose examples. Against: a volume lives
+> under `/var/lib/docker/volumes/<hash>/_data`; Borg would have to know that
+> path, which changes when the volume is recreated, or a helper container would
+> have to copy it out. Instead: `/srv/games/<name>` as a bind mount — nameable,
+> readable without Docker, and it survives `docker system prune`. Cost: ownership
+> has to be managed by hand, hence the fixed UID/GID 4711.*
+
 ---
 
 ## E4 — Feste UID 4711 für alle Spieldaten
@@ -58,6 +77,11 @@ lesbar, überlebt `docker system prune`.
 Spielstände gehören niemandem. Ein Server, der seine Welt nicht schreiben kann,
 verliert den Fortschritt der Sitzung — ohne Fehlermeldung.
 **Stattdessen:** ein Systembenutzer `spiele` mit fest vergebener UID/GID.
+
+> *Obvious: give every container its own UID. Against: after a rebuild the
+> numbers no longer match and the save files belong to nobody; a server that
+> cannot write its world loses the session's progress — without an error
+> message. Instead: one system user `spiele` with a fixed UID/GID of 4711.*
 
 ---
 
@@ -70,6 +94,13 @@ gesicherte Spiel verdrängt das seltene.
 **Stattdessen:** Präfix je Spiel, `prune --glob-archives "<spiel>-*"`.
 **Kosten:** mehr Archive in der Liste. Dafür holt man ein Spiel gezielt zurück.
 
+> *Obvious: one archive `gameserver-<time>` holding everything. Against: getting
+> a single game back would mean searching the whole archive, and `prune` would
+> calculate for the shared pool, so the frequently saved game would crowd out
+> the rare one. Instead: one prefix per game, `prune --glob-archives
+> "<game>-*"`. Cost: more archives in the list; in return a single game comes
+> back on its own.*
+
 ---
 
 ## E6 — Der Viertelstundenlauf lässt gestoppte Spiele aus
@@ -81,12 +112,18 @@ gefüllt — die Aufbewahrung verwässert, ohne einen Stand mehr zu bewahren.
 **Stattdessen:** nur laufende Container; die tägliche Vollsicherung nimmt den
 Rest mit.
 
+> *Obvious: always back up everything, the simplest option. Against: a stopped
+> game does not change. The "son" tier (`--keep-within 2d`) would fill with
+> copies of one state within two days — retention gets diluted without keeping a
+> single additional state. Instead: only running containers; the daily full run
+> picks up the rest.*
+
 ---
 
 ## E7 — Die Passwort-Einrichtung rät keine Feldnamen
 
 **Naheliegend:** je Spiel Pfad und Feldname in den Katalog schreiben.
-**Dagegen:** 36 von 41 Spielen legen ihre Konfiguration erst beim ersten Start
+**Dagegen:** 36 von damals 41 Spielen legen ihre Konfiguration erst beim ersten Start
 an, oft nach minutenlangem Download. Die Feldnamen sind nirgends zuverlässig
 dokumentiert; sie aus Foren abzuschreiben hätte in den meisten Fällen still
 danebengelegen.
@@ -96,7 +133,7 @@ negativen Ausschlüssen (nicht `rcon`, nicht `steam`, nicht `db`).
 Ein Server ohne Beitrittspasswort darf nicht unauffällig sein — und seit E26
 geht er dann auch nicht ans Netz.
 
-> *Obvious: record path and field name per game. Against: 36 of 41 games write
+> *Obvious: record path and field name per game. Against: 36 of the then 41 games write
 > their config only on first start, and the field names are not reliably
 > documented — copying them from forums would have silently missed most of the
 > time. Instead: pattern matching with negative exclusions. Crucially, after six
@@ -115,6 +152,22 @@ Nachdenken für die wirksame Stelle gehalten.
 **Stattdessen:** ufw regelt, was nicht über Docker läuft (22, 80, 443, Tailnet).
 Wer einen Spielport schließen will, ändert die compose-Datei.
 
+**Eine Ausnahme mit Absicht:** Solange ein Server im Leerlauf schläft, hört
+systemd auf dem Wirt auf seinen Ports, und dieser Verkehr läuft durch `INPUT`.
+Dafür legt `platzwart-schlaf` für die Dauer des Schlafs eigene ufw-Regeln an
+und nimmt sie beim Aufwecken wieder weg (siehe
+[03-panel.md](03-panel.md#leerlauf-schlafen-legen-und-beim-beitritt-wecken)).
+
+> *Obvious: a ufw rule per game port, for tidiness. Against: it would have no
+> effect. Docker inserts its publications as DNAT rules that apply before the
+> ufw chains. A rule that does nothing is worse than none — it fakes security
+> and gets mistaken for the place that matters the next time someone thinks
+> about it. Instead: ufw governs what does not go through Docker (22, 80, 443,
+> the tailnet); to close a game port, change the compose file. One deliberate
+> exception: while a server sleeps, systemd listens on the host and that
+> traffic passes INPUT, so `platzwart-schlaf` adds ufw rules for the duration of
+> the sleep and removes them on wake-up.*
+
 ---
 
 ## E9 — Verwaltungsports auf `127.0.0.1`
@@ -122,9 +175,22 @@ Wer einen Spielport schließen will, ändert die compose-Datei.
 **Anlass:** Necesse veröffentlichte seine Webkonsole auf `0.0.0.0:8080`. Das fiel
 nur auf, weil jemand hinsah.
 **Regel seither:** RCON, Webkonsolen, ServerQuery, Telnet und API-Ports bekommen
-im Katalog die dreiteilige Form `127.0.0.1:port:port`. Betrifft acht Spiele.
-**Offen:** Eine Prüfung, die meldet, wenn ein Container einen unerwarteten Port
-auf `0.0.0.0` legt, gibt es noch nicht.
+im Katalog die dreiteilige Form `127.0.0.1:port:port`. Anfangs betraf das acht
+Spiele — und die Regel griff im Generator nie (#163). Seitdem prüft
+`werkzeuge/katalog-ports.py` den **ganzen** Katalog bei jedem Lauf von
+`vollstaendigkeit.sh`; es ist Grenze 4 in `CLAUDE.md`.
+**Offen:** Eine Prüfung **zur Laufzeit**, die meldet, wenn ein laufender
+Container einen unerwarteten Port auf `0.0.0.0` legt, gibt es noch nicht — die
+Katalogprüfung sieht nur, was im Katalog steht.
+
+> *Trigger: Necesse published its web console on `0.0.0.0:8080`, noticed only
+> because somebody looked. Rule since: RCON, web consoles, ServerQuery, telnet
+> and API ports get the three-part form `127.0.0.1:port:port` in the catalogue.
+> At first that covered eight games — and the rule never fired in the generator
+> (#163). Since then `werkzeuge/katalog-ports.py` checks the whole catalogue on
+> every completeness run; it is boundary 4 in `CLAUDE.md`. Still open: a
+> runtime check that reports a running container binding an unexpected port on
+> `0.0.0.0` — the catalogue check only sees what is in the catalogue.*
 
 ---
 
@@ -156,6 +222,11 @@ mit `404`; im Browser stand `websocket connection closed with code: 1006`. Über
 HTTP/1.1 kommt sauber `101 Switching Protocols`.
 **Kosten:** kein h2, kein h3. Bei einem Panel mit zwei Benutzern belanglos.
 
+> *Trigger: over HTTP/2 Caddy answered the terminal's WebSocket upgrade with
+> `404`, and the browser showed `websocket connection closed with code: 1006`.
+> Over HTTP/1.1 a clean `101 Switching Protocols` comes back. Cost: no h2, no
+> h3 — irrelevant for a panel with a handful of users.*
+
 ---
 
 ## E12 — Zwei getrennte Kopfzeilensätze
@@ -164,7 +235,20 @@ HTTP/1.1 kommt sauber `101 Switching Protocols`.
 **Dagegen:** Das Panel fährt `default-src 'none'` — das blockiert `ttyd`
 vollständig, denn ein Terminal braucht JavaScript und WebSockets. Umgekehrt darf
 das Panel die Lockerungen des Terminals nicht bekommen: Es zeigt Zugangsdaten.
-**Stattdessen:** zwei `handle`-Blöcke mit eigenen Kopfzeilen.
+**Stattdessen:** zwei `handle`-Blöcke mit eigenen Kopfzeilen. Dazu kamen später
+zwei weitere: die Seiten mit Passkeys (`script-src 'self'` auf genau drei
+Pfaden) und die öffentliche Statusseite (noch strenger als das Panel). Welche
+Richtlinie wo gilt, steht in
+[07-sicherheitsentwurf.md](07-sicherheitsentwurf.md#die-sicherheitsrichtlinie-im-browser).
+
+> *Obvious: one policy for the whole domain. Against: the panel runs
+> `default-src 'none'`, which blocks ttyd completely — a terminal needs
+> JavaScript and WebSockets. Conversely the panel must not inherit the
+> terminal's relaxations, because it displays credentials. Instead: two
+> `handle` blocks with headers of their own. Two more were added later — the
+> passkey pages (`script-src 'self'` on exactly three paths) and the public
+> status page (stricter than the panel); the security chapter lists which
+> policy applies where.*
 
 ---
 
@@ -202,6 +286,17 @@ Terminalprotokoll — und ist keiner mehr.
 angezeigt. Der neue Benutzer bekommt es bei seiner ersten Anmeldung selbst.
 **Gleiches gilt bei der Einrichtung:** Stufe 30 gibt das Startpasswort aus, das
 TOTP-Geheimnis nicht.
+**Und bei den Wiederherstellungscodes:** Sie entstehen erst, wenn der Benutzer
+seinen zweiten Faktor selbst bestätigt — der Administrator sieht auch sie nie.
+
+> *Obvious: show the QR code when an account is created so the administrator
+> can pass it on. Against: the second factor would then travel through a chat,
+> a mail or a terminal log — and would no longer be one. Instead: the secret is
+> created with the account but displayed nowhere; the new user receives it on
+> their own first login. The same holds for installation — stage 30 prints the
+> initial password, not the TOTP secret — and for recovery codes, which are
+> generated only when the user confirms their second factor, so the
+> administrator never sees them either.*
 
 ---
 
@@ -213,6 +308,11 @@ Dateizugriff.
 bis zum Ablauf des Cookies — acht Stunden.
 **Kosten:** ein Lesevorgang je Anfrage. Bei zwei Benutzern nicht messbar.
 
+> *Obvious: put the role into the signed session and save a file read.
+> Against: a demoted or deleted user would keep their rights until the cookie
+> expired — eight hours. Cost: one read per request, not measurable with a
+> handful of users.*
+
 ---
 
 ## E16 — `/srv/dienste` getrennt von `/srv/games`
@@ -220,6 +320,11 @@ bis zum Ablauf des Cookies — acht Stunden.
 **Anlass:** Die Prüfung der Sicherungen verlangt für jedes Verzeichnis unter
 `/srv/games` Spielstand-Dateien. TeamSpeak hat keine und hätte dauerhaft Alarm
 ausgelöst — ein Daueralarm, den man nach zwei Wochen nicht mehr liest.
+
+> *Trigger: the backup check expects save files in every directory under
+> `/srv/games`. TeamSpeak has none and would have raised a permanent alarm —
+> the kind nobody reads any more after two weeks. Services that are not games
+> therefore live under `/srv/dienste`.*
 
 ---
 
@@ -233,6 +338,13 @@ Eintrag beim Umzug.
 Wildcard in der Zone beantwortet jeden erfundenen Namen und machte jede Prüfung
 per `dig` wertlos.
 
+> *Obvious: one A record per game pointing at the IP. Against: moving the server
+> would mean changing all of them, and one gets forgotten. Instead: `gs.<zone>`
+> carries the IP and every game is a CNAME onto it — one record to change when
+> moving. And `dns-pflegen` never asks name resolution, always the API: a
+> wildcard in the zone answers every made-up name and made any check via `dig`
+> worthless.*
+
 ---
 
 ## E18 — Sicherung über Tailscale, nicht über einen offenen Port
@@ -242,7 +354,16 @@ per `dig` wertlos.
 überwachen muss — für einen Zweck, der ihn nicht braucht.
 **Nebeneffekt:** Das Tailnet ist zugleich der Notzugang, wenn eine ufw-Regel oder
 ein fail2ban-Bann den SSH-Zugang aussperrt.
-**Kosten:** Ist das Tailnet unten, scheitert die Sicherung. Das meldet der Timer.
+**Kosten:** Ist das Tailnet unten, scheitert die Sicherung. Das meldet
+`spiele-sicherung` als Störung nach Discord, und die Wache meldet den
+fehlgeschlagenen Dienst.
+
+> *Obvious: expose the backup host's SSH to the internet. Against: one more
+> publicly reachable service to maintain and monitor, for a purpose that does
+> not need it. Side effect: the tailnet doubles as the emergency way in when a
+> ufw rule or a fail2ban ban locks SSH out. Cost: when the tailnet is down, the
+> backup fails — reported by `spiele-sicherung` as a fault on Discord, and by
+> the watchdog as a failed unit.*
 
 ---
 
@@ -977,21 +1098,26 @@ der Betreiber mit.
 **Was Platzwart dazu tut:** Der Schalter steht im Panel wie jede andere
 Umgebungsvariable; eingeschaltet wird er bewusst von Hand. Der Upload nimmt
 Valheim-Mods erst an, wenn `BepInEx/core` existiert, und sagt sonst, was fehlt.
-Am laufenden Valheim-Server ist er aus.
+Am laufenden Valheim-Server hat Jens ihn am 2026-09-11 eingeschaltet; nach dem
+Neustart meldete das Log BepInEx 5.4.2350 und `Chainloader startup complete`.
 
 > *Jens' decision: Valheim mods via the ich777 image's own `ENABLE_BEPINEX`
 > rather than a pinned, checksummed install. Accepted: the latest BepInEx pack
 > is fetched from Thunderstore on every start — third-party code, unpinned,
 > hooked into the server start — in exchange for staying compatible with
-> Valheim updates. The switch is visible in the panel, off on the running
-> server, and uploads are refused until BepInEx is present.*
+> Valheim updates. The switch is visible in the panel like any environment
+> variable and is turned on by hand; uploads are refused until `BepInEx/core`
+> exists. Jens switched it on for the running Valheim server on 2026-09-11; after
+> the restart the log showed BepInEx 5.4.2350 and "Chainloader startup
+> complete".*
 
 ---
 
 ## E33 — Kanäle je Spielserver: erst TeamSpeak, und gelöscht wird nur Unberührtes
 
-**Entscheidungen von Jens (2026-09-11, #137):** Zuerst TeamSpeak; Discord folgt,
-wenn er einen Bot anlegt — der Entwurf bleibt auf beide ausgelegt. Und beim
+**Entscheidungen von Jens (2026-09-11, #137):** Zuerst TeamSpeak; Discord sollte
+folgen, sobald ein Bot da ist — der Entwurf blieb auf beide ausgelegt, und
+Discord kam noch am selben Tag dazu (Nachträge unten). Und beim
 Entfernen eines Servers wird dessen Kanal **automatisch gelöscht, aber nur, wenn
 er unberührt ist**; sonst bleibt er stehen und wird gemeldet.
 
@@ -1016,7 +1142,8 @@ umbenannter Kanal → „bleibt stehen: umbenannt", ein von Hand angelegter Kana
 gleichen Namens → fremd; nach dem Entfernen der Server wurde genau der
 unberührte gelöscht, die beiden anderen blieben und wurden gemeldet.
 
-> *Jens' decisions: TeamSpeak first, Discord once a bot exists; on removal a
+> *Jens' decisions: TeamSpeak first, Discord once a bot exists (it followed the
+> same day, see the addenda below); on removal a
 > channel is deleted automatically only if untouched — created by Platzwart
 > (stored id, not name), not renamed or moved, no subchannels, nobody inside;
 > a same-named channel made by hand is adopted as foreign and never deleted.
@@ -1051,3 +1178,20 @@ Regel, die man nicht prüfen kann, darf nicht als erfüllt gelten.
 > nothing is deleted and the next run asks again — a rule that cannot be checked
 > must not count as satisfied.*
 
+**Nachtrag Namen (#247, Jens' Entscheidung „schöne Namen"):** Ein Kanal heißt
+wie sein Server — bei Katalogspielen der Name aus `panel.json`, sonst der
+Katalogname, sonst der Stackname mit großem Anfangsbuchstaben. Ändert sich der
+Soll-Name, benennt der Abgleich nur Kanäle um, die Platzwart angelegt hat **und
+die noch so heißen, wie Platzwart sie genannt hat**. Hat ein Mensch umbenannt,
+gewinnt der Mensch; die Umbenennung zählt dann auch als „berührt", der Kanal
+wird beim Entfernen des Servers nicht gelöscht. Oberkanal und Kategorie heißen
+auf der laufenden Maschine „Platzwart" (Vorgabe im Code: „Spieleserver").
+
+> *Names addendum (#247, Jens chose "nice names"): a channel is named like its
+> server — the name from `panel.json` for catalogue games, otherwise the
+> catalogue name, otherwise the stack name capitalised. When the target name
+> changes, the sync renames only channels Platzwart created that still carry the
+> name Platzwart gave them. If a person renamed a channel, the person wins, and
+> the rename also counts as "touched", so the channel is not deleted when the
+> server is removed. The parent channel and the category are called "Platzwart"
+> on the running machine (default in the code: "Spieleserver").*

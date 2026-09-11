@@ -5,13 +5,21 @@
 ```bash
 systemctl is-active panel caddy ttyd docker fail2ban tailscaled
 docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
-systemctl list-timers --no-pager | grep -E 'sicherung|einrichtung'
+systemctl list-timers --no-pager | grep -E 'sicherung|einrichtung|platzwart|spieler|kanal|autoupdate'
 journalctl -u panel -n 50 --no-pager
 df -h / && free -h
 ```
 
+Dazu, wenn etwas unklar ist: `platzwart-wache --trocken` (was gerade nicht
+stimmt, ohne zu melden), `systemctl --failed` und die Seite **Protokoll** im
+Panel. Meist ist all das unnötig — Störungen melden sich von selbst in
+`#platzwart-stoerung` (siehe unten).
+
 > *Everyday health check: services active, containers up, timers scheduled,
-> recent panel log, disk and memory.*
+> recent panel log, disk and memory. When something is unclear, add
+> `platzwart-wache --trocken` (what is wrong right now, without reporting),
+> `systemctl --failed` and the panel's audit log. Mostly none of this is needed —
+> faults report themselves in the faults channel.*
 
 ---
 
@@ -25,24 +33,25 @@ Das ist **beabsichtigt**. Getragen hat es bisher ein Satz, der hier stand:
 gleichzeitig. Die Voraussetzung, auf der der Entwurf ruht, hat lautlos aufgehört
 zu stimmen — sie wurde von nichts geprüft, also hat es niemand bemerkt.
 
-Stand vom 2026-09-10, Maschine mit **23 GiB** RAM:
+Stand vom 2026-09-10, am 2026-09-11 unverändert nachgemessen, Maschine mit
+**23 GiB** RAM:
 
 | Container | Grenze | Herkunft |
 |---|---|---|
-| palworld | 12 G | |
-| satisfactory | 10 G | von Hand gebaut |
-| windrose | 8 G | von Hand gebaut |
-| enshrouded | 6 G | |
-| foundry | 6 G | von Hand gebaut |
-| valheim | 4 G | |
-| teamspeak | 1 G | |
+| palworld | 12 G | `stacks/` |
+| satisfactory | 10 G | `stacks/` |
+| windrose | 8 G | `stacks/` |
+| enshrouded | 6 G | `stacks/` |
+| foundry | 6 G | `stacks/` |
+| valheim | 4 G | Katalog |
+| teamspeak | 1 G | `stacks/` |
 | **Summe** | **47 G** | |
 
 Was dabei zu wissen ist: Der Kernel gibt nur her, was da ist. Wird es eng, greift
 **nicht** die saubere Container-Grenze, sondern der OOM-Killer der Maschine — und
-der trifft nicht unbedingt den Schuldigen. So starb StarRupture, und das Bild war
-kein sauberer Fehlschlag, sondern ein Server, der nie mit der Weltgenerierung
-fertig wurde.
+der trifft nicht unbedingt den Schuldigen. So endete am 2026-09-09 Palworld mit
+Exit 137, als StarRupture beim Hochfahren den Speicher füllte (StarRupture ist
+seither entfernt, siehe unten).
 
 Vor dem Start prüfen:
 
@@ -51,24 +60,48 @@ free -m | awk '/^Mem/ {print "frei:", $7 "M"}'
 docker inspect -f '{{.Name}} {{.HostConfig.Memory}}' $(docker ps -q)
 ```
 
+> *The sum of all memory limits clearly exceeds the machine's RAM, on purpose.
+> What carried that was a sentence in this section, "as long as not all servers
+> run at once" — and that sentence no longer holds: measured on 2026-09-10 (and
+> unchanged on 2026-09-11), all seven run at once, 47 G of limits on a 23 GiB
+> machine. The premise quietly stopped being true, and nobody noticed because
+> nothing checked it. When memory runs short, it is not the clean per-container
+> limit that applies but the host's OOM killer, which does not necessarily hit
+> the culprit — that is how Palworld ended with exit 137 on 2026-09-09 while
+> StarRupture filled the memory during boot. Check free memory and the limits
+> before starting a server by hand.*
+
 ### Wer die Überbuchung bewacht — und wer nicht
 
 `spiel-verwalten` prüft den freien Speicher vor einer **Katalog-Installation**
 und startet nicht, wenn er zum `mem_limit` nicht reicht. Das ist eine Tür von
-zweien: Die drei von Hand gebauten Server haben keine `panel.json`, kommen nie
-an dieser Prüfung vorbei — und stellen mit 24 der 47 G mehr als die Hälfte.
+zweien: Die sechs Server aus `stacks/` haben keine `panel.json`, kommen nie an
+dieser Prüfung vorbei — und stellen mit 43 der 47 G fast alles.
 
 Die zweite Tür ist seit dem 2026-09-10 `platzwart-wache`. Sie misst alle fünf
 Minuten den **tatsächlich belegten** Speicher und meldet ab 85 % nach
 `#platzwart-stoerung`, mit der Entwarnung, wenn es sich wieder entspannt
 (Schwelle: `WACHE_SPEICHER_WARN`). Gemessen wird über `docker ps`, nicht über den
-Katalog — sonst fehlten genau die drei, um die es geht.
+Katalog — sonst fehlten genau die sechs, um die es geht.
 
 **Gemessen wird der belegte Speicher, nicht die Summe der Grenzen.** Die Summe
 liegt dauerhaft und mit Absicht über dem RAM; ein Alarm darauf stünde an jedem
 einzelnen Tag im Kanal und wäre nach einer Woche stummgeschaltet. Die Summe steht
 stattdessen **im Meldungstext**: Sie beantwortet die Frage, die man sich in
 diesem Moment stellt — wie viel dürften die laufenden Server noch nehmen?
+
+> *Who guards the oversubscription, and who does not: `spiel-verwalten` checks
+> free memory before a catalogue installation and does not start when it does
+> not cover the limit. That is one door of two — the six servers from `stacks/`
+> have no `panel.json`, never pass it, and account for 43 of the 47 G. The
+> second door, since 2026-09-10, is `platzwart-wache`: every five minutes it
+> measures actually used memory and reports above 85 % to the faults channel,
+> with an all-clear when it eases (`WACHE_SPEICHER_WARN`); it reads the limits
+> from `docker ps`, not the catalogue, or exactly those six would be missing. It
+> measures used memory, not the sum of limits, which permanently exceeds RAM by
+> design — alarming on it would fill the channel every day and be muted within a
+> week; the sum goes into the message text instead, answering the question one
+> asks at that moment.*
 
 ### Was offen bleibt
 
@@ -79,31 +112,11 @@ macht aus einem vollen Abend einen Kill, eine zu hoch einen OOM, der einen
 *anderen* Server trifft. Zahlen ohne diese Messung zu ändern hieße, eine
 Vermutung durch die nächste zu ersetzen.
 
-> *The limits are deliberately oversubscribed, and what carried that was a
-> sentence in this section: "as long as not all servers run at once". **That
-> sentence no longer holds** — measured on 2026-09-10, all seven run at once. The
-> premise the design rests on quietly stopped being true, and nobody noticed
-> because nothing checked it. The table above is the state on 2026-09-10: seven
-> containers totalling 47 G on a 23 GiB machine. When memory runs short it is not
-> the clean per-container limit that applies but the host OOM killer, which does
-> not necessarily hit the culprit — that is how StarRupture died, and the symptom
-> was not a clean failure but a server that never finished generating its world.
-> Two doors guard this. `spiel-verwalten` checks free memory before a **catalogue**
-> installation; the three hand-built servers have no `panel.json`, never pass it,
-> and account for 24 of the 47 G. Since 2026-09-10 the second door is
-> `platzwart-wache`: every five minutes it measures **actually used** memory and
-> reports above 85 % (`WACHE_SPEICHER_WARN`), with an all-clear when it eases,
-> reading the limits from `docker ps` rather than the catalogue so the hand-built
-> three are included. It measures used memory, not the sum of the limits: that sum
-> permanently exceeds RAM by design, so alarming on it would put a message in the
-> channel every single day and be muted within a week — the sum goes into the
-> message text instead, where it answers the question one actually asks at that
-> moment. What remains open is whether the limits themselves are right. That needs
-> each server's real peak under load, not at idle — `platzwart-verlauf` has
-> recently started recording it. A limit set too low turns a busy evening into a
-> kill; one set too high turns it into an OOM that hits a different server.
-> Changing the numbers without that measurement would only swap one guess for
-> another.*
+> *What remains open is whether the limits themselves are right. That needs each
+> server's real peak under load, not at idle — `platzwart-verlauf` records it
+> since 2026-09-10. A limit set too low turns a busy evening into a kill; one set
+> too high turns it into an OOM that hits a different server. Changing the
+> numbers without that measurement would only swap one guess for another.*
 
 ---
 
@@ -118,12 +131,29 @@ Geschickt wird nach Discord, über zwei Webhooks:
 
 | Kanal | Was dort landet |
 |---|---|
-| `#platzwart-stoerung` | Server abgestürzt, **Server in der Neustartschleife**, **Server meldet sich als ungesund**, **Dienst fehlgeschlagen** (Sicherung, Einrichtung, Wache …), Sicherungsinhalt unplausibel, Platte knapp, Arbeitsspeicher knapp, Einrichtung nicht abgeschlossen, Update fehlgeschlagen |
-| `#platzwart-meldungen` | Update wirklich eingespielt, Entwarnung nach einer Störung |
+| `#platzwart-stoerung` | Server abgestürzt, **Server in der Neustartschleife**, **Server meldet sich als ungesund**, **Dienst fehlgeschlagen** (Sicherung, Einrichtung, Wache …), Sicherung fehlgeschlagen, Sicherungsinhalt unplausibel (zu klein, eingebrochen, seit 24 h unverändert), Platte knapp, Arbeitsspeicher knapp, Einrichtung nicht abgeschlossen, Update fehlgeschlagen, Leerlauf (läuft ohne Ports, ließ sich nicht wecken oder schlafen legen, wird ständig geweckt), Kanäle (kein Zugriff, Abgleich gescheitert, Kanal nicht gelöscht) |
+| `#platzwart-meldungen` | Update wirklich eingespielt, Server geweckt, Entwarnung nach einer Störung |
 
 **Zwei Kanäle, mit Absicht.** Ein Kanal, in dem täglich „Update geprüft, nichts
 Neues" steht, wird nach einer Woche stummgeschaltet — und dann fällt auch die
 Störung nicht mehr auf.
+
+Die Namen der Kanäle sind die Vorschläge der Vorlage; maßgeblich ist, wohin die
+beiden Webhooks in `/etc/platzwart-melden.conf` zeigen. Diese Meldekanäle sind
+etwas anderes als die Kanäle je Spielserver, die `kanal-verwalten` pflegt.
+
+> *What reports itself: until 2026-09-10 nothing did — the events all existed in
+> the journal, waiting for somebody to look, and the only reporter was a check
+> running Mondays at 10:00 on a desktop, so a server dying on Saturday night
+> surfaced on Monday. Reports go to Discord through two webhooks: the faults
+> channel gets crashes, restart loops, failing health checks, failed units,
+> failed or implausible backups, low disk or memory, unfinished setups, failed
+> updates, idle-sleep problems and channel problems; the notices channel gets
+> applied updates, wake-ups and all-clears. Two channels on purpose: one carrying
+> "checked, nothing new" daily gets muted within a week, and the outage stops
+> being noticed with it. The channel names are the template's suggestion; what
+> counts is where the two webhooks point. These notification channels are
+> something other than the per-server channels `kanal-verwalten` maintains.*
 
 ### Ein laufender Container ist kein laufender Server
 
@@ -187,6 +217,15 @@ Wiederholungen über einen Abgleich des Textes. Die Sicherung läuft alle 15
 Minuten; stünde die Uhrzeit in der Meldung, wäre jeder Lauf ein neuer Text und
 die Sperre wirkungslos.
 
+> *Three rules carry it. Changes are reported, not states: `platzwart-wache`
+> runs every five minutes and compares with the previous run — newly appeared is
+> a fault, disappeared an all-clear, unchanged is silence; a timer sending the
+> same fault every time is the same message 288 times after a day. The all-clear
+> belongs to it: an alarm whose end nobody sees becomes a permanent state. And
+> message texts carry no timestamp, because `platzwart-melden` suppresses
+> repeats by comparing the text — with the time in it, every 15-minute backup run
+> would be a new text and the lock would do nothing.*
+
 ### Fehlgeschlagene Dienste
 
 Bis zum 2026-09-11 stand in der Tabelle oben „Sicherung fehlgeschlagen" — gemeldet
@@ -217,8 +256,13 @@ alarmierte in die falsche Richtung.
 
 Exit `0` ist ein sauberes Anhalten, Exit `143` ist SIGTERM — also ein
 ausdrückliches `docker stop`. Beides wird **nicht** gemeldet. Alles andere gilt
-als Absturz; `137` ist SIGKILL und damit fast immer der OOM-Killer, genau das
-Bild, an dem StarRupture starb.
+als Absturz; `137` ist SIGKILL und damit fast immer der OOM-Killer — das Bild,
+mit dem Palworld endete, als StarRupture den Speicher füllte.
+
+> *What a crash is and what not: exit 0 is a clean stop, exit 143 is SIGTERM —
+> an explicit `docker stop`. Neither is reported. Everything else counts as a
+> crash; 137 is SIGKILL and almost always the OOM killer — the picture Palworld
+> ended with when StarRupture filled the memory.*
 
 ### Einrichten und prüfen
 
@@ -340,8 +384,21 @@ docker inspect -f '{{.State.ExitCode}} {{.State.OOMKilled}}' <name>
 |---|---|
 | Neustartschleife, „SteamCMD not found!" | Die Unterverzeichnisse `steamcmd` und `serverfiles` fehlen. Anlegen, `chown 4711:4711`. |
 | `OOMKilled: true` | `mem_limit` zu klein oder die Maschine zu voll |
-| Exit 1 direkt nach dem Start, keine Meldung | meist Rechte: `chown -R 4711:4711 /srv/games/<name>` |
-| „port is already allocated" | ein anderer Container hält den Port; `ss -tulpn \| grep <port>` |
+| Exit 1 direkt nach dem Start, keine Meldung | meist Rechte: `chown -R 4711:4711 /srv/games/<name>` (FOUNDRY: uid 1000) |
+| „port is already allocated" | ein anderer Container hält den Port; `ss -tulpn \| grep <port>` — auch ein lokal gebundener, auch der Weckposten eines schlafenden Servers |
+| Container „Up", aber niemand kommt hin | keine veröffentlichten Ports: Einrichtung noch offen (Karte zeigt es), oder er wurde gestartet, während ein Weckposten die Ports hielt — `docker compose up -d --force-recreate` |
+| Container schläft für immer (`sleep infinity`) | Don't Starve Together ohne `.klei/DoNotStarveTogether`: das Startskript ruft `mkdir` ohne `-p`; der Katalog legt den Ordner an (`ordner`) |
+| Project Zomboid startet alle 45 s neu | zu wenig Speicher für `-Xmx8g`; der Katalog hat 10 GB |
+
+> *Container does not start: read its log and exit code. "SteamCMD not found!"
+> in a loop means the `steamcmd` and `serverfiles` subdirectories are missing;
+> `OOMKilled` means the limit is too small or the machine too full; exit 1 right
+> after start is usually ownership (FOUNDRY runs as uid 1000); "port is already
+> allocated" means another container, a locally bound port or a sleeping
+> server's wake socket holds it; "Up" but unreachable means no published ports —
+> setup still pending, or started while a wake socket held the ports (recreate
+> it); Don't Starve Together sleeping forever lacks its `.klei` folder; Project
+> Zomboid restarting every 45 s needs more memory than 4 GB.*
 
 ### Kein Beitrittspasswort gesetzt
 
@@ -377,6 +434,100 @@ Häufigste Ursache in dieser Bauweise: Das Tailnet ist unten, und `borg` läuft 
 den Zeitüberschreitungswert (15 s). Der Timer meldet dann einen Fehlschlag, ohne
 dass an Borg etwas defekt wäre.
 
+Zweithäufigste: die **Sperre** eines anderen Laufs. Alle Borg-Aufrufe warten
+darauf (Sicherung 900 s, Liste und Größe 150 s, Auspacken 600 s, Download
+900 s); scheitert einer trotzdem daran, sagt die Meldung „Gerade läuft eine
+Sicherung". Eine **verwaiste** Sperre — nach einem harten Abbruch — löst
+`borg break-lock "$REPO"`, aber **nur**, wenn sicher kein Borg-Prozess mehr
+läuft (`pgrep -a borg`, auf der Maschine **und** auf dem Sicherungsserver).
+
+> *Backup not running: check the unit's journal, whether today's archive exists,
+> whether the tailnet is up and the key works. The most common cause here is the
+> tailnet being down, with borg hitting its 15 s timeout — the timer reports a
+> failure although nothing is wrong with borg. Second most common is another
+> run's lock: every borg call waits for it (backup 900 s, list and size 150 s,
+> extraction 600 s, download 900 s), and if one still fails on it the message
+> says "a backup is running". An orphaned lock after a hard abort is cleared with
+> `borg break-lock`, but only when certainly no borg process is running, on the
+> machine and on the backup host.*
+
+### Kanäle werden nicht angelegt oder nicht gelöscht
+
+```bash
+journalctl -u kanal-abgleich -n 30 --no-pager
+kanal-verwalten vorschau <stack>          # was mit den Kanälen eines Servers geschähe
+```
+
+| Meldung | Bedeutung | Tun |
+|---|---|---|
+| `TeamSpeak-Kanaele: kein Zugriff` mit `client is flooding` / Sperre | ServerQuery-Flutschutz: drei schnelle Anmeldungen von außerhalb der Allowlist sperren rund zehn Minuten | **warten**, nicht erneut versuchen — jeder Versuch verlängert die Sperre |
+| `… kein Zugriff` mit falschem Login | Passwort von `serveradmin` geändert | auf der Seite Integrationen neu eintragen (wird dort geprüft) |
+| `Kanal nicht geloescht: umbenannt / verschoben / Rechte geändert / Nachricht / belegt` | ein Mensch hat den Kanal benutzt | gewollt — der Kanal bleibt; löschen von Hand, wenn er weg soll |
+| `Belegung nicht messbar` | die Gateway-Sitzung zu Discord kam nicht zustande | nichts; der nächste Lauf fragt erneut |
+| Discord `429` | Discords Ratenbegrenzung | nichts; das Werkzeug wartet selbst |
+
+> *Channels not created or not deleted: read the sync unit's journal and use
+> `kanal-verwalten vorschau`. "No access" with flooding means TeamSpeak's
+> ServerQuery flood protection — three quick logins from outside its allow-list
+> lock it for about ten minutes; wait rather than retry, since each attempt
+> extends it. "No access" with a failed login means the `serveradmin` password
+> changed; enter it again under Integrations. "Channel not deleted" because it
+> was renamed, moved, had its permissions changed, received a message or is
+> occupied is intended — a person used it. "Occupancy not measurable" means the
+> Discord Gateway session failed; the next run asks again. Discord's 429 is
+> handled by the tool itself.*
+
+### Workshop-Mod wird nicht geladen
+
+Eingetragene Mods lädt der Server **beim nächsten Start** — nach dem Eintragen
+also neu starten. Dann im **Serverprotokoll** nach dem Mod suchen
+(Project Zomboid `loading <Mod>`, Unturned `Installed workshop item`, Don't
+Starve Together `Loading mod: workshop-<id>`, Killing Floor 2 Ordner
+`KFGame/Cache/<id>`). Killing Floor 2 lädt ohne `KFGame/Cache` gar nichts und
+sagt es nicht — `workshop` legt den Ordner beim Eintragen an. Karten und
+Mutatoren müssen danach von Hand in den Kartenzyklus bzw. die Startparameter,
+bei Unturned eine Karte über `Map` in `Config.txt`.
+
+> *A Workshop mod does not load: listed mods are loaded at the next start, so
+> restart after adding one, then look for it in the server log (the message
+> differs per game). Killing Floor 2 downloads nothing without `KFGame/Cache` and
+> says nothing — `workshop` creates the folder. Maps and mutators still have to
+> go into the map cycle or start parameters by hand, and an Unturned map into
+> `Config.txt`.*
+
+### Ein schlafender Server wacht nicht auf
+
+```bash
+systemctl status platzwart-wecken-<stack>.socket --no-pager
+platzwart-schlaf --liste
+ufw status | grep platzwart-schlaf
+```
+
+Der Weckposten muss lauschen, und ufw muss die Ports durchlassen — sonst kommt
+ein Paket von außen nie an, während es von der Maschine selbst sofort weckt.
+Von Hand wecken: `platzwart-schlaf --wecken <stack>`; die Automatik abschalten
+(Einstellungsseite, `leerlauf aus`) weckt ebenfalls sofort.
+
+> *A sleeping server does not wake: the wake socket must listen and ufw must pass
+> the ports, or a packet from outside never arrives while one from the machine
+> itself wakes it at once. Wake by hand with `platzwart-schlaf --wecken`;
+> switching idle sleep off on the settings page also wakes it immediately.*
+
+### Anmeldung scheitert
+
+„Anmeldung fehlgeschlagen" sagt bewusst nicht, ob der Name, das Passwort oder
+der zweite Faktor falsch war. Groß- und Kleinschreibung des Namens spielt seit
+#248 keine Rolle. Nach fünf Fehlversuchen von einer Adresse ist sie 15 Minuten
+gesperrt. Das Protokoll zeigt jeden Fehlversuch mit dem eingetippten Namen. Wer
+den zweiten Faktor verloren hat, meldet sich mit einem Wiederherstellungscode an
+oder lässt ihn von einem Administrator zurücksetzen.
+
+> *Login fails: "login failed" deliberately does not say whether name, password
+> or second factor was wrong. Case no longer matters for the name since #248.
+> After five failures from one address it is locked for 15 minutes. The audit log
+> shows every failed attempt with the name as typed. Whoever lost the second
+> factor logs in with a recovery code or has an administrator reset it.*
+
 ### Zertifikat läuft ab
 
 ```bash
@@ -395,10 +546,36 @@ aus.
 
 ## Bekannte offene Punkte
 
-### StarRupture läuft nicht — am 2026-09-08 durchgemessen
+### Palworld hat ein Speicherleck
 
-Der Server ist auf dieser Maschine nicht zu betreiben. Er steht auf
-`restart: on-failure:3` und ist angehalten.
+Bekanntes Problem des Spiels, nicht des Aufbaus. Umgangen durch einen Timer, der
+den Container zweimal täglich neu startet (05:30 und 17:30):
+
+```
+palworld-neustart.timer  →  docker restart palworld
+```
+
+`Persistent=false` mit Absicht: Ein verpasster Neustart soll **nicht** beim
+nächsten Hochfahren nachgeholt werden — dann liefe er womöglich mitten in einer
+Spielsitzung. Eingesetzt wird der Timer von Stufe 60 zusammen mit dem
+Palworld-Stack (#252).
+
+> *Palworld has a known memory leak — the game's problem, not the setup's —
+> worked around by a timer restarting the container twice a day, at 05:30 and
+> 17:30, with `Persistent=false` on purpose: a missed restart must not fire after
+> the next boot, possibly mid-session. Stage 60 installs it with the Palworld
+> stack (#252).*
+
+---
+
+## Geschichte: was erledigt ist, aber lehrreich bleibt
+
+### StarRupture — am 2026-09-08 durchgemessen, am 2026-09-09 entfernt
+
+Der Server war auf dieser Maschine nicht zu betreiben; Jens hat ihn am
+2026-09-09 über den Weg für von Hand gebaute Server entfernt (Endsicherung,
+21,1 GB gelöscht). Die Messung bleibt hier, weil sie zeigt, wie ein Server
+aussieht, der an der Speichergrenze gedrosselt statt beendet wird.
 
 **Was gemessen wurde.** Der Speicher wächst nach dem Start **linear mit rund
 152 MiB/s** — das ist die prozedurale Weltgenerierung, nicht der laufende
@@ -433,17 +610,20 @@ der Test 353 s lief. `DSSettings.txt` und die Umgebung stehen weiterhin auf
 fertig wurde, beginnt jeder Start von vorn. Von außen antwortete `27017/udp`
 nicht.
 
-> *Measured on 2026-09-08: memory grows linearly at ~152 MiB/s after start —
-> that is procedural world generation, not steady-state play. Alone on the
-> machine it reached 19.76 GiB and held, but only because the limit throttled it
-> (`memory.events` counted 22,985 `max` events; `oom_kill` was 0 — it is
-> throttled, not killed). No save file was ever produced despite a 300 s
-> autosave interval, and the settings still say StartNewGame, so every start
-> begins again from scratch.*
+> *StarRupture could not be run on this machine; Jens removed it on 2026-09-09
+> through the path for hand-built servers (final backup, 21.1 GB deleted). The
+> measurement stays here because it shows what a server throttled at its memory
+> limit, rather than killed, looks like. Measured on 2026-09-08: memory grows
+> linearly at ~152 MiB/s after start — procedural world generation, not
+> steady-state play. Alone on the machine it reached 19.76 GiB and held, but only
+> because the limit throttled it (`memory.events` counted 22,985 `max` events;
+> `oom_kill` was 0 — throttled, not killed). No save file was ever produced
+> despite a 300 s autosave interval, and the settings still said StartNewGame, so
+> every start began again from scratch.*
 
-**Wenn er laufen soll,** braucht er die Maschine praktisch für sich, mit einer
-Grenze oberhalb von 20 GB — bei 24 GB Gesamtspeicher und rund 8 GB für die
-übrigen Server geht das im Parallelbetrieb nicht auf.
+**Wer ihn wieder aufsetzen will,** braucht die Maschine praktisch für ihn allein,
+mit einer Grenze oberhalb von 20 GB — bei 24 GB Gesamtspeicher und rund 8 GB für
+die übrigen Server geht das im Parallelbetrieb nicht auf.
 
 **Nachtrag 2026-09-09: `restart: on-failure:3` war die falsche Wahl.** Die
 Absicht war richtig — nach dem 32-fachen Neustart am 06.09. sollte er nicht mehr
@@ -454,27 +634,19 @@ der Maschine startet der Daemon ihn deshalb wieder.
 
 Genau das geschah beim Neustart um 14:17: StarRupture kam von selbst hoch,
 wuchs mit den gemessenen ~152 MiB/s, und **Palworld endete mit Exit 137** — dem
-OOM-Killer. Der Wert steht jetzt auf `restart: "no"`, dem einzigen, der wirklich
-„startet nie von selbst" bedeutet. Von Hand starten geht weiterhin.
+OOM-Killer. Der Wert stand danach auf `restart: "no"`, dem einzigen, der wirklich
+„startet nie von selbst" bedeutet — bis der Server entfernt wurde. Die Lehre
+gilt für jeden Stack: `on-failure` startet auch nach einem `docker stop` wieder.
 
-### Palworld hat ein Speicherleck
-
-Bekanntes Problem des Spiels, nicht des Aufbaus. Umgangen durch einen Timer, der
-den Container zweimal täglich neu startet (05:30 und 17:30):
-
-```
-palworld-neustart.timer  →  docker restart palworld
-```
-
-`Persistent=false` mit Absicht: Ein verpasster Neustart soll **nicht** beim
-nächsten Hochfahren nachgeholt werden — dann liefe er womöglich mitten in einer
-Spielsitzung.
-
-> *StarRupture fills any memory limit and is currently stopped; testing it
-> without a limit requires briefly stopping the others. Palworld has a known
-> memory leak, worked around by a twice-daily restart timer with
-> `Persistent=false` on purpose: a missed restart must not fire mid-session
-> after a boot.*
+> *Addendum 2026-09-09: `restart: on-failure:3` was the wrong choice. The intent
+> was right — after 32 restarts on 06.09. it should not come up by itself any
+> more — but `on-failure` achieves the opposite: a container ended by `docker
+> stop` exits with SIGTERM, exit 143, which Docker counts as a failure, so the
+> daemon starts it again at the next boot. That happened at the reboot at 14:17:
+> StarRupture came up by itself, grew at ~152 MiB/s, and Palworld ended with exit
+> 137, the OOM killer. The value was then `restart: "no"`, the only one really
+> meaning "never starts by itself", until the server was removed. The lesson
+> holds for every stack: `on-failure` restarts after a `docker stop` too.*
 
 ### FOUNDRY: aufgeklärt und behoben (2026-09-08)
 
@@ -522,12 +694,16 @@ docker ps                                            # wer ist online?
 ```
 
 Alle Container stehen auf `restart: unless-stopped` und kommen von allein zurück
-— außer StarRupture (`on-failure`, bewusst).
+— sofern sie niemand ausdrücklich angehalten hat (siehe unten). Das Panel bricht
+den Neustart ab, wenn gerade `borg create`, `prune` oder `compact` läuft; ein
+unterbrochener Borg-Lauf hinterlässt eine Sperre, die man von Hand lösen muss.
 
 > *Reboot through the panel or by hand. The panel records which containers were
-> running so the same state is restored. Check first whether a backup is in
-> flight and who is online. Everything is `unless-stopped` and returns on its
-> own, except StarRupture.*
+> running so the same state is restored, and refuses while borg create, prune or
+> compact runs, since an interrupted borg run leaves a lock to clear by hand.
+> Check first whether a backup is in flight and who is online. Everything is
+> `unless-stopped` and returns on its own unless explicitly stopped (see
+> below).*
 
 ---
 

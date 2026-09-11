@@ -15,7 +15,29 @@ sondern folgt aus der Sicherheitsrichtlinie (`default-src 'none'`) — siehe
 
 ## Anmeldung
 
-Zwei Faktoren, immer: Passwort (Argon2id) **und** ein TOTP-Code.
+Zwei Faktoren, immer: Passwort (Argon2id) **und** ein zweiter Faktor — einer
+von dreien:
+
+* ein **TOTP-Code** aus einer Authenticator-App (sechs Ziffern, ±1 Zeitfenster);
+* ein **Passkey** (Knopf „mit Passkey anmelden"; Windows Hello, Touch ID,
+  Android, Sicherheitsschlüssel) — das Passwort wird trotzdem vorher geprüft;
+* ein **Wiederherstellungscode** (16 Zeichen, mit oder ohne Bindestriche) im
+  selben Feld wie der TOTP-Code. Die **Form** entscheidet, welcher Weg geprüft
+  wird: sechs Ziffern sind TOTP, 16 Zeichen ein Code. Ein eingelöster Code wird
+  gelöscht und die Einlösung protokolliert, samt der Zahl der verbleibenden.
+
+Der Benutzername ist unabhängig von Groß- und Kleinschreibung (#248). Jeder
+Fehlversuch steht im Protokoll — mit dem eingetippten Namen, aber ohne Angabe,
+ob Passwort oder zweiter Faktor falsch war.
+
+> *Two factors, always: a password (Argon2id) and one of three second factors —
+> a TOTP code (six digits, ±1 time step), a passkey (the password is still
+> checked first), or a recovery code typed into the same field. The input's
+> shape decides the path: six digits are TOTP, 16 characters a recovery code; a
+> redeemed code is deleted and the redemption audited with the number left. User
+> names are case-insensitive (#248). Every failed attempt is audited with the
+> name as typed, but without saying whether the password or the second factor
+> was wrong.*
 
 Der Ablauf beim ersten Mal weicht bewusst ab: Stimmt das Passwort, ist aber
 `totp_bestaetigt` noch `false`, wird **keine Sitzung** vergeben. Stattdessen
@@ -166,6 +188,9 @@ Palworld-Neustart.
 Spielstand bricht und erst Tage später auffällt — dann ist die Sicherung von
 davor längst durch die Rotation gefallen.
 
+Ein eingespieltes Update geht nach `#platzwart-meldungen`, ein gescheitertes nach
+`#platzwart-stoerung`.
+
 **Wird ein Server entfernt, fällt er aus der Liste** — beide Entfernwege tun das
 über denselben Helfer in `spiel-verwalten`, neben der Bereinigung der
 Borg-Ausschlüsse. Das war zunächst nicht so, und der übrig gebliebene Eintrag ist
@@ -191,10 +216,8 @@ stillschweigend „an, wegen eines Servers, den es nicht mehr gibt". Gemessen am
 > falling counter means a restart, not quiet. The timer is not persistent, so a
 > missed run does not fire mid-day. The failure mode designed against: an update
 > that silently breaks a save and surfaces days later, once the backup predating
-> it has rotated out.*
-
----
-
+> it has rotated out. A successful update is reported to the notices channel, a
+> failed one to the faults channel.*
 
 ---
 
@@ -407,9 +430,10 @@ Administratorrechte — Jens' Entscheidung, E33.
 ## Mods hochladen `/mods/{stack}`
 
 Wo kein Katalog hinreicht, bringt der Betreiber die Datei selbst mit. Nach der
-Messung in #130 ist das hier der Normalfall und nicht die Ausnahme: Von den
-sieben laufenden Servern nimmt **keiner** Steam-Workshop-Mods auf eine Weise,
-die uns nützt.
+Messung in #130 (2026-09-10) war das der Normalfall: Von den sieben damals
+laufenden Servern nahm **keiner** Steam-Workshop-Mods auf eine Weise, die uns
+nützt. Den Workshop gibt es seither für vier Katalogspiele (oben); für alles
+andere bleibt der Upload.
 
 **Nur für Administratoren**, nicht für `verwalten`. Ein Mod ist Code, der *im*
 Spielserver läuft — mit dessen Bind-Mount und dessen Netzzugang. Einen von Hand
@@ -417,12 +441,28 @@ gebauten Server zu entfernen ist bereits admin-only, weil er sich nicht aus dem
 Katalog wiederherstellen lässt; fremden Code hineinzulegen ist mindestens
 dasselbe.
 
+Die Seite zeigt, wohin ein Mod gehört, ob das Verzeichnis gesichert wird, die
+schon vorhandenen Mods mit Größe (jeden mit einem Knopf „entfernen") und ein
+Feld zum Hochladen einer Datei. Nach dem Hochladen oder Entfernen muss der
+Server neu starten, damit er den Mod lädt.
+
+> *Where no catalogue reaches, the operator brings the file. Per the measurement
+> in #130 (2026-09-10) that was the normal case — none of the seven servers
+> running then took Workshop mods usefully; the Workshop has since been added for
+> four catalogue games, and everything else keeps the upload. Admin only, not
+> verwalten: a mod is code running inside the game server with its bind mount
+> and network access, and putting third-party code in is at least as serious as
+> removing a hand-built server, which is admin-only already. The page shows where
+> a mod goes, whether that directory is backed up, the existing mods with size
+> and a remove button, and an upload field; the server needs a restart to load a
+> change.*
+
 ### Wohin ein Mod gehört, steht in einer Datei — und wird nicht geraten
 
 `/etc/spiele-mods.json`, eine Angabe je Spiel. Steht ein Spiel dort nicht drin,
 **weist das Panel den Upload ab und sagt warum**:
 
-> Für valheim ist nicht hinterlegt, wohin ein Mod gehört. Ein Mod im falschen
+> Für palworld ist nicht hinterlegt, wohin ein Mod gehört. Ein Mod im falschen
 > Verzeichnis tut nichts, und es fällt niemandem auf — deshalb wird hier nicht
 > geraten.
 
@@ -430,8 +470,15 @@ Das ist der Grund für die Strenge: Ein Mod am falschen Ort erzeugt **keinen
 Fehler**. Der Server startet, das Spiel läuft, der Mod fehlt — und niemand
 sucht danach.
 
-Gemessen am 2026-09-10: Von den sieben Servern hat **nur FOUNDRY** überhaupt ein
-Mod-Verzeichnis (`server/Mods`).
+Gemessen am 2026-09-10: Von den sieben Servern hatte **nur FOUNDRY** überhaupt
+ein Mod-Verzeichnis (`server/Mods`). Heute stehen zwei Spiele in der Datei:
+FOUNDRY und Valheim.
+
+> *Where a mod belongs is configured per game in `/etc/spiele-mods.json`; a game
+> not listed there has its upload refused with the reason, because a mod in the
+> wrong directory produces no error at all — the server starts, the game runs,
+> the mod is absent and nobody looks for it. Measured on 2026-09-10, only
+> FOUNDRY had a mod directory at all; today the file lists FOUNDRY and Valheim.*
 
 **Valheim (#153)** nimmt Mods über **BepInEx** an, einen Lader, den das
 ich777-Image selbst mitbringt: `ENABLE_BEPINEX` unter *Konfiguration* auf `true`
@@ -477,6 +524,15 @@ nicht erst angefasst.
 Entpackt wird in ein Zwischenverzeichnis, nicht ins Ziel — was dort landet, ist
 ungeprüft; erst nach allen Prüfungen wird verschoben.
 
+> *An archive brings its own version of the trap that shaped `konfig-datei` —
+> there a `z: -> /` symlink under StarRupture: an entry named
+> `../../../../etc/cron.d/uebernahme`, or one that is itself a symlink to `/`.
+> Both are written by the extractor before any later path check can apply. So
+> every entry is checked individually and before extraction, against the
+> resolved target, and archives containing symlinks are refused outright.
+> Extraction goes to a staging directory; only after all checks is anything
+> moved into place.*
+
 ### Weitere Schranken
 
 | Schranke | Warum |
@@ -492,12 +548,27 @@ auf `/` — eine Prüfung, die nach `basename()` nie anschlagen kann.
 `../../boese.dll` wäre als `boese.dll` klaglos gelandet. Sicher war das, aber
 still; wer so einen Namen schickt, soll eine Antwort bekommen.
 
+> *Further limits: eight extensions (anything else has no business in a mod
+> directory), at most 512 MB (ARK's Workshop items are 319 MB, so the order of
+> magnitude is real), at least 10 GB free (on a full disk the backup fails
+> first, and then the way back is gone before anything happens), file names
+> without path parts — refused, not bent into shape — and ownership taken from
+> the target directory (FOUNDRY's image insists on uid 1000, the others run as
+> 4711, and a file with the wrong owner is a mod that silently does not load).
+> The first draft took the basename and only then checked for "/" — a check that
+> can never fire after `basename()`; safe, but silent.*
+
 ### Fällt das Verzeichnis unter einen Sicherungsausschluss?
 
 Dann sagt das Panel es **vor** dem Hochladen. Für FOUNDRY ist das der Fall:
 `server/Mods` liegt in `server/`, und das ist ausgeschlossen — ein Mod dort
 überlebt keine Neuinstallation. Gelesen wird die echte `/etc/borg-ausschluss.txt`,
-nicht geraten.
+nicht geraten, mit Borgs Musterregel (`*` innerhalb eines Pfadteils, #231).
+
+> *If the target directory falls under a backup exclusion, the panel says so
+> before the upload. For FOUNDRY it does: `server/Mods` sits inside `server/`,
+> which is excluded, so a mod there does not survive a reinstall. The real
+> exclusion file is read, using borg's pattern rule.*
 
 ### Die Bytes gehen über stdin, nicht als Argument
 
@@ -505,19 +576,10 @@ Argumente stehen für jeden Benutzer der Maschine in der Prozessliste. Das Panel
 selbst **prüft die Datei nicht** — es läuft unprivilegiert und soll gar nicht
 erst in die Lage kommen, etwas auszupacken.
 
-> *Where no catalogue reaches, the operator brings the file — and per #130 that
-> is the normal case here, not the exception. Admin only: a mod is code running
-> inside the game server. Where a mod belongs is configured per game and never
-> guessed, because a mod in the wrong directory produces no error at all — the
-> server starts, the game runs, the mod is absent. An archive brings its own
-> version of the trap that shaped `konfig-datei`: Zip Slip. Every entry is
-> checked individually and before extraction against the resolved target, and
-> archives containing symlinks are refused outright; extraction goes to a staging
-> directory first. The file name is refused rather than sanitised — the first
-> draft took the basename and then checked for "/", a check that can never fire.
-> If the target falls under a backup exclusion, the panel says so before the
-> upload. The bytes travel on stdin, not as an argument, and the panel never
-> unpacks anything itself.*
+> *The bytes travel on stdin, not as an argument — arguments are visible to
+> every user of the machine in the process list. The panel does not check the
+> file itself: it runs unprivileged and should never be in a position to unpack
+> anything.*
 
 ---
 
@@ -531,7 +593,14 @@ Der Schalter steht auf der **Einstellungsseite** jedes Servers (`leerlauf an` /
 `leerlauf aus`), aus per
 Voreinstellung, je Server — dieselbe Regel wie beim Auto-Update, und aus
 demselben Grund: Eine Automatik, die alles auf einmal betrifft, ist die, die man
-später nicht mehr zuordnen kann.
+später nicht mehr zuordnen kann. Der Schalter schaltet die **Automatik**, nicht
+den Server: „leerlauf aus" hält ihn nicht an.
+
+> *Seven servers idle at 12.1 GiB, and the sum of their limits is twice the
+> machine's memory; a server nobody is on does not need to run. The switch sits
+> on every server's settings page, off by default and per server — the same
+> rule as auto-update, for the same reason. It switches the automation, not the
+> server: "leerlauf aus" does not stop it.*
 
 ### Das Aufwecken hält systemd, nicht ein eigenes Programm
 
@@ -543,6 +612,12 @@ Port Pakete liest.
 Das erste Paket geht dabei verloren. Spielclients versuchen es erneut, und ein
 Server, der ohnehin eine Minute zum Starten braucht, wird nicht dadurch besser,
 dass man das eine Paket aufhebt.
+
+> *While a server sleeps, systemd listens on its game ports. On the first
+> packet it stops the wake socket, frees the ports and starts the container.
+> There is no hand-written code reading packets on a public port. The first
+> packet is lost; game clients retry, and a server needing a minute to start
+> gains nothing from keeping that one packet.*
 
 ### ufw muss die Ports durchlassen — aber nur, solange geschlafen wird
 
@@ -561,6 +636,16 @@ Loopback lässt ufw durch.
 beim Aufwecken wieder weg**. Eine Regel, die nichts tut, aber dasteht, macht aus
 `ufw status` eine Liste, der man nicht mehr glaubt.
 
+> *This is the trap that shapes the whole system, from the other side: a
+> running container gets its traffic via Docker's DNAT in the FORWARD chain,
+> ahead of ufw, so ufw never sees it; a sleeping server has systemd listening on
+> the host, and the same traffic suddenly goes through INPUT, where the default
+> is DROP. Measured on 2026-09-10: the wake socket listened with
+> `NAccepted=0`, and a packet from outside never arrived, while the same packet
+> from the machine itself woke it at once — loopback passes ufw. So the rules
+> are added when a server goes to sleep and removed again on wake-up; a rule
+> that does nothing but stays makes `ufw status` a list nobody believes.*
+
 ### Zwei Fehler, die es fast lautlos gegeben hätte
 
 **Der Weckdienst darf sich nicht selbst anhalten.** Der erste Entwurf rief
@@ -577,6 +662,17 @@ erreichbar, und Docker meldet dabei **keinen Fehler**. Deshalb wartet
 **Ergebnis** statt des Rückgabewerts. Fehlen Ports, wird einmal neu erzeugt;
 bleibt es dabei, meldet sich der Platzwart.
 
+> *Two faults that almost went silent. The wake unit must not stop its own
+> socket: the first draft called `systemctl stop` on the socket from inside the
+> service systemd was starting, which deadlocked — the service ended with status
+> 1 and the container never came up, while the same command by hand worked
+> fine. `Conflicts=` in the unit is the right mechanism: systemd stops the
+> socket as part of the same transaction. And a container started while the
+> ports are still held comes up without published ports — "Up", reachable by
+> nobody, and Docker reports no error. So the tool waits until the ports are
+> free and checks the result rather than the return code; missing ports trigger
+> one recreate, and if they stay missing, Platzwart reports it.*
+
 ### Wann ein Server als leer gilt
 
 | Grundlage | Frist | Warum |
@@ -586,6 +682,12 @@ bleibt es dabei, meldet sich der Platzwart.
 
 **Eine fehlende Spielerzahl gilt nie als null.** Sonst legte sich ein Server
 schlafen, über den man gar nichts weiß — mitten im Spiel.
+
+> *When a server counts as empty: 30 minutes at a real player count of zero —
+> a number is a statement — or, where there is only traffic, 180 minutes under
+> 1.5 kB/s, a stand-in and hence the much longer period. A missing player count
+> never counts as zero, or a server nobody knows anything about would go to
+> sleep mid-game.*
 
 ### Fehlwecken sind eingeplant
 
@@ -603,20 +705,14 @@ abgeschaltet wurde, bliebe sonst liegen — und niemand könnte sich das erklär
 systemd ihn nach dem Schlafenlegen auf `0.0.0.0` offen und machte aus einem
 localhost-Port einen öffentlichen.
 
-> *Seven idle servers hold 12.1 GiB and their limits sum to twice the machine's
-> memory. Off by default, per server, switchable on every card. systemd holds
-> the game ports while a server sleeps — no hand-written listener on a public
-> port — and the first packet is lost, which clients retry. ufw must pass those
-> ports, but only while sleeping: a running container's traffic goes through
-> Docker's DNAT in FORWARD, ahead of the ufw chains, while a sleeping server's
-> traffic suddenly traverses INPUT, where the default is DROP. The wake unit
-> must not stop its own socket — that deadlocks; `Conflicts=` is the mechanism.
-> And a container started while the ports are still held comes up with none
-> published, reading as "Up" while reachable by nobody, with no error from
-> Docker — so the result is checked, not the return code. A missing player count
-> never counts as zero. Wake-ups from port scans are harmless by design and are
-> counted; flapping is reported. Switching the feature off wakes a sleeping
-> server at once. Management ports bound to localhost never wake anything.*
+> *Wake-ups are planned for: a port scan wakes the server, which is harmless by
+> design — with nobody joining, the next run finds it empty and puts it back.
+> Only flapping would be expensive, so wake-ups are counted, and more than twelve
+> in a day are reported with the command to switch the feature off. Switching it
+> off wakes a sleeping server at once, or it would stay down with nothing left to
+> wake it. Management ports never wake anything: only ports not bound to
+> localhost are taken, or systemd would hold TeamSpeak's ServerQuery on
+> `0.0.0.0` while asleep and turn a localhost port into a public one.*
 
 ### Spiele ohne Beitrittspasswort: Freigabe von Hand
 
@@ -673,6 +769,16 @@ Die ufw-Regeln werden dabei auch über ihren **Kommentar** gefunden
 (`platzwart-schlaf:<stack>`), nicht nur über den Zustand: Beim ersten Test
 blieben zwei Regeln stehen, weil der Zustand die Ports nicht mehr kannte.
 
+> *Neither removal path cleared idle sleep (#169), and the check loop skips a
+> server without a directory silently. A server removed while asleep left its
+> wake socket (still holding the ports), its ufw rules and its list entry — a
+> later server of the same name would have gone to sleep from its first empty
+> evening. Removal now calls `platzwart-schlaf --vergessen <stack>` — after the
+> final backup (if that fails, nothing has changed) and without starting the
+> server, unlike "leerlauf aus". The ufw rules are also found by their comment,
+> not only through the state: in the first test two rules stayed behind because
+> the state no longer knew the ports.*
+
 ### Ein Lauf zur Zeit
 
 Der Grund dafür: Timer, Wecken, `--schlafen` und `--vergessen` lesen alle den
@@ -685,14 +791,15 @@ Nachgestellt mit Timer und `--schlafen` gleichzeitig: Die Ports blieben im
 Zustand, und das Entfernen im Schlaf ließ nichts zurück — kein Weckposten, keine
 ufw-Regel, kein Listeneintrag, keine Zugangsdaten, kein DNS-Name.
 
-> *Neither removal path cleared idle sleep (#169), so a server removed while
-> asleep left its wake socket holding the ports, its ufw rules and its list
-> entry. Removal now calls `platzwart-schlaf --vergessen` — after the final
-> backup and without starting the server. ufw rules are also found by their
-> comment, since the first test left two behind: the state had lost the ports,
-> because the timer, started a second before a manual `--schlafen`, wrote its
-> older copy back. Every run now takes a lock; waking waits at most one timer
-> run. Reproduced with both at once: state intact, removal left nothing behind.*
+> *One run at a time: the timer, waking, `--schlafen` and `--vergessen` all read
+> the state, change it and write it back. The timer started a second before a
+> manual `--schlafen` and then wrote its older copy back — the sleeping server's
+> ports were gone; between timer and waking the same fault would have listed an
+> awake server as asleep. Every run therefore takes a lock
+> (`/run/platzwart-schlaf.lock`); waking waits at most one timer run.
+> Reproduced with timer and `--schlafen` at once: the ports stayed in the state,
+> and removal while asleep left nothing behind — no wake socket, no ufw rule, no
+> list entry, no credentials, no DNS name.*
 
 ---
 
@@ -704,6 +811,12 @@ seit drei Tagen steigt. Und genau das ist die Frage, die man stellt.
 
 Auf der Karte eines laufenden Servers steht deshalb jetzt eine kleine Linie: der
 Speicherverlauf der letzten 24 Stunden. Der Tooltip nennt Bereich und Zeitraum.
+
+> *Until 2026-09-10 everything in the panel was a snapshot: it could show that
+> `foundry` uses 4.3 of 6 GiB, but not whether that has been true for weeks or
+> has been climbing for three days — which is the question one asks. The card of
+> a running server now carries a small line: the memory history of the last 24
+> hours, with range and period in the tooltip.*
 
 ### Ein Ringpuffer, keine Zeitreihendatenbank
 
@@ -717,6 +830,11 @@ Speicherverlauf der letzten 24 Stunden. Der Tooltip nennt Bereich und Zeitraum.
 2016 Werte je Server sind bei diesem Abstand **eine Woche** und kosten rund
 60 kB. Dafür braucht es keinen Dienst, keinen Port und keine
 Aufbewahrungsregel, über die man streiten kann.
+
+> *`platzwart-verlauf` writes one sample every five minutes — time, memory in
+> MB, CPU percent, players or null. 2016 samples per server are a week at that
+> spacing and cost about 60 kB: no service, no port, no retention policy to
+> argue about.*
 
 ### Nichts zu messen ist kein Fehler
 
@@ -749,6 +867,14 @@ Aus demselben Grund steht im Timer `Persistent=false`: Ein nachgeholter Lauf
 schriebe einen Messwert mit falschem Zeitstempel und schüttete genau die Lücke
 zu, die man sehen soll.
 
+> *Every sample carries its own time rather than one derived from a fixed
+> spacing, so a missed run leaves a visible gap. The line breaks wherever the
+> spacing exceeds twice the sampling interval — drawn straight through, it would
+> claim readings that never existed, and an outage would look like a
+> particularly calm stretch; the tooltip counts the gaps. For the same reason the
+> timer is `Persistent=false`: a caught-up run would write a sample with the
+> wrong timestamp and fill in the very gap one is meant to see.*
+
 ### Was bewusst nicht passiert
 
 * **Nicht aus dem Seitenaufbau messen.** Die Übersicht **liest** nur. Ein
@@ -761,18 +887,13 @@ zu, die man sehen soll.
 Nachgewiesen: Eine Reihe mit 40 Minuten Pause ergibt **zwei** Liniensegmente und
 `1 Messlücke(n)` im Tooltip, eine durchgehende Reihe **eines**.
 
-> *Everything in the panel was a snapshot: it could show that a server uses 4.3
-> of 6 GiB but not whether that has held for weeks or been climbing for three
-> days — the question one actually asks. A ring buffer, not a time-series
-> database: 2016 samples per server is a week at five-minute spacing and costs
-> about 60 kB, needing no service, no port and no retention policy to argue
-> about. The gaps are the point: every sample carries its own timestamp, and the
-> line breaks wherever the spacing exceeds twice the sampling interval — drawn
-> straight across, an outage would look like a particularly calm stretch. The
-> timer is `Persistent=false` for the same reason: a caught-up run would write a
-> sample with the wrong timestamp and fill in the very gap one is meant to see.
-> The overview only reads; stale player counts are never recorded; removed
-> servers drop out so the file does not grow with every deleted game.*
+> *What deliberately does not happen: no measuring during page rendering — the
+> overview only reads, and an extra `docker stats` per page view would be
+> noticeable; no stale player counts in the history, since an old number would
+> later read as a measurement of that moment; and removed servers drop out, or
+> the file would grow with every deleted game and the history would show
+> ghosts. Proven: a series with a 40-minute pause yields two line segments and
+> "1 gap" in the tooltip, a continuous one a single segment.*
 
 ---
 
@@ -847,6 +968,19 @@ Ressource, und braucht keine Lockerung. Und nicht noch einmal abgetippt:
 unter welcher Adresse man beitritt, und — wo abrufbar — wie viele gerade drauf
 sind.
 
+> *Finding out whether a server is up and how to join used to need a panel
+> account or a question — backwards for a management surface behind password,
+> TOTP and passkeys. `/status` shows, without a login, which server runs, the
+> join address, and where available how many are on. The tab icon is a `data:`
+> URI in the page head rather than a link to `/favicon.svg`: the page stays
+> self-contained (a link would make the browser ask the panel, exactly what the
+> page avoids), and the CSP needs only `img-src data:` and no host. Without both
+> the icon went missing silently — the browser fell back to `/favicon.ico`, the
+> panel served it with 200, and the page's own CSP discarded it. The page is
+> titled Platzwart and carries the mark from `logo.py` as inline SVG read from
+> the generated file: not an `<img>`, so `default-src 'none'` stays, and not
+> retyped, since `logo.py` exists so the shapes are defined once.*
+
 ### Eine Datei, keine Route im Panel
 
 Das war die offene Frage, und sie ist bewusst gegen die naheliegende Lösung
@@ -864,6 +998,17 @@ das Panel nie und kann nichts verraten, was sie nicht selbst geladen hat.
 Geschrieben wird daneben und dann umbenannt — Caddy liefert die Datei laufend
 aus, und ein halb geschriebener Stand wäre eine halbe Seite.
 
+> *A file, not a route in the panel — decided against the obvious option. A
+> public route inside the panel process shares memory, renderers and security
+> headers with the management surface, and one forgotten flag in a shared
+> function gives everything away; the panel learned that once already, hence
+> `ohne_geheimnis()`. Instead `platzwart-status` writes a finished file every
+> minute to `/var/lib/platzwart-status/index.html`, and Caddy serves it directly
+> — no `reverse_proxy`, no `forward_auth`, no session. The page never reaches the
+> panel and cannot reveal what it never loaded. It is written beside the target
+> and renamed, since Caddy serves it continuously and a half-written file would
+> be half a page.*
+
 ### Die Kopfzeilen sind strenger als beim Panel, nicht lockerer
 
 ```
@@ -878,6 +1023,12 @@ falsch: Es gibt nichts zu schützen, und 60 Sekunden Zwischenspeicher halten
 Neugierige von der Platte fern — länger nicht, weil die Seite jede Minute neu
 entsteht.
 
+> *The headers are stricter than the panel's, not looser: the page contains no
+> JavaScript and not a single image, so `default-src 'none'` stays and only
+> `style-src` is opened. `no-store` would be wrong here — there is nothing to
+> protect, and 60 seconds of caching keeps the curious off the disk; no longer,
+> since the page is rebuilt every minute.*
+
 ### Was bewusst nicht daraufsteht
 
 * **Server, deren Einrichtung nicht abgeschlossen ist.** `einrichtung_offen`
@@ -888,16 +1039,30 @@ entsteht.
 * Keine Verwaltungsdaten: keine Pfade, keine Fassungen, keine Protokollauszüge,
   keine Benutzernamen, keine Ports außer dem Beitrittsport.
 
-Nach dem Ausrollen von außen gegengeprüft — `panel.sparxx…`, `/opt/`,
+Nach dem Ausrollen von außen gegengeprüft — der Name des Panels, `/opt/`,
 `127.0.0.1`, `sudo`, `docker`, `einrichtung` kommen nicht vor; die zwei Treffer
 auf „Passwort" sind Hinweise *für Mitspieler* („Passwort je Rolle", „Passwort im
 Spiel"), und `root` steht im CSS (`:root{…}`).
+
+> *Deliberately not on the page: servers whose setup is unfinished —
+> `einrichtung_offen` marks exactly the state in which a port could be published
+> before the join password is in place (E23), and announcing such a server would
+> be the same mistake with a megaphone; servers without an address, worthless to
+> a player; and any management data — no paths, versions, log excerpts, user
+> names, or ports other than the join port. Checked from outside after rollout:
+> none of those strings appear; the two hits on "Passwort" are hints for
+> players, and `root` is in the CSS.*
 
 ### Eine Falle beim Einbau
 
 `handle /status*` mit `root * /var/lib/platzwart-status` allein ergibt **404**:
 Caddy sucht dann `<root>/status`. Dabei sieht die Route richtig aus und die
 Datei liegt richtig da. `uri strip_prefix /status` gehört dazu.
+
+> *An install trap: `handle /status*` with `root * /var/lib/platzwart-status`
+> alone yields 404, because Caddy then looks for `<root>/status` — while the route
+> looks right and the file sits in the right place. `uri strip_prefix /status`
+> belongs with it.*
 
 ### Die Beitrittsadressen stehen jetzt in einer Datei
 
@@ -906,27 +1071,20 @@ Panels. Zwei Programme lesen sie jetzt: die Oberfläche und der Seitenschreiber.
 Zwei Stellen, die dieselbe Tabelle führen, laufen auseinander, und dann nennt
 die öffentliche Seite einen anderen Port als das Panel.
 
-> *Finding out whether a server is up meant having a panel account or asking —
-> backwards for a management surface behind password, TOTP and passkeys. The
-> open question was route-versus-file, decided against the obvious option: a
-> public route inside the panel process shares memory, renderers and headers
-> with the management surface, and one forgotten flag in a shared renderer gives
-> everything away. Instead a timer writes a finished file every minute and Caddy
-> serves it directly — no reverse_proxy, no forward_auth, no session — so the
-> page never reaches the panel and cannot leak what it never loaded. Written
-> beside and renamed, since a half-written file would be half a page. Its headers
-> are stricter than the panel's, not looser: no JavaScript and no images, so
-> `default-src 'none'` stays. Servers whose setup is unfinished are omitted —
-> announcing one that may be open without a join password would be the same
-> mistake with a megaphone. The install trap: without `uri strip_prefix /status`
-> Caddy looks for `<root>/status` and returns 404 while everything looks right.
-> Join addresses moved into `/etc/spiele-adressen.json` because two programs read
-> them now, and two copies of one table drift apart.*
+> *The join addresses of the hand-built servers moved from a table in the
+> panel's source into `/etc/spiele-adressen.json`, because two programs read
+> them now — the panel and the page writer — and two places keeping the same
+> table drift apart, until the public page names a different port than the
+> panel.*
 ## Spieler, wo es geht — Verkehr, wo nicht
 
 Auf der Karte eines laufenden Servers steht entweder eine **echte Spielerzahl**
 (`0/10 Spieler`) oder der **Netzverkehr** (`ruhig`, `Verkehr 45 kB/s`). Welches
 von beidem, entscheidet sich daran, ob der Server auf eine Abfrage antwortet.
+
+> *A running server's card shows either a real player count (`0/10 Spieler`) or
+> the network traffic (`ruhig`, `Verkehr 45 kB/s`), depending on whether the
+> server answers a query.*
 
 ### Eine Fehlmessung, die eine Funktion gekostet hat
 
@@ -937,7 +1095,7 @@ drittes Format". Das war **falsch**, und zwar in einem Punkt, der zählt:
 ```
 === Steam-Abfrage (A2S_INFO), 2026-09-10 ===
   valheim      0/10 Spieler   "Valheim Docker"
-  enshrouded   0/4 Spieler    "mjfabrix"
+  enshrouded   0/4 Spieler    "<WELT_NAME>"
   palworld     keine Antwort
   foundry      keine Antwort
   satisfactory keine Antwort
@@ -952,6 +1110,16 @@ abrufbar" in die Dokumentation.
 
 Das ist die Lehre, nicht die Zahl: Eine Messung, die „geht nicht" ergibt, ist
 erst dann ein Befund, wenn auch der Weg geprüft wurde, auf dem sie misst.
+
+> *Until 2026-09-10 this section claimed there were no player counts — Palworld
+> answering no Steam query, TeamSpeak speaking its own protocol, Enshrouded "a
+> third format". That was wrong in the point that matters: Valheim and
+> Enshrouded answer plain A2S. The likely cause of the error is in the protocol:
+> since 2020 servers answer the first `A2S_INFO` not with data but with a
+> challenge (`0x41`), and only the repeat carrying it returns the answer; whoever
+> skips that sees a responding server as silent and writes "not obtainable" into
+> the docs. The lesson, not the number: a measurement yielding "does not work" is
+> a finding only once the path it measures along has been checked too.*
 
 ### Wie es jetzt läuft
 
@@ -975,6 +1143,18 @@ Die Abfragearten stehen als Klassen nebeneinander, dieselbe Naht wie bei den
 DNS-Anbietern (E24). Wer TeamSpeaks ServerQuery oder Satisfactorys HTTPS-API
 ergänzt, schreibt eine Klasse und trägt sie ein, sonst nichts.
 
+> *How it runs: `spieler-zaehlen` queries every minute by timer and writes
+> `/var/lib/platzwart-spieler.json`; the overview only reads, since a query in
+> the request path would lengthen every page view by the slowest answer. The
+> query port is discovered, not configured — a catalogue field would have missed
+> the three hand-built servers — by probing the published UDP ports and
+> remembering the one that answers (Valheim publishes three, exactly one
+> answers). A silent server is not asked every minute: it is retried after 30
+> minutes, since a game can switch its query on after an update. Measured: first
+> run 2.8 s (all in parallel), afterwards 0.33 s. Query kinds are classes side by
+> side, the same seam as the DNS providers (E24); adding TeamSpeak's ServerQuery
+> or Satisfactory's HTTPS API is one class and one entry.*
+
 ### Was bewusst *nicht* angezeigt wird
 
 * **Wer nicht antwortet, bekommt keine Null.** Er steht gar nicht erst im Stand;
@@ -983,6 +1163,12 @@ ergänzt, schreibt eine Klasse und trägt sie ein, sonst nichts.
 * **Zahlen über drei Minuten alt.** Steht der Timer, ist die letzte Zahl keine
   Auskunft über „gerade" mehr. Eine veraltete Zahl als aktuelle auszugeben ist
   schlimmer als keine.
+
+> *Deliberately not shown: a server that does not answer gets no zero — it is
+> absent from the file, and the card shows traffic; a zero would be a statement,
+> no answer is none. And counts older than three minutes: if the timer stopped,
+> the last number says nothing about "now", and a stale number presented as
+> current is worse than none.*
 
 ### Der Verkehr bleibt — für die anderen fünf
 
@@ -996,31 +1182,17 @@ gerade jemand drauf?* Drei Fälle, in denen auch er bewusst leer bleibt:
 * **Der letzte Abruf ist über 15 Minuten her.** Dann sagt die Differenz nichts
   mehr über „gerade".
 
-> *A card shows a real player count where the server answers a query, and network
-> traffic where it does not. Until 2026-09-10 this section claimed no counts were
-> obtainable — wrongly: Enshrouded answers plain A2S. The likely cause of the
-> error is in the protocol: since 2020 the first A2S_INFO is answered with a
-> challenge, and only the repeat carrying it returns data, so a responding server
-> looks silent. The lesson is not the number but this: a measurement yielding
-> "not possible" is only a finding once the method itself has been checked.
-> A timer queries every minute and the overview only reads, since querying inside
-> the request path would lengthen every page load. The query port is discovered
-> rather than configured — three of the seven servers are hand-built and have no
-> catalogue entry. Silent servers are retried every 30 minutes, not every minute.
-> A server that does not answer gets no zero: it is absent from the file, and a
-> zero would be a statement where there is no answer. Counts older than three
-> minutes are dropped — stale presented as current is worse than nothing.*
+Der letzte Zählerstand je Server liegt in `/opt/panel/daten/netzstand.json`;
+die Rate entsteht aus der Differenz zweier Abrufe der Übersicht.
 
-Der letzte Stand liegt in `/opt/panel/daten/netzstand.json`.
-
-> *The card shows current network traffic, not a player count — because there is
-> no player count: Palworld answers no Steam query, TeamSpeak speaks its own
-> protocol, Enshrouded a third, and most of the 179 catalogue games would have no
-> way at all. Traffic exists for every container and comes from the same
-> `docker stats` call. It answers the question that matters — can I restart, or
-> is somebody on — without claiming to know something it does not. Nothing is
-> shown on the first poll, when the counter falls (a restart), or when the last
-> poll is more than 15 minutes old.*
+> *Traffic remains for the servers that do not answer. It comes from the same
+> `docker stats` the overview fetches anyway and answers the question that
+> really matters — can I restart, or is somebody on? It stays blank on the first
+> poll (the value is cumulative since container start, so there is no rate
+> without a previous one), when the counter falls (a container restart, not
+> negative traffic), and when the last poll is more than 15 minutes old. The
+> last counter per server is kept in `/opt/panel/daten/netzstand.json`, and the
+> rate is the difference between two overview polls.*
 
 ---
 
@@ -1066,12 +1238,17 @@ dieselbe Grenze wie bei den Zugangsdaten. Die Zwischenseite sagt das auch.
 Die Katalogdeinstallation verlangt eine `panel.json` und weist alles andere ab —
 das schützt die von Hand gebauten Stacks davor, von einer Routine gelöscht zu
 werden, die nichts über sie weiß. Nur ließen sie sich damit **gar nicht** mehr
-entfernen, außer über SSH. StarRupture allein sind **21,1 GB**.
+entfernen, außer über SSH. StarRupture allein waren **21,1 GB** — es war der
+erste Server, der auf diesem Weg ging (2026-09-09).
 
 Deshalb ein **eigener Weg**, keine gelockerte Prüfung: Die Katalogroutine liest
-`panel.json` für die Ausschlussliste, entfernt DNS-Namen und räumt Katalogzustand
-ab — alles Dinge, die es hier nicht gibt. Eine Prüfung wegzunehmen, damit ein
-zweiter Fall durchpasst, macht aus zwei klaren Abläufen einen unklaren.
+`panel.json` für die Ausschlussliste und räumt Katalogzustand ab — Dinge, die es
+hier nicht gibt. Eine Prüfung wegzunehmen, damit ein zweiter Fall durchpasst,
+macht aus zwei klaren Abläufen einen unklaren. Gemeinsam haben beide Wege die
+Endsicherung, das Abräumen von Leerlauf, Zugangsdaten und Auto-Update, den
+Kanal-Abgleich und — seit #253 — das Entfernen des DNS-Namens: Stufe 70 legt
+auch für von Hand gebaute Stacks einen an, und `starrupture.<zone>` zeigte Tage
+nach dem Entfernen noch auf die Maschine.
 
 **Der Knopf steht nicht neben harmlosen.** Er liegt auf der Einstellungsseite des
 Servers in einem eigenen, rot überschriebenen Abschnitt **Entfernen**, abgesetzt
@@ -1098,11 +1275,17 @@ Seite — **vor** dem Klick, nicht als Meldung hinterher.
 
 > *Catalogue removal requires a `panel.json` and refuses everything else, which
 > protects hand-built stacks from a routine that knows nothing about them — but
-> also made them unremovable except over SSH. Hence a separate path rather than a
-> loosened check: the catalogue routine reads `panel.json`, removes DNS names and
-> clears catalogue state, none of which exists here. Admin only, since there is no
-> catalogue entry to reinstall from. The size is shown before the click, and a
-> final backup runs first; if it fails, nothing is deleted.*
+> also made them unremovable except over SSH (StarRupture alone was 21.1 GB and
+> was the first to go this way). Hence a separate path rather than a loosened
+> check: the catalogue routine reads `panel.json` and clears catalogue state, none
+> of which exists here. Both paths share the final backup, clearing idle sleep,
+> credentials and auto-update, the channel sync and — since #253 — removing the
+> DNS name, which stage 70 creates for hand-built stacks too. The button no
+> longer sits beside harmless ones: it lives in a red "Entfernen" section at the
+> end of the settings page, followed by the confirmation page. Admin only, since
+> there is no catalogue entry to reinstall from. The size is shown before the
+> click, and a final backup runs first; if it fails, nothing is deleted; with
+> backups switched off, the page warns before the click.*
 
 ---
 
@@ -1193,9 +1376,16 @@ Zugangsdaten, Benutzerverwaltung, Maschinenneustart — dazu Anmeldungen,
 
 **Was bewusst nicht darin steht:** Passwörter und Dateiinhalte. Bei einem Feld,
 dessen Name auf ein Geheimnis hindeutet, steht nur die Länge; bei einer
-geschriebenen Datei nur Name, Zeilen- und Zeichenzahl. Ein Protokoll soll
-nachvollziehbar machen, *wer was* angefasst hat, und nicht Geheimnisse an einer
-zweiten Stelle sammeln.
+geschriebenen Datei nur Name, Zeilen- und Zeichenzahl; bei einer Installation
+nur Spiel und Ergebnis — bis #239 stand dort die ganze Ausgabe von
+`spiel-verwalten` samt der zwei frisch gewürfelten Passwörter (die zwei
+betroffenen Zeilen wurden nachträglich geschwärzt); bei einem Schlüssel fremder
+Dienste nur die letzten vier Zeichen. Ein Protokoll soll nachvollziehbar machen,
+*wer was* angefasst hat, und nicht Geheimnisse an einer zweiten Stelle sammeln.
+
+Auch Änderungen, die kein Mensch im Panel auslöst, stehen darin: Kanäle, die
+`kanal-verwalten` anlegt, umbenennt oder löscht, erscheinen unter dem Benutzer
+`platzwart`.
 
 Vorher ließ sich das nur zufällig aus `journalctl` rekonstruieren, weil jede
 Aktion über `sudo panel-aktion` läuft. Diese Zeile nennt aber den **Dienstnutzer**
@@ -1213,7 +1403,11 @@ erscheint als solche, statt übersprungen zu werden.
 > *Who did what, when — admin only, since it names users and failed logins.
 > Every writing action is recorded, plus logins including failed ones. Passwords
 > and file contents deliberately stay out: a secret-looking field logs only its
-> length, a written file only its name and size. A log that quietly stops
+> length, a written file only its name and size, an installation only game and
+> result (until #239 it held the installer's full output including both fresh
+> passwords; the two affected lines were redacted), an outside-service key only
+> its last four characters. Channel changes made by `kanal-verwalten` appear
+> under the user `platzwart`. A log that quietly stops
 > writing is worse than none, so a write error is surfaced on the page, and an
 > unreadable line is shown as such rather than skipped.*
 
@@ -1223,19 +1417,47 @@ erscheint als solche, statt übersprungen zu werden.
 
 ### Übersicht `/`
 
-Kennzahlen der Maschine (Last, Speicher, Platte) und je Server eine Karte mit
-Titelbild, Zustand, Speicherverbrauch, Beitrittsadresse und **drei Knöpfen**:
-`anhalten`, `neu starten` und `Einstellungen` — bei einem gestoppten Server
-`starten` und `Einstellungen`.
+Oben vier Kennzahlen der Maschine mit Balken: Arbeitsspeicher, CPU-Last (im
+Verhältnis zu den Kernen), Platte und Auslagerung. Für `verwalten` und `admin`
+darunter die **Sammelsteuerung**: *alle laufenden anhalten* und *zuletzt
+laufende starten*. Dann je Server eine Karte mit:
 
-Ist bei einem Katalogspiel die Passwort-Einrichtung noch offen oder gescheitert,
-steht das als Warnung auf der Karte. Ohne diesen Hinweis liefe ein Server im
-schlimmsten Fall **ohne Beitrittspasswort** und niemand würde es merken.
+* Titelbild (oder zwei Buchstaben), Name, Zustand `läuft`/`gestoppt`;
+* Beitrittsadresse und Hinweis — aus `panel.json` oder
+  `/etc/spiele-adressen.json`;
+* bei einem laufenden Server Balken für Speicher (gegen die Grenze) und CPU,
+  darunter die Spielerzahl oder der Netzverkehr und die Linie des
+  Speicherverlaufs;
+* Warnungen, wo etwas nicht stimmt: *Noch keine Beitrittsadresse* (der Port
+  kommt erst aus der Konfiguration des ersten Starts), *Einrichtung läuft*,
+  *Server startet nicht*, *Ohne Beitrittspasswort!*, *Spielerzahl nicht
+  gesetzt*; nach einer Portermittlung, aus welcher Datei der Port stammt;
+* **drei Knöpfe**: `anhalten`, `neu starten` und `Einstellungen` — bei einem
+  gestoppten Server `starten` und `Einstellungen`. `Einstellungen` erscheint
+  nur, wenn die Seite für die Rolle etwas zeigt.
 
-> *Overview: machine metrics plus one card per server with artwork, state, memory
-> use, join address and three controls — stop, restart, settings (start and
-> settings when stopped). A pending or failed password setup is shown as a
-> warning — without it a server could silently run with no join password.*
+Unten ein Satz zur Sicherung — die Aufbewahrung, oder ein deutlicher Warnkasten,
+wenn sie abgeschaltet ist. Die Übersicht ist so breit wie die Katalogseite; die
+Karten behalten ihre Größe und stehen nur zu mehreren nebeneinander.
+
+Ohne die Warnungen liefe ein Server im schlimmsten Fall **ohne
+Beitrittspasswort** und niemand würde es merken; ohne den Unterschied zwischen
+„kein Passwortfeld" und „startet nicht" suchte man einen offenen Port, den es
+gar nicht gibt (#158).
+
+> *Overview: four machine metrics with bars — memory, CPU load relative to the
+> cores, disk and swap; for verwalten and admin the bulk controls "stop all
+> running" and "start the last running"; then one card per server with artwork,
+> name and state, join address and note, memory and CPU bars plus player count or
+> traffic and the memory history for a running server, warnings where something
+> is wrong (no join address yet, setup in progress, server does not start,
+> without a join password, player limit not set, and where a discovered port
+> came from), and three controls — stop, restart, settings (start and settings
+> when stopped; settings only if that page shows the role anything). At the
+> bottom a line on backup retention, or a clear warning when backups are off.
+> Without the warnings a server could run without a join password unnoticed;
+> without telling "no password field" from "does not start" one would hunt for
+> an open port that does not exist (#158).*
 
 ### Einstellungen eines Servers `/server/<stack>`
 
@@ -1245,12 +1467,15 @@ die man täglich braucht, gingen darin unter.
 
 | Abschnitt | Inhalt | Rolle |
 |---|---|---|
-| Betrieb | `autoupdate`, `leerlauf`, `jetzt aktualisieren` | verwalten, admin |
-| Einstellen | `Konfiguration` (`/konfig`), `Konfigdateien` (`/dateien`) | verwalten, admin |
+| Freigabe | `Port freigeben …` — nur bei Spielen ohne Beitrittspasswort, solange die Freigabe fehlt; steht ganz oben | verwalten, admin |
+| Whitelist | Minecraft (Java): eingetragene Namen mit `entfernen`, Feld zum Eintragen | verwalten, admin |
+| Workshop | nur bei Spielen mit Anbindung: eingetragene Mods (Titel, Größe, Link) mit `entfernen`, Suche (mit Steam-Schlüssel), Feld für Link/ID/Sammlung | verwalten, admin |
+| Betrieb | `autoupdate an/aus`, `leerlauf an/aus`, `jetzt aktualisieren` | verwalten, admin |
+| Einstellen | `Konfiguration` (`/konfig`), `Konfigdateien (n)` (`/dateien`) | verwalten, admin |
 | | `Mods` | admin |
 | Daten | `Sicherungen` | alle, sofern die Sicherung an ist |
 | | `Protokoll` | verwalten, admin |
-| Entfernen | `Server entfernen …` — nur für von Hand gebaute Server | admin |
+| Entfernen | `Server entfernen …` — nur für von Hand gebaute Server, rot abgesetzt | admin |
 
 **Jede Bedingung ist wörtlich die, die vorher auf der Karte stand.** Einen
 Knopf auf eine andere Seite zu verschieben ist genau der Moment, in dem eine
@@ -1269,7 +1494,12 @@ wählbares Rückziel wäre eine offene Weiterleitung. Aus demselben Grund führt
 Protokoll, Entfernen-Rückfrage) jetzt zur Einstellungsseite, nicht zwei Ebenen
 hoch.
 
-> *Everything other than stop and restart lives here. Each control appears
+> *Everything other than stop and restart lives here, in sections: release (for
+> games without a join password, at the top), whitelist (Minecraft Java),
+> Workshop (games with a binding), operation (auto-update, idle sleep, update
+> now), settings (configuration, config files with their count, mods for
+> admins), data (backups, server log) and removal (hand-built servers, admin,
+> set apart in red). Each control appears
 > under exactly the condition it had on the card — moving a control to another
 > page is precisely when a check gets lost — and the card only links here if
 > the page has something for the role. After a toggle you stay on the page via
@@ -1278,20 +1508,25 @@ hoch.
 
 ### Spiele `/spiele`
 
-Der Katalog: 41 Einträge mit Titelbild, Kurzbeschreibung, Speicher- und
-Plattenbedarf. Installieren mit einem Klick, Entfernen mit Rückfrage.
+Der Katalog: alle Einträge mit Titelbild, Kurzbeschreibung, Speicher- und
+Plattenbedarf und dem Hinweis, ob ein Spiel schon installiert ist.
+Installieren mit einem Klick, Entfernen mit Rückfrage. Nach dem Installieren
+meldet die Seite, ob der Server gestartet wurde, und verweist auf die
+**Zugangsdaten**, wo die zwei frisch gewürfelten Passwörter stehen.
 
 Übergeben wird **nur der Schlüssel**. Alles andere — Image, Ports, Volumes,
 Umgebung — kommt aus `/etc/spiele-katalog.json`, das die Oberfläche nur lesen
 kann. Siehe [04-spielekatalog.md](04-spielekatalog.md).
 
-> *The catalogue: 41 entries with artwork, blurb and resource needs. Install with
-> one click, remove with a confirmation. Only the key is passed; everything else
+> *The catalogue: every entry with artwork, blurb, memory and disk needs and
+> whether it is installed. Install with one click, remove with a confirmation;
+> after installing, the page says whether the server was started and points to
+> the credentials page, where the two freshly generated passwords are listed. Only the key is passed; everything else
 > comes from the catalogue file, which the panel can only read.*
 
 ### Suche, Kategorien und Sortierung auf der Katalogseite
 
-Bei 154 Einträgen ist Blättern keine Bedienung mehr. Die Seite hat deshalb:
+Bei 179 Einträgen ist Blättern keine Bedienung mehr. Die Seite hat deshalb:
 
 * **Textsuche** über Name, Schlüssel **und** Kurzbeschreibung — wer `koop`
   eintippt, meint eine Eigenschaft, keinen Titel. Mehrere Wörter müssen **alle**
@@ -1309,7 +1544,7 @@ Bei 154 Einträgen ist Blättern keine Bedienung mehr. Die Seite hat deshalb:
   (7DaysToDie) und sonst unter keinem Buchstaben zu finden wäre.
 
 **Die Katalogseite ist breiter als der Rest der Oberfläche.** 1000 Pixel sind für
-Fließtext richtig und für 154 Kacheln viel zu wenig — auf einem breiten
+Fließtext richtig und für 179 Kacheln viel zu wenig — auf einem breiten
 Bildschirm standen drei Spalten neben zwei Dritteln leerem Grau. Der Katalog
 bekommt deshalb eine eigene Spalte bis 2400 px und ein engeres Raster (240 statt
 300 px Mindestbreite, flachere Bilder). Gemessen: aus 3 Spalten werden 7 auf Full
@@ -1320,7 +1555,7 @@ soll nicht über den ganzen Schirm wandern.
 das Blickfeld, liest niemand mehr als Reihe.
 
 > *The catalogue page is wider than the rest: 1000px is right for prose and far
-> too little for 154 tiles, which left three columns beside two thirds of empty
+> too little for 179 tiles, which left three columns beside two thirds of empty
 > background. It gets its own column up to 2400px and a tighter grid — measured,
 > 3 columns become 7 on Full HD and 9–11 on wider screens. Beyond 2400px nothing
 > is gained: a row wider than the field of view stops reading as a row.*
@@ -1332,13 +1567,18 @@ nachsieht, will die M-Spiele, nicht ihre Richtung.
 
 | Kategorie | Einträge |
 |---|---|
-| Aufbau & Simulation | 8 |
-| Survival & Koop | 40 |
-| Sandbox & Rollenspiel | 10 |
-| Shooter | 72 |
-| Arena & Klassiker | 20 |
-| Rennen & Fahren | 3 |
+| Aufbau & Simulation | 9 |
+| Survival & Koop | 49 |
+| Sandbox & Rollenspiel | 13 |
+| Shooter | 78 |
+| Arena & Klassiker | 24 |
+| Rennen & Fahren | 5 |
 | Dienste | 1 |
+| Sonstiges | 0 |
+
+Bis #251 fehlten hier 17 Spiele ganz: Die Generatoren hatten sie ohne
+Kategorie angelegt, und so passten sie in keinen Filter, nicht einmal in
+„Sonstiges". Seither prüft `vollstaendigkeit.sh`, dass jeder Eintrag eine hat.
 
 **Alles läuft serverseitig über GET-Parameter — kein JavaScript.** Das ist keine
 Vorliebe, sondern folgt aus `default-src 'none'`: ein Filter im Browser wäre
@@ -1355,14 +1595,17 @@ ein Spiel zu zweit an einem Abend Spaß macht. Wer eine Zuordnung für falsch
 hält, ändert eine Zeile; ein Spiel ohne Zuordnung landet sichtbar in
 „Sonstiges" und wird beim Lauf benannt.
 
-> *At 154 entries, scrolling is not an interface. The page offers a text search
+> *At 179 entries, scrolling is not an interface. The page offers a text search
 > across name, key and blurb (multiple words must all match, or a longer query
 > would return more results than a shorter one), eight categories with counts
 > that respect the search but not the category filter, and a letter bar.
 > Everything is server-side via GET parameters — not a preference but a
 > consequence of `default-src 'none'`, where client-side filtering would be dead.
 > Categories are assigned by hand rather than taken from Steam, whose genres say
-> nothing about whether a game suits an evening for two.*
+> nothing about whether a game suits an evening for two. The table lists the
+> entries per category; until #251 17 games had no category at all and matched
+> no filter, not even "Sonstiges" — the completeness check now requires one for
+> every entry.*
 
 ### Zugangsdaten `/passwoerter`
 
@@ -1372,18 +1615,41 @@ sichtbar getrennt:
 * **Automatisch gelesen** — aus den compose-Dateien und den `panel.json`.
   Immer aktuell, weil direkt aus der Quelle.
 * **Selbst gepflegt** — für Server, deren Passwort sich nicht auslesen lässt:
-  Satisfactory (Hash und Salt in einer binären `.sav`), TeamSpeak (Hash in
-  SQLite), StarRupture (RSA-verschlüsselt). Diese Einträge **können veralten**
-  und sind deshalb gekennzeichnet.
+  Satisfactory (Hash und Salt in einer binären `.sav`) und TeamSpeak (Hash in
+  SQLite, dazu der ServerQuery-Zugang `serveradmin`). Anlegen mit Server,
+  Bezeichnung und Wert, einzeln löschen. Diese Einträge **können veralten** und
+  sind deshalb gekennzeichnet.
+
+Nur für `verwalten` und `admin`. Ein entfernter Server verschwindet aus beiden
+Quellen (#169).
 
 > *All join and admin passwords in one place, from two visibly separated
-> sources: read automatically from the compose files, and kept by hand for
-> servers whose password cannot be read back (stored hashed or encrypted). The
-> hand-kept entries can go stale and are marked as such.*
+> sources: read automatically from the compose files and `panel.json`, always
+> current; and kept by hand for servers whose password cannot be read back —
+> Satisfactory (hash and salt in a binary save) and TeamSpeak (hash in SQLite,
+> plus the ServerQuery login) — added with server, label and value, deleted one
+> by one, and marked because they can go stale. verwalten and admin only; a
+> removed server disappears from both sources (#169).*
 
 ### Benutzer `/nutzer`
 
-Anlegen, Rolle setzen, zweiten Faktor zurücksetzen, löschen.
+Eine Tabelle aller Konten mit Rolle, Zustand des zweiten Faktors und Vorrat an
+Wiederherstellungscodes, je Konto `2FA zurücksetzen` und `löschen`; darunter das
+Formular zum **Anlegen**: Name (nur Buchstaben und Ziffern, höchstens 20
+Zeichen, klein gespeichert), Startpasswort (mindestens 10 Zeichen, weitergeben
+muss es der Administrator selbst) und Rolle. Jede Ablehnung nennt ihren Grund
+und steht im Protokoll.
+
+**Was die Oberfläche nicht kann:** eine Rolle nachträglich ändern und ein
+Passwort ändern — weder das eigene noch ein fremdes. Beides geht heute nur über
+Löschen und neu Anlegen (der Benutzer richtet dann auch den zweiten Faktor neu
+ein) oder von Hand in `nutzer.json`.
+
+`2FA zurücksetzen` erneuert das TOTP-Geheimnis und entwertet die
+Wiederherstellungscodes **und die Passkeys** des Kontos; beim nächsten Anmelden
+richtet der Benutzer den zweiten Faktor neu ein. Die Passkeys blieben bis #254
+gültig — ein Passkey auf dem verlorenen Gerät war nach dem Zurücksetzen weiter
+ein zweiter Faktor, genau der Fall, für den es den Knopf gibt.
 
 Beim Anlegen entsteht ein TOTP-Geheimnis, das **niemandem angezeigt wird** —
 auch nicht dem Administrator. Der neue Benutzer bekommt es bei seiner ersten
@@ -1395,14 +1661,24 @@ aus, und ohne Administrator käme niemand mehr an die Benutzerverwaltung.
 
 **Groß- und Kleinschreibung spielt beim Benutzernamen keine Rolle** (#248).
 Konten werden klein gespeichert, die Anmeldung — per TOTP wie per Passkey —
-findet `Ropax85` auch als `ropax85`, und ein zweites Konto, das sich nur in der
+findet `Karla7` auch als `karla7`, und ein zweites Konto, das sich nur in der
 Schreibweise unterscheidet, wird abgewiesen. Vorher war der Vergleich exakt: Der
 erste Anmeldeversuch am einzigen `verwalten`-Konto scheiterte am großen
 Anfangsbuchstaben, und die Seite sagte nur „Anmeldung fehlgeschlagen" — der
 Schreibfehler sah aus wie ein falsches Passwort. Im Protokoll steht bei einem
 Fehlversuch weiterhin genau das, was eingetippt wurde.
 
-> *Users: create, set role, reset the second factor, delete. A new TOTP secret is
+> *Users: a table of all accounts with role, second-factor state and remaining
+> recovery codes, each with "reset 2FA" and "delete", and a form to create one —
+> name (letters and digits only, at most 20 characters, stored in lower case),
+> initial password (at least 10 characters, handed over by the administrator)
+> and role; every refusal names its reason and is audited. What the panel cannot
+> do: change a role afterwards or change a password, one's own or anyone else's
+> — today that means deleting and re-creating the account or editing
+> `nutzer.json` by hand. Resetting 2FA renews the TOTP secret and revokes the
+> account's recovery codes and passkeys; the user enrols again at the next
+> login. Passkeys stayed valid until #254 — one on the lost device remained a
+> second factor after the reset, exactly the case the button exists for. A new TOTP secret is
 > shown to nobody, not even the administrator — the new user receives it as a QR
 > code on their first login, so it never travels over a channel. Deleting your
 > own account is blocked: it would lock the last administrator out of user
@@ -1462,7 +1738,7 @@ letzten Änderung stellt später niemand mehr her.
 | Was sie beschreibt | den **Container** | die **Spielregeln** |
 | Wer sie liest | Docker, als root | der Spielprozess als UID 4711 |
 | Schlimmster Fall | `/:/host` gemountet = **root auf der Maschine** | der Server startet nicht |
-| Bearbeitbar | 12 Felder aus einer Positivliste | frei |
+| Bearbeitbar | jede Umgebungsvariable außer den gesperrten, jede Änderung mit Gerüstvergleich | frei, im Rahmen der Pfadprüfung |
 
 Deshalb darf das eine frei bearbeitet werden und das andere nicht.
 
@@ -1529,19 +1805,57 @@ angezeigt, damit sichtbar ist, dass es sie gibt:
 > are shown but locked — changing them would break file ownership, install a
 > different game, or amount to accepting a licence.*
 
-Änderbar sind **einzelne Felder** aus einer Positivliste (Servername,
-Beitrittspasswort, Adminpasswort, Spielerzahl, Speichergrenze) — nie die
-compose-Datei als Ganzes. Wer dort ein Volume `/:/host` eintragen könnte, wäre
-root auf der Maschine.
+Geändert wird immer **ein Feld** — nie die compose-Datei als Ganzes. Wer dort
+ein Volume `/:/host` eintragen könnte, wäre root auf der Maschine. Die
+Umgebungsvariablen laufen über `compose-feld`: Sperrliste, kein Zeilenumbruch im
+Wert und als eigentlicher Schutz ein Vergleich der von Docker erzeugten
+Endfassung vor und nach der Änderung — weicht mehr ab als die Umgebung, wird
+zurückgerollt. Darunter stehen Sonderfälle, die nicht in der Umgebung stehen:
+die **Speichergrenze** (`mem_limit` und `memswap_limit` gemeinsam, Form `8g`)
+und bei Palworld die **wirksamen** Werte aus `PalWorldSettings.ini`
+(Servername, Passwörter, Spielerzahl), weil der Container sie dort führt. Vor
+jeder Änderung entsteht eine Kopie `.vor-panel-<zeit>`; wirksam wird sie beim
+nächsten Neustart des Servers.
 
-> *Configuration: individual fields from an allow-list only (server name, join
-> and admin password, player count, memory limit) — never the compose file as a
-> whole, since a volume entry of `/:/host` would mean root on the machine.*
+> *Always one field — never the compose file as a whole, since a volume of
+> `/:/host` would mean root on the machine. Environment variables go through
+> `compose-feld`: a deny-list, no newline in the value, and as the real
+> safeguard a before/after comparison of Docker's rendered config that rolls
+> back if anything beyond the environment differs. Below them are the special
+> cases outside the environment: the memory limit (memory and swap together,
+> written like `8g`) and for Palworld the effective values in
+> `PalWorldSettings.ini`, because the container keeps them there. Every change
+> leaves a `.vor-panel-<time>` copy and takes effect at the next restart.*
 
 ### Archive und Wiederherstellung `/archive/<stack>`, `/restore`
 
-Listet die Borg-Archive dieses Servers und stellt eines mit Rückfrage wieder
-her. Details in [05-sicherung.md](05-sicherung.md).
+Die Seite **Sicherungen** listet die Borg-Archive dieses Servers mit Zeitpunkt,
+jüngste zuerst; je Archiv `zurückspielen` (verwalten, admin) und
+`herunterladen` (verwalten, admin). Für `bedienen` ist sie eine reine Liste.
+Läuft gerade eine Sicherung, wartet die Seite bis 150 s auf die Sperre und sagt
+es, wenn sie trotzdem nicht durchkommt.
+
+`zurückspielen` führt auf eine Rückfrage, die nennt, was geschieht. Danach packt
+`panel-aktion restore` das Archiv **zuerst** aus, bei laufendem Server; erst
+wenn das gelang, hält es den Server an, kopiert den Ist-Stand nach
+`/srv/games/<stack>.vor-restore-<zeit>`, legt die von der Sicherung
+ausgeschlossenen Pfade (die Spielinstallation) beiseite, spielt den Stand ein,
+legt sie an denselben Ort zurück, übernimmt den Eigentümer vom Ist-Stand und
+startet den Server wieder — nur, wenn er vorher lief. Die Meldung nennt den Ort
+der Kopie; sie gehört nach der Prüfung gelöscht, sonst sichert sie der nächste
+Volllauf mit. Einzelheiten in [05-sicherung.md](05-sicherung.md#über-die-oberfläche).
+
+> *The backups page lists this server's Borg archives with their time, newest
+> first, each with restore and download for verwalten and admin; for bedienen it
+> is a plain list. During a running backup it waits up to 150 s for the lock and
+> says so if it still cannot get through. Restoring leads to a confirmation
+> page; `panel-aktion restore` then extracts the archive first, while the server
+> keeps running, and only after that succeeded stops the server, copies the
+> current state to `<dir>.vor-restore-<time>`, moves the excluded paths (the game
+> installation) aside, restores, puts them back at the same place, takes
+> ownership from the previous state and restarts the server only if it was
+> running. The message names the copy's location; delete it after checking, or
+> the next full backup archives it too.*
 
 ---
 
@@ -1606,10 +1920,29 @@ Gegenwert.
 
 | Datei | Inhalt |
 |---|---|
-| `/opt/panel/daten/nutzer.json` | `{"secret": …, "nutzer": {"<name>": {"passwort_hash", "totp", "rolle", "totp_bestaetigt"}}}` |
+| `/opt/panel/daten/nutzer.json` | `{"secret": …, "nutzer": {"<name>": {"passwort_hash", "totp", "rolle", "totp_bestaetigt", "codes": [Argon2id-Hashes], "passkeys": [{"id", "pubkey", "zaehler", "angelegt"}]}}}` |
 | `/opt/panel/daten/zugangsdaten.json` | Liste selbst gepflegter Zugänge |
+| `/opt/panel/daten/audit.jsonl` | Protokoll, eine JSON-Zeile je Ereignis, ab 4 MB einmal nach `.jsonl.1` |
+| `/opt/panel/daten/steam-api.conf` | Steam-Web-API-Schlüssel |
+| `/opt/panel/daten/teamspeak.conf` · `discord.conf` | Zugänge für die Kanäle |
+| `/opt/panel/daten/kanaele.json` · `kanaele-zuordnung.json` | Einstellungen der Kanäle · welcher Server welche Kanäle hat |
+| `/opt/panel/daten/netzstand.json` | letzter Netzzählerstand je Server |
+| `/opt/panel/daten/konfigzahlen.json` | Zahl der Konfigurationsdateien je Server (schreibt der Einrichtungs-Timer) |
 
-Geschrieben wird immer über eine `.tmp`-Datei mit anschließendem `replace()`.
+Alles unter `/opt/panel/daten` gehört `panel` (Geheimnisse `0600`) und wandert
+im täglichen Volllauf in das Archiv `panel-*` (#218). Geschrieben wird immer über
+eine `.tmp`-Datei mit anschließendem `replace()`. Ein Absturz mitten im Schreiben
+hinterließe sonst eine halbe JSON-Datei, und dann käme niemand mehr an die
+Oberfläche.
+
+> *Panel data: the table lists every file under `/opt/panel/daten` — users with
+> hashes, TOTP secrets, recovery-code hashes and passkeys, hand-kept
+> credentials, the audit log, the outside-service keys, the channel settings and
+> mapping, the last traffic counters and the config-file counts. Everything
+> there belongs to `panel` (secrets 0600) and goes into the `panel-*` archive in
+> the daily full run (#218). Writes always go through a `.tmp` file followed by
+> an atomic `replace()`: a crash mid-write would otherwise leave half a JSON file
+> behind and lock everyone out of the panel.*
 
 Die frühere Einzelnutzer-Datei `/opt/panel/konfig.json` und ihre einmalige
 Übernahme gibt es seit #216 nicht mehr. Die Datei stand noch auf der Maschine
@@ -1620,9 +1953,3 @@ verglichen, dass jeder Wert in `nutzer.json` steht.
 > *The legacy single-user `konfig.json` and its migration are gone since #216;
 > the file still held the current session secret, password hash and TOTP
 > secret. Every value was verified to be in `nutzer.json` before deletion.*
-Ein Absturz mitten im Schreiben hinterlässt sonst eine halbe JSON-Datei, und
-dann kommt niemand mehr an die Oberfläche.
-
-> *Writes always go through a `.tmp` file followed by an atomic `replace()`: a
-> crash mid-write would otherwise leave half a JSON file behind and lock everyone
-> out of the panel.*
