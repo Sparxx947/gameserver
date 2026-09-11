@@ -258,6 +258,27 @@ Installation (`Loading mod: workshop-374550642 (Increased Stack size)`, `…
 nicht gemessen — wer sie einschaltet, muss dort `modoverrides.lua` von Hand
 pflegen.
 
+**Killing Floor 2** führt seine Liste in `LinuxServer-KFEngine.ini`, Sektion
+`[OnlineSubsystemSteamworks.KFWorkshopSteamworks]`, eine Zeile
+`ServerSubscribedWorkshopItems=<id>` je Element — dieselbe Taste mehrfach,
+deshalb eigene Sektionslogik. Für die Spieler steht
+`DownloadManagers=OnlineSubsystemSteamworks.SteamWorkshopDownload` als **erster**
+Downloadmanager in `[IpDrv.TcpNetDriver]` (Tripwire-Wiki). Und: **Linux-Server
+legen ihren Cache-Ordner nicht an** — ohne `KFGame/Cache` lädt der Server nichts
+und sagt es nicht (Steam führte die IDs nicht einmal als benötigt). `workshop`
+legt ihn an. Gemessen: zwei Elemente in unter 40 s nach
+`KFGame/Cache/<id>/0/BrewedPC/`; die INI bleibt über einen Neustart unverändert,
+auch wenn sie bei laufendem Server geändert wurde (Tripwires Warnung davor traf
+dieses Build nicht). Karten müssen danach in den Kartenzyklus, Mutatoren in die
+Startparameter — das bleibt Handarbeit.
+
+**Größe.** Für manche Elemente nennt Steams schlüssellose Detailabfrage
+`file_size: 0` — bei Killing Floor 2 für jedes gemessene, während die Suche
+3,6 MB meldet. Die 2-GB-Grenze liefe dort ins Leere. Mit Schlüssel fragt
+`workshop` bei `IPublishedFileService/GetDetails` nach (ohne antwortet sie mit
+401); bleibt die Größe unbekannt, wird das Element **abgewiesen**, nicht
+durchgewunken.
+
 **Aufräumen.** Beim Speichern löscht `workshop` den Inhalt **jeder** nicht
 eingetragenen ID, nicht nur der gerade ausgetragenen — Mods werden mitgesichert,
 und die Sicherung soll nicht mit Totem wachsen. Alle, weil Steam am
@@ -278,7 +299,11 @@ räumt ihn weg. Nur Ordner mit reinem Zahlennamen, keine Symlinks.
 > Don't Starve Together needs `ServerModSetup` in the setup file and an enabled
 > entry in `modoverrides.lua` (Lua: only missing entries are added, only our
 > own block is removed, by brace counting that skips strings and comments;
-> the Master shard only).
+> the Master shard only). Killing Floor 2 uses a repeated key in one INI
+> section plus the Workshop download manager first; Linux servers need
+> `KFGame/Cache` created or they download nothing, silently. Where Steam's
+> keyless details report size 0, the size is fetched with the key; unknown
+> size is refused.
 > Saving deletes the content of every id not listed (Steam once restored a
 > deleted folder). Both proven end to end on test servers.*
 

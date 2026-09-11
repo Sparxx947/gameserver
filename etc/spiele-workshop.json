@@ -25,6 +25,12 @@
       ],
       "inhalt": "serverfiles/ugc_mods/Cluster_1/Master/content/322330",
       "gemessen": "2026-09-11, ich777-Image: ServerModSetup(\"<id>\") in serverfiles/mods/dedicated_server_mods_setup.lua, [\"workshop-<id>\"]={ enabled=true } in Cluster_1/Master/modoverrides.lua; Inhalt unter serverfiles/ugc_mods/Cluster_1/Master/content/322330/<id>. Nur der Shard Master - die Hoehlen (Caves) sind im Katalog aus und nicht gemessen."
+    },
+    "killingfloor2": {
+      "art": "kf2",
+      "datei": "serverfiles/KFGame/Config/LinuxServer-KFEngine.ini",
+      "inhalt": "serverfiles/KFGame/Cache",
+      "gemessen": "2026-09-11, ich777-Image: [OnlineSubsystemSteamworks.KFWorkshopSteamworks] ServerSubscribedWorkshopItems=<id> in LinuxServer-KFEngine.ini; Linux legt KFGame/Cache nicht selbst an (ohne: kein Download, keine Meldung); Inhalt unter serverfiles/KFGame/Cache/<id>/0/BrewedPC"
     }
   }
 }

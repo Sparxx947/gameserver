@@ -894,7 +894,10 @@ Don't Starve Together ließ sich aus dem Katalog nie starten: Sein Startskript
 ruft `mkdir` ohne `-p` auf `.klei/DoNotStarveTogether/Cluster_1` auf und legt
 sich ohne den Elternordner schlafen (jetzt Katalogfeld `ordner`); es lädt 4,5
 statt geschätzter 2 GB; und es braucht ein Cluster-Token vom Klei-Konto des
-Betreibers — das bringt kein Katalog mit.
+Betreibers — das bringt kein Katalog mit. Killing Floor 2 lud Workshop-Inhalte
+unter Linux gar nicht, bis es `KFGame/Cache` gab (bekannter Fehler laut
+Tripwire), und belegt 31 GB. Die Einrichtung schrieb dort das Passwort auch in
+`bNoPassword` — einen Schalter, dessen Name „Passwort" enthält (#227).
 
 > *The obvious design, an own downloader, was rejected: these game servers fetch
 > Workshop items themselves from a list in their config, so the panel only

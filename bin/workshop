@@ -79,7 +79,24 @@ def details(ids: list) -> dict:
     for i, x in enumerate(ids):
         felder[f"publishedfileids[{i}]"] = x
     antwort = _post("ISteamRemoteStorage/GetPublishedFileDetails/v1/", felder)
-    return {d["publishedfileid"]: d for d in antwort["response"].get("publishedfiledetails", [])}
+    raus = {d["publishedfileid"]: d for d in antwort["response"].get("publishedfiledetails", [])}
+    # Fuer manche Elemente nennt diese Abfrage file_size "0" - bei Killing
+    # Floor 2 fuer jedes gemessene, obwohl die Suche 3,6 MB meldet
+    # (2026-09-11). Die Groessengrenze liefe dort ins Leere. Mit Schluessel
+    # kennt IPublishedFileService/GetDetails die echte Groesse (ohne: 401).
+    # *This call reports file_size "0" for some items (every Killing Floor 2
+    #  item measured); with a key GetDetails knows the real size.*
+    fehlt = [x for x, d in raus.items() if d.get("result") == 1 and not int(d.get("file_size") or 0)]
+    k = schluessel() if fehlt else ""
+    if k:
+        q = {"key": k, **{f"publishedfileids[{i}]": x for i, x in enumerate(fehlt)}}
+        req = urllib.request.Request(f"{API}/IPublishedFileService/GetDetails/v1/?{urllib.parse.urlencode(q)}",
+                                     headers={"User-Agent": "platzwart-workshop"})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            for d in json.loads(r.read())["response"].get("publishedfiledetails", []):
+                if d.get("publishedfileid") in raus and int(d.get("file_size") or 0):
+                    raus[d["publishedfileid"]]["file_size"] = d["file_size"]
+    return raus
 
 
 def sammlung(cid: str) -> list:
@@ -141,6 +158,11 @@ def urteil(d: dict, appid: int) -> str:
         return "von Steam gesperrt"
     if int(d.get("file_size") or 0) > MAX_BYTES:
         return f"groesser als {MAX_BYTES // 1024 ** 2} MB"
+    # Unbekannte Groesse wird abgewiesen, nicht durchgewunken - sonst griffe die
+    # Grenze genau dort nicht, wo Steam die Groesse verschweigt.
+    # *Unknown size is refused rather than waved through.*
+    if not int(d.get("file_size") or 0):
+        return "Groesse bei Steam unbekannt - Steam nennt sie nur mit Schluessel (Integrationen)"
     return ""
 
 
@@ -533,6 +555,95 @@ class Dst(Anpassung):
         self.aufraeumen(ids)
 
 
+# Killing Floor 2: eine Sektion mit wiederholter Taste, dazu der Downloadmanager.
+KF2_SEKTION = "[OnlineSubsystemSteamworks.KFWorkshopSteamworks]"
+KF2_TASTE = re.compile(r"^ServerSubscribedWorkshopItems=([0-9]{3,12})[ \t]*$")
+KF2_MANAGER = "DownloadManagers=OnlineSubsystemSteamworks.SteamWorkshopDownload"
+
+
+def _sektion(zeilen: list, kopf: str):
+    """(anfang, ende) der Zeilen einer INI-Sektion ohne Kopf, sonst None. Rein."""
+    for i, z in enumerate(zeilen):
+        if z.strip().lower() == kopf.lower():
+            j = i + 1
+            while j < len(zeilen) and not zeilen[j].lstrip().startswith("["):
+                j += 1
+            return i + 1, j
+    return None
+
+
+def kf2_ids(text: str) -> list:
+    """IDs aus ServerSubscribedWorkshopItems= der Workshop-Sektion. Rein."""
+    zeilen = text.splitlines()
+    s = _sektion(zeilen, KF2_SEKTION)
+    if not s:
+        return []
+    return [m.group(1) for z in zeilen[s[0]:s[1]] if (m := KF2_TASTE.match(z.strip()))]
+
+
+def kf2_setzen(text: str, ids: list) -> str:
+    """Workshop-Sektion auf ids setzen und den Workshop-Downloadmanager als
+    ERSTEN DownloadManagers-Eintrag sicherstellen. Alles andere bleibt. Rein.
+    *Set the Workshop section to ids and make the Workshop download manager the
+     first DownloadManagers line. Everything else stays.*"""
+    zeilen = text.splitlines()
+    s = _sektion(zeilen, "[IpDrv.TcpNetDriver]")
+    if not s:
+        fehler("[IpDrv.TcpNetDriver] fehlt in der Konfiguration - bitte von Hand pruefen")
+    teil = zeilen[s[0]:s[1]]
+    if KF2_MANAGER not in (z.strip() for z in teil):
+        erste = next((i for i, z in enumerate(teil) if z.strip().startswith("DownloadManagers=")), 0)
+        teil.insert(erste, KF2_MANAGER)
+        zeilen[s[0]:s[1]] = teil
+    neu = [f"ServerSubscribedWorkshopItems={x}" for x in ids]
+    s = _sektion(zeilen, KF2_SEKTION)
+    if s:
+        rest = [z for z in zeilen[s[0]:s[1]] if not KF2_TASTE.match(z.strip())]
+        while rest and not rest[-1].strip():
+            rest.pop()
+        zeilen[s[0]:s[1]] = neu + rest + [""]
+    else:
+        while zeilen and not zeilen[-1].strip():
+            zeilen.pop()
+        zeilen += ["", KF2_SEKTION] + neu
+    return "\n".join(zeilen) + "\n"
+
+
+@art("kf2")
+class Kf2(Anpassung):
+    """Killing Floor 2: Sektion [OnlineSubsystemSteamworks.KFWorkshopSteamworks]
+    in LinuxServer-KFEngine.ini, eine Zeile ServerSubscribedWorkshopItems=<id>
+    je Element - dieselbe Taste mehrfach, deshalb eigene Sektionslogik statt
+    setze_ini. Dazu, fuer die Spieler, der Workshop-Downloadmanager als erster
+    DownloadManagers-Eintrag in [IpDrv.TcpNetDriver] (Tripwire-Wiki).
+
+    Linux-Server legen ihren Cache-Ordner NICHT an ("Known issue on Linux
+    servers", Tripwire) - ohne KFGame/Cache laedt der Server nichts und sagt es
+    nicht: Steam fuehrte die IDs nicht einmal als benoetigt (gemessen am
+    2026-09-11). Mit dem Ordner: zwei Elemente in 40 s nach
+    KFGame/Cache/<id>/0/BrewedPC/ (Karte .kfm, Mutator .u). Karten muessen in
+    den Kartenzyklus, Mutatoren in die Startparameter - das bleibt Handarbeit.
+    *Repeated key in one section, plus the Workshop download manager first.
+     Linux servers do not create their cache folder and then download nothing,
+     silently. Maps and mutators still have to be activated by hand.*
+    """
+
+    def liste(self) -> list:
+        return kf2_ids(self.datei().read_text(errors="replace"))
+
+    def setzen(self, ids: list):
+        p = self.datei()
+        besitzer = p.stat()
+        cache = self.inhalt("0").parent
+        if not cache.exists():
+            cache.mkdir()
+            os.chown(cache, besitzer.st_uid, besitzer.st_gid)
+            cache.chmod(0o770)
+        p.write_text(kf2_setzen(p.read_text(errors="replace"), ids))
+        os.chown(p, besitzer.st_uid, besitzer.st_gid)
+        self.aufraeumen(ids)
+
+
 # --- Befehle --------------------------------------------------------------------
 
 def zeile(d: dict) -> str:
@@ -628,7 +739,9 @@ def selbsttest() -> int:
                     ({"result": 1, "consumer_app_id": 108600, "file_size": MAX_BYTES + 1}, "groesser"),
                     # So antwortet die Suche (QueryFiles) - anderer Feldname:
                     ({"result": 1, "consumer_appid": 108600, "file_size": "10"}, ""),
-                    ({"result": 1, "consumer_appid": 4000, "file_size": "10"}, "anderen Spiel")]:
+                    ({"result": 1, "consumer_appid": 4000, "file_size": "10"}, "anderen Spiel"),
+                    # So antwortet die schluessellose Detailabfrage fuer KF2:
+                    ({"result": 1, "consumer_app_id": 108600, "file_size": "0"}, "unbekannt")]:
         ist = urteil(d, 108600)
         ok = (soll == "" and ist == "") or (soll and soll in ist)
         schlecht += not ok
@@ -667,6 +780,24 @@ def selbsttest() -> int:
         ("modoverrides: neuer eingetragen", '["workshop-376333686"]={ configuration_options={ }, enabled=true }' in neu_ov),
         ("modoverrides: leer -> angelegt", dst_overrides_setzen("", ["5"], []) ==
          'return {\n  ["workshop-5"]={ configuration_options={ }, enabled=true },\n}\n'),
+    ]:
+        schlecht += not ok
+        print(f"  {'ok  ' if ok else 'FEHLER'} {name}")
+    ini = ("[IpDrv.TcpNetDriver]\nAllowDownloads=True\nDownloadManagers=IpDrv.HTTPDownload\n"
+           "DownloadManagers=Engine.ChannelDownload\n\n[Engine.Foo]\nX=1\n")
+    k1 = kf2_setzen(ini, ["645883665", "1337395223"])
+    k2 = kf2_setzen(k1.replace("ServerSubscribedWorkshopItems=645883665\n",
+                               "ServerSubscribedWorkshopItems=645883665\n; Notiz\n"), ["1337395223"])
+    for name, ok in [
+        ("kf2: Sektion angehaengt", kf2_ids(k1) == ["645883665", "1337395223"] and k1.endswith(
+            "[OnlineSubsystemSteamworks.KFWorkshopSteamworks]\nServerSubscribedWorkshopItems=645883665\n"
+            "ServerSubscribedWorkshopItems=1337395223\n")),
+        ("kf2: Manager als ERSTER DownloadManagers", "AllowDownloads=True\n" + KF2_MANAGER +
+         "\nDownloadManagers=IpDrv.HTTPDownload" in k1),
+        ("kf2: Manager nur einmal", kf2_setzen(k1, ["1"]).count(KF2_MANAGER) == 1),
+        ("kf2: austragen, Notiz und andere Sektion bleiben", kf2_ids(k2) == ["1337395223"]
+         and "; Notiz" in k2 and "[Engine.Foo]\nX=1" in k2),
+        ("kf2: leer ohne Sektion", kf2_ids(ini) == []),
     ]:
         schlecht += not ok
         print(f"  {'ok  ' if ok else 'FEHLER'} {name}")
