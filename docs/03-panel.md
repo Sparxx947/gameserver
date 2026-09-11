@@ -358,10 +358,18 @@ Werkzeug schickt deshalb höchstens einen Befehl je 0,6 s, eine Verbindung je
 Lauf, und benennt eine Drosselung als solche.
 
 **Discord** läuft genauso, mit einem Bot (ein Webhook kann keine Kanäle
-anlegen): eine eigene Kategorie (Vorgabe „Spieleserver", öffentlich), ein
-Textkanal je Spielserver, Discord schreibt die Namen klein. Unberührt heißt dort
+anlegen): eine eigene Kategorie (Vorgabe „Spieleserver", öffentlich), je
+Spielserver ein **Textkanal** (Discord schreibt ihn klein: `#valheim`) und ein
+**Sprachkanal** (`🔊 Valheim`, #244). Unberührt heißt dort
 zusätzlich: **Kanalrechte unverändert und noch nie eine Nachricht darin** —
-Discord bewahrt den Verlauf, und der geht nie mit verloren. Der Bot wird mit
+Discord bewahrt den Verlauf, und der geht nie mit verloren. Beim Sprachkanal
+kommt „niemand drin" dazu — und das kennt Discords REST-Schnittstelle nicht, nur
+das Gateway. `kanal-verwalten` meldet sich deshalb, wenn ein Sprachkanal zum
+Löschen ansteht, kurz am Gateway an (Intents `GUILDS` und `GUILD_VOICE_STATES`,
+beide nicht privilegiert), liest die Belegung und trennt (gemessen: 1,4 s).
+Klappt das nicht, bleibt der Sprachkanal bis zum nächsten Abgleich stehen, statt
+blind gelöscht zu werden. Server aus der Zeit vor #244 bekommen ihren
+Sprachkanal beim nächsten Abgleich nachgereicht. Der Bot wird mit
 Token und Server-ID hinterlegt und beim Speichern geprüft (Mitglied des Servers,
 darf Kanäle verwalten). Nachgewiesen am echten Discord-Server mit einer privaten
 Testkategorie: angelegt (die Kanäle erben die Rechte der Kategorie), Vorschau,
@@ -379,8 +387,11 @@ Administratorrechte — Jens' Entscheidung, E33.
 > confirmation page says which before the click. ServerQuery is flood-limited
 > (measured), so commands are paced. Discord works the same with a bot (a
 > webhook cannot create channels): its own public category, one text channel per
-> server; untouched there also means unchanged permissions and never a single
-> message — history is never deleted. The bot is checked when saved; it has
+> server plus a voice channel (#244); untouched there also means unchanged
+> permissions and never a single message — history is never deleted — and, for
+> voice, nobody inside, which only the Gateway knows: a short Gateway session
+> (non-privileged intents) reads occupancy; if it fails, the channel waits for the
+> next run. The bot is checked when saved; it has
 > administrator rights on the Discord server by Jens' decision (E33).*
 
 ## Mods hochladen `/mods/{stack}`
