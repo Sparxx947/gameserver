@@ -402,6 +402,80 @@ def konfigzahlen():
         pass          # ohne die Datei fehlt nur eine Zahl in der Anzeige
 
 
+def a2s_passwort(stack: str, p: dict):
+    """Verlangt der LAUFENDE Server ein Passwort? True/False, None = keine Antwort.
+
+    Fuer die Passwortart "params" (#167): Das Passwort steht als Startparameter
+    (+sv_password) in GAME_PARAMS. Das allein reicht nicht als Nachweis - bringt
+    ein Spiel eine eigene server.cfg mit sv_password "" mit, ueberschreibt die
+    den Startparameter beim Kartenstart, und der Server liefe offen. Also wird
+    der Server selbst gefragt: A2S_INFO traegt ein Feld "visibility", 1 heisst
+    "Passwort noetig". Gemessen an HLDM am 2026-09-11: ohne Parameter 0, mit 1.
+
+    Gefragt wird die Container-Adresse, nicht der Hostport - der ist ja gerade
+    NICHT veroeffentlicht, darum geht es.
+    *Asks the running server itself: A2S_INFO carries a visibility flag. The
+     command-line parameter alone is no proof - a shipped server.cfg with an
+     empty sv_password overrides it at map start. Queried on the container
+     address, since the host port is deliberately not published yet.*
+    """
+    import socket, struct
+    zeilen = list(p.get("ports_ausstehend") or [])
+    try:
+        zeilen += re.findall(r'"?([\d.:]+/udp)"?', (STACKS / stack / "compose.yaml").read_text())
+    except OSError:
+        pass
+    cport = next((int(z.split("/")[0].split(":")[-1]) for z in zeilen if z.endswith("/udp")), None)
+    ip = subprocess.run(["docker", "inspect", "-f",
+                         "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", stack],
+                        capture_output=True, text=True).stdout.strip()
+    if not cport or not ip:
+        return None
+    anfrage = b"\xff\xff\xff\xffTSource Engine Query\x00"
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.settimeout(3)
+            s.sendto(anfrage, (ip, cport)); d = s.recv(1400)
+            if d[4] == 0x41:                       # Challenge (seit 2020)
+                s.sendto(anfrage + d[5:9], (ip, cport)); d = s.recv(1400)
+    except OSError:
+        return None
+    def hinter_zeichenketten(start, anzahl):
+        pos = start
+        for _ in range(anzahl):
+            pos = d.index(b"\x00", pos) + 1
+        return pos
+    try:
+        if d[4] == 0x49:                           # Source, auch neuere GoldSrc
+            pos = hinter_zeichenketten(6, 4)
+            return bool(struct.unpack_from("<hBBBccB", d, pos)[6])
+        if d[4] == 0x6d:                           # altes GoldSrc-Format
+            pos = hinter_zeichenketten(5, 5)
+            return bool(struct.unpack_from("<BBBccB", d, pos)[5])
+    except (ValueError, struct.error, IndexError):
+        pass
+    return None
+
+
+def params_urteil(bestaetigt, datei_gesetzt: bool, alter_h: float):
+    """(fertig, stand, neustarten) fuer die Passwortart "params" - rein, ohne Seiteneffekt.
+
+    Getrennt, damit sich jede Antwort pruefen laesst, ohne einen Server zu
+    haben, der gerade genau so antwortet.
+    *Pure, so every answer can be checked without a server answering that way.*
+    """
+    if bestaetigt is True:
+        return True, "als Startparameter gesetzt, vom Server bestätigt (A2S: Passwort nötig)", False
+    lange = f" Seit über {ENDLOS_NACH_H} Stunden - der Port bleibt zu." if alter_h > ENDLOS_NACH_H else ""
+    if bestaetigt is False:
+        return False, ("Server meldet KEIN Beitrittspasswort, obwohl es als Startparameter "
+                       "gesetzt ist - vermutlich überschreibt eine Konfigurationsdatei den Wert"
+                       + ("; dort jetzt gesetzt, Neustart" if datei_gesetzt else "")
+                       + "." + lange), datei_gesetzt
+    return False, ("wartet auf den Server: Passwort steht als Startparameter, "
+                   "die Bestätigung per Abfrage steht aus." + lange), datei_gesetzt
+
+
 def lauf(nur=None):
     for verz in sorted(STACKS.glob("*/panel.json")):
         stack = verz.parent.name
@@ -419,8 +493,20 @@ def lauf(nur=None):
 
         # Per Umgebung gesetzte Passwoerter zaehlen als erledigt - dort gibt es
         # keine Datei zu aendern.
-        per_env = p.get("passwort_art") in ("env", "params", "keins")
-        fertig = per_env or bool(erg["passwort"])
+        # "params" NICHT mehr: Ein Startparameter kann von einer mitgelieferten
+        # server.cfg ueberschrieben werden. Dort entscheidet, was der laufende
+        # Server selbst meldet (#167). Und er gibt NIE nach sechs Stunden auf:
+        # Wer "Passwort noetig: nein" gemessen hat, veroeffentlicht nicht.
+        # *"params" no longer counts as done by itself: a shipped server.cfg can
+        #  override the parameter. The running server decides, and there is no
+        #  six-hour give-up - having measured "no password", nothing is published.*
+        per_env = p.get("passwort_art") in ("env", "keins")
+        params = p.get("passwort_art") == "params"
+        if params:
+            fertig, params_stand, params_neustart = params_urteil(
+                a2s_passwort(stack, p), bool(erg["passwort"]), alter_h)
+        else:
+            fertig = per_env or bool(erg["passwort"])
 
         # Die Spielerzahl wird SEPARAT bewertet. Vorher haing der gemeldete
         # Erfolg allein am Passwort: Minecraft bekam "ueber die Umgebung
@@ -436,7 +522,7 @@ def lauf(nur=None):
 
         if fertig:
             p["einrichtung_offen"] = False
-            stand = ("über die Umgebung gesetzt" if per_env else
+            stand = (params_stand if params else "über die Umgebung gesetzt" if per_env else
                      "gesetzt in " + ", ".join(sorted(set(erg["passwort"]))[:4]))
             # Die Spielerzahl haengt hinten an, damit sie in derselben Zeile
             # sichtbar wird, die das Panel ohnehin anzeigt. Wortlaut mit "NICHT",
@@ -448,6 +534,17 @@ def lauf(nur=None):
                           "kein passendes Feld gefunden, bitte von Hand setzen")
             p["einrichtung_stand"] = stand
             if erg["passwort"] or erg["spieler"] or erg["admin"]:
+                neustart(stack)
+        elif params:
+            p["einrichtung_stand"] = params_stand
+            # Hoechstens alle 30 Minuten: bearbeite() meldet ein Feld auch dann
+            # als Treffer, wenn der Wert schon stimmt. Ohne Bremse startete ein
+            # Server, der trotzdem "kein Passwort" meldet, alle zwei Minuten neu.
+            # *At most every 30 minutes: bearbeite() reports a field even when the
+            #  value is already right - unthrottled, a server still reporting "no
+            #  password" would restart every two minutes.*
+            if params_neustart and time.time() - p.get("params_neustart", 0) > 1800:
+                p["params_neustart"] = time.time()
                 neustart(stack)
         elif alter_h > ENDLOS_NACH_H:
             p["einrichtung_offen"] = False
