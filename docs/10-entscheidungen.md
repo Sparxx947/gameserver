@@ -594,6 +594,15 @@ erreichbar, wie schon vorher. Ob in diesem Fall überhaupt veröffentlicht werde
 soll, ist eine Verhaltensfrage und keine technische; `platzwart-wache` meldet
 den Zustand, und die Statusseite blendet solche Server aus.
 
+**Seit #175 kleiner:** Vor dem Aufgeben fragt die Einrichtung den Server per
+A2S. Meldet er „kein Passwort", wird **nicht** veröffentlicht; die Einrichtung
+bleibt offen und gibt den Port frei, sobald jemand das Passwort von Hand gesetzt
+hat. Meldet er „Passwort nötig", geht der Port mit zutreffender Meldung auf.
+Offen bleibt die Frage nur noch für Server, die **gar nicht** antworten
+(gemessen: Palworld, Satisfactory) — dort weiß man es nicht, und ob man dann
+veröffentlicht, bleibt eine Verhaltensfrage. Die Abfrage probiert alle
+UDP-Ports: Valheim antwortet auf 2457, nicht auf dem Spielport.
+
 > *E23 put the port at the end of setup — but only the one `port-ermitteln`
 > discovers. The install wrote catalogue ports before any password: a second
 > path, unmentioned. It could not simply be removed, because `port-ermitteln`
@@ -603,7 +612,11 @@ den Zustand, und die Statusseite blendet solche Server aus.
 > `ports_ausstehend`, and `port-ermitteln` publishes them after the password.
 > Two exceptions without a window: an environment password (in the compose file
 > before first start) and localhost-bound management ports. Deliberately left
-> open: the six-hour give-up case still publishes without a password.*
+> open: the six-hour give-up case still publishes without a password. Narrowed
+> since #175: before giving up, setup asks the server via A2S — "no password"
+> keeps the port closed (and a password set by hand opens it later),
+> "password required" publishes with an accurate message. Only servers that do
+> not answer at all remain the open behavioural question.*
 
 ---
 
