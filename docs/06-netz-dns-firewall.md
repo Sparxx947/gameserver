@@ -67,8 +67,26 @@ andere: `abgleich.sh` vergleicht sie, `ausrollen.sh` rollt sie einzeln aus.
 PasswordAuthentication        <SSH_PASSWORT_AUTH>
 KbdInteractiveAuthentication  <SSH_PASSWORT_AUTH>
 PermitRootLogin               <SSH_ROOT_LOGIN>
+MaxAuthTries                  3
+PubkeyAuthentication          yes
+PermitEmptyPasswords          no
 X11Forwarding                 no
 ```
+
+**`MaxAuthTries 3` war vorher nur auf der Maschine** (#189). Die Härtung stand
+dort in einer von Hand angelegten `99-haertung.conf` vom 2026-09-06, die das
+Repositorium nicht kannte; `99-gameserver.conf` gab es gar nicht. Beim Ausrollen
+fiel `sshd -T` von `maxauthtries 3` auf die Voreinstellung 6 — bemerkt nur, weil
+die **wirksamen** Werte vorher und nachher verglichen wurden. Seitdem steht der
+Wert hier, die Handdatei liegt als `/etc/ssh/99-haertung.conf.vor-20260911`
+außerhalb des Include-Verzeichnisses, und `sshd -T` ist vor und nach der
+Umstellung identisch. sshd wurde dafür nicht neu geladen.
+
+> *`MaxAuthTries 3` used to live only on the machine, in a hand-made file the
+> repo did not know; rolling out the repo file silently raised the effective
+> value to 6, caught only by comparing `sshd -T` before and after (#189). The
+> value is now in the repo, the hand file retired outside the include
+> directory, and the effective configuration is identical before and after.*
 
 **Die Vorgabe ist `no` und `prohibit-password`** — Anmeldung nur mit Schlüssel,
 root nur mit Schlüssel. Das bleibt die Empfehlung für eine Maschine mit
