@@ -958,3 +958,31 @@ Passwortart, bei der der Server selbst bestätigt.
 > server confirms a password via A2S, as for `params`. Proven on a fresh
 > install, from outside too. Other games may have the same relay path unnoticed.*
 
+---
+
+## E32 — Valheim-Mods: BepInEx aus dem Image, ungepinnt
+
+**Entscheidung von Jens (2026-09-11):** Server-Mods für Valheim über den Schalter,
+den das ich777-Image mitbringt (`ENABLE_BEPINEX`), statt einer eigenen
+Installation mit fester Version und Prüfsumme.
+
+**Was damit in Kauf genommen ist:** Das Image holt bei **jedem** Start die
+neueste Fassung von `denikson/BepInExPack_Valheim` von Thunderstore — fremder
+Code, ohne feste Version, ohne Prüfsumme, und er hängt sich in den Serverstart.
+Ein kompromittiertes oder kaputtes Paket dort würde beim nächsten Neustart
+übernommen. Dafür bleibt BepInEx von selbst passend zu Valheim-Updates, die ein
+fest gepinntes BepInEx regelmäßig brechen — und die Mods selbst bringt ohnehin
+der Betreiber mit.
+
+**Was Platzwart dazu tut:** Der Schalter steht im Panel wie jede andere
+Umgebungsvariable; eingeschaltet wird er bewusst von Hand. Der Upload nimmt
+Valheim-Mods erst an, wenn `BepInEx/core` existiert, und sagt sonst, was fehlt.
+Am laufenden Valheim-Server ist er aus.
+
+> *Jens' decision: Valheim mods via the ich777 image's own `ENABLE_BEPINEX`
+> rather than a pinned, checksummed install. Accepted: the latest BepInEx pack
+> is fetched from Thunderstore on every start — third-party code, unpinned,
+> hooked into the server start — in exchange for staying compatible with
+> Valheim updates. The switch is visible in the panel, off on the running
+> server, and uploads are refused until BepInEx is present.*
+
