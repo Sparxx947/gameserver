@@ -143,7 +143,8 @@ keine und können deshalb über die Oberfläche nicht gelöscht werden.
 4. Gestartet wird nur, wenn der freie Arbeitsspeicher zum `mem_limit` reicht.
 5. Der Timer `spiel-einrichtung` prüft alle zwei Minuten, ob der Server seine
    Konfigurationsdatei angelegt hat, und trägt Passwort und Spielerzahl ein.
-   Nach sechs Stunden gibt er auf und meldet das sichtbar in der Oberfläche.
+   Findet er nach sechs Stunden nichts, meldet er das sichtbar — und der Port
+   **bleibt zu**, solange kein Passwort bestätigt ist (E26).
 
 > *Install data flow: the panel passes only a key — never image, ports or
 > volumes, since anyone who could set those could mount `/:/host`. The installer
@@ -151,5 +152,6 @@ keine und können deshalb über die Oberfläche nicht gelöscht werden.
 > passwords, writes the compose and panel files, extends the backup exclusion
 > list, fetches the artwork, and starts the server only if free RAM covers the
 > memory limit. A timer then waits for the server's own config file to appear
-> and writes the join password and player count into it, giving up visibly after
-> six hours.*
+> and writes the join password and player count into it; after six hours without
+> a field it reports visibly, and the port stays closed until a password is
+> confirmed (E26).*

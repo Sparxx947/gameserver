@@ -134,6 +134,11 @@ aufweicht, macht aus einem abgesicherten System ein offenes. Begründung in
    meldet, geht der Port auf (E27). Eine mitgelieferte `server.cfg` kann den
    Parameter überschreiben — „gesetzt“ ist dort kein Beweis.
 
+   **Und nie „nach Ablauf trotzdem“:** Findet die Einrichtung in sechs Stunden
+   kein Passwort und bestätigt der Server keins, bleibt der Port zu (E26,
+   Jens am 2026-09-11: „Ein Server ohne Passwort darf nicht automatisch ans
+   Netz gehen.“).
+
 > *Five non-negotiables carrying the whole security design: the panel never gets
 > the Docker socket and nobody joins the `docker` group; `panel-aktion` validates
 > every parameter against an allow-list with no eval; only individual fields are

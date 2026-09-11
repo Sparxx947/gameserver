@@ -79,7 +79,8 @@ Ohne Parameter; wird vom Timer alle zwei Minuten gerufen. Sucht bei frisch
 installierten Servern die Konfigurationsdatei und trägt Beitrittspasswort,
 Adminpasswort und Spielerzahl ein. Erkennt `.ini`, `.json`, `.xml` und `.cfg`
 über Feldnamensmuster, im `.cfg`-Fall auch den id-Tech-Stil mit `set`-Präfix.
-Gibt nach sechs Stunden auf und meldet das sichtbar.
+Meldet nach sechs Stunden ohne Feld sichtbar; der Port bleibt dann zu, bis ein Passwort
+gefunden oder per A2S bestätigt ist (E26).
 
 Ruft **zuletzt** `port-ermitteln --aus-einrichtung`, sofern der Eintrag eine
 `port_regel` trägt — und nur dann, wenn die Einrichtung entschieden ist (E23).
