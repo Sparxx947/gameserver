@@ -130,15 +130,43 @@ app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 fehlversuche: dict[str, list[float]] = {}
 
 
+# Drei Lagen, und bis #197 kannte laden() nur zwei davon. "Keine Nutzerdatei"
+# fiel immer in die Uebernahme der ALTEN Einzelnutzer-Konfiguration - auf jeder
+# neuen Maschine also in einen Traceback ueber /opt/panel/konfig.json, eine
+# Datei, deren Fehlen dort genau richtig ist. Das Panel lief in eine
+# Neustartschleife, bis die Einrichtung den ersten Benutzer anlegte, und eine
+# WIRKLICH verlorene Nutzerdatei sah genauso aus.
+#
+#   Datei da und lesbar    -> sie gilt
+#   Datei da, kaputt       -> klarer Fehler, der die Datei nennt (echter Vorfall)
+#   keine Datei, Altdatei  -> einmalige Uebernahme wie bisher
+#   keine Datei, nichts    -> noch kein Benutzer: leerer Zustand, NUR im Speicher.
+#                             NICHT schreiben - install/30-panel.sh legt den
+#                             ersten Benutzer nur an, wenn es die Datei noch
+#                             nicht gibt; eine leere Datei verhinderte ihn.
+# *Four states; until #197 "no user file" always meant "migrate the old
+#  single-user config", i.e. a traceback about a file that is correctly absent
+#  on every new machine. No file and no legacy file is now "no user yet", held
+#  in memory only - writing it would stop stage 30 from creating the first user.*
+_OHNE_NUTZER_SECRET = secrets.token_hex(48)
+
+
 def laden() -> dict:
     if NUTZERDATEI.exists():
-        return json.loads(NUTZERDATEI.read_text())
-    # Einmalige Uebernahme der alten Einzelnutzer-Konfiguration.
-    alt = json.loads(ALTKONFIG.read_text())
-    daten = {"secret": alt["secret"], "nutzer": {alt["nutzer"]: {
-        "passwort_hash": alt["passwort_hash"], "totp": alt["totp"], "rolle": "admin"}}}
-    speichern(daten)
-    return daten
+        try:
+            return json.loads(NUTZERDATEI.read_text())
+        except (ValueError, OSError) as e:
+            raise RuntimeError(f"{NUTZERDATEI} ist vorhanden, aber nicht lesbar ({e}). "
+                               "Das ist KEIN frischer Zustand - Eigentuemer (panel:panel, 600) "
+                               "und Inhalt pruefen, notfalls aus der Sicherung holen.") from None
+    if ALTKONFIG.exists():
+        # Einmalige Uebernahme der alten Einzelnutzer-Konfiguration.
+        alt = json.loads(ALTKONFIG.read_text())
+        daten = {"secret": alt["secret"], "nutzer": {alt["nutzer"]: {
+            "passwort_hash": alt["passwort_hash"], "totp": alt["totp"], "rolle": "admin"}}}
+        speichern(daten)
+        return daten
+    return {"secret": _OHNE_NUTZER_SECRET, "nutzer": {}}
 
 
 def speichern(daten: dict) -> None:
@@ -148,7 +176,14 @@ def speichern(daten: dict) -> None:
     tmp.replace(NUTZERDATEI)
 
 
-daten = laden()
+try:
+    daten = laden()
+except RuntimeError as e:
+    # Beim Start: mit der Ursache aussteigen statt mit einem Traceback.
+    raise SystemExit(str(e))
+if not daten["nutzer"]:
+    print(f"panel: noch kein Benutzer ({NUTZERDATEI} fehlt) - die Einrichtung "
+          "(install/30-panel.sh) legt den ersten an", flush=True)
 signierer = URLSafeTimedSerializer(daten["secret"], salt="panel-sitzung")
 # Eigener Salt und eigene, KURZE Lebensdauer fuer die MFA-Einrichtung: ein
 # Einrichtungs-Token darf niemals als Sitzungscookie durchgehen.
@@ -1529,6 +1564,9 @@ def login_form(request: Request, fehler: str = ""):
 <button type=button class=b style="width:100%;margin-top:10px" data-passkey=anmelden hidden>mit Passkey anmelden</button>
 <div id=pk-meldung></div>
 {f'<div class=f>{fehler}</div>' if fehler else ''}
+{'<div class=warn>Noch kein Benutzer angelegt. Den ersten legt die Einrichtung an '
+ '(<code>install/30-panel.sh</code>) - bis dahin ist keine Anmeldung möglich.</div>'
+ if not laden()["nutzer"] else ''}
 </form><script src="/passkey.js" defer></script></div>""" + FUSS)
 
 
