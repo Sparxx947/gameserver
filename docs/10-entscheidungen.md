@@ -1024,3 +1024,17 @@ unberührte gelöscht, die beiden anderen blieben und wurden gemeldet.
 > after three quick logins in testing. Proven against the real server in an
 > isolated run.*
 
+**Nachtrag Discord (2026-09-11):** Jens wählte den **vorhandenen Bot mit
+Administratorrechten** statt eines zweiten, auf eine Kategorie beschränkten Bots
+— das Risiko (Token eines Admin-Bots auf dem öffentlich erreichbaren Spieleserver)
+steht in `docs/07-sicherheitsentwurf.md`. Ziel ist eine **öffentliche Kategorie
+„Spieleserver"** auf dem Community-Server. Unberührt heißt bei Discord zusätzlich:
+Kanalrechte unverändert und **noch nie eine Nachricht** darin. Nachgewiesen mit
+einer privaten Testkategorie am echten Server; Testkanäle danach gelöscht.
+
+> *Discord addendum: Jens chose the existing administrator bot over a second bot
+> limited to one category — risk recorded in the security design. Target: a
+> public "Spieleserver" category. Untouched on Discord also means unchanged
+> permissions and never a single message. Proven with a private test category
+> on the real server.*
+

@@ -231,17 +231,29 @@ bekommt — nie als Argument, das in der Prozessliste stünde. Angezeigt wird ni
 das Passwort, nur der Benutzer. Gelöscht wird ausschließlich, was Platzwart
 nachweislich selbst angelegt hat und was seitdem niemand angefasst hat.
 
-Ein **Discord-Bot** für dieselbe Aufgabe wäre eine größere Stufe: Das Recht
-„Kanäle verwalten" erlaubt, den ganzen Discord-Server umzubauen. Er kommt erst,
-wenn Jens einen anlegt, und gehört dann hier dazu (E33).
+**Der Discord-Bot ist die größere Stufe.** Sein Token liegt in
+`/opt/panel/daten/discord.conf` (`0600 panel`), und dieser Bot hat auf dem
+Discord-Server „Sparxx947" **Administratorrechte** — wer die Maschine übernimmt,
+kann damit den ganzen Community-Server umbauen: Rollen, Mitglieder, Kanäle,
+Einstellungen. Angeboten war ein zweiter Bot, der nur in der einen Kategorie
+Kanäle verwalten darf; **Jens hat sich am 2026-09-11 für den vorhandenen
+Admin-Bot entschieden** (E33). Wer das später einengen will: zweiten Bot im
+Entwicklerportal anlegen, ihm nur „Kanäle verwalten" in der Kategorie
+„Spieleserver" geben und sein Token auf der Seite Integrationen eintragen — der
+Rest bleibt, wie er ist. Das Token wird über stdin geprüft, nie angezeigt, nie
+protokolliert.
 
 > *For per-server channels the TeamSpeak ServerQuery login (`serveradmin`) is
 > stored in `/opt/panel/daten/teamspeak.conf`, 0600 panel — full control of the
 > TeamSpeak server, a deliberate widening. Bounded by ServerQuery listening on
 > localhost only; checked via `panel-aktion` over stdin, never as an argument;
 > the password is never displayed; only channels Platzwart provably created and
-> nobody touched are ever deleted. A Discord bot with Manage Channels would be a
-> larger step and waits until Jens creates one.*
+> nobody touched are ever deleted. The Discord bot is the larger step: its token
+> (`discord.conf`, 0600 panel) belongs to a bot with **administrator** rights on
+> the community server — whoever takes the machine can restructure it. A second
+> bot limited to managing channels in one category was offered; Jens chose the
+> existing admin bot (E33). Narrowing it later only needs a new token entered on
+> the Integrations page.*
 
 ---
 

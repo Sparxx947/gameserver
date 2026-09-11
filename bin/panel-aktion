@@ -686,6 +686,7 @@ PY
       abgleich) systemctl start --no-block kanal-abgleich.service && echo "ok" ;;
       vorschau) s="${3:-}"; pruefe_stack "$s"; exec /usr/local/bin/kanal-verwalten vorschau "$s" ;;
       pruefen)  exec /usr/local/bin/kanal-verwalten pruefen ;;
+      pruefen-discord) exec /usr/local/bin/kanal-verwalten pruefen-discord ;;
       *) fehler "unbekannte Kanalaktion" ;;
     esac
     ;;

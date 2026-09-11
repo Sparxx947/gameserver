@@ -1,5 +1,5 @@
 [Unit]
-Description=Platzwart: TeamSpeak-Kanaele alle fuenf Minuten abgleichen
+Description=Platzwart: TeamSpeak- und Discord-Kanaele alle fuenf Minuten abgleichen
 
 [Timer]
 # Installation und Entfernung stossen den Dienst sofort an; der Timer faengt
