@@ -3132,7 +3132,7 @@
    "appid": 232090,
    "image": "ghcr.io/ich777/steamcmd:killingfloor2",
    "mem_gb": 8,
-   "platte_gb": 30,
+   "platte_gb": 35,
    "ports": [
     "30116:7777/udp",
     "30117:27015/udp",
@@ -3157,7 +3157,7 @@
    },
    "adresse_port": 30116,
    "spieler": 4,
-   "hinweis": "Verwaltungszugang (Web Admin auf 127.0.0.1:30409/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 7777->30116, 27015->30117, 20560->30118. Koop gegen Monsterwellen, Nachfolger, bis 6. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (Web Admin auf 127.0.0.1:30409/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 7777->30116, 27015->30117, 20560->30118. Koop gegen Monsterwellen, Nachfolger, bis 6. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt. Platz gemessen: 31 GB nach der Installation. Workshop-Elemente (KFGame/Cache) werden mitgesichert; Karten muessen danach in den Kartenzyklus (LinuxServer-KFGame.ini), Mutatoren in die Startparameter.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
