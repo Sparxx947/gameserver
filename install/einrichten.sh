@@ -120,7 +120,7 @@ cat <<TEXT
                                           *hand-maintained servers*
        verfuegbar: $(ls "$REPO"/stacks/ | sed 's/\.yaml$//' | tr '\n' ' ')
 
-     install/70-dns.sh                    Cloudflare-Namen (optional)
+     install/70-dns.sh                    DNS-Namen je Spiel (optional)
                                           *Cloudflare records (optional)*
 
    Katalogspiele danach im Panel unter "Spiele" oder mit

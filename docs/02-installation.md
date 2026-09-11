@@ -258,6 +258,19 @@ entscheidet `SERVER_IPV4`:
 Der Timer liegt in beiden Fällen auf der Maschine; ein Wechsel ist eine Zeile in
 `konfiguration.env` und ein erneuter Lauf dieser Stufe.
 
+**Den Zeitgeber setzt schon Stufe 25 ein (#195)**, mit derselben Funktion
+`dns_ziel_zeitgeber()` aus `install/lib.sh`. Bis dahin tat es nur diese Stufe —
+und die läuft in der dokumentierten Einrichtung nicht mit. Mit
+`SERVER_IPV4=dynamic` versprach `konfiguration.env` einen Zeitgeber, den niemand
+anlegte; alle Stufen meldeten „fertig", und die Adresse veraltete still (von
+Janik auf einer frischen Maschine gemessen). Optional ist Stufe 70 jetzt nur
+noch für die DNS-Namen je Spiel.
+
+> *Stage 25 now installs and switches the timer (#195), through the same
+> `dns_ziel_zeitgeber()` in `install/lib.sh`. Before, only this optional stage
+> did, so "dynamic" promised a timer the documented install never created.
+> Stage 70 remains optional for the per-game names only.*
+
 > *Stage 70: needs a scoped Cloudflare token (Zone / DNS / Edit, own zone only —
 > never the global key). Creates one CNAME per stack pointing at `DNS_ZIEL` and
 > verifies nothing is proxied: Cloudflare's proxy only speaks HTTP(S), so a game
