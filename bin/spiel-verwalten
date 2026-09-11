@@ -411,6 +411,18 @@ def installieren(sch: str):
     print(f"ok\t{g['name']}\t{start}\t{pw}\t{admin}")
 
 
+def leerlauf_vergessen(s: str):
+    """Weckposten, ufw-Freigaben und Listeneintrag des Leerlaufs abraeumen (#169).
+
+    NACH der letzten Sicherung: Scheitert die, soll sich nichts geaendert haben.
+    Und ohne den Server zu starten - "leerlauf aus" wuerde ihn wecken.
+    *After the final backup (if that fails nothing may have changed), and without
+     starting the server, which "leerlauf aus" would do.*
+    """
+    subprocess.run(["/usr/local/bin/platzwart-schlaf", "--vergessen", s],
+                   capture_output=True, timeout=120)
+
+
 def deinstallieren(s: str):
     verz = STACKS / s
     marke = verz / "panel.json"
@@ -431,6 +443,8 @@ def deinstallieren(s: str):
         if r.returncode != 0:
             fehler("letzte Sicherung fehlgeschlagen - es wurde nichts geloescht: "
                    + (r.stderr.strip()[:200] or "unbekannter Grund"))
+
+    leerlauf_vergessen(s)
 
     # 2. Container und Netzwerk weg (Images bleiben - die kosten nur Platte und
     #    werden bei einer Neuinstallation wiederverwendet).
@@ -485,6 +499,8 @@ def fremd_entfernen(s: str):
             fehler("letzte Sicherung fehlgeschlagen - es wurde nichts geloescht: "
                    + (r.stderr.strip()[:200] or "unbekannter Grund"))
 
+    leerlauf_vergessen(s)
+
     # 2. Container und Netz weg
     subprocess.run(["docker", "compose", "down"], cwd=verz, capture_output=True,
                    timeout=300)
@@ -504,6 +520,10 @@ def fremd_entfernen(s: str):
     #    (FOUNDRYs serverfiles zum Beispiel).
     if AUSSCHLUSS.exists():
         AUSSCHLUSS.write_text(ausschluss_entfernen_text(AUSSCHLUSS.read_text(), s))
+    # Zugangsdaten auch hier. Bis #169 tat das nur die Katalogdeinstallation -
+    # StarRupture stand Tage nach dem Entfernen noch unter "Zugangsdaten".
+    # *Credentials here too; until #169 only the catalogue path removed them.*
+    zugang_entfernen(s)
     autoupdate_entfernen(s)
 
     print(f"ok\t{s} entfernt\t" + ", ".join(geloescht)

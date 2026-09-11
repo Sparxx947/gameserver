@@ -570,10 +570,15 @@ PY
   deinstallieren)
     s="${2:-}"; pruefe_stack "$s"
     [ -f "/opt/stacks/$s/panel.json" ] || fehler "Dieser Server wurde nicht ueber den Katalog installiert und laesst sich hier nicht entfernen."
+    # DNS ERST NACH dem Entfernen. Andersherum stand am 2026-09-11 ein Server
+    # ohne Namen da: Die letzte Sicherung scheiterte, spiel-verwalten brach -
+    # richtig - ab und loeschte nichts, der DNS-Eintrag war aber schon weg.
+    # *DNS only after the removal succeeded: otherwise an aborted removal leaves
+    #  a server that still exists but has lost its name.*
+    /usr/local/bin/spiel-verwalten deinstallieren "$s" || exit 1
     if [ -f /etc/dns-gameserver.conf ]; then
       /usr/local/bin/dns-pflegen entfernen "$s" >/dev/null 2>&1 || true
     fi
-    /usr/local/bin/spiel-verwalten deinstallieren "$s"
     ;;
   einrichtung)
     # Stand der Passwort-Einrichtung je Stack (fuer die Anzeige).

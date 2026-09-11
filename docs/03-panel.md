@@ -384,6 +384,42 @@ localhost-Port einen öffentlichen.
 > counted; flapping is reported. Switching the feature off wakes a sleeping
 > server at once. Management ports bound to localhost never wake anything.*
 
+### Beim Entfernen verschwindet auch der Leerlauf
+
+Keiner der beiden Entfernwege räumte den Leerlauf ab (#169), und die Prüfschleife
+überspringt einen Server ohne Verzeichnis stumm. Wer **im Schlaf** entfernt
+wurde, hinterließ seinen Weckposten (der die Ports weiter hält), dessen
+ufw-Freigaben und den Listeneintrag — ein späterer Server gleichen Namens hätte
+sich ab dem ersten leeren Abend schlafen gelegt. Jetzt ruft das Entfernen
+`platzwart-schlaf --vergessen <stack>` — **nach** der letzten Sicherung (scheitert
+die, hat sich nichts geändert) und **ohne** den Server zu starten, anders als
+„leerlauf aus".
+
+Die ufw-Regeln werden dabei auch über ihren **Kommentar** gefunden
+(`platzwart-schlaf:<stack>`), nicht nur über den Zustand: Beim ersten Test
+blieben zwei Regeln stehen, weil der Zustand die Ports nicht mehr kannte.
+
+### Ein Lauf zur Zeit
+
+Der Grund dafür: Timer, Wecken, `--schlafen` und `--vergessen` lesen alle den
+Zustand, ändern ihn und schreiben ihn zurück. Der Timer startete eine Sekunde vor
+einem `--schlafen` und schrieb danach seine ältere Fassung zurück — die Ports des
+schlafenden Servers waren weg. Zwischen Timer und Wecken hätte derselbe Fehler
+einen wachen Server als schlafend geführt. Jeder Lauf nimmt deshalb eine Sperre
+(`/run/platzwart-schlaf.lock`); das Wecken wartet höchstens einen Timerlauf ab.
+Nachgestellt mit Timer und `--schlafen` gleichzeitig: Die Ports blieben im
+Zustand, und das Entfernen im Schlaf ließ nichts zurück — kein Weckposten, keine
+ufw-Regel, kein Listeneintrag, keine Zugangsdaten, kein DNS-Name.
+
+> *Neither removal path cleared idle sleep (#169), so a server removed while
+> asleep left its wake socket holding the ports, its ufw rules and its list
+> entry. Removal now calls `platzwart-schlaf --vergessen` — after the final
+> backup and without starting the server. ufw rules are also found by their
+> comment, since the first test left two behind: the state had lost the ports,
+> because the timer, started a second before a manual `--schlafen`, wrote its
+> older copy back. Every run now takes a lock; waking waits at most one timer
+> run. Reproduced with both at once: state intact, removal left nothing behind.*
+
 ---
 
 ## Der Verlauf auf der Karte
