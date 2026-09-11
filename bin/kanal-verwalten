@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""kanal-verwalten — ein TeamSpeak-Kanal je Spielserver, angelegt und entfernt (#137).
+"""kanal-verwalten — ein TeamSpeak- und ein Discord-Kanal je Spielserver (#137).
 
   kanal-verwalten abgleich            Kanaele an die installierten Server angleichen
-  kanal-verwalten vorschau <stack>    was beim Entfernen dieses Servers mit dem Kanal geschieht
-  kanal-verwalten pruefen             Zugang pruefen (Benutzer und Passwort ueber stdin, je Zeile)
+  kanal-verwalten vorschau <stack>    was beim Entfernen mit den Kanaelen geschieht (je Dienst eine Zeile)
+  kanal-verwalten pruefen             TeamSpeak-Zugang pruefen (Benutzer, Passwort ueber stdin)
+  kanal-verwalten pruefen-discord     Discord-Bot pruefen (Token, Server-ID ueber stdin)
   kanal-verwalten --selbsttest
 
 Laeuft als root ueber kanal-abgleich.timer und wird nach jeder Installation und
@@ -11,14 +12,16 @@ Entfernung sofort angestossen - nie im Seitenaufruf: Ein langsamer oder
 gestoerter TeamSpeak soll keine Panel-Seite haengen lassen.
 
 == Die Regeln (Jens' Entscheidungen vom 2026-09-11, in #137) ==
-- Aus, bis im Panel (Integrationen) eingeschaltet. Erst TeamSpeak; Discord
-  folgt, wenn es einen Bot gibt.
+- Aus, bis im Panel (Integrationen) eingeschaltet - je Dienst getrennt.
 - Welche Server es gibt, sagt /opt/stacks - keine zweite Liste.
 - LOESCHEN nur, was UNBERUEHRT ist: von Platzwart angelegt (gespeicherte
   Zuordnung Stack -> Kanal-ID, kein Namensvergleich), weder umbenannt noch
   verschoben, ohne Unterkanaele, niemand drin. Sonst bleibt der Kanal stehen
   und wird gemeldet. Die Bestaetigungsseite beim Entfernen zeigt das Urteil
   vorher (vorschau).
+- Discord (E33, Nachtrag): unberuehrt heisst dort zusaetzlich: Kanalrechte
+  unveraendert und NOCH NIE eine Nachricht darin - Discord bewahrt den Verlauf,
+  und der geht nie mit verloren.
 - Einen Kanal gleichen Namens, den jemand von Hand angelegt hat, uebernimmt
   das Werkzeug als "fremd" - angezeigt, aber nie geloescht.
 - Jedes Anlegen und Loeschen steht im Panel-Protokoll; Fehler gehen nach
@@ -43,6 +46,8 @@ from pathlib import Path
 DATEN = Path(os.environ.get("KANAL_DATEN", "/opt/panel/daten"))
 EINSTELLUNG = DATEN / "kanaele.json"          # vom Panel geschrieben
 ZUGANG = DATEN / "teamspeak.conf"             # vom Panel geschrieben, 0600
+DISCORD_ZUGANG = DATEN / "discord.conf"       # vom Panel geschrieben, 0600
+DISCORD_API = os.environ.get("KANAL_DISCORD_API", "https://discord.com/api/v10")
 ZUORDNUNG = DATEN / "kanaele-zuordnung.json"  # von hier geschrieben
 AUDIT = DATEN / "audit.jsonl"
 STACKS = Path(os.environ.get("KANAL_STACKS", "/opt/stacks"))
@@ -64,6 +69,10 @@ NICHT_ALS_KANAL = {"teamspeak"}               # der TeamSpeak-Stack selbst
 
 
 class QueryFehler(Exception):
+    pass
+
+
+class DiscordFehler(Exception):
     pass
 
 
@@ -239,6 +248,12 @@ def einstellung() -> dict:
             "muster": e.get("muster") or "{name}"}
 
 
+def einstellung_discord() -> dict:
+    e = lies_json(EINSTELLUNG, {}).get("discord") or {}
+    return {"an": bool(e.get("an")), "kategorie": (e.get("kategorie") or "Spieleserver")[:100],
+            "muster": e.get("muster") or "{name}"}
+
+
 def server() -> dict:
     """{stack: Anzeigename} - aus /opt/stacks, der einen Wahrheit."""
     raus = {}
@@ -278,7 +293,7 @@ def melden(titel: str, text: str = ""):
 
 # --- Befehle -----------------------------------------------------------------------
 
-def abgleich() -> int:
+def abgleich_ts() -> int:
     e = einstellung()
     if not e["an"]:
         print("ok\tTeamSpeak-Kanaele sind aus")
@@ -342,7 +357,8 @@ def abgleich() -> int:
                 stehen.append(f"{eintrag.get('name')} ({grund})")
                 protokoll("TeamSpeak-Kanal bleibt stehen", s, "nicht geloescht",
                           name=eintrag.get("name"), grund=grund)
-                zu.setdefault("verwaist", {})[s] = {**eintrag, "grund": grund, "bis": int(time.time())}
+                zu.setdefault("verwaist", {}).setdefault("teamspeak", {})[s] = {
+                    **eintrag, "grund": grund, "bis": int(time.time())}
             del ts[s]
     except QueryFehler as f:
         melden("TeamSpeak-Kanaele: Abgleich gescheitert", str(f))
@@ -356,22 +372,213 @@ def abgleich() -> int:
         melden("TeamSpeak-Kanal nicht geloescht",
                "Der Server ist entfernt, sein Kanal bleibt stehen, weil ihn ein Mensch zu seinem "
                "gemacht hat oder er nicht leer ist:\n" + "\n".join(stehen))
-    print("ok\t" + "; ".join(x for x in [
+    print("ok\tTeamSpeak: " + ("; ".join(x for x in [
         f"angelegt: {', '.join(angelegt)}" if angelegt else "",
         f"geloescht: {', '.join(geloescht)}" if geloescht else "",
-        f"stehen gelassen: {', '.join(stehen)}" if stehen else ""] if x))
+        f"stehen gelassen: {', '.join(stehen)}" if stehen else ""] if x) or "erledigt"))
     return 0
 
 
+# --- Discord -----------------------------------------------------------------------
+
+def discord_zugang() -> dict:
+    d = {}
+    try:
+        for z in DISCORD_ZUGANG.read_text().splitlines():
+            if "=" in z and not z.lstrip().startswith("#"):
+                k, v = z.split("=", 1)
+                d[k.strip()] = v.strip()
+    except OSError:
+        pass
+    return d
+
+
+def discord(z: dict, methode: str, pfad: str, daten=None):
+    """Ein Aufruf der Discord-REST-API mit Bot-Token. Beachtet 429 (retry_after)."""
+    import urllib.error
+    import urllib.request
+    if not z.get("DISCORD_TOKEN"):
+        raise DiscordFehler("kein Discord-Bot hinterlegt (Panel: Integrationen)")
+    for _ in range(4):
+        req = urllib.request.Request(
+            DISCORD_API + pfad, method=methode,
+            data=json.dumps(daten).encode() if daten is not None else None,
+            headers={"Authorization": f"Bot {z['DISCORD_TOKEN']}", "Content-Type": "application/json",
+                     "User-Agent": "DiscordBot (platzwart, 1)",
+                     "X-Audit-Log-Reason": "Platzwart: Kanal je Spielserver"})
+        try:
+            with urllib.request.urlopen(req, timeout=20) as r:
+                roh = r.read()
+                return json.loads(roh) if roh else None
+        except urllib.error.HTTPError as e:
+            text = e.read().decode(errors="replace")[:200]
+            if e.code == 429:
+                try:
+                    time.sleep(min(float(json.loads(text).get("retry_after", 2)), 30) + 0.2)
+                except ValueError:
+                    time.sleep(3)
+                continue
+            if e.code == 404:
+                return {"_fehlt": True}
+            raise DiscordFehler(f"Discord {methode} {pfad.split('?')[0]}: HTTP {e.code} {text}")
+        except OSError as e:
+            raise DiscordFehler(f"Discord nicht erreichbar ({e.__class__.__name__})")
+    raise DiscordFehler("Discord drosselt (HTTP 429) - der naechste Abgleich versucht es erneut")
+
+
+def d_name(n: str) -> str:
+    """So legt Discord einen Textkanal an: klein, Leerzeichen zu Bindestrich. Rein."""
+    return re.sub(r"\s+", "-", n.strip().lower())[:100]
+
+
+def d_rechte(kanal: dict) -> list:
+    """Kanalrechte in vergleichbarer Form. Rein."""
+    return sorted(f"{o.get('id')}:{o.get('type')}:{o.get('allow')}:{o.get('deny')}"
+                  for o in kanal.get("permission_overwrites") or [])
+
+
+def urteil_discord(eintrag: dict, k) -> tuple:
+    """(loeschen, grund) fuer den Discord-Kanal eines entfernten Servers. Rein.
+
+    Wie bei TeamSpeak - dazu die Kanalrechte und der Verlauf: Ein Kanal, in dem
+    je eine Nachricht stand, wird nie geloescht; Discord bewahrt den Verlauf,
+    und "der Container wurde entfernt" ist kein Grund, ihn zu verlieren.
+    """
+    if eintrag.get("fremd"):
+        return False, "nicht von Platzwart angelegt"
+    if not k or k.get("_fehlt"):
+        return False, "gibt es auf dem Discord-Server nicht mehr"
+    if k.get("name") != eintrag.get("name"):
+        return False, f"umbenannt in „{k.get('name')}“"
+    if str(k.get("parent_id")) != str(eintrag.get("parent")):
+        return False, "verschoben"
+    if d_rechte(k) != eintrag.get("rechte", []):
+        return False, "Kanalrechte geändert"
+    if k.get("last_message_id"):
+        return False, "es stehen Nachrichten darin"
+    return True, "unberührt und ohne Nachrichten"
+
+
+def abgleich_discord() -> int:
+    e = einstellung_discord()
+    if not e["an"]:
+        print("ok\tDiscord-Kanaele sind aus")
+        return 0
+    zu = lies_json(ZUORDNUNG, {})
+    dc = zu.setdefault("discord", {})
+    von = {k: v for k, v in dc.items() if not k.startswith("_")}
+    da = server()
+    fehlend = [s for s in da if s not in von]
+    weg = [s for s in von if s not in da]
+    if not fehlend and not weg:
+        print("ok\tDiscord: nichts zu tun")
+        return 0
+    z = discord_zugang()
+    g = z.get("DISCORD_GUILD", "")
+    angelegt, geloescht, stehen = [], [], []
+    try:
+        if not re.fullmatch(r"[0-9]{15,22}", g):
+            raise DiscordFehler("keine gueltige Discord-Server-ID hinterlegt")
+        liste = discord(z, "GET", f"/guilds/{g}/channels")
+        if isinstance(liste, dict):
+            raise DiscordFehler("Discord-Server nicht gefunden oder Bot nicht Mitglied")
+        kanaele = {c["id"]: c for c in liste}
+        kat = dc.get("_kategorie") or {}
+        if kat.get("id") not in kanaele:
+            treffer = [c for c in liste if c.get("type") == 4 and c.get("name", "").casefold() == e["kategorie"].casefold()]
+            if treffer:
+                kat = {"id": treffer[0]["id"], "name": treffer[0]["name"]}
+            elif fehlend:
+                r = discord(z, "POST", f"/guilds/{g}/channels", {"name": e["kategorie"], "type": 4})
+                kat = {"id": r["id"], "name": r["name"]}
+                protokoll("Discord-Kategorie angelegt", e["kategorie"], id=r["id"])
+            dc["_kategorie"] = kat
+        for s in fehlend:
+            name = kanalname(e["muster"], da[s]) if len(kanalname(e["muster"], da[s])) else da[s]
+            gleich = [c for c in liste if c.get("type") == 0 and c.get("parent_id") == kat.get("id")
+                      and c.get("name") == d_name(name)]
+            if gleich:
+                dc[s] = {"id": gleich[0]["id"], "name": gleich[0]["name"], "parent": kat["id"],
+                         "fremd": True, "seit": int(time.time())}
+                protokoll("Discord-Kanal vorgefunden (nicht angelegt, wird nie geloescht)", s, name=gleich[0]["name"])
+                continue
+            time.sleep(PAUSE)
+            r = discord(z, "POST", f"/guilds/{g}/channels",
+                        {"name": name, "type": 0, "parent_id": kat["id"],
+                         "topic": f"Angelegt von Platzwart für {da[s]}"})
+            dc[s] = {"id": r["id"], "name": r["name"], "parent": r.get("parent_id"),
+                     "rechte": d_rechte(r), "seit": int(time.time())}
+            angelegt.append(r["name"])
+            protokoll("Discord-Kanal angelegt", s, name=r["name"], id=r["id"])
+        for s in weg:
+            eintrag = dc[s]
+            loeschen, grund = urteil_discord(eintrag, kanaele.get(str(eintrag.get("id"))) or {"_fehlt": True})
+            if loeschen:
+                time.sleep(PAUSE)
+                discord(z, "DELETE", f"/channels/{eintrag['id']}")
+                geloescht.append(eintrag["name"])
+                protokoll("Discord-Kanal geloescht", s, name=eintrag["name"], grund=grund)
+            else:
+                stehen.append(f"{eintrag.get('name')} ({grund})")
+                protokoll("Discord-Kanal bleibt stehen", s, "nicht geloescht", name=eintrag.get("name"), grund=grund)
+                zu.setdefault("verwaist", {}).setdefault("discord", {})[s] = {
+                    **eintrag, "grund": grund, "bis": int(time.time())}
+            del dc[s]
+    except DiscordFehler as f:
+        melden("Discord-Kanaele: Abgleich gescheitert", str(f))
+        print(f"FEHLER: {f}", file=sys.stderr)
+        schreibe_json(ZUORDNUNG, zu)
+        return 1
+    schreibe_json(ZUORDNUNG, zu)
+    if stehen:
+        melden("Discord-Kanal nicht geloescht",
+               "Der Server ist entfernt, sein Kanal bleibt stehen, weil ihn ein Mensch zu seinem "
+               "gemacht hat oder Nachrichten darin stehen:\n" + "\n".join(stehen))
+    print("ok\tDiscord: " + ("; ".join(x for x in [
+        f"angelegt: {', '.join(angelegt)}" if angelegt else "",
+        f"geloescht: {', '.join(geloescht)}" if geloescht else "",
+        f"stehen gelassen: {', '.join(stehen)}" if stehen else ""] if x) or "erledigt"))
+    return 0
+
+
+def abgleich() -> int:
+    """Beide Dienste, unabhaengig: Faellt einer aus, laeuft der andere trotzdem."""
+    return max(abgleich_ts(), abgleich_discord())
+
+
+def vorschau_discord(stack: str):
+    e = einstellung_discord()
+    eintrag = (lies_json(ZUORDNUNG, {}).get("discord") or {}).get(stack)
+    if not eintrag:
+        return
+    if not e["an"]:
+        print(f"bleibt\tDiscord-Kanal #{eintrag['name']} bleibt stehen - die Kanalverwaltung ist ausgeschaltet.")
+        return
+    try:
+        k = discord(discord_zugang(), "GET", f"/channels/{eintrag['id']}")
+    except DiscordFehler as f:
+        print(f"unbekannt\tDiscord-Kanal #{eintrag['name']}: gerade nicht prüfbar ({f}). "
+              "Gelöscht wird er nur, wenn er beim Abgleich unberührt ist.")
+        return
+    loeschen, grund = urteil_discord(eintrag, k)
+    print(f"{'weg' if loeschen else 'bleibt'}\tDiscord-Kanal #{eintrag['name']} "
+          + (f"wird mit gelöscht ({grund})." if loeschen else f"bleibt stehen: {grund}."))
+
+
 def vorschau(stack: str) -> int:
-    """Eine Zeile fuer die Bestaetigungsseite - was geschieht mit dem Kanal?"""
+    """Je Dienst eine Zeile fuer die Bestaetigungsseite - was geschieht mit dem Kanal?"""
     if not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?", stack):
         print("FEHLER: unzulaessiger Name", file=sys.stderr)
         return 1
+    vorschau_ts(stack)
+    vorschau_discord(stack)
+    return 0
+
+
+def vorschau_ts(stack: str):
     e = einstellung()
     eintrag = (lies_json(ZUORDNUNG, {}).get("teamspeak") or {}).get(stack)
     if not eintrag:
-        print("keiner\t" + ("Dieser Server hat keinen TeamSpeak-Kanal." if e["an"] else ""))
         return 0
     if not e["an"]:
         print(f"bleibt\tTeamSpeak-Kanal „{eintrag['name']}“ bleibt stehen - die Kanalverwaltung ist ausgeschaltet.")
@@ -413,6 +620,36 @@ def pruefen() -> int:
     return 0
 
 
+def pruefen_discord() -> int:
+    """Discord-Bot pruefen, ohne zu speichern - Token und Server-ID ueber stdin.
+    Verlangt: Bot ist Mitglied des Servers und darf Kanaele verwalten."""
+    zeilen = sys.stdin.read().splitlines()
+    if len(zeilen) < 2 or not re.fullmatch(r"[0-9]{15,22}", zeilen[1].strip()):
+        print("FEHLER: Token und eine Server-ID (Ziffern) erwartet", file=sys.stderr)
+        return 1
+    z = {"DISCORD_TOKEN": zeilen[0].strip(), "DISCORD_GUILD": zeilen[1].strip()}
+    try:
+        ich = discord(z, "GET", "/users/@me")
+        if not isinstance(ich, dict) or not ich.get("bot"):
+            raise DiscordFehler("das ist kein Bot-Token")
+        g = discord(z, "GET", f"/guilds/{z['DISCORD_GUILD']}")
+        if g.get("_fehlt"):
+            raise DiscordFehler("der Bot ist auf diesem Discord-Server nicht Mitglied")
+        mitglied = discord(z, "GET", f"/guilds/{z['DISCORD_GUILD']}/members/{ich['id']}")
+        rollen = {r["id"]: int(r["permissions"]) for r in discord(z, "GET", f"/guilds/{z['DISCORD_GUILD']}/roles")}
+        rechte = rollen.get(z["DISCORD_GUILD"], 0)
+        for r in mitglied.get("roles", []):
+            rechte |= rollen.get(r, 0)
+        admin, kanaele = bool(rechte >> 3 & 1), bool(rechte >> 4 & 1)
+        if not (admin or kanaele):
+            raise DiscordFehler("dem Bot fehlt das Recht 'Kanaele verwalten'")
+    except DiscordFehler as f:
+        print(f"FEHLER: {f}", file=sys.stderr)
+        return 1
+    print(f"ok\tBot {ich.get('username')} auf {g.get('name')}" + (" (Administrator)" if admin else ""))
+    return 0
+
+
 def selbsttest() -> int:
     schlecht = 0
 
@@ -438,6 +675,17 @@ def selbsttest() -> int:
     pruef("Unterkanal -> bleibt", urteil_entfernen(e, {**k, "9": {"channel_name": "AFK", "pid": "7", "total_clients": "0"}})[0] is False)
     pruef("fremd -> bleibt", urteil_entfernen({**e, "fremd": True}, k)[0] is False)
     pruef("weg -> nichts zu loeschen", urteil_entfernen(e, {"5": k["5"]})[0] is False)
+    pruef("Discord-Name", d_name("🎮 Valheim  Nord") == "🎮-valheim-nord")
+    de = {"id": "11", "name": "valheim", "parent": "10", "rechte": []}
+    dk = {"id": "11", "name": "valheim", "parent_id": "10", "permission_overwrites": [], "last_message_id": None}
+    pruef("Discord unberuehrt -> loeschen", urteil_discord(de, dk)[0] is True)
+    pruef("Discord Nachricht -> bleibt", urteil_discord(de, {**dk, "last_message_id": "99"})[0] is False)
+    pruef("Discord umbenannt -> bleibt", urteil_discord(de, {**dk, "name": "valheim-clan"})[0] is False)
+    pruef("Discord verschoben -> bleibt", urteil_discord(de, {**dk, "parent_id": "12"})[0] is False)
+    pruef("Discord Rechte -> bleibt", urteil_discord(de, {**dk, "permission_overwrites": [
+        {"id": "5", "type": 0, "allow": "0", "deny": "1024"}]})[0] is False)
+    pruef("Discord weg -> nichts", urteil_discord(de, {"_fehlt": True})[0] is False)
+    pruef("Discord fremd -> bleibt", urteil_discord({**de, "fremd": True}, dk)[0] is False)
     print("alles gruen." if not schlecht else f"{schlecht} FEHLER")
     return 1 if schlecht else 0
 
@@ -449,6 +697,8 @@ def main(a: list) -> int:
         return vorschau(a[1])
     if a[:1] == ["pruefen"]:
         return pruefen()
+    if a[:1] == ["pruefen-discord"]:
+        return pruefen_discord()
     if a[:1] == ["abgleich"]:
         with open(SPERRE, "a") as sperre:
             fcntl.flock(sperre, fcntl.LOCK_EX)

@@ -44,6 +44,7 @@ STEAM_KONF = Path("/opt/panel/daten/steam-api.conf")
 TS_KONF = Path("/opt/panel/daten/teamspeak.conf")
 KANAELE_KONF = Path("/opt/panel/daten/kanaele.json")
 KANAELE_ZUORDNUNG = Path("/opt/panel/daten/kanaele-zuordnung.json")
+DISCORD_KONF = Path("/opt/panel/daten/discord.conf")
 # Selbst gepflegte Zugangsdaten. Noetig, weil manche Server ihre Passwoerter nur
 # GEHASHT oder VERSCHLUESSELT ablegen und sie sich nicht auslesen lassen:
 # Satisfactory (Hash+Salt in der binaeren .sav), TeamSpeak (Hash in SQLite),
@@ -1628,13 +1629,28 @@ def ts_zugang_benutzer() -> str:
     return ""
 
 
-def kanaele_einstellung() -> dict:
+def kanaele_einstellung(dienst: str = "teamspeak") -> dict:
     try:
-        e = json.loads(KANAELE_KONF.read_text()).get("teamspeak") or {}
+        e = json.loads(KANAELE_KONF.read_text()).get(dienst) or {}
     except (OSError, ValueError):
         e = {}
-    return {"an": bool(e.get("an")), "oberkanal": e.get("oberkanal") or "Spieleserver",
+    ober = "kategorie" if dienst == "discord" else "oberkanal"
+    return {"an": bool(e.get("an")), ober: e.get(ober) or "Spieleserver",
             "muster": e.get("muster") or "{name}"}
+
+
+def discord_zugang_stand() -> dict:
+    """{'guild': ..., 'bot': ...} - nie das Token."""
+    d = {}
+    try:
+        for z in DISCORD_KONF.read_text().splitlines():
+            if "=" in z:
+                k, v = z.split("=", 1)
+                d[k.strip()] = v.strip()
+    except OSError:
+        pass
+    return {"gesetzt": bool(d.get("DISCORD_TOKEN")), "guild": d.get("DISCORD_GUILD", ""),
+            "bot": d.get("DISCORD_BOT", "")}
 
 
 def kanaele_zuordnung() -> dict:
@@ -1649,17 +1665,8 @@ def kanal_abschnitt(s: dict) -> str:
     benutzer = ts_zugang_benutzer()
     e = kanaele_einstellung()
     zu = kanaele_zuordnung()
-    ts = {k: v for k, v in (zu.get("teamspeak") or {}).items() if not k.startswith("_")}
     csrf = f'<input type=hidden name=csrf value="{s["csrf"]}">'
-    zeilen = "".join(
-        f"<tr><td>{esc(k)}</td><td>{esc(str(v.get('name', '')))}</td>"
-        f"<td class=z>{'von Hand angelegt – wird nie gelöscht' if v.get('fremd') else 'von Platzwart angelegt'}</td></tr>"
-        for k, v in sorted(ts.items()))
-    verwaist = "".join(
-        f"<tr><td>{esc(k)}</td><td>{esc(str(v.get('name', '')))}</td><td class=z>blieb stehen: {esc(str(v.get('grund', '')))}</td></tr>"
-        for k, v in sorted((zu.get("verwaist") or {}).items()))
-    tabelle = (f"<table><tr><th>Server</th><th>Kanal</th><th></th></tr>{zeilen}{verwaist}</table>"
-               if zeilen or verwaist else '<p class=z>Noch keine Kanäle angelegt.</p>')
+    tabelle = kanal_tabelle(zu, "teamspeak")
     return (
         '<h2>TeamSpeak: ein Kanal je Spielserver</h2>'
         '<p class=z>Ist der Schalter an, bekommt jeder Spielserver einen Kanal unter dem Oberkanal — '
@@ -1686,9 +1693,54 @@ def kanal_abschnitt(s: dict) -> str:
           f'<label>Name <input name=muster value="{esc(e["muster"])}" maxlength=40></label> '
           '<span class=z><code>{name}</code> steht für den Namen des Servers</span><br>'
           '<button class=p style="margin-top:6px">speichern</button></form>'
-        + tabelle
-        + '<h2>Discord</h2><p class=z>Folgt, sobald es einen Discord-Bot mit dem Recht '
-          '„Kanäle verwalten“ gibt — ein Webhook kann keine Kanäle anlegen (#137).</p>')
+        + tabelle + discord_abschnitt(s, zu))
+
+
+def kanal_tabelle(zu: dict, dienst: str) -> str:
+    """Server -> Kanal eines Dienstes, dazu die stehen gelassenen."""
+    von = {k: v for k, v in (zu.get(dienst) or {}).items() if not k.startswith("_")}
+    raute = "#" if dienst == "discord" else ""
+    zeilen = "".join(
+        f"<tr><td>{esc(k)}</td><td>{raute}{esc(str(v.get('name', '')))}</td>"
+        f"<td class=z>{'von Hand angelegt – wird nie gelöscht' if v.get('fremd') else 'von Platzwart angelegt'}</td></tr>"
+        for k, v in sorted(von.items()))
+    verwaist = "".join(
+        f"<tr><td>{esc(k)}</td><td>{raute}{esc(str(v.get('name', '')))}</td><td class=z>blieb stehen: {esc(str(v.get('grund', '')))}</td></tr>"
+        for k, v in sorted(((zu.get("verwaist") or {}).get(dienst) or {}).items()))
+    return (f"<table><tr><th>Server</th><th>Kanal</th><th></th></tr>{zeilen}{verwaist}</table>"
+            if zeilen or verwaist else '<p class=z>Noch keine Kanäle angelegt.</p>')
+
+
+def discord_abschnitt(s: dict, zu: dict) -> str:
+    """Discord-Kanaele je Server (#137, E33) auf der Integrationen-Seite."""
+    st = discord_zugang_stand()
+    e = kanaele_einstellung("discord")
+    csrf = f'<input type=hidden name=csrf value="{s["csrf"]}">'
+    return (
+        '<h2>Discord: ein Kanal je Spielserver</h2>'
+        '<p class=z>Wie bei TeamSpeak — ein Textkanal je Spielserver in einer eigenen Kategorie. '
+        'Gelöscht wird ein Kanal nur, wenn er unberührt ist <b>und noch nie eine Nachricht darin '
+        'stand</b>; Discord bewahrt den Verlauf, und der geht nie mit verloren.</p>'
+        + (f'<p>Bot gesetzt{" (" + esc(st["bot"]) + ")" if st["bot"] else ""} für den Server '
+           f'<code>{esc(st["guild"])}</code>. <span class=z>Der Bot hat Administratorrechte auf dem '
+           'Discord-Server — bewusst so entschieden (E33).</span></p>' if st["gesetzt"]
+           else '<p class=z>Kein Bot hinterlegt.</p>')
+        + '<form method=post action=/integrationen/teamspeak style="display:flex;gap:6px;flex-wrap:wrap">'
+          + csrf + '<input type=hidden name=was value=discord-zugang>'
+          '<input type=password name=passwort autocomplete=off maxlength=120 placeholder="Bot-Token" style="min-width:16em">'
+          f'<input name=benutzer value="{esc(st["guild"])}" maxlength=22 placeholder="Server-ID" style="width:12em">'
+          '<button class=p>prüfen und speichern</button></form>'
+        + ('<form method=post action=/integrationen/teamspeak style=display:contents>' + csrf
+           + '<input type=hidden name=was value=discord-zugang-loeschen><button class="b x">Bot entfernen</button></form>'
+           if st["gesetzt"] else "")
+        + '<form method=post action=/integrationen/teamspeak style="margin-top:12px">' + csrf
+          + '<input type=hidden name=was value=discord-einstellungen>'
+          f'<label><input type=checkbox name=an value=1{" checked" if e["an"] else ""}> Kanäle automatisch anlegen und entfernen</label><br>'
+          f'<label>Kategorie <input name=oberkanal value="{esc(e["kategorie"])}" maxlength=100></label> '
+          f'<label>Name <input name=muster value="{esc(e["muster"])}" maxlength=40></label> '
+          '<span class=z><code>{name}</code> steht für den Namen des Servers; Discord schreibt Kanalnamen klein.</span><br>'
+          '<button class=p style="margin-top:6px">speichern</button></form>'
+        + kanal_tabelle(zu, "discord"))
 
 
 @app.get("/integrationen", response_class=HTMLResponse)
@@ -1756,6 +1808,57 @@ def integrationen_teamspeak(request: Request, csrf: str = Form(""), was: str = F
         protokoll(s, "TeamSpeak-Zugang gesetzt", "", benutzer=b)
         aktion("kanaele", "abgleich", timeout=30)
         return zurueck("TeamSpeak-Zugang geprüft und gespeichert.")
+    if was == "discord-zugang-loeschen":
+        DISCORD_KONF.unlink(missing_ok=True)
+        protokoll(s, "Discord-Bot entfernt", "")
+        return zurueck("Discord-Bot entfernt.")
+    if was == "discord-zugang":
+        # Feldnamen wiederverwendet: benutzer = Server-ID, passwort = Token.
+        g, tok = benutzer.strip(), passwort.strip()
+        if not re.fullmatch(r"[0-9]{15,22}", g):
+            return zurueck("Die Server-ID besteht aus 15 bis 22 Ziffern.")
+        if not re.fullmatch(r"[A-Za-z0-9._-]{50,100}", tok):
+            return zurueck("Das sieht nicht nach einem Bot-Token aus.")
+        rc, aus = aktion("kanaele", "pruefen-discord", timeout=60, eingabe=f"{tok}\n{g}\n".encode())
+        if rc != 0:
+            protokoll(s, "Discord-Bot abgelehnt", "", "fehlgeschlagen", server=g)
+            return zurueck("Nicht gespeichert: " + (aus.strip().splitlines() or ["Discord lehnt ab"])[-1].replace("FEHLER: ", ""))
+        bot = aus.strip().splitlines()[-1].split("\t", 1)[-1] if aus.strip() else ""
+        tmp = DISCORD_KONF.with_suffix(".tmp")
+        tmp.write_text(f"DISCORD_TOKEN={tok}\nDISCORD_GUILD={g}\nDISCORD_BOT={bot}\n")
+        os.chmod(tmp, 0o600)
+        tmp.replace(DISCORD_KONF)
+        protokoll(s, "Discord-Bot gesetzt", "", server=g, bot=bot)
+        aktion("kanaele", "abgleich", timeout=30)
+        return zurueck(f"Discord-Bot geprüft und gespeichert: {bot}.")
+    if was == "discord-einstellungen":
+        o, m = oberkanal.strip(), muster.strip()
+        if not (1 <= len(o) <= 100) or any(ord(c) < 32 for c in o):
+            return zurueck("Die Kategorie braucht einen Namen (höchstens 100 Zeichen).")
+        if "{name}" not in m or len(m) > 40 or any(ord(c) < 32 for c in m):
+            return zurueck("Das Namensmuster muss {name} enthalten (höchstens 40 Zeichen).")
+        vorher = kanaele_einstellung("discord")
+        neu = {"an": an == "1", "kategorie": o, "muster": m}
+        try:
+            alles = json.loads(KANAELE_KONF.read_text())
+        except (OSError, ValueError):
+            alles = {}
+        alles["discord"] = neu
+        tmp = KANAELE_KONF.with_suffix(".tmp")
+        tmp.write_text(json.dumps(alles, indent=1, ensure_ascii=False) + "\n")
+        os.chmod(tmp, 0o600)
+        tmp.replace(KANAELE_KONF)
+        protokoll(s, "Discord-Kanaele " + ("eingeschaltet" if neu["an"] else "ausgeschaltet")
+                  if neu["an"] != vorher["an"] else "Discord-Kanaele eingestellt", "",
+                  kategorie=o, muster=m)
+        aktion("kanaele", "abgleich", timeout=30)
+        if not neu["an"]:
+            hinweis = ""
+        elif discord_zugang_stand()["gesetzt"]:
+            hinweis = " Die Kanäle entstehen in den nächsten Minuten im Hintergrund."
+        else:
+            hinweis = " Es fehlt noch der Bot – ohne ihn entsteht nichts."
+        return zurueck("Gespeichert." + hinweis)
     if was == "einstellungen":
         o, m = oberkanal.strip(), muster.strip()
         if not (1 <= len(o) <= 40) or any(ord(c) < 32 for c in o):
@@ -1791,13 +1894,18 @@ def kanal_vorschau_html(stack: str) -> str:
     """Was geschieht mit dem TeamSpeak-Kanal, wenn dieser Server entfernt wird?
     Nur wenn es ueberhaupt eine Zuordnung gibt - sonst fragt die Seite TeamSpeak
     gar nicht erst (#137)."""
-    if stack not in ((kanaele_zuordnung().get("teamspeak")) or {}):
+    zu = kanaele_zuordnung()
+    if not any(stack in (zu.get(d) or {}) for d in ("teamspeak", "discord")):
         return ""
-    rc, aus = aktion("kanaele", "vorschau", stack, timeout=30)
-    art, _, text = (aus.strip().splitlines() or [""])[-1].partition("\t")
-    if rc != 0 or not text:
+    rc, aus = aktion("kanaele", "vorschau", stack, timeout=45)
+    if rc != 0:
         return ""
-    return f'<div class={"warn" if art == "weg" else "m"}>{esc(text)}</div>'
+    raus = ""
+    for zeile in aus.strip().splitlines():
+        art, _, text = zeile.partition("\t")
+        if text:
+            raus += f'<div class={"warn" if art == "weg" else "m"}>{esc(text)}</div>'
+    return raus
 
 
 @app.post("/integrationen/steam")

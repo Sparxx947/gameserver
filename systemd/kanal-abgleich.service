@@ -1,5 +1,5 @@
 [Unit]
-Description=Platzwart: TeamSpeak-Kanaele an die installierten Spielserver angleichen (#137)
+Description=Platzwart: TeamSpeak- und Discord-Kanaele an die installierten Spielserver angleichen (#137)
 After=docker.service
 
 [Service]

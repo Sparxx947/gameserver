@@ -357,9 +357,17 @@ flooding` und nahm danach länger als zwei Minuten keine Verbindung an. Das
 Werkzeug schickt deshalb höchstens einen Befehl je 0,6 s, eine Verbindung je
 Lauf, und benennt eine Drosselung als solche.
 
-**Discord** folgt, sobald es einen Bot mit dem Recht „Kanäle verwalten" gibt —
-ein Webhook kann keine Kanäle anlegen, und ein solcher Bot-Schlüssel kann den
-ganzen Discord-Server umbauen (E33).
+**Discord** läuft genauso, mit einem Bot (ein Webhook kann keine Kanäle
+anlegen): eine eigene Kategorie (Vorgabe „Spieleserver", öffentlich), ein
+Textkanal je Spielserver, Discord schreibt die Namen klein. Unberührt heißt dort
+zusätzlich: **Kanalrechte unverändert und noch nie eine Nachricht darin** —
+Discord bewahrt den Verlauf, und der geht nie mit verloren. Der Bot wird mit
+Token und Server-ID hinterlegt und beim Speichern geprüft (Mitglied des Servers,
+darf Kanäle verwalten). Nachgewiesen am echten Discord-Server mit einer privaten
+Testkategorie: angelegt (die Kanäle erben die Rechte der Kategorie), Vorschau,
+ein Kanal mit einer Nachricht blieb stehen, ein von Hand angelegter ebenfalls,
+der unberührte wurde gelöscht. Der Bot hat auf dem Discord-Server
+Administratorrechte — Jens' Entscheidung, E33.
 
 > *One TeamSpeak channel per game server, off until switched on here: write-only
 > ServerQuery credentials (checked at TeamSpeak via stdin), a parent channel and
@@ -369,7 +377,11 @@ ganzen Discord-Server umbauen (E33).
 > created by Platzwart (stored id, not name), not renamed or moved, no
 > subchannels, nobody inside — otherwise kept, audited and reported. The removal
 > confirmation page says which before the click. ServerQuery is flood-limited
-> (measured), so commands are paced. Discord follows once a bot exists.*
+> (measured), so commands are paced. Discord works the same with a bot (a
+> webhook cannot create channels): its own public category, one text channel per
+> server; untouched there also means unchanged permissions and never a single
+> message — history is never deleted. The bot is checked when saved; it has
+> administrator rights on the Discord server by Jens' decision (E33).*
 
 ## Mods hochladen `/mods/{stack}`
 
@@ -1544,7 +1556,7 @@ und führte `/konfig` und `/archive` noch als admin-only.
 | GET | `/nutzer` · POST `/nutzer-anlegen` · `/mfa-zuruecksetzen` · `/nutzer-loeschen` | admin | Benutzerverwaltung |
 | GET | `/protokoll` | admin | Protokoll aller Aktionen |
 | GET | `/integrationen` · POST `/integrationen/steam` | admin | Schlüssel fremder Dienste (Steam-Web-API) |
-| POST | `/integrationen/teamspeak` | admin | TeamSpeak-Zugang (geprüft), Kanal-Schalter, Oberkanal, Namensmuster (#137) |
+| POST | `/integrationen/teamspeak` | admin | Kanäle je Server (#137): TeamSpeak-Zugang und Discord-Bot (je geprüft), Schalter, Oberkanal/Kategorie, Namensmuster |
 | GET | `/neustart-fragen` · POST `/neustart` | admin | Maschine neu starten |
 | GET | `/auth-check` | admin | interne Prüfung für Caddy (Terminal) |
 
