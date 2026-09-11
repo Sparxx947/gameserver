@@ -1245,7 +1245,8 @@ def spiele(request: Request, meldung: str = "", q: str = "", kat: str = "", b: s
         pw = ("Beitrittspasswort wird beim Anlegen gesetzt" if g["passwort"]["art"] == "env"
               else "Passwort als Startparameter; Port erst, wenn der Server es bestätigt"
               if g["passwort"]["art"] == "params"
-              else "kein Passwort möglich" if g["passwort"]["art"] == "keins"
+              else "kein Passwort möglich – Port erst nach Freigabe von Hand"
+              if g["passwort"]["art"] == "keins"
               else "Passwort wird nach dem ersten Start gesetzt")
         karten.append(f"""<div class=c>{bild}<div class=cb>
 <div class=n>{g["name"]} {stand}</div>
@@ -1413,6 +1414,65 @@ def entfernen_fragen(request: Request, stack: str):
           f'<input type=hidden name=stack value="{esc(stack)}">'
           f'<button class=x>Ja, {esc(stack)} entfernen</button></form> '
           f'<a class=b href="{einstellungen_von(stack)}">Abbrechen</a>' + FUSS)
+
+
+@app.get("/freigabe-fragen/{stack}", response_class=HTMLResponse)
+def freigabe_fragen(request: Request, stack: str):
+    """Rueckfrage vor der Freigabe eines Spiels OHNE Beitrittspasswort (#183).
+
+    E26, Jens am 2026-09-11: "Ein Server ohne Passwort darf nicht automatisch
+    ans Netz gehen." Minecraft und TeamSpeak KENNEN kein Beitrittspasswort -
+    sie gehen deshalb erst nach diesem Klick ans Netz. Die Seite sagt, was den
+    Server stattdessen schuetzt, BEVOR man klickt.
+    *Games without a join password go online only after this click; the page
+     says what protects the server instead, before the click.*
+    """
+    s = angemeldet(request)
+    if not darf_verwalten(s):
+        return RedirectResponse("/", 303)
+    pi = stackinfo(stack) if STACK_RE.fullmatch(stack) else {}
+    if pi.get("passwort_art") != "keins" or not pi.get("einrichtung_offen"):
+        return RedirectResponse(einstellungen_von(stack), 303)
+    schutz = ("<b>Minecraft:</b> Ohne Whitelist kann jeder mit der Adresse beitreten. "
+              "Vorher in der <a href=\"/konfig/" + esc(stack) + "\">Konfiguration</a> "
+              "<code>ENFORCE_WHITELIST=TRUE</code> und die Namen unter <code>WHITELIST</code> "
+              "setzen - danach neu starten."
+              if "minecraft" in stack else
+              "<b>TeamSpeak:</b> Das Serverpasswort setzt man im TeamSpeak-Client "
+              "(Serververwaltung → Server bearbeiten → Passwort). Ohne das kann jeder "
+              "mit der Adresse beitreten."
+              if "teamspeak" in stack else
+              "Dieses Spiel hat keinen eigenen Zugangsschutz über ein Passwort.")
+    return HTMLResponse(KOPF + kopfleiste(s) + RUMPF
+        + f"<h1>{esc(stack)} ohne Beitrittspasswort ans Netz geben?</h1>"
+        + '<div class=warn>Nach dem Klick ist der Server für <b>jeden</b> erreichbar, der '
+          'die Adresse kennt. Ein Beitrittspasswort, das das verhindert, gibt es bei '
+          'diesem Spiel nicht.</div>'
+        + f'<div class=m>{schutz}</div>'
+        + '<div class=m>Die Freigabe wird im Protokoll festgehalten. Zurücknehmen: '
+          'Server anhalten.</div>'
+        + f'<form method=post action=/port-freigeben style=margin-top:16px>'
+          f'<input type=hidden name=csrf value="{s["csrf"]}">'
+          f'<input type=hidden name=stack value="{esc(stack)}">'
+          f'<button class=y>Ja, {esc(stack)} freigeben</button></form> '
+          f'<a class=b href="{einstellungen_von(stack)}">Abbrechen</a>' + FUSS)
+
+
+@app.post("/port-freigeben")
+def port_freigeben(request: Request, csrf: str = Form(""), stack: str = Form("")):
+    s = pruefe(request, csrf)
+    if not darf_verwalten(s):
+        return RedirectResponse("/", 303)
+    # Die Pruefung "nur bei keins" sitzt in spiel-einrichtung (ueber
+    # panel-aktion), nicht hier - eine Schutzmassnahme, die ein anderer
+    # Aufrufweg umgeht, ist keine.
+    # *The "keins only" check lives in spiel-einrichtung, not here.*
+    rc, aus = aktion("port-freigeben", stack, timeout=900)
+    protokoll(s, "Port ohne Beitrittspasswort von Hand freigegeben", stack,
+              "ok" if rc == 0 else "fehlgeschlagen", meldung=aus.strip()[-200:])
+    m = (aus.strip().splitlines() or ["freigegeben"])[-1].split("\t")[-1] if rc == 0 \
+        else f"Nicht freigegeben: {aus.strip()[-250:]}"
+    return zurueck_nach(stack, "server", m)
 
 
 @app.post("/fremd-entfernen")
@@ -1937,6 +1997,18 @@ def server_einstellungen(request: Request, stack: str, meldung: str = ""):
                 f'<button class="{klasse}" title="{esc(titel)}">{beschriftung}</button></form>')
 
     abschnitte = []
+
+    # --- Freigabe: nur fuer Spiele ohne Beitrittspasswort (#183) -------------
+    # Ganz oben, weil der Server bis dahin fuer niemanden erreichbar ist - das
+    # ist das Erste, was man auf dieser Seite wissen muss.
+    # *At the top: until released, nobody can reach the server.*
+    if (darf_verwalten(s) and pi.get("passwort_art") == "keins"
+            and pi.get("einrichtung_offen")):
+        abschnitte.append(
+            '<div class=abschnitt><h2>Freigabe</h2>'
+            '<div class=warn>Dieses Spiel kennt kein Beitrittspasswort. Der Port bleibt '
+            'deshalb zu, bis ihn jemand bewusst freigibt.</div><div class=verweise>'
+            f'<a class="b y" href="/freigabe-fragen/{name}">Port freigeben …</a></div></div>')
 
     # --- Betrieb: was der Server nachts und im Leerlauf von selbst tut ------
     if darf_verwalten(s):

@@ -612,6 +612,10 @@ später gefundenes Feld oder ein A2S-„Passwort nötig" gibt ihn frei, über
 denselben einen Weg. Nachgespielt mit allen vier Lagen: nein, ja, keine Antwort,
 Server gestoppt — veröffentlicht wird nur bei „ja".
 
+**Und für Spiele ganz ohne Beitrittspasswort** (Minecraft, TeamSpeak — `keins`)
+hat Jens die Freigabe von Hand gewählt (#183): Der Port bleibt nach der
+Installation zu, bis jemand ihn auf der Einstellungsseite bewusst freigibt.
+
 > *E23 put the port at the end of setup — but only the one `port-ermitteln`
 > discovers. The install wrote catalogue ports before any password: a second
 > path, unmentioned. It could not simply be removed, because `port-ermitteln`
