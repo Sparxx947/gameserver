@@ -82,6 +82,19 @@ pruefe_archiv() {
 #  and everything goes back to the same RELATIVE place (#231).*
 AUSSCHLUSS_DATEI=/etc/borg-ausschluss.txt
 
+# Borg-Sperre (#234). Die Sicherung laeuft alle 15 Minuten und haelt das
+# Repository dabei rund vier Minuten gesperrt (gemessen 12:00:18 -> 12:04:07 am
+# 2026-09-11). Die lesenden Aktionen warteten keinen Augenblick und meldeten
+# "Repository nicht erreichbar" - in einem Viertel der Zeit, fuer jeden Server.
+# Jetzt warten sie, und scheitern sie an der Sperre, sagt die Meldung das.
+# *Backups hold the repository lock about four minutes every 15; reads now
+#  wait for it and say so when they time out on it.*
+SPERRE_MELDUNG="Gerade laeuft eine Sicherung - das Repository ist gesperrt. In ein paar Minuten erneut versuchen."
+borg_fehler() {   # borg_fehler <stderr-datei> <sonstige Meldung>
+  if grep -qi "lock" "$1" 2>/dev/null; then fehler "$SPERRE_MELDUNG"; fi
+  fehler "$2"
+}
+
 # verschonen <basis> <ablage>: Pfade wegraeumen, relative Pfade auf stdout.
 verschonen() {
   local basis="$1" ablage="$2" muster p rel k weiter
@@ -175,8 +188,10 @@ case "${1:-}" in
     sicherung_an
     export BORG_PASSPHRASE=$(cat /root/.borg-passphrase)
     export BORG_RSH="ssh -o BatchMode=yes -o ConnectTimeout=15"
-    timeout 120 borg list --glob-archives "$s-*" --format "{archive}{TAB}{time}{NL}" "$REPO" 2>/dev/null \
-      || fehler "Repository nicht erreichbar"
+    fehlerdatei=$(mktemp); trap 'rm -f "$fehlerdatei"' EXIT
+    # 150 s Wartezeit passen in die 180 s, mit denen das Panel diese Aktion ruft.
+    timeout 170 borg --lock-wait 150 list --glob-archives "$s-*" --format "{archive}{TAB}{time}{NL}" "$REPO" 2>"$fehlerdatei" \
+      || borg_fehler "$fehlerdatei" "Repository nicht erreichbar"
     ;;
   archiv-groesse)
     # Wie gross waere der Download? Gehoert VOR den Klick: ein Verweis, der sich
@@ -186,7 +201,7 @@ case "${1:-}" in
     sicherung_an
     export BORG_PASSPHRASE=$(cat /root/.borg-passphrase)
     export BORG_RSH="ssh -o BatchMode=yes -o ConnectTimeout=15"
-    timeout 120 borg info --json "$REPO::$a" 2>/dev/null \
+    timeout 170 borg --lock-wait 150 info --json "$REPO::$a" 2>/dev/null \
       | python3 -c "
 import json,sys
 try:
@@ -213,7 +228,7 @@ except Exception:
     sicherung_an
     export BORG_PASSPHRASE=$(cat /root/.borg-passphrase)
     export BORG_RSH="ssh -o BatchMode=yes -o ConnectTimeout=15"
-    exec borg export-tar "$REPO::$a" - 2>/dev/null
+    exec borg --lock-wait 900 export-tar "$REPO::$a" - 2>/dev/null
     ;;
   restore)
     s="${2:-}"; a="${3:-}"; pruefe_stack "$s"; pruefe_archiv "$s" "$a"
@@ -226,17 +241,23 @@ except Exception:
     else fehler "kein Datenverzeichnis fuer $s"; fi
     lief=0
     docker ps --format "{{.Names}}" | grep -qx "$s" && lief=1
-    # 1. Container stoppen — ein laufender Server schreibt beim Beenden zurueck
+    wieder_an() { [ $lief -eq 1 ] && ( cd "/opt/stacks/$s" && docker compose up -d >/dev/null 2>&1 ); return 0; }
+    # 1. ZUERST auspacken, bei laufendem Server - das Archiv aendert sich nicht.
+    #    Vorher hielt der Schritt davor den Server an, und scheiterte das
+    #    Auspacken (etwa an der Sperre einer laufenden Sicherung, #234), blieb er
+    #    aus. Jetzt kostet ein Fehlschlag hier nichts, und die Auszeit ist kuerzer.
+    # *Extract FIRST, while the server runs - a failure here now costs nothing.*
+    tmp=$(mktemp -d); trap "rm -rf $tmp" EXIT
+    ( cd "$tmp" && timeout 1500 borg --lock-wait 600 extract "$REPO::$a" 2>"$tmp/borg.fehler" ) \
+      || borg_fehler "$tmp/borg.fehler" "Extrahieren fehlgeschlagen - am Server hat sich nichts geaendert"
+    quelle="$tmp${basis}"
+    [ -d "$quelle" ] || fehler "Archiv enthaelt $basis nicht - am Server hat sich nichts geaendert"
+    # 2. Container stoppen — ein laufender Server schreibt beim Beenden zurueck
     #    und wuerde das Zurueckgespielte sofort ueberschreiben.
     [ $lief -eq 1 ] && { cd "/opt/stacks/$s" && docker compose stop >/dev/null 2>&1; }
-    # 2. Ist-Stand sichern, bevor irgendetwas ueberschrieben wird
+    # 3. Ist-Stand sichern, bevor irgendetwas ueberschrieben wird
     sich="${basis}.vor-restore-$(date +%Y%m%d-%H%M%S)"
-    cp -a "$basis" "$sich" || fehler "Ist-Stand liess sich nicht sichern - abgebrochen"
-    # 3. Zurueckspielen (borg legt den Pfad relativ ab)
-    tmp=$(mktemp -d); trap "rm -rf $tmp" EXIT
-    ( cd "$tmp" && timeout 900 borg extract "$REPO::$a" ) || fehler "Extrahieren fehlgeschlagen"
-    quelle="$tmp${basis}"
-    [ -d "$quelle" ] || fehler "Archiv enthaelt $basis nicht"
+    cp -a "$basis" "$sich" || { rm -rf "$sich"; wieder_an; fehler "Ist-Stand liess sich nicht sichern - abgebrochen, Server laeuft wie vorher"; }
     # Ausgeschlossene Pfade UEBERLEBEN das Zurueckspielen - verschonen() oben.
     # Genau so verlor FOUNDRY am 06.09. sein server-Verzeichnis: nach der
     # Wiederherstellung war der Mountpunkt weg. Scheitert das Weglegen, wird
@@ -245,7 +266,8 @@ except Exception:
     #  is deleted.*
     if ! verschonen "$basis" "$tmp/verschont" > "$tmp/verschont.liste"; then
       zuruecklegen "$basis" "$tmp/verschont" "$tmp/verschont.liste"
-      fehler "Ausgeschlossene Pfade liessen sich nicht wegraeumen - nichts geloescht"
+      wieder_an
+      fehler "Ausgeschlossene Pfade liessen sich nicht wegraeumen - nichts geloescht, Server laeuft wie vorher"
     fi
 
     rm -rf "${basis:?}"/* && cp -a "$quelle/." "$basis/" || fehler "Kopieren fehlgeschlagen"
