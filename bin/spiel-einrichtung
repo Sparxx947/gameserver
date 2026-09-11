@@ -34,8 +34,14 @@ MAX_DATEIEN = 4000
 # betapassword, ntfypassword" und hielt die Einrichtung fuer erledigt.
 # *"beta" is Steam's beta-branch password and "ntfy" a notification service's;
 #  both appear in every LinuxGSM config and are not join passwords.*
+# "NoPassword", "UsePassword", "RequirePassword" sind SCHALTER, keine
+# Passwoerter - auch wenn ihr Wert 0/1 ist und die Wertregel (ist_schalter)
+# sie deshalb nicht erkennt (#227).
+# *Switch names like NoPassword/UsePassword/RequirePassword are not passwords,
+#  even with a 0/1 value the value rule cannot recognise.*
 PW_MUSTER    = re.compile(r"^(?!.*(?:admin|rcon|steam|api|web|db|sql|mysql|token|beta|ntfy|"
                           r"discord|telegram|pushbullet|pushover|gotify|smtp|email|mail))"
+                          r"(?!.*(?:no|use|uses|require|requires|has|enable|enabled|disable)[_.\- ]?pass)"
                           r".*(?:password|passwort|passwd|\bpsw\b|serverpass)", re.I)
 # RCON bewusst NICHT: manche Container setzen ihr RCON-Passwort selbst und
 # sprechen den Server darueber an - ein fremder Wert bricht ihnen die Steuerung.
@@ -141,12 +147,31 @@ def dateien_selbst(basis: Path):
     return raus
 
 
-def setze_ini(text, muster, wert):
+# Ein Wahrheitswert im Klartext. INI, CFG und XML kennen keine Typen - der
+# Wert ist das Einzige, woran man einen Schalter erkennt. Killing Floor 2
+# fuehrt "bNoPassword=False" (ein Filter des Serverbrowsers): Der Name enthaelt
+# "Password", das Muster traf, und der Schalter bekam das Passwort (#227).
+# Dieselbe Regel wie darf_ersetzen() bei JSON: ein Schalter bleibt ein Schalter.
+# *A plain-text boolean. INI/CFG/XML have no types, the value is the only tell.
+#  KF2's "bNoPassword=False" matched the password pattern by name (#227).*
+SCHALTERWERT = re.compile(r"(?i)true|false")
+
+
+def ist_schalter(altwert: str) -> bool:
+    return bool(SCHALTERWERT.fullmatch(altwert.strip().rstrip(",;").strip().strip("\"'")))
+
+
+def setze_ini(text, muster, wert, uebersprungen=None):
     """Schluessel=Wert (ini, cfg, properties). Nur vorhandene Felder aendern -
-    ein neu erfundenes Feld liest der Server ohnehin nicht."""
+    ein neu erfundenes Feld liest der Server ohnehin nicht. Felder mit einem
+    Wahrheitswert bleiben (#227) und landen in uebersprungen."""
     treffer = []
     def ersetze(m):
         if not muster.search(m.group(1).strip()):
+            return m.group(0)
+        if ist_schalter(re.sub(r"\s*(?://|#|;).*$", "", m.group(3))):
+            if uebersprungen is not None:
+                uebersprungen.append(m.group(1).strip())
             return m.group(0)
         treffer.append(m.group(1).strip())
         # Was hinter dem Wert steht, muss stehen bleiben: Necesses server.cfg ist
@@ -260,7 +285,7 @@ def setze_xml(text, muster, wert):
     return neu, treffer
 
 
-def setze_cfg(text, muster, wert):
+def setze_cfg(text, muster, wert, uebersprungen=None):
     """Form "schluessel wert" ohne Gleichheitszeichen, Semikolon optional.
 
     Das Semikolon war zunaechst Pflicht - damit fiel der komplette GoldSrc-Stil
@@ -295,6 +320,10 @@ def setze_cfg(text, muster, wert):
     treffer = []
     def ersetze(m):
         praefix, schluessel, altwert, semi = m.group(1), m.group(2), m.group(3), m.group(4)
+        if muster.search(schluessel) and ist_schalter(altwert):
+            if uebersprungen is not None:
+                uebersprungen.append(schluessel)
+            return m.group(0)
         if muster.search(schluessel):
             treffer.append(schluessel)
             anf = '"' if altwert.startswith('"') else ''
@@ -317,13 +346,13 @@ def bearbeite(pfad: Path, muster, wert, zahl=False):
     elif pfad.suffix.lower() == ".xml":
         neu, treffer = setze_xml(text, muster, wert)
     else:
-        neu, treffer = setze_ini(text, muster, wert)
+        neu, treffer = setze_ini(text, muster, wert, uebersprungen)
         # .cfg kennt zusaetzlich die Form ohne Gleichheitszeichen:
         #   serverPassword "";     (The Forest)
         # Nur versuchen, wenn die uebliche Form nichts gefunden hat, und nur bei
         # .cfg - in .ini oder .conf wuerde dieses Muster Fliesstext zerlegen.
         if not treffer and pfad.suffix.lower() == ".cfg":
-            neu, treffer = setze_cfg(text, muster, wert)
+            neu, treffer = setze_cfg(text, muster, wert, uebersprungen)
     if treffer and neu != text:
         pfad.write_text(neu)
     # Stilles Ueberspringen war schon einmal die Ursache: Beim Minecraft-Fall
@@ -332,7 +361,7 @@ def bearbeite(pfad: Path, muster, wert, zahl=False):
     # *Silent skipping was the cause once before; a skipped field goes to the
     #  journal, with the reason.*
     for k in uebersprungen:
-        meldung(f"    uebersprungen: {pfad.name}:{k} (Kommentarfeld oder andere Art)")
+        meldung(f"    uebersprungen: {pfad.name}:{k} (Kommentarfeld, Schalter oder andere Art)")
     return treffer
 
 
