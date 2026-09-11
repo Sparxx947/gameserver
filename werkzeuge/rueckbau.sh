@@ -182,7 +182,22 @@ done <<<"$STACKS"
 #    Unit-Datei laesst sich nicht mehr sauber stoppen, der Dienst liefe weiter.
 # *Disable first, delete second: a deleted unit file can no longer be stopped
 #  cleanly and the service would keep running.*
+# "systemctl disable --now" auf einer Einheit, die es auf dieser Maschine nie
+# gab, scheitert - der gewuenschte Zustand ist aber bereits erreicht. Als
+# Fehlschlag gezaehlt hiess das: sechs von 89 Schritten "FEHLGESCHLAGEN" auf
+# einem Rueckbau, der vollstaendig und richtig war (dns-ziel, palworld-neustart
+# und ttyd waren dort schlicht nie installiert). Eine Endzahl, die man erst
+# Zeile fuer Zeile nachlesen muss, spart genau die Arbeit nicht, fuer die es sie
+# gibt - und ein echter Fehlschlag zwischen fuenf erwarteten faellt nicht auf.
+# *Disabling a unit this machine never had fails, yet the desired state is
+#  already reached. Counted as failures, six of 89 steps were red on a teardown
+#  that was complete and correct - and a real failure among five expected ones
+#  is the case this makes harder.*
 for u in "${EINHEITEN[@]}"; do
+  if [ "$WIRKLICH" -eq 1 ] && ! fern "systemctl cat '$u'" >/dev/null 2>&1; then
+    printf '  %-46s %s\n' "abschalten: $u" "gab es hier nicht"
+    continue
+  fi
   schritt "abschalten: $u" "systemctl disable --now '$u'"
 done
 for u in "${EINHEITEN[@]}"; do
@@ -263,17 +278,35 @@ laeuft=$(fern "systemctl list-units --state=running --no-legend 'panel*' 'ttyd*'
 [ "$uebrig" -eq 0 ] && echo "  nichts."
 
 echo
+# Die Passphrase gehoert nur dann zum Kontrollwert, wenn es ueberhaupt eine
+# geben kann. Bei BORG_REPO=aus legt Stufe 50 keine an - der Rueckbau meldete
+# dort "Passphrase FEHLT — das ist zu viel weggeraeumt" fuer einen Zustand, den
+# E22 ausdruecklich vorsieht, und sechs Zeilen weiter stand das Gegenteil
+# ("liegt weiterhin unter ..."). Ein Kontrollwert, der ohne Not Alarm schlaegt,
+# wird beim naechsten Mal ueberlesen - und dann taugt er an dem Tag nichts, an
+# dem die Passphrase wirklich fehlt und jedes Archiv wertlos wird.
+# *The passphrase belongs to the control value only where one can exist. With
+#  backups off, stage 50 creates none, and the teardown called a documented,
+#  supported state damage - while the prose six lines later claimed the opposite.
+#  A control value that cries wolf is read once and then ignored.*
+PRUEFUNGEN=("docker: command -v docker" "ADMIN_USER: id -u $ADMIN_USER")
+[ "$BORG_REPO" != "aus" ] && PRUEFUNGEN+=("Passphrase: test -s /root/.borg-passphrase")
+
 echo "== Kontrollwert: was stehen bleiben MUSS =="
-for pruef in "docker: command -v docker" "ADMIN_USER: id -u $ADMIN_USER" "Passphrase: test -s /root/.borg-passphrase"; do
+for pruef in "${PRUEFUNGEN[@]}"; do
   name="${pruef%%:*}"; befehl="${pruef#*: }"
   if fern "$befehl" >/dev/null 2>&1; then printf '  %-30s da\n' "$name"
   else printf '  %-30s FEHLT — das ist zu viel weggeraeumt\n' "$name"; fehlschlaege=$((fehlschlaege+1)); fi
 done
 
 echo
-echo "Die Borg-Passphrase liegt weiterhin unter /root/.borg-passphrase."
-echo "Wird die Maschine abgegeben, gehoert sie vorher an einen zweiten Ort —"
-echo "ohne sie ist jedes vorhandene Archiv wertlos."
+if [ "$BORG_REPO" != "aus" ]; then
+  echo "Die Borg-Passphrase liegt weiterhin unter /root/.borg-passphrase."
+  echo "Wird die Maschine abgegeben, gehoert sie vorher an einen zweiten Ort —"
+  echo "ohne sie ist jedes vorhandene Archiv wertlos."
+else
+  echo "BORG_REPO=aus: es gibt keine Passphrase und keine Archive."
+fi
 echo
 printf 'ausgefuehrt: %d   fehlgeschlagen: %d   uebrig: %d\n' "$getan" "$fehlschlaege" "$uebrig"
 [ $((fehlschlaege + uebrig)) -eq 0 ] || exit 1
