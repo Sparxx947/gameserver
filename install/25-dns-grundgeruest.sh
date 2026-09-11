@@ -65,11 +65,26 @@ dns-pflegen anbieter || fehler "Anbieter oder Token nicht brauchbar — $KONF pr
 log "Fehlende Eintraege anlegen"
 dns-pflegen grundgeruest || fehler "DNS-Grundgeruest fehlgeschlagen — Token, Zone und DNS_ZIEL pruefen"
 
-# Der Rest des DNS — die CNAMEs der Spiele und der Zeitgeber fuer den
-# A-Eintrag — bleibt in Stufe 70. Hier steht nur, was VOR dem Zertifikat da
-# sein muss; alles andere darf warten, bis es Spiele gibt.
-# *The rest of the DNS work stays in stage 70. Only what must exist before the
-#  certificate belongs here.*
+# Der Zeitgeber gehoert hierher, die CNAMEs der Spiele nicht: Hier steht, was VOR
+# dem Zertifikat da sein muss - und bei SERVER_IPV4=dynamic ist der gepflegte
+# A-Eintrag genau das, naemlich etwas, das da sein UND bleiben muss. Die CNAMEs
+# duerfen warten, bis es Spiele gibt, und bleiben in der optionalen Stufe 70.
+#
+# Bis #195 stand der Zeitgeber ebenfalls in Stufe 70 - die nicht in der
+# Vorgabeliste von einrichten.sh steht. Eine vollstaendig durchgelaufene
+# Einrichtung liess damit genau den Automatismus aus, den konfiguration.env
+# zusagt.
+#
+# Eingesetzt und geschaltet wird er von dns_ziel_zeitgeber() in lib.sh, damit es
+# EINE Fassung gibt: Stufe 70 ruft dieselbe Funktion.
+#
+# *The timer belongs here, the game CNAMEs do not: this stage holds what must
+#  exist before the certificate, and with a changing address the maintained A
+#  record is exactly that - something that must exist and keep existing. Until
+#  #195 it sat in stage 70, which is not in the default stage list, so a complete
+#  installation omitted the automation konfiguration.env promises. Installed and
+#  switched by dns_ziel_zeitgeber() in lib.sh so there is one implementation;
+#  stage 70 calls the same function.*
 log "Zeitgeber fuer den A-Eintrag"
 dns_ziel_zeitgeber
 log "Stufe 25 fertig. Spiel-CNAMEs (optional): install/70-dns.sh"
