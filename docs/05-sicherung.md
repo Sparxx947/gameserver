@@ -201,6 +201,15 @@ nur Namen dieser Form, und nur solche, die mit dem angefragten Stack beginnen.
 bestätigen. Der Server wird angehalten, das Archiv ausgepackt, der Server wieder
 gestartet — sofern er vorher lief.
 
+**Während einer Sicherung wird gewartet.** Der 15-Minuten-Lauf hält das
+Repository rund vier Minuten gesperrt. Bis #234 scheiterten Liste, Größe,
+Download und Wiederherstellung in dieser Zeit sofort mit „Repository nicht
+erreichbar" — beim ersten echten Versuch dreimal hintereinander. Jetzt warten sie
+auf die Sperre (Liste und Größe bis 150 s, Auspacken bis 10 min), und
+scheitern sie doch daran, sagt die Meldung „Gerade läuft eine Sicherung".
+Die Wiederherstellung packt das Archiv **zuerst** aus, bei laufendem Server:
+Früher hielt sie ihn vorher an und ließ ihn aus, wenn das Auspacken scheiterte.
+
 **Ausgeschlossene Pfade überleben das Zurückspielen.** Die Spielinstallation
 steht bewusst nicht im Archiv; das Datenverzeichnis wird vor dem Kopieren aber
 geleert. `panel-aktion` legt deshalb vorher jeden Pfad aus
