@@ -28,7 +28,8 @@ ZIEL="${1:-}"; shift || true
 [ -n "$ZIEL" ] && [ $# -gt 0 ] || { echo "Aufruf: $0 <ssh-ziel> <repo-datei> [...]"; exit 2; }
 
 VARIABLEN=(DNS_ZONE DNS_ZIEL PANEL_DOMAIN SERVER_IPV4 WELT_NAME ADMIN_USER
-           ADMIN_NETZ ADMIN_IP BORG_REPO BORG_TAILSCALE_IP FREMD_IPV4)
+           ADMIN_NETZ ADMIN_IP BORG_REPO BORG_TAILSCALE_IP FREMD_IPV4
+           SSH_PASSWORT_AUTH SSH_ROOT_LOGIN)
 
 # Repo-Pfad -> Serverpfad, Rechte, Eigentuemer
 wohin() {
@@ -44,6 +45,7 @@ wohin() {
     etc/borg-ausschluss.txt) echo "/etc/borg-ausschluss.txt 0644 root:root" ;;
     etc/caddy/Caddyfile) echo "/etc/caddy/Caddyfile 0644 root:root" ;;
     etc/fail2ban/jail.local) echo "/etc/fail2ban/jail.local 0644 root:root" ;;
+    etc/ssh/sshd_config.d/99-gameserver.conf) echo "/etc/ssh/sshd_config.d/99-gameserver.conf 0644 root:root" ;;
     etc/sudoers.d/panel) echo "/etc/sudoers.d/panel 0440 root:root" ;;
     systemd/*)           echo "/etc/systemd/system/${1#systemd/} 0644 root:root" ;;
     *) return 1 ;;
