@@ -1393,11 +1393,22 @@ werden.
 Das eigene Konto lässt sich nicht löschen: sonst sperrt man sich mit einem Klick
 aus, und ohne Administrator käme niemand mehr an die Benutzerverwaltung.
 
+**Groß- und Kleinschreibung spielt beim Benutzernamen keine Rolle** (#248).
+Konten werden klein gespeichert, die Anmeldung — per TOTP wie per Passkey —
+findet `Ropax85` auch als `ropax85`, und ein zweites Konto, das sich nur in der
+Schreibweise unterscheidet, wird abgewiesen. Vorher war der Vergleich exakt: Der
+erste Anmeldeversuch am einzigen `verwalten`-Konto scheiterte am großen
+Anfangsbuchstaben, und die Seite sagte nur „Anmeldung fehlgeschlagen" — der
+Schreibfehler sah aus wie ein falsches Passwort. Im Protokoll steht bei einem
+Fehlversuch weiterhin genau das, was eingetippt wurde.
+
 > *Users: create, set role, reset the second factor, delete. A new TOTP secret is
 > shown to nobody, not even the administrator — the new user receives it as a QR
 > code on their first login, so it never travels over a channel. Deleting your
 > own account is blocked: it would lock the last administrator out of user
-> management.*
+> management. User names are case-insensitive (#248): stored in lower case,
+> found regardless of case at login (TOTP and passkey), duplicates differing only
+> in case are refused; a failed attempt still logs exactly what was typed.*
 
 ### Terminal `/terminal/`
 

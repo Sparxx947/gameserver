@@ -2005,11 +2005,31 @@ def login_form(request: Request, fehler: str = ""):
 </form><script src="/passkey.js" defer></script></div>""" + FUSS)
 
 
+def nutzer_finden(eingabe: str) -> str:
+    """Gespeicherter Name zu einer Eingabe - ohne Ruecksicht auf Gross- und
+    Kleinschreibung, "" wenn es keinen gibt (#248).
+
+    Vorher ein exaktes dict.get: "Ropax85" fand das Konto "ropax85" nicht, und
+    die Seite sagte nur "Anmeldung fehlgeschlagen" - ein Tippfehler in der
+    Schreibweise sah aus wie ein falsches Passwort. Das einzige Konto mit der
+    Rolle "verwalten" ist so nie hineingekommen.
+    *Stored name for an input, case-insensitive; "" if none. An exact lookup
+     made "Ropax85" miss "ropax85" with a message that looked like a wrong
+     password.*
+    """
+    e = eingabe.strip().casefold()
+    if not e:
+        return ""
+    return next((k for k in laden()["nutzer"] if k.casefold() == e), "")
+
+
 @app.post("/login")
 def login(request: Request, nutzer: str = Form(""), passwort: str = Form(""), code: str = Form("")):
     ip = request.client.host if request.client else "?"
     if (rest := gesperrt(ip)):
         return login_form(request, f"Zu viele Fehlversuche. Erneut in {rest // 60 + 1} Minuten.")
+    eingetippt = nutzer
+    nutzer = nutzer_finden(nutzer) or nutzer.strip()
     n = laden()["nutzer"].get(nutzer)
     passwort_ok = False
     if n:
@@ -2050,7 +2070,7 @@ def login(request: Request, nutzer: str = Form(""), passwort: str = Form(""), co
         # Auskunft daruber gibt, welche Haelfte schon stimmte.
         # *Failed attempts belong in the log; which half was already correct
         #  deliberately is not recorded.*
-        protokoll({"nutzer": nutzer or "—", "rolle": "—"},
+        protokoll({"nutzer": eingetippt or "—", "rolle": "—"},
                   "Anmeldung fehlgeschlagen", "", "abgelehnt", ip=ip)
         return login_form(request, "Anmeldung fehlgeschlagen.")
     fehlversuche.pop(ip, None)
@@ -3576,6 +3596,8 @@ def passkey_anmelden_start(request: Request, nutzer: str = Form(""),
         return Response("Zu viele Fehlversuche.", status_code=429)
     if not PASSKEY_MOEGLICH:
         return Response(status_code=501)
+    eingetippt = nutzer
+    nutzer = nutzer_finden(nutzer) or nutzer.strip()    # gespeicherter Name (#248)
     n = laden()["nutzer"].get(nutzer)
     passwort_ok = False
     if n:
@@ -3592,7 +3614,7 @@ def passkey_anmelden_start(request: Request, nutzer: str = Form(""),
     liste = (n or {}).get("passkeys") or []
     if not passwort_ok or not liste:
         fehlversuche.setdefault(ip, []).append(time.time())
-        protokoll({"nutzer": nutzer or "—", "rolle": "—"},
+        protokoll({"nutzer": eingetippt or "—", "rolle": "—"},
                   "Passkey-Anmeldung fehlgeschlagen", "", "abgelehnt", ip=ip)
         return Response("Anmeldung fehlgeschlagen.", status_code=401)
 
@@ -3776,7 +3798,11 @@ def nutzer_anlegen(request: Request, csrf: str = Form(""), name: str = Form(""),
     if not ist_admin(s):
         return RedirectResponse("/", 303)
     d = laden()
-    name = name.strip()
+    # Klein gespeichert (#248): Beim Anmelden spielt die Schreibweise keine Rolle
+    # mehr, zwei Konten "Ropax" und "ropax" darf es deshalb auch nicht geben.
+    # *Stored in lower case; login ignores case, so "Ropax" and "ropax" cannot
+    #  both exist.*
+    name = name.strip().lower()
     # Jede Bedingung einzeln, mit eigenem Text. Vorher war es eine einzige
     # Sammelbedingung mit wortloser Umleitung - man sah nur, dass nichts geschah.
     # *Each condition on its own, with its own message.*
@@ -3787,7 +3813,7 @@ def nutzer_anlegen(request: Request, csrf: str = Form(""), name: str = Form(""),
                  "keine Leerzeichen, Punkte, Bindestriche oder Unterstriche.")
     elif len(name) > 20:
         grund = f"Der Benutzername ist zu lang ({len(name)} Zeichen, erlaubt sind 20)."
-    elif name in d["nutzer"]:
+    elif any(k.casefold() == name.casefold() for k in d["nutzer"]):
         grund = f"Den Benutzer „{name}“ gibt es bereits."
     elif len(passwort) < 10:
         grund = (f"Das Passwort ist zu kurz ({len(passwort)} Zeichen, "
