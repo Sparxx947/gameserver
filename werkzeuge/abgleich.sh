@@ -114,11 +114,34 @@ PAARE=(
 #  auto-update and restart-recovery arrived. Nine deployed files were never
 #  compared while the run still reported zero deviations.*
 
-gleich=0; anders=0; fehlt=0
+# Manche Dateien gehoeren nur auf manche Maschinen (#196): die Palworld-
+# Neustartzeitgeber nur dorthin, wo Palworld installiert ist, der dns-ziel-
+# Zeitgeber nur zu SERVER_IPV4=dynamic. Die Liste kannte nur "muss da sein" -
+# "0 fehlend" war damit auf fast jeder Maschine unerreichbar, und eine Zahl,
+# die immer "2, wie immer" sagt, uebersieht die dritte. Fehlt eine solche Datei
+# dort, wo sie nicht gilt, heisst das "entfaellt"; ist sie trotzdem da, wird
+# sie verglichen wie jede andere.
+# *Some files belong on some machines only. Absent where they do not apply
+#  counts as "not applicable", not "missing"; present, they are compared.*
+PALWORLD_DA=$(ssh "$ZIEL" 'test -d /opt/stacks/palworld && echo ja' 2>/dev/null || true)
+gilt_hier() {
+  case "$1" in
+    /etc/systemd/system/palworld-neustart.*) [ "$PALWORLD_DA" = ja ] ;;
+    /etc/systemd/system/dns-ziel.*)          [ "$SERVER_IPV4" = dynamic ] ;;
+    *)                                       return 0 ;;
+  esac
+}
+
+gleich=0; anders=0; fehlt=0; entfaellt=0
 for p in "${PAARE[@]}"; do
   lokal="$REPO/${p%%:*}"; fern="${p#*:}"
   if ! ssh "$ZIEL" "test -f '$fern'" 2>/dev/null; then
-    printf '  FEHLT auf dem Server  %s\n' "$fern"; fehlt=$((fehlt+1)); continue
+    if gilt_hier "$fern"; then
+      printf '  FEHLT auf dem Server  %s\n' "$fern"; fehlt=$((fehlt+1))
+    else
+      printf '  entfaellt hier        %s\n' "$fern"; entfaellt=$((entfaellt+1))
+    fi
+    continue
   fi
   # Die Ausschlussliste traegt zur Laufzeit angehaengte Bloecke je installiertem
   # Spiel ("# >>> panel:<name> ... # <<< panel:<name>"). Sie beschreiben den
@@ -357,8 +380,14 @@ done
 erwartet=$(mktemp)
 { printf '%s\n' "${PAARE[@]}" | sed -n 's|.*:/usr/local/bin/||p'
   echo ttyd            # kommt von GitHub, liegt aber am selben Ort
-} | sort -u > "$erwartet"
-fremd=$(ssh "$ZIEL" 'ls -1 /usr/local/bin 2>/dev/null' | sort | comm -23 - "$erwartet")
+} | LC_ALL=C sort -u > "$erwartet"
+# LC_ALL=C (#196): Die deutsche Sortierung uebergeht Bindestriche, die C-Sortierung
+# nicht - und die Werkzeugnamen stecken voller Bindestriche. comm warnte bei jedem
+# Lauf, und sein Ergebnis war damit undefiniert. vollstaendigkeit.sh macht es an
+# derselben Stelle schon so.
+# *Pinned collation: German sorting ignores hyphens, comm then warns and its
+#  result is undefined.*
+fremd=$(ssh "$ZIEL" 'ls -1 /usr/local/bin 2>/dev/null' | LC_ALL=C sort | LC_ALL=C comm -23 - "$erwartet")
 rm -f "$erwartet"
 if [ -n "$fremd" ]; then
   echo
@@ -371,5 +400,9 @@ if [ -n "$fremd" ]; then
 fi
 
 echo
-printf 'deckungsgleich: %d   abweichend: %d   fehlend: %d\n' "$gleich" "$anders" "$fehlt"
+printf 'deckungsgleich: %d   abweichend: %d   fehlend: %d' "$gleich" "$anders" "$fehlt"
+# "entfaellt" nur, wenn es etwas gibt - die Zeile bleibt fuer alles, was sie
+# liest, dieselbe (#196).
+[ "$entfaellt" -gt 0 ] && printf '   entfaellt hier: %d' "$entfaellt"
+printf '\n'
 [ $((anders + fehlt)) -eq 0 ] || exit 1

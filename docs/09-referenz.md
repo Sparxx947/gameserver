@@ -409,6 +409,19 @@ Vergleicht das Repositorium mit einer laufenden Maschine — **33 Prüfpunkte**:
 | selbst gezeichnete Titelbilder | byte-genau |
 | Katalogbilder | nur Vollständigkeit — die Steam-Header liegen nicht im Repositorium |
 
+**Nicht jede Datei gehört auf jede Maschine (#196).** Die Palworld-Neustartzeitgeber
+müssen nur dort stehen, wo Palworld installiert ist, `dns-ziel.*` nur bei
+`SERVER_IPV4=dynamic`. Fehlt so eine Datei, wo sie nicht gilt, meldet der
+Abgleich `entfaellt hier` statt `FEHLT` — sonst wäre „fehlend: 0" auf den
+meisten Maschinen unerreichbar gewesen, und „2, wie immer" übersieht die dritte.
+Steht sie trotzdem da, wird sie verglichen wie jede andere. Alle `sort`/`comm`
+laufen mit `LC_ALL=C`: Die deutsche Sortierung übergeht Bindestriche, und
+`comm` warnte vorher bei jedem Lauf.
+
+> *Not every file belongs on every machine: absent where it does not apply
+> counts as "not applicable", not missing; present, it is compared. Sorting is
+> pinned to C collation — comm used to warn on every run.*
+
 Die letzten vier Punkte fehlten zunächst. Aufgefallen ist das erst, als ein
 Dependabot-PR `requirements.txt` änderte und der Abgleich von Hand nachgezogen
 werden musste — **eine Prüfung, die einen Bereich gar nicht ansieht, meldet ihn
