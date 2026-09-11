@@ -350,6 +350,14 @@ gleichen Namens, den jemand von Hand angelegt hat, übernimmt das Werkzeug als
 „von Hand angelegt" und löscht ihn nie. Die Bestätigungsseite „Server entfernen"
 sagt **vor** dem Klick, was mit dem Kanal geschieht.
 
+**Namen.** Ein Kanal heißt wie sein Server: bei Katalogspielen der Name aus
+`panel.json`, sonst der Katalogname, sonst der Stackname mit großem
+Anfangsbuchstaben (Enshrouded, Palworld … — die von Hand gebauten Server haben
+keinen anderen Namen). Weicht der Soll-Name später ab, etwa nach einer Änderung
+des Namensmusters, benennt der Abgleich Kanäle um, die Platzwart angelegt hat —
+aber nur, wenn sie noch so heißen, wie Platzwart sie genannt hat. Hat ein Mensch
+einen Kanal umbenannt, gewinnt der Mensch.
+
 **Flutschutz.** ServerQuery erreicht TeamSpeak über das Docker-Gateway, nicht
 von `127.0.0.1` — die Anfragen stehen also nicht auf seiner Allowlist. Gemessen:
 drei Anmeldungen kurz hintereinander, und TeamSpeak antwortete `client is
@@ -383,7 +391,9 @@ Administratorrechte — Jens' Entscheidung, E33.
 > never in a page request — triggered after installs and removals and every five
 > minutes; `/opt/stacks` is the only list of servers. Deleted only if untouched:
 > created by Platzwart (stored id, not name), not renamed or moved, no
-> subchannels, nobody inside — otherwise kept, audited and reported. The removal
+> subchannels, nobody inside — otherwise kept, audited and reported. Names come
+> from panel.json, the catalogue or the capitalised stack name; a changed target
+> name renames Platzwart's channels unless a person renamed them. The removal
 > confirmation page says which before the click. ServerQuery is flood-limited
 > (measured), so commands are paced. Discord works the same with a bot (a
 > webhook cannot create channels): its own public category, one text channel per

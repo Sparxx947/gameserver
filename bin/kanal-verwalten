@@ -51,6 +51,7 @@ DISCORD_API = os.environ.get("KANAL_DISCORD_API", "https://discord.com/api/v10")
 ZUORDNUNG = DATEN / "kanaele-zuordnung.json"  # von hier geschrieben
 AUDIT = DATEN / "audit.jsonl"
 STACKS = Path(os.environ.get("KANAL_STACKS", "/opt/stacks"))
+KATALOG = Path(os.environ.get("KANAL_KATALOG", "/etc/spiele-katalog.json"))
 SPERRE = os.environ.get("KANAL_SPERRE", "/run/kanal-verwalten.lock")
 # Die Anfrage kommt beim TeamSpeak-Server ueber das Docker-Gateway an, nicht von
 # 127.0.0.1 - sie steht also NICHT auf seiner Allowlist und unterliegt dem
@@ -254,18 +255,47 @@ def einstellung_discord() -> dict:
             "muster": e.get("muster") or "{name}"}
 
 
+def anzeigename(stack: str, pj: dict, katalog: dict) -> str:
+    """Name eines Servers fuer seinen Kanal. Rein.
+
+    panel.json (Katalogspiele) -> Katalogname -> Stackname mit grossem
+    Anfangsbuchstaben. Die von Hand gebauten Server (enshrouded, palworld ...)
+    haben weder panel.json noch Katalogeintrag, und ihre Kanaele hiessen
+    deshalb klein; Jens wollte "schoene Namen" (2026-09-11).
+    *panel.json -> catalogue name -> stack name capitalised.*
+    """
+    if isinstance(pj, dict) and pj.get("name"):
+        return str(pj["name"])
+    if katalog.get(stack):
+        return str(katalog[stack])
+    return stack[:1].upper() + stack[1:]
+
+
 def server() -> dict:
     """{stack: Anzeigename} - aus /opt/stacks, der einen Wahrheit."""
+    kat = {e.get("schluessel"): e.get("name") for e in lies_json(KATALOG, {}).get("spiele", [])}
     raus = {}
     for d in sorted(STACKS.glob("*/compose.yaml")):
         s = d.parent.name
         if s in NICHT_ALS_KANAL:
             continue
-        name = s
-        pj = lies_json(d.parent / "panel.json", {})
-        if isinstance(pj, dict) and pj.get("name"):
-            name = str(pj["name"])
-        raus[s] = name
+        raus[s] = anzeigename(s, lies_json(d.parent / "panel.json", {}), kat)
+    return raus
+
+
+def umzubenennen(eintraege: dict, soll: dict) -> list:
+    """[(stack, art, eintrag, soll_name)] - wo der Soll-Name vom gespeicherten
+    abweicht, fuer Eintraege, die Platzwart selbst angelegt hat. Ob der Kanal
+    seitdem von Hand umbenannt wurde, prueft der Aufrufer am echten Kanal:
+    Dann gewinnt der Mensch. Rein.
+    *Entries created by Platzwart whose name differs from the target; the caller
+     checks the live channel - a human rename wins.*"""
+    raus = []
+    for s, arten in eintraege.items():
+        for art, e in arten.items():
+            ziel = soll.get((s, art))
+            if ziel and not e.get("fremd") and e.get("name") != ziel:
+                raus.append((s, art, e, ziel))
     return raus
 
 
@@ -304,10 +334,12 @@ def abgleich_ts() -> int:
     da = server()
     fehlend = [s for s in da if s not in kanaele_von]
     weg = [s for s in kanaele_von if s not in da]
+    neu_name = umzubenennen({s: {"ts": v} for s, v in kanaele_von.items() if s in da},
+                            {(s, "ts"): kanalname(e["muster"], da[s]) for s in da})
     # Nichts zu tun, nichts zu verbinden: Der Timer laeuft alle paar Minuten, und
     # jede Anmeldung steht im TeamSpeak-Log.
     # *Nothing to do, no connection: every login shows up in TeamSpeak's log.*
-    if not fehlend and not weg:
+    if not fehlend and not weg and not neu_name:
         print("ok\tnichts zu tun")
         return 0
     try:
@@ -346,6 +378,14 @@ def abgleich_ts() -> int:
             ts[s] = {"cid": r[0]["cid"], "name": name, "cpid": ober["cid"], "seit": int(time.time())}
             angelegt.append(name)
             protokoll("TeamSpeak-Kanal angelegt", s, name=name, cid=r[0]["cid"])
+        for s, _, eintrag, ziel in neu_name:
+            k = kanaele.get(str(eintrag.get("cid")))
+            if not k or k.get("channel_name") != eintrag.get("name"):
+                continue                     # weg oder von Hand umbenannt: der Mensch gewinnt
+            q.befehl(f"channeledit cid={int(eintrag['cid'])} channel_name={ts_esc(ziel)}")
+            protokoll("TeamSpeak-Kanal umbenannt", s, alt=eintrag["name"], name=ziel)
+            angelegt.append(f"{eintrag['name']} -> {ziel}")
+            eintrag["name"] = ziel
         for s in weg:
             eintrag = ts[s]
             loeschen, grund = urteil_entfernen(eintrag, kanaele)
@@ -373,7 +413,7 @@ def abgleich_ts() -> int:
                "Der Server ist entfernt, sein Kanal bleibt stehen, weil ihn ein Mensch zu seinem "
                "gemacht hat oder er nicht leer ist:\n" + "\n".join(stehen))
     print("ok\tTeamSpeak: " + ("; ".join(x for x in [
-        f"angelegt: {', '.join(angelegt)}" if angelegt else "",
+        f"angelegt/umbenannt: {', '.join(angelegt)}" if angelegt else "",
         f"geloescht: {', '.join(geloescht)}" if geloescht else "",
         f"stehen gelassen: {', '.join(stehen)}" if stehen else ""] if x) or "erledigt"))
     return 0
@@ -589,7 +629,10 @@ def abgleich_discord() -> int:
     # *Missing = a server lacks its text OR voice channel; older ones get voice added.*
     fehlend = [(s, a) for s in da for a in ARTEN if a not in von.get(s, {})]
     weg = [s for s in von if s not in da]
-    if not fehlend and not weg:
+    neu_name = umzubenennen({s: v for s, v in von.items() if s in da},
+                            {(s, a): (d_name(kanalname(e["muster"], da[s])) if a == "text" else kanalname(e["muster"], da[s]))
+                             for s in da for a in ARTEN})
+    if not fehlend and not weg and not neu_name:
         print("ok\tDiscord: nichts zu tun")
         return 0
     z = discord_zugang()
@@ -634,6 +677,16 @@ def abgleich_discord() -> int:
                 angelegt.append(("🔊 " if art == "sprache" else "#") + r["name"])
                 protokoll("Discord-Kanal angelegt", s, name=r["name"], id=r["id"], art=art)
             dc[s] = eintrag
+        for s, art, eintrag, ziel in neu_name:
+            k = kanaele.get(str(eintrag.get("id")))
+            if not k or k.get("name") != eintrag.get("name"):
+                continue                     # weg oder von Hand umbenannt: der Mensch gewinnt
+            time.sleep(PAUSE)
+            r = discord(z, "PATCH", f"/channels/{eintrag['id']}", {"name": ziel})
+            protokoll("Discord-Kanal umbenannt", s, alt=eintrag["name"], name=r.get("name", ziel), art=art)
+            angelegt.append(f"{eintrag['name']} -> {r.get('name', ziel)}")
+            eintrag["name"] = r.get("name", ziel)
+            dc[s] = von[s]
         # Belegung nur messen, wenn ein Sprachkanal zum Loeschen ansteht.
         belegt = None
         if any("sprache" in von[s] for s in weg):
@@ -674,7 +727,7 @@ def abgleich_discord() -> int:
                "Der Server ist entfernt, sein Kanal bleibt stehen, weil ihn ein Mensch zu seinem "
                "gemacht hat, Nachrichten darin stehen oder jemand drin ist:\n" + "\n".join(stehen))
     print("ok\tDiscord: " + ("; ".join(x for x in [
-        f"angelegt: {', '.join(angelegt)}" if angelegt else "",
+        f"angelegt/umbenannt: {', '.join(angelegt)}" if angelegt else "",
         f"geloescht: {', '.join(geloescht)}" if geloescht else "",
         f"stehen gelassen: {', '.join(stehen)}" if stehen else "",
         f"Belegung nicht messbar, spaeter: {', '.join(spaeter)}" if spaeter else ""] if x) or "erledigt"))
@@ -841,6 +894,13 @@ def selbsttest() -> int:
     pruef("Sprachkanal Belegung unbekannt -> bleibt", urteil_discord(se, sk, None) == (False, "Belegung nicht messbar"))
     pruef("alte flache Form -> Textkanal", d_eintraege(de) == {"text": de})
     pruef("neue Form", d_eintraege({"text": de, "sprache": se}) == {"text": de, "sprache": se})
+    pruef("Anzeigename panel.json", anzeigename("valheim", {"name": "Valheim"}, {}) == "Valheim")
+    pruef("Anzeigename Katalog", anzeigename("x", {}, {"x": "Xonotic"}) == "Xonotic")
+    pruef("Anzeigename gross", anzeigename("enshrouded", {}, {}) == "Enshrouded")
+    u = umzubenennen({"a": {"sprache": {"name": "enshrouded"}}, "b": {"sprache": {"name": "Palworld"}},
+                      "c": {"sprache": {"name": "x", "fremd": True}}},
+                     {("a", "sprache"): "Enshrouded", ("b", "sprache"): "Palworld", ("c", "sprache"): "X"})
+    pruef("umzubenennen: nur abweichende, nie fremde", [(s, z) for s, _, _, z in u] == [("a", "Enshrouded")])
     print("alles gruen." if not schlecht else f"{schlecht} FEHLER")
     return 1 if schlecht else 0
 
