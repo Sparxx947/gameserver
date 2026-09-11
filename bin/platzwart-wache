@@ -216,6 +216,11 @@ def schleifen_befund(neustarts: int, seit_min: int, restarting: bool,
     return restarting or seit_min < frisch
 
 
+# Die Dienste dieses Projekts. Sicherung, Einrichtung, Wache selbst, Panel.
+EIGENE_UNITS = ["spiele-*", "platzwart-*", "spiel-*", "sicherung-*", "panel.service",
+                "caddy.service", "ttyd.service", "palworld-neustart*"]
+
+
 def lage() -> dict:
     """Was stimmt gerade nicht? Schluessel -> Text. Ein leeres Ergebnis heisst
     'alles in Ordnung' - und weil der Schluessel stabil ist, erkennt der
@@ -297,11 +302,39 @@ def lage() -> dict:
             continue
         if d.get("einrichtung_offen"):
             s = f.parent.name
+            # Seit #156/E26 haelt die Installation die oeffentlichen Ports
+            # zurueck, solange die Einrichtung offen ist. Hier stand "kann ohne
+            # Beitrittspasswort erreichbar sein" - das alarmierte in die falsche
+            # Richtung: Man suchte einen offenen Port, den es nicht gibt.
+            # *Since #156 the public ports are held back while setup is open;
+            #  the old wording alarmed in the wrong direction.*
             funde[f"offen:{s}"] = (
                 f"**{s}**: die Einrichtung ist nicht abgeschlossen.\n\n"
                 f"Stand: {str(d.get('einrichtung_stand', ''))[:200]}\n\n"
-                "Solange das so steht, kann der Server ohne Beitrittspasswort "
-                "erreichbar sein (siehe E23).")
+                "Solange das so steht, bleibt der Spielport zu - der Server ist "
+                "fuer niemanden erreichbar (E26).")
+
+    # --- Fehlgeschlagene eigene Dienste ---------------------------------------
+    # Am 2026-09-11 scheiterte die taegliche Vollsicherung an der Borg-Sperre,
+    # und niemand erfuhr es: spiele-sicherung gibt nur "MIT FEHLERN" aus, und
+    # diese Wache sah Container, Platte und Speicher - aber keine Dienste. Ein
+    # fehlgeschlagener Dienst bleibt "failed", bis er wieder gelingt; der
+    # Zustandsvergleich meldet also das Scheitern einmal und das Gelingen als
+    # "erledigt". Nur die eigenen Muster, nicht das ganze System.
+    # *The daily full backup failed on the lock on 2026-09-11 and nobody heard.
+    #  A failed unit stays failed until it succeeds again, so the state
+    #  comparison reports the failure once and the recovery as resolved.*
+    r = subprocess.run(["systemctl", "list-units", "--failed", "--plain", "--no-legend",
+                        *EIGENE_UNITS], capture_output=True, text=True)
+    for z in r.stdout.splitlines():
+        unit = z.split()[0] if z.split() else ""
+        if not unit:
+            continue
+        log = subprocess.run(["journalctl", "-u", unit, "-n", "4", "--no-pager", "-o", "cat"],
+                             capture_output=True, text=True).stdout.strip()
+        funde[f"dienst:{unit}"] = (
+            f"**{unit}** ist fehlgeschlagen.\n\n```\n{log[-600:]}\n```\n"
+            f"Nachsehen:  journalctl -u {unit} -n 50")
     return funde
 
 
@@ -405,7 +438,8 @@ def main() -> int:
                  "speicher": "Arbeitsspeicher wird knapp",
                  "schleife": "Server in der Neustartschleife",
                  "ungesund": "Server meldet sich als ungesund",
-                 "offen": "Server ohne Beitrittspasswort"}.get(art, art)
+                 "offen": "Einrichtung nicht abgeschlossen - Port bleibt zu",
+                 "dienst": "Dienst fehlgeschlagen"}.get(art, art)
         if not melden("stoerung", titel, text, trocken):
             fehler = 1
     for k in weg:
@@ -415,7 +449,8 @@ def main() -> int:
                  "speicher": "Arbeitsspeicher wieder in Ordnung",
                  "schleife": f"{wer} startet wieder durch",
                  "ungesund": f"{wer} meldet sich wieder gesund",
-                 "offen": f"{wer}: Einrichtung abgeschlossen"}.get(art, f"{k} erledigt")
+                 "offen": f"{wer}: Einrichtung abgeschlossen",
+                 "dienst": f"{wer} laeuft wieder durch"}.get(art, f"{k} erledigt")
         if not melden("meldung", titel, "Die Stoerung besteht nicht mehr.", trocken):
             fehler = 1
 
