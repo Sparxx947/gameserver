@@ -41,6 +41,35 @@ PW_MUSTER    = re.compile(r"^(?!.*(?:admin|rcon|steam|api|web|db|sql|mysql|token
 # sprechen den Server darueber an - ein fremder Wert bricht ihnen die Steuerung.
 ADMIN_MUSTER = re.compile(r"^(?!.*rcon)(?:.*(?:admin|owner).*(?:password|passwort|passwd|psw)|"
                           r".*(?:password|passwd|psw).*admin)", re.I)
+# Die Ausnahme oben hat eine Kehrseite: Sie liess auch OEFFENTLICH BEKANNTE
+# Vorlagenwerte stehen. ich777s Sven Co-op bringt rcon_password "adminDocker"
+# mit - und GoldSrc-RCON laeuft ueber UDP auf dem oeffentlichen Spielport.
+# DoD:Source und HL2DM tragen "rconDocker" (#173). Deshalb eine zweite, ENGE
+# Regel: Ein RCON-Feld wird ersetzt, wenn sein Wert exakt einer dieser Werte ist.
+# Ein Container, der RCON selbst verwaltet, traegt keinen davon - fuer ihn
+# bleibt alles, wie es war.
+# *The exception above also left publicly known template values in place; Sven
+#  Co-op ships "adminDocker", reachable over UDP on the public game port. So a
+#  second, narrow rule: an RCON field is replaced only if its value is exactly
+#  one of these. A container managing its own RCON carries none of them.*
+RCON_STANDARDWERTE = {"adminDocker", "rconDocker", "Docker", "ADMINPASSWORD", "REPLACEME",
+                      "changeme", "CHANGEME", "admin", "password", "rconpassword", "rcon"}
+RCON_STANDARD = re.compile(
+    r'(?P<kopf>(?<![A-Za-z0-9])[A-Za-z_.]*rcon[A-Za-z_.]*pass(?:word)?[A-Za-z_]*'
+    r'"?[ \t]*[:=]?[ \t]*)(?P<q>["\']?)(?P<wert>[^"\'\s,;]+)(?P=q)', re.I)
+
+
+def rcon_standard_ersetzen(text: str, wert: str):
+    """(neuer Text, Treffer) - nur Felder mit einem bekannten Standardwert. Rein."""
+    treffer = []
+    def ersetze(m):
+        if m.group("wert") not in RCON_STANDARDWERTE:
+            return m.group(0)
+        treffer.append(m.group("kopf").strip(' \t:="'))
+        return f'{m.group("kopf")}{m.group("q")}{wert}{m.group("q")}'
+    return RCON_STANDARD.sub(ersetze, text), treffer
+
+
 # Trennzeichen sind BELIEBIG: Minecraft schreibt "max-players", andere
 # "max_players", "maxPlayers" oder "MaxPlayerCount". Die erste Fassung kannte nur
 # Unterstrich und Zusammenschreibung - "max-players" fiel durch, die Spielerzahl
@@ -357,8 +386,16 @@ def einrichten(stack: str) -> dict:
     if not basis.exists():
         return {"fehler": "kein Datenverzeichnis"}
 
-    gefunden = {"passwort": [], "admin": [], "spieler": []}
+    gefunden = {"passwort": [], "admin": [], "spieler": [], "rcon": []}
     for f in dateien(basis):
+        try:
+            text = f.read_text(errors="replace")
+            neu, tr = rcon_standard_ersetzen(text, p["admin_passwort"])
+            if tr:
+                f.write_text(neu)
+                gefunden["rcon"] += [f"{f.name}:{x}" for x in tr]
+        except OSError:
+            pass
         gefunden["admin"]    += [f"{f.name}:{t}" for t in bearbeite(f, ADMIN_MUSTER, p["admin_passwort"])]
         gefunden["passwort"] += [f"{f.name}:{t}" for t in bearbeite(f, PW_MUSTER, p["passwort"])]
         gefunden["spieler"]  += [f"{f.name}:{t}" for t in bearbeite(f, SPIELER_MUSTER, p.get("spieler", 4), zahl=True)]
@@ -533,7 +570,7 @@ def lauf(nur=None):
                 stand += (f"; Spielerzahl NICHT gesetzt (Soll {p['spieler']}) - "
                           "kein passendes Feld gefunden, bitte von Hand setzen")
             p["einrichtung_stand"] = stand
-            if erg["passwort"] or erg["spieler"] or erg["admin"]:
+            if erg["passwort"] or erg["spieler"] or erg["admin"] or erg.get("rcon"):
                 neustart(stack)
         elif params:
             p["einrichtung_stand"] = params_stand

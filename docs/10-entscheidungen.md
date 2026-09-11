@@ -638,6 +638,18 @@ liegt sie vor.
 sind für jeden lokalen Benutzer lesbar. Ohne RCON-Passwort ist RCON ganz aus —
 das Sicherste, und das Panel braucht es nicht.
 
+**Nachtrag (#173):** Drei weitere Spiele laufen in dieselbe Falle und stehen
+jetzt ebenfalls auf `params` — NeoTokyo (keine Vorlage) und Alien Swarm samt
+Reactive Drop (deren `server.cfg`-Vorlage hat kein Passwortfeld). Und die
+Durchsicht aller ich777-Vorlagen fand **bekannte RCON-Standardwerte**:
+`adminDocker` bei Sven Co-op — GoldSrc-RCON läuft über UDP auf dem öffentlichen
+Spielport —, `rconDocker` bei DoD:Source und HL2DM. `spiel-einrichtung` lässt
+RCON-Felder bewusst in Ruhe, weil manche Container ihr RCON selbst verwalten.
+Eine zweite, enge Regel ersetzt ein RCON-Feld deshalb **nur**, wenn sein Wert
+exakt ein bekannter Standardwert ist; ein Container mit eigenem RCON trägt
+keinen davon. LinuxGSM ist nicht betroffen: Es ersetzt seinen Platzhalter
+`ADMINPASSWORD` bei der Installation durch einen Zufallswert.
+
 **Nachgewiesen von außen:** HLDM neu installiert, nach rund 2,5 Minuten
 bestätigt und veröffentlicht; A2S über die öffentliche Adresse meldet
 `Passwort nötig: ja`, RCON ist von außen zu, SSH als Kontrollwert offen.
@@ -651,4 +663,8 @@ bestätigt und veröffentlicht; A2S über die öffentliche Adresse meldet
 > and the port published, queried on the container address. There is no
 > six-hour give-up for this type — having measured "no password", nothing is
 > published. No `+rcon_password`, because start parameters are visible in the
-> process list; RCON stays off. Verified from outside after a fresh install.*
+> process list; RCON stays off. Verified from outside after a fresh install.
+> Addendum (#173): three more games moved to `params`; and known RCON defaults
+> from ich777 templates (`adminDocker` for Sven Co-op, reachable over UDP on the
+> public game port) are now replaced by a narrow rule that only touches exact
+> known default values. LinuxGSM randomises its placeholder at install.*
