@@ -286,7 +286,10 @@ except Exception:
     chown -R "${besitzer:-4711:4711}" "$basis" 2>/dev/null
     # 4. Nur wieder starten, wenn er vorher lief
     [ $lief -eq 1 ] && { cd "/opt/stacks/$s" && docker compose up -d >/dev/null 2>&1; }
-    echo "ok\tIst-Stand gesichert unter $sich"
+    # printf statt echo: echo gibt "\t" woertlich aus, und das Panel zeigt den
+    # Text roh an - beim ersten echten Restore stand dort "ok\tIst-Stand ...".
+    # *printf, not echo: echo printed "\t" literally into the panel.*
+    printf 'Zurueckgespielt. Der Stand davor liegt unter %s - nach der Pruefung loeschen, er wird sonst vom naechtlichen Volllauf mitgesichert.\n' "$sich"
     ;;
   konfig-lesen)
     # Gibt NUR die Felder aus, die ueber die Oberflaeche geaendert werden duerfen.
