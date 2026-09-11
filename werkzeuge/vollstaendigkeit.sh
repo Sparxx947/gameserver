@@ -205,9 +205,12 @@ fi
 # CLAUDE.md; gemerkt hat sie niemand, weil nichts hinsah.
 #
 # Erlaubt sind genau die Bereiche, die keinen Ort verraten: Loopback, 0.0.0.0,
-# die privaten Netze (RFC 1918), der Tailscale-Bereich (RFC 6598) und die drei
-# Dokumentationsnetze aus RFC 5737. Alles andere ist ein Fund - auch eine
-# fremde Adresse, denn die gehoert genauso wenig hierher.
+# die privaten Netze (RFC 1918), der Tailscale-Bereich (RFC 6598), die drei
+# Dokumentationsnetze aus RFC 5737, Link-local (169.254/16) und Multicast samt
+# reserviertem Rest (224/3) - die letzten beiden nennt install/assistent.sh als
+# "nicht oeffentlich", keine davon ist je die Adresse eines Standorts. Alles
+# andere ist ein Fund - auch eine fremde Adresse, denn die gehoert genauso wenig
+# hierher.
 #
 # Das "(?<!§)" ist kein Schmuck: "§4.2.1.1" (NIST SP 800-63B-4) und "§3.1.3.1"
 # sehen wie IPv4 aus. Ohne diese Ausnahme meldet die Pruefung zwei Abschnitts-
@@ -218,7 +221,7 @@ fi
 echo "== Keine echten IP-Adressen? =="
 treffer=$(grep -rPoh '(?<!§)(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?![\d.])' \
             --exclude-dir=.git --exclude=konfiguration.env --exclude='vollstaendigkeit.sh' . \
-          | sort -u | grep -vE '^(127\.|0\.0\.0\.0$|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.|100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.|192\.0\.2\.|198\.51\.100\.|203\.0\.113\.)' || true)
+          | sort -u | grep -vE '^(127\.|0\.0\.0\.0$|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.|100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.|192\.0\.2\.|198\.51\.100\.|203\.0\.113\.|169\.254\.|2(2[4-9]|[3-5][0-9])\.)' || true)
 if [ -n "$treffer" ]; then
   echo "  STANDORTDATEN — echte Adressen gehoeren nicht ins Repositorium:"
   sed 's/^/    /' <<<"$treffer"

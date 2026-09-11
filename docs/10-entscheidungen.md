@@ -1195,3 +1195,49 @@ auf der laufenden Maschine „Platzwart" (Vorgabe im Code: „Spieleserver").
 > the rename also counts as "touched", so the channel is not deleted when the
 > server is removed. The parent channel and the category are called "Platzwart"
 > on the running machine (default in the code: "Spieleserver").*
+
+---
+
+## E34 — Der Assistent ergänzt die Stufen, er ersetzt sie nicht
+
+**Naheliegend wäre:** ein neues Einrichtungsprogramm, das alles selbst tut —
+Fragen, Pakete, Benutzer, Dienste — und die Stufenskripte ablöst.
+
+**Stattdessen** schreibt `install/assistent.sh` nur, was die Stufen als Eingabe
+brauchen (`konfiguration.env`, die Zugangsdateien, Benutzer, Schlüssel,
+Passwort), und ruft dann **dieselben Stufen** auf, mit denen die laufende
+Maschine gebaut wurde (#258).
+
+**Warum:** Die Stufen sind erprobt, einzeln wiederholbar und von `abgleich.sh`
+gedeckt. Ein zweiter Einrichtungsweg liefe mit ihnen auseinander — genau die
+Abweichung zwischen Beschreibung und Wirklichkeit, gegen die dieses
+Repositorium gebaut ist. Was der Assistent hinzufügt, ist das, was die Stufen
+nicht können, weil es **vor** ihnen passieren muss: Fallen erkennen, die sonst
+spät und hart zuschlagen — die Passwortanmeldung wird abgeschaltet, ohne dass ein
+Schlüssel liegt; SSH ist danach nur von einer Adresse erlaubt, an der man gerade
+nicht sitzt; der Host-Schlüssel des Sicherungsservers ist unbekannt und Stufe 50
+scheitert im `BatchMode`; der Admin hat kein Passwort für `sudo`; die
+Erstanmeldung scrollt weg.
+
+**Dagegen:** Der Assistent muss ohne `lib.sh` auskommen (das bricht ohne gültige
+Konfiguration ab) und hält deshalb eigene Prüfregeln — dieselben Regeln an zwei
+Stellen. Abgefedert durch die Gegenprobe: Die geschriebene Datei wird von
+`lib.sh` beim ersten Stufenlauf erneut geprüft, und wer eine Regel nur an einer
+Stelle ändert, fällt dort auf.
+
+> *E34 — the assistant complements the stages rather than replacing them. The
+> obvious route would be a new installer doing everything itself. Instead
+> `install/assistent.sh` writes only what the stages take as input
+> (configuration, credential files, user, key, password) and then calls the same
+> stages that built the running machine (#258). Why: the stages are proven,
+> individually repeatable and covered by the comparison tool; a second setup path
+> would drift from them — exactly the gap between description and reality this
+> repository is built against. What the assistant adds is what the stages cannot
+> do because it must happen before them: catching traps that otherwise hit late
+> and hard — password login switched off with no key on file, SSH allowed only
+> from an address you are not at, the backup server's unknown host key failing
+> stage 50 in BatchMode, an admin without a sudo password, the initial login
+> scrolling away. Against: the assistant cannot use `lib.sh` (which aborts
+> without a valid configuration) and so keeps its own validation — the same
+> rules in two places, cushioned by `lib.sh` re-checking the written file on the
+> first stage run.*

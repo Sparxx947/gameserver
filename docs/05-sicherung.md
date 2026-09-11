@@ -308,6 +308,21 @@ kann, verliert den Fortschritt der Sitzung.
 
 ### Ganzer Server verloren
 
+**Geführt:** `install/assistent.sh`, Weg 2 „Wiederaufbau" — er erledigt die
+Schritte unten in einer durchdachten Reihenfolge (Stufe 50 erst **nach** dem
+Zurückspielen, sonst sichert ihr Probelauf eine leere Maschine), wählt je Präfix
+das neueste Archiv vor seinem Start und übernimmt DNS-Token und Webhooks auf
+Rückfrage aus `etc-*`; die Katalogblöcke der Ausschlussliste baut
+`spiel-verwalten katalog-abgleich` neu. Beschrieben in
+[11-neueinrichtung.md](11-neueinrichtung.md#9-wiederaufbau-aus-der-sicherung).
+Von Hand:
+
+> *Guided: `install/assistent.sh`, path 2 "rebuild", does the steps below in a
+> considered order (stage 50 only after the restore, or its test run backs up an
+> empty machine), picks per prefix the newest archive before its start and takes
+> DNS token and webhooks from `etc-*` on request; `katalog-abgleich` rebuilds the
+> exclusion list's catalogue blocks. Described in 11-neueinrichtung.md. By hand:*
+
 1. Neue Maschine nach [02-installation.md](02-installation.md) aufsetzen,
    Stufen 10 bis 50.
 2. **Borg-Passphrase** von ihrem zweiten Ablageort holen und nach
@@ -316,7 +331,15 @@ kann, verliert den Fortschritt der Sitzung.
    ```bash
    cd / && borg extract "$REPO::config-20260906-040000"
    ```
-4. Je Spiel den letzten Stand auspacken (siehe oben).
+4. Je Spiel den letzten Stand auspacken (siehe oben) — auf einer **neuen**
+   Maschine mit `--numeric-ids`: Ohne den Schalter stellt Borg Eigentümer nach
+   **Namen** her, und trägt die neue Maschine denselben Benutzernamen unter
+   einer anderen UID, gehört die Welt danach der falschen Nummer. Container
+   kennen nur Nummern (FOUNDRY läuft fest als 1000). Im Container nachgestellt:
+   ohne den Schalter kam UID 1000 als 1001 zurück.
+   ```bash
+   cd / && borg extract --numeric-ids "$REPO::<spiel>-<zeitstempel>"
+   ```
 5. **Panel-Daten** zurückholen — Benutzer, zweite Faktoren, Passkeys,
    Zugangsdaten, Protokoll:
    ```bash
@@ -339,7 +362,9 @@ kann, verliert den Fortschritt der Sitzung.
 
 > *Total loss: rebuild stages 10–50, restore the passphrase from its off-host
 > copy, extract the `config-*` archive for the compose files, extract each game's
-> latest state, extract the `panel-*` archive (users, second factors, passkeys,
+> latest state (on a new machine with `--numeric-ids` — by name, a same-named
+> user with another uid would own the world and a fixed-uid container could no
+> longer write; reproduced: uid 1000 came back as 1001), extract the `panel-*` archive (users, second factors, passkeys,
 > credentials, audit log, the Steam key, the TeamSpeak and Discord logins and the
 > channel mapping — owner and modes come along) and restart the panel, take only
 > the missing files from the `etc-*` archive (DNS token, webhook file, exclusion

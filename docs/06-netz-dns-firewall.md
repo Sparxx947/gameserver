@@ -120,8 +120,19 @@ der still nichts tut, sieht erledigt aus — dieselbe Falle wie ein DDNS-Name in
 
 **Was mit `SSH_PASSWORT_AUTH=yes` noch davorsteht:** die ufw-Regel auf `ADMIN_IP`
 und fail2ban (drei Fehlversuche in einer Stunde, 48 h Sperre). Zusammen mit
-`ADMIN_NETZ=0.0.0.0/0` bleibt davon nur fail2ban — diese beiden Zeilen gehören
+`ADMIN_IP=0.0.0.0/0` bleibt davon nur fail2ban — diese beiden Zeilen gehören
 also zusammen betrachtet.
+
+**`ADMIN_IP` und `ADMIN_NETZ` sind zwei verschiedene Dinge** (#259): `ADMIN_IP`
+ist die ufw-Regel — von wo Port 22 überhaupt ankommt, eine Adresse oder ein
+Netz. `ADMIN_NETZ` ist allein die Ausnahmeliste von fail2ban (`ignoreip`) und hat
+mit dem Zugang nichts zu tun. Wer keine feste Heimadresse hat, setzt
+`ADMIN_IP=0.0.0.0/0`, aber **nie** `ADMIN_NETZ=0.0.0.0/0` — das nähme jede Adresse
+der Welt von fail2ban aus, und die Sperre wäre wirkungslos. Dafür etwas Enges wie
+`127.0.0.1/32`; sperrt man sich dann selbst aus, ist das Tailnet der Rückweg. Bis
+#259 stand es in der Vorlage verkehrt herum („Netz, aus dem SSH erlaubt ist … wer
+keine hat: 0.0.0.0/0"); `install/assistent.sh` setzt die beiden Werte seither
+passend zueinander.
 
 **Schlägt `sshd -t` fehl, bricht die Stufe ab** und nimmt die Datei zurück (auf
 die Sicherung `.vor-<datum>`, sonst wird sie entfernt). Vorher wurde nur der
@@ -146,7 +157,15 @@ Weg nach root zu.
 > `PermitRootLogin yes` together with `SSH_PASSWORT_AUTH=no` aborts the install —
 > not wrong, but without effect, and a value that quietly does nothing looks
 > handled. With passwords on, only the ufw rule on `ADMIN_IP` and fail2ban
-> remain. A failing `sshd -t` now aborts the stage and rolls the file back;
+> remain; with `ADMIN_IP=0.0.0.0/0` only fail2ban. `ADMIN_IP` and `ADMIN_NETZ`
+> are two different things (#259): `ADMIN_IP` is the ufw rule — where port 22 is
+> accepted from at all, an address or a network; `ADMIN_NETZ` is only fail2ban's
+> exception list (`ignoreip`) and has nothing to do with access. Without a static
+> home address set `ADMIN_IP=0.0.0.0/0` but never `ADMIN_NETZ=0.0.0.0/0`, which
+> would exempt every address in the world and make the ban useless; use something
+> narrow like `127.0.0.1/32` and the tailnet as the way back. Until #259 the
+> template said it the wrong way round; `install/assistent.sh` now sets the two
+> consistently. A failing `sshd -t` now aborts the stage and rolls the file back;
 > previously only the reload was skipped, and the rejected file waited for the
 > next restart of the daemon. The backup deliberately does not end in `.conf`,
 > because sshd includes exactly `*.conf` and takes the FIRST value for a repeated
