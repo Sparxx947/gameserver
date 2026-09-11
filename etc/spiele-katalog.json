@@ -2112,7 +2112,7 @@
    "appid": 322330,
    "image": "ghcr.io/ich777/steamcmd:dontstarve",
    "mem_gb": 2,
-   "platte_gb": 2,
+   "platte_gb": 6,
    "ports": [
     "10890:10890/udp",
     "30014:27016/udp",
@@ -2136,13 +2136,16 @@
    },
    "adresse_port": 10890,
    "spieler": 4,
-   "hinweis": "Abweichender Port (Standard war belegt): 27016->30014. This Docker will download and install SteamCMD. It will also install Don't Starve Together and run it. ATTENTION: After the first complete startup (you can see it in the log) copy your 'cluster_token.txt' in the 'token/Cluster_1' … Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "hinweis": "Abweichender Port (Standard war belegt): 27016->30014. Braucht ein eigenes Cluster-Token von Klei: Ohne startet der Server nicht (E_EXPIRED_TOKEN). Token unter accounts.klei.com (Game Servers) erzeugen und im Panel unter Konfigdateien in .klei/DoNotStarveTogether/Cluster_1/cluster_token.txt eintragen, dann neu starten. Das Beitrittspasswort (cluster_password in cluster.ini, Vorlage: 'Docker') setzt die Einrichtung. Workshop-Mods (serverfiles/ugc_mods) werden mitgesichert; die Hoehlen sind aus.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
    ],
    "bauart": "ich777",
-   "kategorie": "survival"
+   "kategorie": "survival",
+   "ordner": [
+    ".klei/DoNotStarveTogether"
+   ]
   },
   {
    "schluessel": "dys",

@@ -240,6 +240,24 @@ Testserver: zwei aktuelle Mods eingetragen, neu gestartet — `2 workshop item(s
 requested … Installed workshop item` für beide; eine Project-Zomboid-ID wird
 abgewiesen („gehört zu einem anderen Spiel (App 108600)").
 
+**Don't Starve Together** braucht wie Project Zomboid zwei Stellen:
+`ServerModSetup("<id>")` in `serverfiles/mods/dedicated_server_mods_setup.lua`
+(was der Server beim Start herunterlädt) und `["workshop-<id>"]={ enabled=true }`
+in `Cluster_1/Master/modoverrides.lua` (was er davon lädt). Die ID ist hier
+schon der Name — kein Vorabladen. `modoverrides.lua` ist Lua-Code, in dem ein
+Eintrag Moduleinstellungen tragen kann; `workshop` fügt deshalb nur fehlende
+Einträge ein und entfernt beim Austragen genau den eigenen Block, mit
+Klammerzählung, die Zeichenketten und Kommentare überspringt. Handeinstellungen
+(`configuration_options`), Kommentare und `ServerModCollectionSetup`-Zeilen
+bleiben stehen; ein vorhandener, abgeschalteter Eintrag wird eingeschaltet. Der
+Server lädt und aktiviert Mods schon **vor** der Anmeldung bei Klei; der Inhalt
+landet unter `serverfiles/ugc_mods/Cluster_1/Master/content/322330/<id>`.
+Nachgewiesen am Testserver, auch über den Panel-Weg nach einer frischen
+Installation (`Loading mod: workshop-374550642 (Increased Stack size)`, `…
+(Global Positions)`). Nur der Shard `Master`: Die Höhlen sind im Katalog aus und
+nicht gemessen — wer sie einschaltet, muss dort `modoverrides.lua` von Hand
+pflegen.
+
 **Aufräumen.** Beim Speichern löscht `workshop` den Inhalt **jeder** nicht
 eingetragenen ID, nicht nur der gerade ausgetragenen — Mods werden mitgesichert,
 und die Sicherung soll nicht mit Totem wachsen. Alle, weil Steam am
@@ -257,6 +275,10 @@ räumt ihn weg. Nur Ordner mit reinem Zahlennamen, keine Symlinks.
 > needs both `WorkshopItems=` and `Mods=`; the mod id comes from `mod.info`, so
 > the content is pre-fetched with the image's steamcmd. Unturned has one list,
 > `File_IDs` in `WorkshopDownloadConfig.json`, and downloads itself at start.
+> Don't Starve Together needs `ServerModSetup` in the setup file and an enabled
+> entry in `modoverrides.lua` (Lua: only missing entries are added, only our
+> own block is removed, by brace counting that skips strings and comments;
+> the Master shard only).
 > Saving deletes the content of every id not listed (Steam once restored a
 > deleted folder). Both proven end to end on test servers.*
 

@@ -363,6 +363,22 @@ def installieren(sch: str):
                 u = p / unter
                 u.mkdir(exist_ok=True)
                 os.chown(u, PUID, PGID)
+            # Weitere Ordner, die ein Image voraussetzt, ohne sie anzulegen - aus
+            # dem Katalog ("ordner"). Don't Starve Together ruft "mkdir" OHNE -p
+            # auf .klei/DoNotStarveTogether/Cluster_1 auf; fehlt der Elternordner,
+            # legt sich der Container schlafen ("sleep infinity") und startet nie
+            # (gemessen 2026-09-11, #130).
+            # *Further folders an image expects but never creates, from the
+            #  catalogue. DST runs mkdir without -p and otherwise sleeps forever.*
+            for unter in g.get("ordner", []):
+                if Path(unter).is_absolute() or ".." in Path(unter).parts:
+                    fehler(f"Katalog: unzulaessiger Ordner {unter!r}")
+                u = p
+                for teil in Path(unter).parts:
+                    u = u / teil
+                    if not u.exists():
+                        u.mkdir()
+                        os.chown(u, PUID, PGID)
 
     datei = verz / "compose.yaml"
     datei.write_text(compose_bauen(g, pw, admin))
