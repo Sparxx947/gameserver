@@ -440,6 +440,31 @@ except Exception:
     printf %s "$n" | grep -qE '^[A-Za-z0-9._-]{1,100}$' || fehler "unzulaessiger Name"
     exec /usr/local/bin/mod-verwalten entfernen "$s" "$n"
     ;;
+  workshop)
+    # Steam-Workshop-Mods (#130). Jeder Parameter mit eigener Schranke (Grenze 2):
+    # der Unterbefehl aus einer festen Liste, die ID nur Ziffern, der Suchtext
+    # und der eingefuegte Link aus einem engen Zeichenvorrat. Die eigentliche
+    # Pruefung - gehoert die ID zu GENAU diesem Spiel? - macht workshop selbst
+    # bei Steam. Hier nur die billigere, aeussere Schranke.
+    # *Each parameter gets its own allow-list; whether an id belongs to exactly
+    #  this game is checked by workshop itself against Steam.*
+    was="${2:-}"; s="${3:-}"; x="${4:-}"; pruefe_stack "$s"
+    case "$was" in
+      kann|liste) exec /usr/local/bin/workshop "$was" "$s" ;;
+      hinzu|weg)
+        printf %s "$x" | grep -qE '^[0-9]{3,12}$' || fehler "unzulaessige Workshop-ID"
+        exec /usr/local/bin/workshop "$was" "$s" "$x" ;;
+      pruefen)
+        printf %s "$x" | grep -qE '^[A-Za-z0-9:/?=&._%-]{1,200}$' || fehler "unzulaessiger Link oder unzulaessige ID"
+        exec /usr/local/bin/workshop pruefen "$s" "$x" ;;
+      suche)
+        seite="${5:-1}"
+        printf %s "$x" | grep -qE '^[A-Za-z0-9ÄÖÜäöüß ._-]{1,60}$' || fehler "unzulaessiger Suchtext"
+        printf %s "$seite" | grep -qE '^[0-9]{1,2}$' || fehler "unzulaessige Seite"
+        exec /usr/local/bin/workshop suche "$s" "$x" "$seite" ;;
+      *) fehler "unbekannte Workshop-Aktion" ;;
+    esac
+    ;;
   schlaf)
     # Leerlauf-Abschaltung je Server. Eigene Liste, aus demselben Grund wie beim
     # Auto-Update: Die panel.json haben nur ueber den Katalog installierte

@@ -4563,7 +4563,7 @@
    "kurz": "Isometrisches Zombie-Survival, lange Runden",
    "appid": 108600,
    "image": "ghcr.io/ich777/steamcmd:projectzomboid",
-   "mem_gb": 4,
+   "mem_gb": 10,
    "platte_gb": 6,
    "ports": [
     "16261:16261/udp",
@@ -4589,10 +4589,9 @@
    },
    "adresse_port": 16261,
    "spieler": 4,
-   "hinweis": "Verwaltungszugang (TCP - RCON Port) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30005. This Docker will download and install SteamCMD. It will also install Project Zomboid and run it. Servername: 'Docker ProjectZomboid' Password: 'Docker' AdminPassword: 'adminDocker' ATTENTION: First Startup can take very long since… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung.",
+   "hinweis": "Verwaltungszugang (TCP - RCON Port) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30005. This Docker will download and install SteamCMD. It will also install Project Zomboid and run it. Servername: 'Docker ProjectZomboid' Password: 'Docker' AdminPassword: 'adminDocker' ATTENTION: First Startup can take very long since… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung. Speicher 10 GB: Build 42 startet seine Java-VM mit -Xmx8g; mit 4 GB wurde der Server beim Laden der Karte vom Kernel beendet und startete alle 45 s neu (gemessen 2026-09-11). Workshop-Mods werden mitgesichert.",
    "ausschluss": [
-    "steamcmd",
-    "serverfiles/steamapps"
+    "steamcmd"
    ],
    "bauart": "ich777",
    "kategorie": "survival"

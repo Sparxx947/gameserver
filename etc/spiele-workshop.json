@@ -1,0 +1,15 @@
+{
+  "_hinweis": "Workshop-Anbindung je Spiel (#130): wo der Server seine Liste von Workshop-IDs erwartet und in welcher Form. Nichts wird geraten - steht ein Spiel hier nicht, gibt es fuer seine Server keinen Workshop-Abschnitt. Pfade relativ zu /srv/games/<stack>; jede Angabe ist an einem echten Server gemessen.",
+  "_english": "Workshop binding per game: where the server expects its list of Workshop ids and in which form. Nothing is guessed; every entry was measured on a real server.",
+  "spiele": {
+    "projectzomboid": {
+      "art": "zomboid",
+      "datei": "serverfiles/Zomboid/Server/servertest.ini",
+      "inhalt": "serverfiles/steamapps/workshop/content/108600",
+      "appid_workshop": 108600,
+      "steamcmd": "/serverdata/steamcmd/steamcmd.sh",
+      "install_dir": "/serverdata/serverfiles",
+      "gemessen": "2026-09-11, Build 42.20.4: WorkshopItems= und Mods= in servertest.ini, Inhalt unter serverfiles/steamapps/workshop, mod.info unter mods/<Name>/42/ oder common/"
+    }
+  }
+}
