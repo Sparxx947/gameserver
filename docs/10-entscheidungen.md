@@ -885,8 +885,11 @@ Steam diesem Spiel zuordnet; Mods werden mitgesichert, der Ausschluss
 
 **Nebenbefunde der Messung:** Project Zomboid (Build 42) startet seine Java-VM mit
 `-Xmx8g`; mit den 4 GB des Katalogs wurde der Server beim Laden der Karte vom
-Kernel beendet und startete alle 45 s neu — der Eintrag hat jetzt 10 GB. Und bei
-allen ich777-Spielen sichert Borg die ganze Spielinstallation mit (#221).
+Kernel beendet und startete alle 45 s neu — der Eintrag hat jetzt 10 GB. Bei
+allen ich777-Spielen sichert Borg die ganze Spielinstallation mit (#221). Und
+Unturned ist über Steams Relay per „Server Code" erreichbar, **ohne** dass ein
+Port veröffentlicht ist — während sein Beitrittspasswort in einer beim ersten
+Start leeren `Commands.dat` steht, die die Einrichtung nicht füllen kann (#223).
 
 > *The obvious design, an own downloader, was rejected: these game servers fetch
 > Workshop items themselves from a list in their config, so the panel only
@@ -895,6 +898,7 @@ allen ich777-Spielen sichert Borg die ganze Spielinstallation mit (#221).
 > danger is the number: every id is looked up and must belong to exactly this
 > game. Jens' decisions: the four games, search via a key on the Integrations
 > page, verwalten may use it, mods are backed up. Side findings: Project
-> Zomboid needs more than 4 GB (`-Xmx8g`), and ich777 games back up their whole
-> install (#221).*
+> Zomboid needs more than 4 GB (`-Xmx8g`), ich777 games back up their whole
+> install (#221), and Unturned is joinable through Steam's relay by server code
+> without any published port while its password file starts empty (#223).*
 
