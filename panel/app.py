@@ -39,7 +39,6 @@ NUTZERDATEI = Path("/opt/panel/daten/nutzer.json")
 # StarRupture (RSA-verschluesselt). Diese Eintraege koennen veralten — deshalb
 # werden sie in der Anzeige deutlich von den automatisch gelesenen getrennt.
 EIGENE = Path("/opt/panel/daten/zugangsdaten.json")
-ALTKONFIG = Path("/opt/panel/konfig.json")
 BILDER = Path("/opt/panel/bilder")
 AKTION = ["/usr/bin/sudo", "-n", "/usr/local/bin/panel-aktion"]
 # BORG_REPO=aus schaltet die Sicherung ab. Die Oberflaeche blendet dann alle
@@ -139,11 +138,15 @@ fehlversuche: dict[str, list[float]] = {}
 #
 #   Datei da und lesbar    -> sie gilt
 #   Datei da, kaputt       -> klarer Fehler, der die Datei nennt (echter Vorfall)
-#   keine Datei, Altdatei  -> einmalige Uebernahme wie bisher
-#   keine Datei, nichts    -> noch kein Benutzer: leerer Zustand, NUR im Speicher.
+#   keine Datei            -> noch kein Benutzer: leerer Zustand, NUR im Speicher.
 #                             NICHT schreiben - install/30-panel.sh legt den
 #                             ersten Benutzer nur an, wenn es die Datei noch
 #                             nicht gibt; eine leere Datei verhinderte ihn.
+# Die einmalige Uebernahme aus der alten Einzelnutzer-Datei /opt/panel/konfig.json
+# ist seit #216 weg: Sie konnte nur Installationen von vor den Rollen betreffen -
+# genau eine Maschine, laengst uebernommen. Die Altdatei stand dort noch und trug
+# das AKTUELLE Sitzungs-Secret, den Passwort-Hash und das TOTP-Geheimnis - eine
+# zweite Kopie gueltiger Zugangsdaten.
 # *Four states; until #197 "no user file" always meant "migrate the old
 #  single-user config", i.e. a traceback about a file that is correctly absent
 #  on every new machine. No file and no legacy file is now "no user yet", held
@@ -159,13 +162,6 @@ def laden() -> dict:
             raise RuntimeError(f"{NUTZERDATEI} ist vorhanden, aber nicht lesbar ({e}). "
                                "Das ist KEIN frischer Zustand - Eigentuemer (panel:panel, 600) "
                                "und Inhalt pruefen, notfalls aus der Sicherung holen.") from None
-    if ALTKONFIG.exists():
-        # Einmalige Uebernahme der alten Einzelnutzer-Konfiguration.
-        alt = json.loads(ALTKONFIG.read_text())
-        daten = {"secret": alt["secret"], "nutzer": {alt["nutzer"]: {
-            "passwort_hash": alt["passwort_hash"], "totp": alt["totp"], "rolle": "admin"}}}
-        speichern(daten)
-        return daten
     return {"secret": _OHNE_NUTZER_SECRET, "nutzer": {}}
 
 
