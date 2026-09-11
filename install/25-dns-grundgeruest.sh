@@ -65,9 +65,63 @@ dns-pflegen anbieter || fehler "Anbieter oder Token nicht brauchbar — $KONF pr
 log "Fehlende Eintraege anlegen"
 dns-pflegen grundgeruest || fehler "DNS-Grundgeruest fehlgeschlagen — Token, Zone und DNS_ZIEL pruefen"
 
-# Der Rest des DNS — die CNAMEs der Spiele und der Zeitgeber fuer den
-# A-Eintrag — bleibt in Stufe 70. Hier steht nur, was VOR dem Zertifikat da
-# sein muss; alles andere darf warten, bis es Spiele gibt.
-# *The rest of the DNS work stays in stage 70. Only what must exist before the
-#  certificate belongs here.*
-log "Stufe 25 fertig. Spiel-CNAMEs und Zeitgeber: install/70-dns.sh"
+# --- Zeitgeber fuer den A-Eintrag ------------------------------------
+# Der Zeitgeber stand frueher in Stufe 70 - und Stufe 70 steht NICHT in der
+# Vorgabeliste von einrichten.sh. Eine vollstaendig und dokumentiert
+# durchgelaufene Einrichtung liess bei SERVER_IPV4=dynamic also genau den
+# Automatismus aus, den konfiguration.env zusagt ("misst seine oeffentliche
+# IPv4 alle fuenf Minuten und traegt sie selbst ein"). Jede Stufe meldete
+# Erfolg, der Abschlusstext bot 70-dns als eine von mehreren Zugaben an, und
+# niemand hatte einen Grund nachzusehen. Bemerkt haette man es, wenn die
+# Adresse wechselt: A-Eintrag veraltet, Spiel-CNAMEs zeigen mit, und das
+# Zertifikat des Panels erneuert sich nicht mehr - vier Schritte entfernt von
+# der Ursache.
+#
+# Er gehoert hierher und nicht in eine Zugabe: Bei einer wechselnden Adresse
+# ist der gepflegte A-Eintrag genau das, was diese Stufe laut ihrer eigenen
+# Beschreibung sicherstellt - naemlich das, was VOR dem Zertifikat stehen muss
+# und stehen BLEIBEN muss.
+#
+# *The timer used to live in stage 70, which is not in the default stage list,
+#  so a complete documented installation silently omitted the automation
+#  konfiguration.env promises for SERVER_IPV4=dynamic. Every stage reported
+#  success and nobody had a reason to look; it surfaces only when the address
+#  changes, four steps away from the cause. With a changing address the
+#  maintained A record is exactly what this stage exists to guarantee.*
+log "Zeitgeber fuer den A-Eintrag einsetzen"
+for u in dns-ziel.service dns-ziel.timer; do
+  einsetzen "$REPO/systemd/$u" "/etc/systemd/system/$u"
+done
+systemctl daemon-reload
+
+# Der alte Name des Werkzeugs. Entfernt wird er ERST NACH dem Einsetzen der
+# Einheit: bis dahin ruft dns-ziel.service noch /usr/local/bin/cf-dns. Wer ihn
+# frueher wegnimmt, bricht den Zeitgeber fuer die Dauer der Aktualisierung -
+# an einer Stelle, an der niemand sucht.
+# *Removed after the unit is in place: until then dns-ziel.service still calls
+#  the old path, and removing it sooner breaks the timer mid-upgrade.*
+rm -f /usr/local/bin/cf-dns
+
+if [ "$IP_DYNAMISCH" = "ja" ]; then
+  # SERVER_IPV4=dynamic: der A-Eintrag gehoert ab hier diesem Programm. Deshalb
+  # wird er auch angelegt, wenn er fehlt - anders als im festen Betrieb, wo er
+  # der einzige haendisch gepflegte Ort mit der Adresse ist und bewusst nicht
+  # automatisch entsteht.
+  # *With dynamic this program owns the record and creates it; in fixed mode it
+  #  stays hand-made.*
+  log "Adresse messen und A-Eintrag setzen"
+  dns-pflegen ziel-setzen || fehler "A-Eintrag ${DNS_ZIEL} konnte nicht gesetzt werden"
+  systemctl enable --now dns-ziel.timer
+else
+  # Feste Adresse: der Zeitgeber bleibt aus. Er liegt trotzdem auf der Maschine,
+  # damit ein Wechsel auf "dynamic" nur eine Zeile in konfiguration.env ist.
+  # *Fixed address: timer off but installed, so switching is one line.*
+  systemctl disable --now dns-ziel.timer 2>/dev/null || true
+  log "SERVER_IPV4 ist fest (${SERVER_IPV4}) — Zeitgeber bleibt aus"
+fi
+
+# Die CNAMEs der Spiele bleiben in Stufe 70: die duerfen warten, bis es Spiele
+# gibt. Der Zeitgeber darf das nicht.
+# *Game CNAMEs stay in stage 70 - those may wait until there are games. The
+#  timer may not.*
+log "Stufe 25 fertig. Spiel-CNAMEs: install/70-dns.sh"

@@ -120,8 +120,24 @@ Legt bei Cloudflare an, was **vor** dem Zertifikat da sein muss: den A-Eintrag
 
 Angelegt wird ausschließlich, **was fehlt**. Ein vorhandener Eintrag bleibt
 unangetastet, auch wenn er woandershin zeigt — er gehört dann einem Menschen
-(siehe [E21](10-entscheidungen.md)). Das Nachführen bleibt Sache von
-`ziel-setzen` und des Zeitgebers aus Stufe 70.
+(siehe [E21](10-entscheidungen.md)).
+
+**Setzt außerdem `dns-ziel.service` und `dns-ziel.timer` ein.** Ob der Timer
+läuft, entscheidet `SERVER_IPV4`:
+
+* **feste IPv4** — der Timer bleibt aus, und der A-Eintrag `DNS_ZIEL` wird
+  **nicht** automatisch angelegt. Er ist dann der einzige Ort mit der Adresse und
+  gehört in die Hand eines Menschen.
+* **`dynamic`** — die Stufe misst die öffentliche IPv4 einmal sofort, legt den
+  A-Eintrag an oder zieht ihn nach und schaltet den Timer ein. Ab da geschieht
+  das alle fünf Minuten (E21).
+
+Der Timer liegt in beiden Fällen auf der Maschine; ein Wechsel ist eine Zeile in
+`konfiguration.env` und ein erneuter Lauf dieser Stufe. Bis #195 stand er in
+Stufe 70 — die **nicht** in der Vorgabeliste von `einrichten.sh` steht. Eine
+vollständig durchgelaufene Einrichtung ließ bei `dynamic` also genau den
+Automatismus aus, den `konfiguration.env` zusagt, und jede Stufe meldete dabei
+Erfolg.
 
 Ohne `/etc/dns-gameserver.conf` (oder den älteren Ort) wird die Stufe übersprungen, nicht
 abgebrochen: DNS von Hand zu pflegen ist ein zulässiger Betrieb. Nachholen
@@ -245,27 +261,21 @@ Legt für jeden vorhandenen Stack einen CNAME auf `DNS_ZIEL` an und prüft
 anschließend, dass kein Eintrag `proxied` ist: Cloudflares Proxy kann nur HTTP
 und HTTPS, ein Spielport dahinter ist von außen tot.
 
-Setzt außerdem `dns-ziel.service` und `dns-ziel.timer` ein. Ob der Timer läuft,
-entscheidet `SERVER_IPV4`:
-
-* **feste IPv4** — der Timer bleibt aus, und der A-Eintrag `DNS_ZIEL` wird
-  **nicht** automatisch angelegt. Er ist dann der einzige Ort mit der Adresse und
-  gehört in die Hand eines Menschen.
-* **`dynamic`** — die Stufe misst die öffentliche IPv4 einmal sofort, legt den
-  A-Eintrag an oder zieht ihn nach und schaltet den Timer ein. Ab da geschieht
-  das alle fünf Minuten. Begründung in `docs/10-entscheidungen.md`, E21.
-
-Der Timer liegt in beiden Fällen auf der Maschine; ein Wechsel ist eine Zeile in
-`konfiguration.env` und ein erneuter Lauf dieser Stufe.
+**Der Zeitgeber für den A-Eintrag gehört seit #195 zu Stufe 25** und wird hier
+nicht mehr angefasst — zweimal dieselbe Einheit einzusetzen und zu schalten wäre
+schlimmer als der Fehler, der es veranlasst hat: Zwei solche Stellen laufen
+auseinander, und dann entscheidet die Reihenfolge der Aufrufe, ob der Timer
+läuft. Bei fester Adresse zeigt diese Stufe nur noch den Zielsatz an.
 
 > *Stage 70: needs a scoped Cloudflare token (Zone / DNS / Edit, own zone only —
 > never the global key). Creates one CNAME per stack pointing at `DNS_ZIEL` and
 > verifies nothing is proxied: Cloudflare's proxy only speaks HTTP(S), so a game
-> port behind it is dead. It also installs `dns-ziel.service` and its timer.
-> With a fixed `SERVER_IPV4` the timer stays off and the `DNS_ZIEL` A record is
-> deliberately not automated — it is the single place holding the IP. With
-> `SERVER_IPV4=dynamic` the stage measures the public IPv4 once, creates or
-> updates the record and enables the timer, which then repeats every five
+> port behind it is dead. The A-record timer belongs to stage 25 since #195 and
+> is not touched here: installing and toggling one unit from two places drifts
+> apart, and then call order decides whether the timer runs. With a fixed
+> address this stage only shows the target record. Stage 25 measures the public
+> IPv4 once under `dynamic`, creates or updates the record and enables the
+> timer, which then repeats every five
 > minutes. The timer is installed either way, so switching is one line in
 > `konfiguration.env` plus a re-run of this stage.*
 

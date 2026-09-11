@@ -32,41 +32,25 @@ fi
 
 chmod 600 "$KONF"
 
-log "Zeitgeber fuer den A-Eintrag einsetzen"
-for u in dns-ziel.service dns-ziel.timer; do
-  einsetzen "$REPO/systemd/$u" "/etc/systemd/system/$u"
-done
-systemctl daemon-reload
+# Der Zeitgeber fuer den A-Eintrag steht seit #195 in Stufe 25 und NICHT mehr
+# hier. Der Anlass ist zugleich der Grund: Stufe 70 steht nicht in der
+# Vorgabeliste von einrichten.sh, und bei SERVER_IPV4=dynamic fehlte damit nach
+# einer vollstaendig durchgelaufenen Einrichtung genau der Automatismus, den
+# konfiguration.env zusagt.
+#
+# Es hier ZUSAETZLICH zu tun waere schlimmer als der urspruengliche Fehler: zwei
+# Stellen, die dieselbe Einheit einsetzen und ein- oder ausschalten, geraten
+# irgendwann auseinander, und dann entscheidet die Reihenfolge der Aufrufe
+# darueber, ob der Zeitgeber laeuft. Das ist die Sorte Frage, die man im
+# Stoerungsfall nicht beantworten will.
+#
+# *The A-record timer lives in stage 25 since #195 and no longer here: stage 70
+#  is not in the default list, so a complete installation omitted the automation
+#  konfiguration.env promises. Doing it here as well would be worse than the
+#  original fault - two places installing and toggling one unit drift apart, and
+#  then call order decides whether the timer runs.*
 
-# Der alte Name des Werkzeugs. Entfernt wird er ERST HIER und nicht in Stufe 25
-# oder 30: bis die Einheit oben neu eingesetzt ist, ruft dns-ziel.service noch
-# /usr/local/bin/cf-dns. Wer ihn frueher wegnimmt, bricht den Zeitgeber fuer die
-# Dauer der Aktualisierung - und zwar an einer Stelle, an der niemand sucht.
-# *Removed here and not earlier: until the unit above is replaced,
-#  dns-ziel.service still calls the old path. Removing it sooner breaks the
-#  timer for the duration of the upgrade, somewhere nobody would look.*
-rm -f /usr/local/bin/cf-dns
-
-if [ "$IP_DYNAMISCH" = "ja" ]; then
-  # SERVER_IPV4=dynamic: der A-Eintrag gehoert ab hier diesem Programm. Deshalb
-  # wird er auch angelegt, wenn er fehlt — anders als im festen Betrieb, wo er
-  # der einzige haendisch gepflegte Ort mit der Adresse ist und bewusst nicht
-  # automatisch entsteht. Wer beides gleich behandelt, hat entweder einen
-  # Automatismus, der fremde Eintraege ueberschreibt, oder einen dynamischen
-  # Betrieb, der beim ersten Lauf an einem fehlenden Eintrag scheitert.
-  # *With SERVER_IPV4=dynamic this program owns the record and therefore creates
-  #  it; in fixed mode it stays hand-made. Treating both alike would either
-  #  overwrite foreign records or fail on the first run.*
-  log "Adresse messen und A-Eintrag setzen"
-  dns-pflegen ziel-setzen || fehler "A-Eintrag ${DNS_ZIEL} konnte nicht gesetzt werden"
-  systemctl enable --now dns-ziel.timer
-else
-  # Feste Adresse: der Zeitgeber bleibt aus. Er liegt trotzdem auf der Maschine,
-  # damit ein Wechsel auf "dynamic" nur eine Zeile in konfiguration.env ist.
-  # *Fixed address: the timer stays off but is installed, so switching to
-  #  "dynamic" is one line in konfiguration.env.*
-  systemctl disable --now dns-ziel.timer 2>/dev/null || true
-  log "SERVER_IPV4 ist fest (${SERVER_IPV4}) — Zeitgeber bleibt aus"
+if [ "$IP_DYNAMISCH" != "ja" ]; then
   log "Zielsatz pruefen"
   # Im festen Betrieb muss der A-Eintrag DNS_ZIEL von Hand existieren — er ist
   # der einzige Ort mit der IP-Adresse und wird deshalb bewusst NICHT
