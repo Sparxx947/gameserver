@@ -60,6 +60,18 @@ SSH_KONF=/etc/ssh/sshd_config.d/99-gameserver.conf
 # *The backup does not end in ".conf", which matters: sshd includes only
 #  "*.conf" and takes the FIRST value for a repeated key, so a backup that was
 #  read along would beat the new setting rather than merely add to it.*
+# Eigene Sicherung, VOR einsetzen und unabhaengig davon. einsetzen legt seine
+# ".vor-<datum>" nur an, wenn sich der Inhalt aendert - bei gleichem Inhalt gibt
+# es keine. Ein "nimm die neueste .vor-Datei" griffe dann auf eine beliebig alte
+# zurueck und stellte stillschweigend eine aeltere Konfiguration her. Beim Test
+# am 2026-09-11 fiel genau das auf: der Rueckweg muss den Stand von JETZT
+# kennen, nicht den letzten, der zufaellig herumliegt.
+# *Own backup, taken before einsetzen and independent of it: einsetzen only
+#  creates its ".vor-<date>" when the content changes, so "take the newest one"
+#  could silently restore an arbitrarily old config.*
+SSH_VORHER=$(mktemp)
+[ -f "$SSH_KONF" ] && cp -a "$SSH_KONF" "$SSH_VORHER"
+
 einsetzen "$REPO/etc/ssh/sshd_config.d/99-gameserver.conf" "$SSH_KONF"
 
 # "sshd -t" MUSS den Lauf anhalten. Vorher stand hier "sshd -t && systemctl
@@ -73,11 +85,12 @@ einsetzen "$REPO/etc/ssh/sshd_config.d/99-gameserver.conf" "$SSH_KONF"
 #  broken file waited for the next restart of the daemon - when nobody is
 #  watching. Roll back and abort while the current session still holds.*
 if ! sshd -t 2>&1; then
-  letzte=$(ls -1t "$SSH_KONF".vor-* 2>/dev/null | head -1)
-  if [ -n "$letzte" ]; then mv "$letzte" "$SSH_KONF"; else rm -f "$SSH_KONF"; fi
+  if [ -s "$SSH_VORHER" ]; then cp -a "$SSH_VORHER" "$SSH_KONF"; else rm -f "$SSH_KONF"; fi
+  rm -f "$SSH_VORHER"
   fehler "sshd lehnt $SSH_KONF ab - zurueckgenommen, SSH unveraendert." \
          "SSH_PASSWORT_AUTH und SSH_ROOT_LOGIN in konfiguration.env pruefen."
 fi
+rm -f "$SSH_VORHER"
 systemctl reload ssh || fehler "sshd -t war in Ordnung, der Neustart scheiterte trotzdem"
 
 # Der gefaehrliche Zustand ist nicht "Passwoerter an", sondern "Passwoerter an,
