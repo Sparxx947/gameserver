@@ -87,10 +87,18 @@ und alles auf `tailscale0`. **Spielports stehen bewusst nicht drin** — die mac
 Docker selbst auf, und zwar an ufw vorbei (siehe
 [06-netz-dns-firewall.md](06-netz-dns-firewall.md)).
 
+**Was die SSH-Härtung setzt:** `SSH_PASSWORT_AUTH` und `SSH_ROOT_LOGIN` aus
+`konfiguration.env`, Vorgabe `no` und `prohibit-password` — Anmeldung nur mit
+Schlüssel. Lehnt `sshd -t` die Datei ab, nimmt die Stufe sie zurück und bricht
+ab, statt weiterzulaufen. Die Werte und ihre Folgen stehen in
+[06-netz-dns-firewall.md](06-netz-dns-firewall.md#ssh).
+
 > *Stage 10: packages, the three users, SSH hardening, ufw and fail2ban. ufw
 > opens 22 from `ADMIN_NETZ` only, 80/443 for everyone, and everything on
 > `tailscale0`. Game ports are deliberately absent — Docker opens those itself,
-> bypassing ufw.*
+> bypassing ufw. SSH hardening takes its two values from `konfiguration.env`,
+> defaulting to key-only login; a config `sshd -t` rejects is rolled back and
+> aborts the stage.*
 
 ### 20 — Docker
 

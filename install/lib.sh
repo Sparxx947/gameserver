@@ -19,7 +19,8 @@ set -a; . "$KONF"; set +a
 
 # Alle Variablen, die in Platzhaltern vorkommen duerfen.
 VARIABLEN=(DNS_ZONE DNS_ZIEL PANEL_DOMAIN SERVER_IPV4 WELT_NAME ADMIN_USER
-           ADMIN_NETZ ADMIN_IP BORG_REPO BORG_TAILSCALE_IP FREMD_IPV4)
+           ADMIN_NETZ ADMIN_IP BORG_REPO BORG_TAILSCALE_IP FREMD_IPV4
+           SSH_PASSWORT_AUTH SSH_ROOT_LOGIN)
 
 for v in "${VARIABLEN[@]}"; do
   [ -n "${!v}" ] || fehler "konfiguration.env: \$$v ist leer"
@@ -52,6 +53,46 @@ else
          "wechselnder Adresse \"dynamic\" eintragen, dann pflegt der Server den" \
          "A-Eintrag $DNS_ZIEL selbst (siehe docs/06-netz-dns-firewall.md)."
 fi
+# --- SSH ---------------------------------------------------------------------
+# SSH_PASSWORT_AUTH und SSH_ROOT_LOGIN tragen die Werte, die sshd selbst
+# versteht, und werden unveraendert nach /etc/ssh/sshd_config.d/99-gameserver.conf
+# durchgereicht. Eine eigene Sprache ("ja"/"nur-schluessel") waere eine
+# Uebersetzungsschicht, die genau einmal auseinanderlaeuft und dann eine
+# Konfiguration erzeugt, die anders heisst als das, was sshd tut.
+#
+# Geprueft wird gegen eine Positivliste, nicht gegen "ist nicht leer": ein
+# Tippfehler wie "prohibit_password" ergibt eine Datei, an der "sshd -t"
+# scheitert - und ein Dienst, der die neue Datei nicht laedt, bleibt bei der
+# alten Fassung und laeuft scheinbar richtig weiter.
+#
+# *Both carry sshd's own vocabulary and are passed through verbatim; a private
+#  spelling would be a translation layer that drifts exactly once. Checked
+#  against an allow-list rather than "not empty": a typo yields a file sshd
+#  refuses, and a daemon that fails to load it keeps the old one and looks fine.*
+case "$SSH_PASSWORT_AUTH" in
+  yes|no) ;;
+  *) fehler "konfiguration.env: SSH_PASSWORT_AUTH=\"$SSH_PASSWORT_AUTH\" ist" \
+            "weder \"no\" noch \"yes\". Der Wert geht unveraendert an sshd." ;;
+esac
+case "$SSH_ROOT_LOGIN" in
+  prohibit-password|no|yes|forced-commands-only) ;;
+  *) fehler "konfiguration.env: SSH_ROOT_LOGIN=\"$SSH_ROOT_LOGIN\" ist keiner der" \
+            "Werte, die PermitRootLogin kennt: prohibit-password, no, yes," \
+            "forced-commands-only." ;;
+esac
+# "PermitRootLogin yes" ohne Passwortanmeldung ist genau "prohibit-password":
+# root kommt so oder so nur mit Schluessel herein. Das ist dieselbe Falle wie ein
+# DDNS-Name in SERVER_IPV4 - ein Wert, der still nichts tut, sieht erledigt aus.
+# Wer root wirklich mit Passwort hereinlassen will, braucht beide Zeilen.
+# *"PermitRootLogin yes" without password auth IS prohibit-password. A value
+#  that quietly does nothing looks handled.*
+if [ "$SSH_ROOT_LOGIN" = "yes" ] && [ "$SSH_PASSWORT_AUTH" = "no" ]; then
+  fehler "konfiguration.env: SSH_ROOT_LOGIN=yes wirkt nicht, solange" \
+         "SSH_PASSWORT_AUTH=no ist - root kaeme weiterhin nur mit Schluessel" \
+         "herein, also genau das, was prohibit-password bedeutet." \
+         "Entweder SSH_PASSWORT_AUTH=yes dazu, oder SSH_ROOT_LOGIN=prohibit-password."
+fi
+
 # BORG_REPO=aus schaltet die Sicherung vollstaendig ab: kein borg, keine
 # Passphrase, keine Timer, keine Archivliste in der Oberflaeche.
 #

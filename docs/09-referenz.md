@@ -644,6 +644,7 @@ schon einmal dazu geführt, dass Aufrufe still fehlschlugen.
 | `/etc/borg-ausschluss.txt` | `0644 root` | was nicht gesichert wird |
 | `/etc/caddy/Caddyfile` | `0644 root` | HTTPS, Vorschaltung, Kopfzeilen |
 | `/etc/fail2ban/jail.local` | `0644 root` | sshd-Jail, Ausnahmen |
+| `/etc/ssh/sshd_config.d/99-gameserver.conf` | `0644 root` | SSH-Härtung aus `SSH_PASSWORT_AUTH` und `SSH_ROOT_LOGIN` |
 | `/etc/sudoers.d/panel` | `0440 root` | die eine Rechteerweiterung |
 | `/etc/dns-gameserver.conf` | `0600 root` | `ANBIETER=…`, `TOKEN=…` |
 | `/etc/cloudflare-gameserver.conf` | `0600 root` | älterer Ort, wird noch gelesen |
@@ -694,7 +695,7 @@ nach einem Neuaufbau niemandem, und der Server kann nicht schreiben.
 
 | Port | Wo gebunden | Dienst |
 |---|---|---|
-| 22 | öffentlich, nur aus `ADMIN_NETZ` | SSH |
+| 22 | öffentlich, nur aus `ADMIN_NETZ` | SSH (Anmeldung: `SSH_PASSWORT_AUTH`) |
 | 80 | öffentlich | Caddy, nur für die Zertifikatsausstellung |
 | 443 | öffentlich | Caddy → Panel und Terminal |
 | 8099 | `127.0.0.1` | Panel (uvicorn) |
@@ -718,6 +719,8 @@ Alle in `konfiguration.env`, alle Pflicht:
 | `ADMIN_USER` | `admin` | `ttyd.service`, Benutzeranlage |
 | `ADMIN_NETZ` | `203.0.113.0/30` | `fail2ban` |
 | `ADMIN_IP` | `203.0.113.1` | `ufw`-Regel auf Port 22 |
+| `SSH_PASSWORT_AUTH` | `no` (Vorgabe) **oder** `yes` | `sshd_config.d/99-gameserver.conf`: `PasswordAuthentication` **und** `KbdInteractiveAuthentication` |
+| `SSH_ROOT_LOGIN` | `prohibit-password` (Vorgabe), `no`, `forced-commands-only`, `yes` | `sshd_config.d/99-gameserver.conf`: `PermitRootLogin`; `yes` nur zusammen mit `SSH_PASSWORT_AUTH=yes` |
 | `BORG_REPO` | `ssh://borg@…/…` **oder** `aus` | `spiele-sicherung`, `panel-aktion`, `spiel-verwalten`, `app.py`; `aus` schaltet die Sicherung ab |
 | `BORG_TAILSCALE_IP` | `100.100.100.100` | Dokumentation, Prüfungen (bei `BORG_REPO=aus` ebenfalls `aus`) |
 | `FREMD_IPV4` | `198.51.100.10` | Kommentar in `dns-pflegen` (Wildcard-Ziel) |

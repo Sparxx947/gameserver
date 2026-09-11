@@ -26,7 +26,8 @@ ssh -o ConnectTimeout=10 -o BatchMode=yes "$ZIEL" true 2>/dev/null \
   || { echo "Nicht erreichbar: $ZIEL"; exit 2; }
 
 VARIABLEN=(DNS_ZONE DNS_ZIEL PANEL_DOMAIN SERVER_IPV4 WELT_NAME ADMIN_USER
-           ADMIN_NETZ ADMIN_IP BORG_REPO BORG_TAILSCALE_IP FREMD_IPV4)
+           ADMIN_NETZ ADMIN_IP BORG_REPO BORG_TAILSCALE_IP FREMD_IPV4
+           SSH_PASSWORT_AUTH SSH_ROOT_LOGIN)
 
 # Repo-Fassung mit eingesetzten Werten erzeugen (wie die Einrichtung es taete).
 rendern() {
@@ -51,6 +52,7 @@ PAARE=(
   "etc/borg-ausschluss.txt:/etc/borg-ausschluss.txt"
   "etc/caddy/Caddyfile:/etc/caddy/Caddyfile"
   "etc/fail2ban/jail.local:/etc/fail2ban/jail.local"
+  "etc/ssh/sshd_config.d/99-gameserver.conf:/etc/ssh/sshd_config.d/99-gameserver.conf"
   "etc/sudoers.d/panel:/etc/sudoers.d/panel"
   "panel/app.py:/opt/panel/app.py"
   "systemd/panel.service:/etc/systemd/system/panel.service"

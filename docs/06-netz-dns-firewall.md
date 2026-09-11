@@ -57,6 +57,75 @@ ssh -L 10011:127.0.0.1:10011 gameserver
 
 ---
 
+## SSH
+
+Die Härtung steht in `/etc/ssh/sshd_config.d/99-gameserver.conf` und wird von
+Stufe 10 aus dem Repositorium eingesetzt — sie ist damit eine Datei wie jede
+andere: `abgleich.sh` vergleicht sie, `ausrollen.sh` rollt sie einzeln aus.
+
+```
+PasswordAuthentication        <SSH_PASSWORT_AUTH>
+KbdInteractiveAuthentication  <SSH_PASSWORT_AUTH>
+PermitRootLogin               <SSH_ROOT_LOGIN>
+X11Forwarding                 no
+```
+
+**Die Vorgabe ist `no` und `prohibit-password`** — Anmeldung nur mit Schlüssel,
+root nur mit Schlüssel. Das bleibt die Empfehlung für eine Maschine mit
+öffentlicher IPv4; die Protokolle zeigen dort binnen Stunden die ersten
+Anmeldeversuche. Beide Werte stehen in `konfiguration.env` und gehen
+**unverändert** an `sshd` — es sind sshd-eigene Wörter, keine übersetzten
+(E28).
+
+**Passwortanmeldung ist eine Variable, nicht zwei.** `PasswordAuthentication no`
+allein schaltet sie nicht ab: der PAM-Weg über
+`KbdInteractiveAuthentication` bleibt dann offen, während die Konfiguration
+aussieht, als wäre zu. Deshalb tragen beide Zeilen denselben Wert aus derselben
+Variablen.
+
+**`PermitRootLogin yes` bei `SSH_PASSWORT_AUTH=no` bricht die Einrichtung ab.**
+Die Kombination ist nicht falsch, sie ist wirkungslos: root käme weiterhin nur
+mit Schlüssel herein, also genau das, was `prohibit-password` bedeutet. Ein Wert,
+der still nichts tut, sieht erledigt aus — dieselbe Falle wie ein DDNS-Name in
+`SERVER_IPV4`.
+
+**Was mit `SSH_PASSWORT_AUTH=yes` noch davorsteht:** die ufw-Regel auf `ADMIN_IP`
+und fail2ban (drei Fehlversuche in einer Stunde, 48 h Sperre). Zusammen mit
+`ADMIN_NETZ=0.0.0.0/0` bleibt davon nur fail2ban — diese beiden Zeilen gehören
+also zusammen betrachtet.
+
+**Schlägt `sshd -t` fehl, bricht die Stufe ab** und nimmt die Datei zurück (auf
+die Sicherung `.vor-<datum>`, sonst wird sie entfernt). Vorher wurde nur der
+Reload übersprungen: Die Stufe meldete Erfolg, und die abgelehnte Datei wartete
+auf den nächsten Neustart des Dienstes — den Moment, in dem niemand zusieht. Die
+Sicherung endet bewusst nicht auf `.conf`, denn `sshd` bindet genau `*.conf` ein
+und nimmt bei doppelten Schlüsseln den **ersten** Wert; mitgelesen würde sie die
+neue Einstellung nicht ergänzen, sondern schlagen.
+
+**Der Rückweg, wenn man sich aussperrt:** das Tailnet (`ufw allow in on
+tailscale0`). Vor einer Änderung an `SSH_ROOT_LOGIN=no` prüfen, dass der
+Schlüssel von `ADMIN_USER` liegt und `sudo` dort funktioniert — sonst ist der
+Weg nach root zu.
+
+> *The hardening lives in a repository file installed by stage 10, so the
+> comparison tool covers it like any other. Default is key-only for everyone and
+> key-only for root, and that stays the recommendation on a public IPv4. Both
+> values come from `konfiguration.env` and reach `sshd` verbatim — sshd's own
+> vocabulary, not a translation (E28). Password auth is one variable, not two:
+> setting only `PasswordAuthentication no` leaves the PAM path through
+> `KbdInteractiveAuthentication` open while the config looks closed.
+> `PermitRootLogin yes` together with `SSH_PASSWORT_AUTH=no` aborts the install —
+> not wrong, but without effect, and a value that quietly does nothing looks
+> handled. With passwords on, only the ufw rule on `ADMIN_IP` and fail2ban
+> remain. A failing `sshd -t` now aborts the stage and rolls the file back;
+> previously only the reload was skipped, and the rejected file waited for the
+> next restart of the daemon. The backup deliberately does not end in `.conf`,
+> because sshd includes exactly `*.conf` and takes the FIRST value for a repeated
+> key. The way back in is the tailnet; before setting `SSH_ROOT_LOGIN=no`, check
+> that `ADMIN_USER` has its key and working `sudo`.*
+
+---
+
 ## ufw
 
 ```
@@ -74,15 +143,17 @@ erneuert das Zertifikat über HTTP-01, und Let's Encrypt ruft dafür
 das Zertifikat in 60 Tagen abläuft.
 
 **SSH nur aus einem Netz** setzt eine feste Adresse zuhause voraus. Wer keine
-hat, öffnet 22 für alle — der Schutz liegt dann allein bei der
-Schlüsselanmeldung (Passwörter sind ohnehin aus) und bei fail2ban. Als
+hat, öffnet 22 für alle — der Schutz liegt dann allein bei der Anmeldung selbst
+und bei fail2ban. Wie stark die Anmeldung ist, entscheidet `SSH_PASSWORT_AUTH`
+(siehe oben); bei der Vorgabe `no` ist es die Schlüsselanmeldung. Als
 Rückfallebene bleibt in beiden Fällen das Tailnet.
 
 > *Port 80 must stay open even though nothing useful is served there: Caddy
 > renews via HTTP-01. A closed port 80 stays unnoticed exactly until the
 > certificate expires 60 days later. Restricting SSH to one network assumes a
-> static address at home; without one, open 22 and rely on key-only auth plus
-> fail2ban. Either way Tailscale remains the fallback.*
+> static address at home; without one, open 22 and rely on the login itself plus
+> fail2ban — how strong that login is depends on `SSH_PASSWORT_AUTH`, key-only
+> at its default. Either way Tailscale remains the fallback.*
 
 ---
 
