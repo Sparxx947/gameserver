@@ -1242,31 +1242,45 @@ her. Details in [05-sicherung.md](05-sicherung.md).
 
 ## Alle Routen
 
+Rollen: **—** ohne Anmeldung · **alle** jede angemeldete Rolle · **verwalten**
+`verwalten` und `admin` · **admin** nur `admin`. Die Spalte nennt die **erste**
+Prüfung im Handler; was eine Seite danach je Rolle zeigt, steht beim jeweiligen
+Abschnitt. `werkzeuge/vollstaendigkeit.sh` prüft, dass jede Route aus
+`panel/app.py` hier steht (#179) — die vorige Tabelle kannte 22 von 61 Routen
+und führte `/konfig` und `/archive` noch als admin-only.
+
 | Methode | Pfad | Rolle | Zweck |
 |---|---|---|---|
-| GET | `/` | beide | Übersicht |
 | GET | `/login` · POST `/login` | — | Anmeldung |
-| GET | `/einrichten` · POST `/einrichten` | — | zweiten Faktor einrichten |
+| GET | `/einrichten` · POST `/einrichten` | — | zweiten Faktor einrichten (nur mit Einrichtungs-Token) |
 | GET | `/qr` | — | QR-Code (nur mit Einrichtungs-Token) |
-| GET | `/abmelden` | beide | Sitzung beenden |
-| POST | `/aktion` | beide | starten / anhalten / neu starten |
-| GET | `/server/{stack}` | alle (Inhalt je Rolle) | Einstellungen eines Servers |
-| GET | `/bild/{stack}` | beide | Titelbild eines Servers |
-| GET | `/katalogbild/{schluessel}` | admin | Titelbild aus dem Katalog |
-| GET | `/spiele` | admin | Katalog |
-| POST | `/installieren` | admin | Spiel installieren |
-| GET | `/deinstallieren-fragen/{stack}` | admin | Rückfrage |
-| POST | `/deinstallieren` | admin | Spiel entfernen |
-| GET | `/konfig/{stack}` · POST `/konfig-setzen` | admin | Felder ändern |
-| GET | `/archive/{stack}` | admin | Archivliste |
-| GET | `/restore-fragen/{…}` · POST `/restore` | admin | Wiederherstellung |
-| GET | `/passwoerter` | admin | Zugangsdaten |
-| POST | `/zugang-anlegen` · `/zugang-loeschen` | admin | selbst gepflegte Einträge |
-| GET | `/nutzer` | admin | Benutzerverwaltung |
-| POST | `/nutzer-anlegen` · `/mfa-zuruecksetzen` · `/nutzer-loeschen` | admin | Benutzer ändern |
+| POST | `/passkey/anmelden-start` · `/passkey/anmelden-fertig` | — | Anmeldung mit Passkey |
+| GET | `/abmelden` | — | Sitzung beenden |
+| GET | `/favicon.ico` · `/favicon.svg` · `/apple-touch-icon.png` · `/icon-192.png` · `/icon-512.png` · `/manifest.webmanifest` | — | Symbole, Handy-App |
+| GET | `/passkey.js` | — | Skript für Passkeys (nur `/login` und `/konto` dürfen es laden) |
+| GET | `/` | alle | Übersicht |
+| GET | `/bild/{stack}` · `/katalogbild/{schluessel}` | alle | Titelbilder |
+| POST | `/aktion` | alle | starten / anhalten / neu starten |
+| GET | `/server/{stack}` | alle | Einstellungen eines Servers — Inhalt je Rolle |
+| GET | `/archive/{stack}` | alle | Archivliste (Knöpfe darin je Rolle) |
+| GET | `/konto` · `/codes` · POST `/codes-neu` | alle | eigenes Konto, Wiederherstellungscodes |
+| POST | `/passkey/anlegen-start` · `/passkey/anlegen-fertig` · `/passkey-loeschen` | alle | eigene Passkeys |
+| GET | `/spiele` · POST `/installieren` | verwalten | Katalog, Spiel installieren |
+| GET | `/deinstallieren-fragen/{stack}` · POST `/deinstallieren` | verwalten | Katalogspiel entfernen |
+| POST | `/alle` | verwalten | alle anhalten / zuletzt laufende starten |
+| POST | `/aktualisieren` · `/auto-update` · `/leerlauf` | verwalten | Betrieb eines Servers |
+| GET | `/konfig/{stack}` · POST `/konfig-setzen` | verwalten | Umgebungsvariablen (Einzelfelder) |
+| GET | `/dateien/{stack}` · `/datei/{stack}` · POST `/datei-speichern` | verwalten | Konfigurationsdateien |
+| GET | `/logs/{stack}` | verwalten | Serverprotokoll |
+| GET | `/holen-fragen/{stack}/{archiv}` · `/archiv-holen/{stack}/{archiv}` | verwalten | Sicherung herunterladen |
+| GET | `/restore-fragen/{stack}/{archiv}` · POST `/restore` | verwalten | Wiederherstellung |
+| GET | `/passwoerter` · POST `/zugang-anlegen` · `/zugang-loeschen` | verwalten | Zugangsdaten |
+| GET | `/entfernen-fragen/{stack}` · POST `/fremd-entfernen` | admin | von Hand gebauten Server entfernen |
+| GET | `/mods/{stack}` · POST `/mod-hochladen` · `/mod-entfernen` | admin | Mods |
+| GET | `/nutzer` · POST `/nutzer-anlegen` · `/mfa-zuruecksetzen` · `/nutzer-loeschen` | admin | Benutzerverwaltung |
+| GET | `/protokoll` | admin | Protokoll aller Aktionen |
 | GET | `/neustart-fragen` · POST `/neustart` | admin | Maschine neu starten |
-| GET | `/auth-check` | admin | interne Prüfung für Caddy |
-| GET | `/favicon.ico` · `/favicon.svg` · `/apple-touch-icon.png` | — | Symbole |
+| GET | `/auth-check` | admin | interne Prüfung für Caddy (Terminal) |
 
 `docs_url`, `redoc_url` und `openapi_url` sind abgeschaltet: eine
 Schnittstellenbeschreibung, die jeder abrufen kann, verrät den Aufbau ohne
