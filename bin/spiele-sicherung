@@ -18,6 +18,22 @@
 set -o pipefail
 REPO="@@BORG_REPO@@"
 
+# Auf die Sperre des Repositorys WARTEN statt nach einer Sekunde aufzugeben
+# (Borgs Voreinstellung). Am 2026-09-11 scheiterte so die taegliche
+# Vollsicherung: Sie startete um 04:02, waehrend der 15-Minuten-Lauf von 04:00
+# noch sicherte. Ebenso die letzte Sicherung vor dem Entfernen eines Servers -
+# und die bricht das Entfernen dann ab. 900 s liegen unter dem Zeitlimit, mit
+# dem spiel-verwalten auf dieses Skript wartet (1800 s).
+# Eine Funktion und kein Suchen-und-Ersetzen an jedem Aufruf: So kann ein
+# kuenftiger borg-Aufruf die Option nicht vergessen. Sie steht VOR der ersten
+# Benutzung, weil Bash Funktionen erst beim Ausfuehren kennt.
+# *Wait for the repository lock instead of giving up after one second: the
+#  daily full backup failed on 2026-09-11 because it started while the
+#  15-minute run was still going, and so did the final backup before a removal,
+#  which then aborts the removal. A function, so no future call can forget it.*
+SPERRE_WARTEN="${SICHERUNG_SPERRE_WARTEN:-900}"
+borg() { command borg --lock-wait "$SPERRE_WARTEN" "$@"; }
+
 # Der Selbsttest braucht weder Borg noch Passphrase noch Docker. Er wird deshalb
 # VOR beidem erkannt: sonst scheiterte er auf jeder Maschine ohne eingerichtete
 # Sicherung an einer Datei, die er gar nicht anfasst - und eine Pruefung, die

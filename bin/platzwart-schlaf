@@ -11,6 +11,7 @@ niemand ist, muss nicht laufen.
   platzwart-schlaf --pruefen        vom Zeitgeber: wer darf schlafen?
   platzwart-schlaf --wecken <stack> von der Socket-Aktivierung
   platzwart-schlaf --schlafen <s>   von Hand
+  platzwart-schlaf --vergessen <s>  beim Entfernen eines Servers (startet NICHT)
   platzwart-schlaf --liste
   platzwart-schlaf --selbsttest
 
@@ -41,8 +42,10 @@ sich der Platzwart.
  joining, the next check finds it empty and puts it back. Only flapping would
  be expensive, and that is counted and reported.*
 """
+import fcntl
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -50,6 +53,7 @@ from pathlib import Path
 
 LISTE = Path(os.environ.get("SCHLAF_LISTE", "/var/lib/platzwart-schlaf.liste"))
 STAND = Path(os.environ.get("SCHLAF_STAND", "/var/lib/platzwart-schlaf.json"))
+SPERRE = Path(os.environ.get("SCHLAF_SPERRE", "/run/platzwart-schlaf.lock"))
 SPIELER = Path("/var/lib/platzwart-spieler.json")
 UNITS = Path(os.environ.get("SCHLAF_UNITS", "/etc/systemd/system"))
 STACKS = Path("/opt/stacks")
@@ -273,8 +277,58 @@ def socket_entfernen(s: str):
     # dasteht, macht "ufw status" zu einer Liste, der man nicht mehr glaubt.
     # *Removed again: the running container does not need them, and a rule that
     #  does nothing but sits there makes "ufw status" a list one stops trusting.*
-    for p, proto in (stand().get(s) or {}).get("ports", []):
-        ufw_regel(int(p), proto, s, False)
+    # Die Ports aus dem Zustand UND aus den ufw-Regeln, die unseren Kommentar
+    # tragen. Am 2026-09-11 blieben zwei Regeln stehen, weil der Zustand die
+    # Ports nicht mehr kannte (siehe sperre()). Der Kommentar ist die Quelle,
+    # die mit der Regel selbst entsteht und vergeht.
+    # *Ports from the state AND from ufw rules carrying our comment: two rules
+    #  survived on 2026-09-11 because the state had lost the ports.*
+    ports = {(int(p), proto) for p, proto in (stand().get(s) or {}).get("ports", [])}
+    ports |= regeln_mit_marke(sh("ufw", "status").stdout, s)
+    for p, proto in sorted(ports):
+        ufw_regel(p, proto, s, False)
+
+
+def regeln_mit_marke(ufw_status: str, s: str) -> set:
+    """{(port, proto)} aller ufw-Regeln mit dem Kommentar dieses Servers - rein."""
+    raus = set()
+    for z in ufw_status.splitlines():
+        if z.rstrip().endswith(f"# platzwart-schlaf:{s}"):
+            m = re.match(r"\s*(\d+)/(tcp|udp)\b", z)
+            if m:
+                raus.add((int(m.group(1)), m.group(2)))
+    return raus
+
+
+def vergessen(s: str) -> int:
+    """Alles vom Leerlauf zu einem Server abraeumen, der gerade entfernt wird.
+
+    Anders als "--wecken" startet es den Server NICHT - er wird ja geloescht.
+    Beide Entfernwege riefen hier bis #169 gar nichts auf, und diese Schleife
+    ueberspringt einen Stack ohne Verzeichnis stumm. Wer im Schlaf entfernt
+    wurde, hinterliess deshalb seinen Weckposten (der die Ports weiter haelt),
+    dessen ufw-Freigaben und den Listeneintrag - ein spaeterer Server gleichen
+    Namens haette sich ab dem ersten leeren Abend schlafen gelegt, ohne dass
+    jemand den Schalter angefasst hat (dasselbe Muster wie #108).
+    *Clears idle-sleep state for a server being removed, WITHOUT starting it.
+     Neither removal path did this before #169, so a server removed while
+     asleep left its wake socket holding the ports, its ufw rules and its list
+     entry behind.*
+    """
+    if not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?", s):
+        print("unzulaessiger Name", file=sys.stderr)
+        return 2
+    # Erst den Weckposten samt ufw-Regeln - socket_entfernen liest die Ports
+    # aus dem Zustand, also bevor der Eintrag verschwindet.
+    if (UNITS / socket_name(s)).exists() or (stand().get(s) or {}).get("ports"):
+        socket_entfernen(s)
+    if LISTE.exists():
+        rest = [z.strip() for z in LISTE.read_text().splitlines() if z.strip() and z.strip() != s]
+        LISTE.write_text("".join(z + "\n" for z in rest))
+    d = stand()
+    if d.pop(s, None) is not None:
+        stand_schreiben(d)
+    return 0
 
 
 def belegt(ports: list) -> bool:
@@ -452,8 +506,29 @@ def pruefen(trocken: bool = False) -> int:
     return 0
 
 
+def sperre():
+    """Ein Lauf zur Zeit. Alle Wege lesen den Zustand, aendern ihn und schreiben
+    ihn zurueck - der Timer, das Wecken ueber den Socket, --schlafen und
+    --vergessen. Ohne Sperre gewinnt, wer zuletzt schreibt. Gemessen am
+    2026-09-11: Der Timer startete eine Sekunde vor einem --schlafen und schrieb
+    danach seine aeltere Fassung zurueck; die Ports des schlafenden Servers
+    waren aus dem Zustand verschwunden, und beim Entfernen blieben seine
+    ufw-Regeln stehen. Dasselbe zwischen Timer und Wecken haette einen wachen
+    Server als schlafend gefuehrt.
+    Das Wecken wartet damit hoechstens einen Timerlauf ab - Sekunden.
+    *One run at a time: every path does read-modify-write on the state. Without
+     a lock the last writer wins - measured when the timer started a second
+     before a manual --schlafen and wrote its older copy back.*
+    """
+    f = open(SPERRE, "a")
+    fcntl.flock(f, fcntl.LOCK_EX)
+    return f            # offen halten; der Prozess gibt die Sperre am Ende frei
+
+
 def main() -> int:
     a = sys.argv[1:]
+    if "--selbsttest" not in a and "--liste" not in a:
+        _sperre = sperre()
     if "--selbsttest" in a:
         print("== Selbsttest ==")
         schlecht = 0
@@ -493,10 +568,37 @@ def main() -> int:
             print("  ok   rein lokale Abbildung ergibt keine Weckports")
         else:
             print("  FEHLER: localhost-Port wuerde wecken"); schlecht += 1
+        # 4. --vergessen raeumt Liste und Zustand ab, laesst den Rest stehen -
+        #    an Kopien, ohne systemd: ohne Ports gibt es keinen Weckposten.
+        import tempfile
+        alt_l, alt_s = LISTE, STAND
+        with tempfile.TemporaryDirectory() as t:
+            globals()["LISTE"] = Path(t) / "liste"; globals()["STAND"] = Path(t) / "stand"
+            LISTE.write_text("palworld\nweg\nvalheim\n")
+            STAND.write_text(json.dumps({"weg": {"leer_seit": 1}, "valheim": {"leer_seit": 2}}))
+            vergessen("weg")
+            rest_l, rest_s = LISTE.read_text().split(), sorted(json.loads(STAND.read_text()))
+        globals()["LISTE"], globals()["STAND"] = alt_l, alt_s
+        # 5. ufw-Regeln werden auch ueber ihren Kommentar gefunden - und nur die
+        #    dieses Servers (ein Name, der Praefix eines anderen ist, zaehlt nicht).
+        probe = ("30113/udp                  ALLOW       Anywhere                   # platzwart-schlaf:hl\n"
+                 "30113/udp (v6)             ALLOW       Anywhere (v6)              # platzwart-schlaf:hl\n"
+                 "2456/udp                   ALLOW       Anywhere                   # platzwart-schlaf:hl2\n"
+                 "22/tcp                     ALLOW       Anywhere\n")
+        if regeln_mit_marke(probe, "hl") == {(30113, "udp")} and regeln_mit_marke(probe, "x") == set():
+            print("  ok   ufw-Regeln werden am Kommentar erkannt, nur die eigenen")
+        else:
+            print(f"  FEHLER: Kommentarsuche ergab {regeln_mit_marke(probe, 'hl')}"); schlecht += 1
+        if rest_l == ["palworld", "valheim"] and rest_s == ["valheim"]:
+            print("  ok   --vergessen raeumt genau diesen einen ab, die anderen bleiben")
+        else:
+            print(f"  FEHLER: --vergessen liess {rest_l} / {rest_s} zurueck"); schlecht += 1
         return 1 if schlecht else 0
 
     if "--wecken" in a:
         return wecken(a[a.index("--wecken") + 1])
+    if "--vergessen" in a:
+        return vergessen(a[a.index("--vergessen") + 1])
     if "--schlafen" in a:
         return schlafen(a[a.index("--schlafen") + 1])
     if "--liste" in a:

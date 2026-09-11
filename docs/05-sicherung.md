@@ -107,6 +107,24 @@ läuft der Lauf beim nächsten Start nach.
 > within two days. Both timers are `Persistent=true`, so a missed run catches up
 > after boot.*
 
+**Die Läufe warten aufeinander.** Borg gibt nach **einer Sekunde** auf, wenn ein
+anderer Lauf das Repositorium gesperrt hält. Am 2026-09-11 scheiterte so die
+Vollsicherung: Sie startete um 04:02, während der Viertelstundenlauf von 04:00
+noch sicherte. Dieselbe Kollision traf die letzte Sicherung vor dem Entfernen
+eines Servers — und die bricht das Entfernen dann ab. `spiele-sicherung` ruft
+Borg deshalb über eine Funktion mit `--lock-wait 900` auf
+(`SICHERUNG_SPERRE_WARTEN`). 900 Sekunden liegen unter den 1800 Sekunden, die
+`spiel-verwalten` auf die Endsicherung wartet. Nachgewiesen mit
+`borg with-lock … sleep 30`: Die Sicherung wartete und lief durch; vorher brach
+sie in derselben Lage sofort ab.
+
+> *Runs wait for each other. Borg gives up after one second if another run
+> holds the repository lock — that is how the full backup failed on 2026-09-11,
+> starting at 04:02 while the 04:00 run was still going, and how the final
+> backup before a removal aborted that removal. `spiele-sicherung` now calls
+> Borg through a function with `--lock-wait 900`, below the 1800 s
+> `spiel-verwalten` waits. Verified by holding the lock for 30 s.*
+
 ---
 
 ## Aufbewahrung (Großvater-Vater-Sohn)
