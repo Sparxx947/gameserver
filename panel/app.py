@@ -1377,8 +1377,14 @@ def installieren(request: Request, csrf: str = Form(""), schluessel: str = Form(
     if not s or not darf_verwalten(s):
         return RedirectResponse("/login", 303)
     rc, aus = aktion("installieren", schluessel, timeout=900)
+    # Die Ausgabe traegt Beitritts- und Adminpasswort ("ok<TAB>Name<TAB>Stand<TAB>pw<TAB>admin").
+    # Ins Protokoll kommen nur Name und Stand - es lebt laenger als der Server,
+    # wird mitgesichert, und die Passwoerter stehen ohnehin unter Zugangsdaten
+    # (#239: beim Browsertest am 2026-09-11 im Klartext gefunden).
+    # *The output carries both passwords; only name and state go into the audit log.*
     protokoll(s, "Spiel installiert", schluessel,
-              "ok" if rc == 0 else "fehlgeschlagen", meldung=aus.strip()[:200])
+              "ok" if rc == 0 else "fehlgeschlagen",
+              meldung=" ".join(aus.strip().split("\t")[1:3]) if rc == 0 else aus.strip()[:200])
     if rc != 0:
         return RedirectResponse(f"/spiele?meldung={quote(aus.strip()[:300])}", 303)
     t = aus.strip().split("\t")
