@@ -3134,17 +3134,16 @@
    "mem_gb": 8,
    "platte_gb": 35,
    "ports": [
-    "30116:7777/udp",
-    "30117:27015/udp",
-    "127.0.0.1:30409:8080/tcp",
-    "30118:20560/udp"
+    "30116:30116/udp",
+    "30117:30117/udp",
+    "127.0.0.1:30409:8080/tcp"
    ],
    "volumes": [
     "/srv/games/killingfloor2:/serverdata"
    ],
    "env": {
     "GAME_ID": "232130",
-    "GAME_PARAMS": "kf-bioticslab",
+    "GAME_PARAMS": "kf-bioticslab -Port=30116 -QueryPort=30117",
     "UID": "4711",
     "GID": "4711",
     "UMASK": "000",
@@ -3157,7 +3156,7 @@
    },
    "adresse_port": 30116,
    "spieler": 4,
-   "hinweis": "Verwaltungszugang (Web Admin auf 127.0.0.1:30409/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 7777->30116, 27015->30117, 20560->30118. Koop gegen Monsterwellen, Nachfolger, bis 6. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt. Platz gemessen: 31 GB nach der Installation. Workshop-Elemente (KFGame/Cache) werden mitgesichert; Karten muessen danach in den Kartenzyklus (LinuxServer-KFGame.ini), Mutatoren in die Startparameter.",
+   "hinweis": "Verwaltungszugang (Web Admin auf 127.0.0.1:30409/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Spielport 30116 und Abfrageport 30117 stehen als -Port/-QueryPort in den Startparametern und im Container gleich wie aussen: KF2 meldet der Serverliste den Port, auf dem es selbst lauscht - mit 7777 im Container stand dort eine Adresse, die niemand erreicht (#228). Wer die Ports aendert, muss beide Stellen gleich aendern. Koop gegen Monsterwellen, Nachfolger, bis 6. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt. Platz gemessen: 31 GB nach der Installation. Workshop-Elemente (KFGame/Cache) werden mitgesichert; Karten muessen danach in den Kartenzyklus (LinuxServer-KFGame.ini), Mutatoren in die Startparameter.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
