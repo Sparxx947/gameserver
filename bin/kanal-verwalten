@@ -1,0 +1,461 @@
+#!/usr/bin/env python3
+"""kanal-verwalten — ein TeamSpeak-Kanal je Spielserver, angelegt und entfernt (#137).
+
+  kanal-verwalten abgleich            Kanaele an die installierten Server angleichen
+  kanal-verwalten vorschau <stack>    was beim Entfernen dieses Servers mit dem Kanal geschieht
+  kanal-verwalten pruefen             Zugang pruefen (Benutzer und Passwort ueber stdin, je Zeile)
+  kanal-verwalten --selbsttest
+
+Laeuft als root ueber kanal-abgleich.timer und wird nach jeder Installation und
+Entfernung sofort angestossen - nie im Seitenaufruf: Ein langsamer oder
+gestoerter TeamSpeak soll keine Panel-Seite haengen lassen.
+
+== Die Regeln (Jens' Entscheidungen vom 2026-09-11, in #137) ==
+- Aus, bis im Panel (Integrationen) eingeschaltet. Erst TeamSpeak; Discord
+  folgt, wenn es einen Bot gibt.
+- Welche Server es gibt, sagt /opt/stacks - keine zweite Liste.
+- LOESCHEN nur, was UNBERUEHRT ist: von Platzwart angelegt (gespeicherte
+  Zuordnung Stack -> Kanal-ID, kein Namensvergleich), weder umbenannt noch
+  verschoben, ohne Unterkanaele, niemand drin. Sonst bleibt der Kanal stehen
+  und wird gemeldet. Die Bestaetigungsseite beim Entfernen zeigt das Urteil
+  vorher (vorschau).
+- Einen Kanal gleichen Namens, den jemand von Hand angelegt hat, uebernimmt
+  das Werkzeug als "fremd" - angezeigt, aber nie geloescht.
+- Jedes Anlegen und Loeschen steht im Panel-Protokoll; Fehler gehen nach
+  #platzwart-stoerung.
+
+*One TeamSpeak channel per game server. Off until switched on in the panel.
+ Deletes only what is untouched: created by Platzwart (stored id, no name
+ matching), not renamed or moved, no subchannels, nobody inside - otherwise
+ it stays and is reported. Every create/delete is audited; failures are
+ reported. Never runs inside a page request.*
+"""
+import fcntl
+import json
+import os
+import re
+import socket
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+DATEN = Path(os.environ.get("KANAL_DATEN", "/opt/panel/daten"))
+EINSTELLUNG = DATEN / "kanaele.json"          # vom Panel geschrieben
+ZUGANG = DATEN / "teamspeak.conf"             # vom Panel geschrieben, 0600
+ZUORDNUNG = DATEN / "kanaele-zuordnung.json"  # von hier geschrieben
+AUDIT = DATEN / "audit.jsonl"
+STACKS = Path(os.environ.get("KANAL_STACKS", "/opt/stacks"))
+SPERRE = os.environ.get("KANAL_SPERRE", "/run/kanal-verwalten.lock")
+# Die Anfrage kommt beim TeamSpeak-Server ueber das Docker-Gateway an, nicht von
+# 127.0.0.1 - sie steht also NICHT auf seiner Allowlist und unterliegt dem
+# Flutschutz (gemessen 2026-09-11). Deshalb wenige Befehle und eine Pause davor.
+# Drei Anmeldungen kurz hintereinander -> "client is flooding" (id 524), danach
+# lehnt TeamSpeak neue Verbindungen OHNE Begruessung ab, und wer weiter
+# anklopft, verlaengert die Sperre (nach 120 s Pollen noch zu). Der Flutschutz
+# zaehlt ueber Verbindungen hinweg, je Absenderadresse. 0,35 s zwischen den
+# Befehlen reichten im Test nicht - 0,6 s, eine Verbindung je Lauf.
+# *Queries arrive via the Docker gateway, not 127.0.0.1, so flood protection
+#  applies across connections: three quick logins got "client is flooding",
+#  then connections were refused without greeting. Paced at 0.6 s.*
+PAUSE = float(os.environ.get("KANAL_PAUSE", "0.6"))
+NAME_MAX = 40                                 # TeamSpeak: Kanalname hoechstens 40 Zeichen
+NICHT_ALS_KANAL = {"teamspeak"}               # der TeamSpeak-Stack selbst
+
+
+class QueryFehler(Exception):
+    pass
+
+
+# --- ServerQuery -------------------------------------------------------------
+
+ESC = [("\\", "\\\\"), ("/", "\\/"), (" ", "\\s"), ("|", "\\p"), ("\a", "\\a"), ("\b", "\\b"),
+       ("\f", "\\f"), ("\n", "\\n"), ("\r", "\\r"), ("\t", "\\t"), ("\v", "\\v")]
+
+
+def ts_esc(s: str) -> str:
+    for a, b in ESC:
+        s = s.replace(a, b)
+    return s
+
+
+def ts_unesc(s: str) -> str:
+    raus, i = [], 0
+    rueck = {b[1]: a for a, b in ESC}
+    while i < len(s):
+        if s[i] == "\\" and i + 1 < len(s) and s[i + 1] in rueck:
+            raus.append(rueck[s[i + 1]])
+            i += 2
+        else:
+            raus.append(s[i])
+            i += 1
+    return "".join(raus)
+
+
+def zerlegen(zeile: str) -> list:
+    """'a=1 b=x\\sy|a=2' -> [{'a': '1', 'b': 'x y'}, {'a': '2'}]. Rein."""
+    raus = []
+    for teil in zeile.split("|"):
+        d = {}
+        for tok in teil.split(" "):
+            if not tok:
+                continue
+            k, _, v = tok.partition("=")
+            d[k] = ts_unesc(v)
+        raus.append(d)
+    return raus
+
+
+class Query:
+    def __init__(self, host: str, port: int, timeout: float = 10):
+        try:
+            self.s = socket.create_connection((host, port), timeout=timeout)
+        except OSError as e:
+            raise QueryFehler(f"TeamSpeak-ServerQuery auf {host}:{port} nicht erreichbar ({e.__class__.__name__})")
+        self.f = self.s.makefile("rwb")
+        try:
+            kopf = self.f.readline()
+        except OSError:
+            kopf = b""
+        if not kopf:
+            raise QueryFehler("TeamSpeak lehnt ServerQuery gerade ab - vermutlich sein Flutschutz nach "
+                              "zu vielen Anfragen. Der naechste Abgleich versucht es erneut.")
+        if not kopf.startswith(b"TS3"):
+            raise QueryFehler(f"auf {host}:{port} antwortet kein TeamSpeak-ServerQuery ({kopf[:40]!r})")
+        self.f.readline()                                  # Begruessung
+
+    def befehl(self, text: str) -> list:
+        time.sleep(PAUSE)
+        self.f.write(text.encode() + b"\n")
+        self.f.flush()
+        daten = []
+        while True:
+            z = self.f.readline()
+            if not z:
+                raise QueryFehler("TeamSpeak hat die Verbindung beendet")
+            z = z.decode("utf-8", "replace").strip("\r\n")
+            if z.startswith("error "):
+                e = zerlegen(z[6:])[0]
+                if e.get("id") == "524":
+                    raise QueryFehler("TeamSpeak drosselt ServerQuery (Flutschutz: \"client is flooding\") - "
+                                      "der naechste Abgleich versucht es erneut")
+                if e.get("id") != "0":
+                    raise QueryFehler(f"{text.split(' ')[0]}: {e.get('msg', '?')} (id {e.get('id')})")
+                return daten
+            if z:
+                daten.extend(zerlegen(z))
+
+    def zu(self):
+        try:
+            self.f.write(b"quit\n")
+            self.f.flush()
+            self.s.close()
+        except OSError:
+            pass
+
+
+def zugang() -> dict:
+    """TS_USER/TS_PASS (Pflicht), TS_HOST/TS_PORT/TS_SID (Vorgabe 127.0.0.1/10011/1)."""
+    d = {"TS_HOST": "127.0.0.1", "TS_PORT": "10011", "TS_SID": "1"}
+    try:
+        for z in ZUGANG.read_text().splitlines():
+            if "=" in z and not z.lstrip().startswith("#"):
+                k, v = z.split("=", 1)
+                d[k.strip()] = v.strip()
+    except OSError:
+        pass
+    return d
+
+
+def verbinden(z: dict) -> Query:
+    if not z.get("TS_USER") or not z.get("TS_PASS"):
+        raise QueryFehler("kein TeamSpeak-Zugang hinterlegt (Panel: Integrationen)")
+    q = Query(z["TS_HOST"], int(z["TS_PORT"]))
+    try:
+        q.befehl(f"login {ts_esc(z['TS_USER'])} {ts_esc(z['TS_PASS'])}")
+        q.befehl(f"use sid={int(z.get('TS_SID', 1))}")
+    except QueryFehler:
+        q.zu()
+        raise
+    return q
+
+
+# --- Regeln (rein, damit pruefbar) -----------------------------------------------
+
+def kanalname(muster: str, name: str) -> str:
+    """Namensmuster anwenden, auf TeamSpeaks 40 Zeichen kuerzen. Rein."""
+    n = (muster or "{name}").replace("{name}", name).strip()
+    return n[:NAME_MAX] or name[:NAME_MAX]
+
+
+def urteil_entfernen(eintrag: dict, kanaele: dict) -> tuple:
+    """(loeschen, grund) fuer den Kanal eines entfernten Servers. Rein.
+
+    kanaele: {cid: {"channel_name", "pid", "total_clients"}} aus channellist.
+    Geloescht wird NUR, was unberuehrt ist - jede Abweichung heisst, dass ein
+    Mensch den Kanal zu seinem gemacht hat.
+    """
+    if eintrag.get("fremd"):
+        return False, "nicht von Platzwart angelegt"
+    k = kanaele.get(str(eintrag.get("cid")))
+    if not k:
+        return False, "gibt es auf dem TeamSpeak-Server nicht mehr"
+    if k.get("channel_name") != eintrag.get("name"):
+        return False, f"umbenannt in „{k.get('channel_name')}“"
+    if str(k.get("pid")) != str(eintrag.get("cpid")):
+        return False, "verschoben"
+    if any(str(v.get("pid")) == str(eintrag.get("cid")) for v in kanaele.values()):
+        return False, "hat Unterkanäle"
+    if int(k.get("total_clients") or 0) > 0:
+        return False, "es ist gerade jemand drin"
+    return True, "unberührt und leer"
+
+
+# --- Zustand ---------------------------------------------------------------------
+
+def lies_json(p: Path, vorgabe):
+    try:
+        return json.loads(p.read_text())
+    except (OSError, ValueError):
+        return vorgabe
+
+
+def schreibe_json(p: Path, d):
+    """Atomar, dem Panel lesbar (panel:panel 0600) - es zeigt die Zuordnung an."""
+    tmp = p.with_suffix(".tmp")
+    tmp.write_text(json.dumps(d, indent=1, ensure_ascii=False) + "\n")
+    os.chmod(tmp, 0o600)
+    try:
+        st = DATEN.stat()
+        os.chown(tmp, st.st_uid, st.st_gid)
+    except OSError:
+        pass
+    tmp.replace(p)
+
+
+def einstellung() -> dict:
+    e = lies_json(EINSTELLUNG, {}).get("teamspeak") or {}
+    return {"an": bool(e.get("an")), "oberkanal": (e.get("oberkanal") or "Spieleserver")[:NAME_MAX],
+            "muster": e.get("muster") or "{name}"}
+
+
+def server() -> dict:
+    """{stack: Anzeigename} - aus /opt/stacks, der einen Wahrheit."""
+    raus = {}
+    for d in sorted(STACKS.glob("*/compose.yaml")):
+        s = d.parent.name
+        if s in NICHT_ALS_KANAL:
+            continue
+        name = s
+        pj = lies_json(d.parent / "panel.json", {})
+        if isinstance(pj, dict) and pj.get("name"):
+            name = str(pj["name"])
+        raus[s] = name
+    return raus
+
+
+def protokoll(aktion: str, ziel: str, ergebnis: str = "ok", **details):
+    """Ins Panel-Protokoll, als Nutzer "platzwart" - dieselbe Datei, dasselbe Format."""
+    eintrag = {"zeit": time.strftime("%Y-%m-%d %H:%M:%S+0000", time.gmtime()), "nutzer": "platzwart",
+               "rolle": "system", "aktion": aktion, "ziel": ziel, "ergebnis": ergebnis}
+    if details:
+        eintrag["details"] = details
+    try:
+        with AUDIT.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(eintrag, ensure_ascii=False) + "\n")
+    except OSError:
+        pass
+
+
+def melden(titel: str, text: str = ""):
+    # Hoechstens eine gleiche Meldung je 12 Stunden: Der Timer laeuft alle paar
+    # Minuten, und ein gedrosselter oder ausgefallener TeamSpeak soll nicht
+    # dauerfeuern.
+    # *At most one identical report per 12 hours.*
+    subprocess.run(["/usr/local/bin/platzwart-melden", "stoerung", titel, text],
+                   capture_output=True, timeout=60, env={**os.environ, "PLATZWART_MELDEN_RUHE_MIN": "720"})
+
+
+# --- Befehle -----------------------------------------------------------------------
+
+def abgleich() -> int:
+    e = einstellung()
+    if not e["an"]:
+        print("ok\tTeamSpeak-Kanaele sind aus")
+        return 0
+    zu = lies_json(ZUORDNUNG, {})
+    ts = zu.setdefault("teamspeak", {})
+    kanaele_von = {k: v for k, v in ts.items() if not k.startswith("_")}
+    da = server()
+    fehlend = [s for s in da if s not in kanaele_von]
+    weg = [s for s in kanaele_von if s not in da]
+    # Nichts zu tun, nichts zu verbinden: Der Timer laeuft alle paar Minuten, und
+    # jede Anmeldung steht im TeamSpeak-Log.
+    # *Nothing to do, no connection: every login shows up in TeamSpeak's log.*
+    if not fehlend and not weg:
+        print("ok\tnichts zu tun")
+        return 0
+    try:
+        q = verbinden(zugang())
+    except QueryFehler as f:
+        melden("TeamSpeak-Kanaele: kein Zugriff", f"{f}\n\nOffen: {len(fehlend)} anzulegen, {len(weg)} zu pruefen.")
+        print(f"FEHLER: {f}", file=sys.stderr)
+        return 1
+    angelegt, geloescht, stehen = [], [], []
+    try:
+        liste = q.befehl("channellist")
+        kanaele = {v["cid"]: v for v in liste}
+        # Oberkanal: gespeicherte ID, sonst per Name uebernehmen, sonst anlegen.
+        # Er wird nie geloescht - hier landen alle Serverkanaele.
+        ober = ts.get("_oberkanal") or {}
+        if str(ober.get("cid")) not in kanaele:
+            treffer = [v for v in liste if v.get("channel_name") == e["oberkanal"] and v.get("pid") == "0"]
+            if treffer:
+                ober = {"cid": treffer[0]["cid"], "name": e["oberkanal"]}
+            elif fehlend:
+                r = q.befehl(f"channelcreate channel_name={ts_esc(e['oberkanal'])} channel_flag_permanent=1")
+                ober = {"cid": r[0]["cid"], "name": e["oberkanal"]}
+                protokoll("TeamSpeak-Oberkanal angelegt", e["oberkanal"], cid=ober["cid"])
+            ts["_oberkanal"] = ober
+        for s in fehlend:
+            name = kanalname(e["muster"], da[s])
+            gleich = [v for v in liste if v.get("channel_name") == name and v.get("pid") == str(ober.get("cid"))]
+            if gleich:
+                ts[s] = {"cid": gleich[0]["cid"], "name": name, "cpid": ober["cid"], "fremd": True,
+                         "seit": int(time.time())}
+                protokoll("TeamSpeak-Kanal vorgefunden (nicht angelegt, wird nie geloescht)", s, name=name)
+                continue
+            r = q.befehl(f"channelcreate channel_name={ts_esc(name)} cpid={int(ober['cid'])} "
+                         f"channel_flag_permanent=1 "
+                         f"channel_description={ts_esc('Angelegt von Platzwart für ' + da[s])}")
+            ts[s] = {"cid": r[0]["cid"], "name": name, "cpid": ober["cid"], "seit": int(time.time())}
+            angelegt.append(name)
+            protokoll("TeamSpeak-Kanal angelegt", s, name=name, cid=r[0]["cid"])
+        for s in weg:
+            eintrag = ts[s]
+            loeschen, grund = urteil_entfernen(eintrag, kanaele)
+            if loeschen:
+                q.befehl(f"channeldelete cid={int(eintrag['cid'])} force=0")
+                geloescht.append(eintrag["name"])
+                protokoll("TeamSpeak-Kanal geloescht", s, name=eintrag["name"], grund=grund)
+            else:
+                stehen.append(f"{eintrag.get('name')} ({grund})")
+                protokoll("TeamSpeak-Kanal bleibt stehen", s, "nicht geloescht",
+                          name=eintrag.get("name"), grund=grund)
+                zu.setdefault("verwaist", {})[s] = {**eintrag, "grund": grund, "bis": int(time.time())}
+            del ts[s]
+    except QueryFehler as f:
+        melden("TeamSpeak-Kanaele: Abgleich gescheitert", str(f))
+        print(f"FEHLER: {f}", file=sys.stderr)
+        schreibe_json(ZUORDNUNG, zu)
+        return 1
+    finally:
+        q.zu()
+    schreibe_json(ZUORDNUNG, zu)
+    if stehen:
+        melden("TeamSpeak-Kanal nicht geloescht",
+               "Der Server ist entfernt, sein Kanal bleibt stehen, weil ihn ein Mensch zu seinem "
+               "gemacht hat oder er nicht leer ist:\n" + "\n".join(stehen))
+    print("ok\t" + "; ".join(x for x in [
+        f"angelegt: {', '.join(angelegt)}" if angelegt else "",
+        f"geloescht: {', '.join(geloescht)}" if geloescht else "",
+        f"stehen gelassen: {', '.join(stehen)}" if stehen else ""] if x))
+    return 0
+
+
+def vorschau(stack: str) -> int:
+    """Eine Zeile fuer die Bestaetigungsseite - was geschieht mit dem Kanal?"""
+    if not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?", stack):
+        print("FEHLER: unzulaessiger Name", file=sys.stderr)
+        return 1
+    e = einstellung()
+    eintrag = (lies_json(ZUORDNUNG, {}).get("teamspeak") or {}).get(stack)
+    if not eintrag:
+        print("keiner\t" + ("Dieser Server hat keinen TeamSpeak-Kanal." if e["an"] else ""))
+        return 0
+    if not e["an"]:
+        print(f"bleibt\tTeamSpeak-Kanal „{eintrag['name']}“ bleibt stehen - die Kanalverwaltung ist ausgeschaltet.")
+        return 0
+    try:
+        q = verbinden(zugang())
+        try:
+            kanaele = {v["cid"]: v for v in q.befehl("channellist")}
+        finally:
+            q.zu()
+    except QueryFehler as f:
+        print(f"unbekannt\tTeamSpeak-Kanal „{eintrag['name']}“: gerade nicht prüfbar ({f}). "
+              "Gelöscht wird er nur, wenn er beim Abgleich unberührt und leer ist.")
+        return 0
+    loeschen, grund = urteil_entfernen(eintrag, kanaele)
+    if loeschen:
+        print(f"weg\tTeamSpeak-Kanal „{eintrag['name']}“ wird mit gelöscht ({grund}).")
+    else:
+        print(f"bleibt\tTeamSpeak-Kanal „{eintrag['name']}“ bleibt stehen: {grund}.")
+    return 0
+
+
+def pruefen() -> int:
+    """Zugang pruefen, ohne ihn zu speichern - Benutzer und Passwort ueber stdin."""
+    zeilen = sys.stdin.read().splitlines()
+    if len(zeilen) < 2:
+        print("FEHLER: Benutzer und Passwort erwartet", file=sys.stderr)
+        return 1
+    z = zugang()
+    z["TS_USER"], z["TS_PASS"] = zeilen[0].strip(), zeilen[1]
+    try:
+        q = verbinden(z)
+        q.befehl("whoami")
+        q.zu()
+    except QueryFehler as f:
+        print(f"FEHLER: {f}", file=sys.stderr)
+        return 1
+    print("ok\tAnmeldung bei TeamSpeak erfolgreich")
+    return 0
+
+
+def selbsttest() -> int:
+    schlecht = 0
+
+    def pruef(name, ok):
+        nonlocal schlecht
+        schlecht += not ok
+        print(f"  {'ok  ' if ok else 'FEHLER'} {name}")
+
+    roh = "Valheim / Mitte|Nord\\x"
+    pruef("Maskierung hin und zurueck", ts_unesc(ts_esc(roh)) == roh)
+    pruef("Maskierung Leerzeichen/Pipe/Slash", ts_esc("a b|c/d") == "a\\sb\\pc\\/d")
+    pruef("zerlegen", zerlegen("cid=5 pid=0 channel_name=Spiele\\sserver|cid=6 pid=5 channel_name=A")
+          == [{"cid": "5", "pid": "0", "channel_name": "Spiele server"}, {"cid": "6", "pid": "5", "channel_name": "A"}])
+    pruef("Namensmuster", kanalname("🎮 {name}", "Valheim") == "🎮 Valheim")
+    pruef("40 Zeichen", len(kanalname("{name}", "x" * 60)) == 40)
+    e = {"cid": "7", "name": "Valheim", "cpid": "5"}
+    k = {"5": {"channel_name": "Spieleserver", "pid": "0", "total_clients": "0"},
+         "7": {"channel_name": "Valheim", "pid": "5", "total_clients": "0"}}
+    pruef("unberuehrt -> loeschen", urteil_entfernen(e, k)[0] is True)
+    pruef("umbenannt -> bleibt", urteil_entfernen(e, {**k, "7": {**k["7"], "channel_name": "Valheim-Clan"}})[0] is False)
+    pruef("verschoben -> bleibt", urteil_entfernen(e, {**k, "7": {**k["7"], "pid": "1"}})[0] is False)
+    pruef("besetzt -> bleibt", urteil_entfernen(e, {**k, "7": {**k["7"], "total_clients": "2"}})[0] is False)
+    pruef("Unterkanal -> bleibt", urteil_entfernen(e, {**k, "9": {"channel_name": "AFK", "pid": "7", "total_clients": "0"}})[0] is False)
+    pruef("fremd -> bleibt", urteil_entfernen({**e, "fremd": True}, k)[0] is False)
+    pruef("weg -> nichts zu loeschen", urteil_entfernen(e, {"5": k["5"]})[0] is False)
+    print("alles gruen." if not schlecht else f"{schlecht} FEHLER")
+    return 1 if schlecht else 0
+
+
+def main(a: list) -> int:
+    if a[:1] == ["--selbsttest"]:
+        return selbsttest()
+    if a[:1] == ["vorschau"] and len(a) == 2:
+        return vorschau(a[1])
+    if a[:1] == ["pruefen"]:
+        return pruefen()
+    if a[:1] == ["abgleich"]:
+        with open(SPERRE, "a") as sperre:
+            fcntl.flock(sperre, fcntl.LOCK_EX)
+            return abgleich()
+    print(__doc__.split("==")[0].strip(), file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

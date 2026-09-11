@@ -37,6 +37,13 @@ NUTZERDATEI = Path("/opt/panel/daten/nutzer.json")
 # (Jens: "der Steam-API-Key muss irgendwo im Panel hinterlegbar sein"), nicht in
 # /etc - dort darf das Panel nicht schreiben. bin/workshop liest ihn als root.
 STEAM_KONF = Path("/opt/panel/daten/steam-api.conf")
+# TeamSpeak-Kanaele je Server (#137): Zugang und Schalter schreibt das Panel,
+# die Zuordnung Server -> Kanal schreibt kanal-verwalten (root) und das Panel
+# zeigt sie an.
+# *Credentials and switch written by the panel; the mapping by kanal-verwalten.*
+TS_KONF = Path("/opt/panel/daten/teamspeak.conf")
+KANAELE_KONF = Path("/opt/panel/daten/kanaele.json")
+KANAELE_ZUORDNUNG = Path("/opt/panel/daten/kanaele-zuordnung.json")
 # Selbst gepflegte Zugangsdaten. Noetig, weil manche Server ihre Passwoerter nur
 # GEHASHT oder VERSCHLUESSELT ablegen und sie sich nicht auslesen lassen:
 # Satisfactory (Hash+Salt in der binaeren .sav), TeamSpeak (Hash in SQLite),
@@ -1414,6 +1421,7 @@ Konfiguration, DNS-Name und die Zugangsdaten dieses Servers.<br><br>
 {"<b>Die Sicherungen im Borg-Repository bleiben erhalten</b> — der Stand lässt sich also später zurückholen, aber nicht über diese Oberfläche."
  if SICHERUNG_AN else
  "<b>Es gibt keine Sicherung.</b> Die Sicherung ist abgeschaltet (<code>BORG_REPO=aus</code>), es wird auch keine letzte angelegt: dieser Spielstand ist danach endgültig weg."}</div>
+{kanal_vorschau_html(stack)}
 <div class=m><form method=post action=/deinstallieren>
 <input type=hidden name=csrf value="{s["csrf"]}">
 <input type=hidden name=stack value="{stack}">
@@ -1447,7 +1455,7 @@ def entfernen_fragen(request: Request, stack: str):
         + f'<table><tr><th>Server</th><td><b>{esc(stack)}</b></td></tr>'
           f'<tr><th>Wird gelöscht</th><td><b>{esc(groesse.strip())}</b> '
           f'(Spieldaten und Stackverzeichnis)</td></tr></table>'
-        + warn
+        + warn + kanal_vorschau_html(stack)
         + ('<div class=m>Vor dem Löschen wird eine <b>Endsicherung</b> angelegt. '
            'Schlägt sie fehl, wird nichts gelöscht. Die vorhandenen Sicherungen im '
            'Borg-Repository bleiben erhalten.</div>' if SICHERUNG_AN else "")
@@ -1608,6 +1616,81 @@ def steam_schluessel_gilt(k: str) -> str:
         return f"Steam nicht erreichbar ({e.__class__.__name__})"
 
 
+def ts_zugang_benutzer() -> str:
+    """Benutzer des hinterlegten TeamSpeak-Zugangs, '' = keiner. Das Passwort
+    verlaesst diese Datei nie - auch nicht ins Formular."""
+    try:
+        for z in TS_KONF.read_text().splitlines():
+            if z.startswith("TS_USER="):
+                return z.split("=", 1)[1].strip()
+    except OSError:
+        pass
+    return ""
+
+
+def kanaele_einstellung() -> dict:
+    try:
+        e = json.loads(KANAELE_KONF.read_text()).get("teamspeak") or {}
+    except (OSError, ValueError):
+        e = {}
+    return {"an": bool(e.get("an")), "oberkanal": e.get("oberkanal") or "Spieleserver",
+            "muster": e.get("muster") or "{name}"}
+
+
+def kanaele_zuordnung() -> dict:
+    try:
+        return json.loads(KANAELE_ZUORDNUNG.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def kanal_abschnitt(s: dict) -> str:
+    """TeamSpeak-Kanaele je Server (#137) auf der Integrationen-Seite."""
+    benutzer = ts_zugang_benutzer()
+    e = kanaele_einstellung()
+    zu = kanaele_zuordnung()
+    ts = {k: v for k, v in (zu.get("teamspeak") or {}).items() if not k.startswith("_")}
+    csrf = f'<input type=hidden name=csrf value="{s["csrf"]}">'
+    zeilen = "".join(
+        f"<tr><td>{esc(k)}</td><td>{esc(str(v.get('name', '')))}</td>"
+        f"<td class=z>{'von Hand angelegt – wird nie gelöscht' if v.get('fremd') else 'von Platzwart angelegt'}</td></tr>"
+        for k, v in sorted(ts.items()))
+    verwaist = "".join(
+        f"<tr><td>{esc(k)}</td><td>{esc(str(v.get('name', '')))}</td><td class=z>blieb stehen: {esc(str(v.get('grund', '')))}</td></tr>"
+        for k, v in sorted((zu.get("verwaist") or {}).items()))
+    tabelle = (f"<table><tr><th>Server</th><th>Kanal</th><th></th></tr>{zeilen}{verwaist}</table>"
+               if zeilen or verwaist else '<p class=z>Noch keine Kanäle angelegt.</p>')
+    return (
+        '<h2>TeamSpeak: ein Kanal je Spielserver</h2>'
+        '<p class=z>Ist der Schalter an, bekommt jeder Spielserver einen Kanal unter dem Oberkanal — '
+        'beim Einschalten auch alle schon laufenden. Wird ein Server entfernt, verschwindet sein Kanal '
+        '<b>nur, wenn er unberührt ist</b>: von Platzwart angelegt, weder umbenannt noch verschoben, '
+        'ohne Unterkanäle, niemand drin. Sonst bleibt er stehen und wird gemeldet. Die Seite '
+        '„Server entfernen“ sagt vorher, was passiert. Angelegt und gelöscht wird im Hintergrund, '
+        'nicht beim Klick.</p>'
+        + (f'<p>Zugang gesetzt für <b>{esc(benutzer)}</b>.</p>' if benutzer
+           else '<p class=z>Kein Zugang hinterlegt — der ServerQuery-Zugang steht unter '
+                '<a href=/passwoerter>Zugangsdaten</a> beim Server teamspeak.</p>')
+        + '<form method=post action=/integrationen/teamspeak style="display:flex;gap:6px;flex-wrap:wrap">'
+          + csrf + '<input type=hidden name=was value=zugang>'
+          f'<input name=benutzer value="{esc(benutzer or "serveradmin")}" maxlength=40 autocomplete=off style="width:10em">'
+          '<input type=password name=passwort autocomplete=off maxlength=200 placeholder="ServerQuery-Passwort" style="min-width:14em">'
+          '<button class=p>prüfen und speichern</button></form>'
+        + ('<form method=post action=/integrationen/teamspeak style=display:contents>' + csrf
+           + '<input type=hidden name=was value=zugang-loeschen><button class="b x">Zugang entfernen</button></form>'
+           if benutzer else "")
+        + '<form method=post action=/integrationen/teamspeak style="margin-top:12px">' + csrf
+          + '<input type=hidden name=was value=einstellungen>'
+          f'<label><input type=checkbox name=an value=1{" checked" if e["an"] else ""}> Kanäle automatisch anlegen und entfernen</label><br>'
+          f'<label>Oberkanal <input name=oberkanal value="{esc(e["oberkanal"])}" maxlength=40></label> '
+          f'<label>Name <input name=muster value="{esc(e["muster"])}" maxlength=40></label> '
+          '<span class=z><code>{name}</code> steht für den Namen des Servers</span><br>'
+          '<button class=p style="margin-top:6px">speichern</button></form>'
+        + tabelle
+        + '<h2>Discord</h2><p class=z>Folgt, sobald es einen Discord-Bot mit dem Recht '
+          '„Kanäle verwalten“ gibt — ein Webhook kann keine Kanäle anlegen (#137).</p>')
+
+
 @app.get("/integrationen", response_class=HTMLResponse)
 def integrationen(request: Request, meldung: str = ""):
     """Schluessel fremder Dienste - nur admin. Angezeigt wird nie der Wert, nur
@@ -1639,7 +1722,82 @@ def integrationen(request: Request, meldung: str = ""):
           '<input type=password name=schluessel autocomplete=off maxlength=64 '
           'placeholder="neuen Schlüssel einfügen" style="min-width:18em">'
           '<button class=p>speichern</button></form>'
-        + loeschen + FUSS)
+        + loeschen + kanal_abschnitt(s) + FUSS)
+
+
+@app.post("/integrationen/teamspeak")
+def integrationen_teamspeak(request: Request, csrf: str = Form(""), was: str = Form(""),
+                            benutzer: str = Form(""), passwort: str = Form(""), an: str = Form(""),
+                            oberkanal: str = Form(""), muster: str = Form("")):
+    s = pruefe(request, csrf)
+    if not ist_admin(s):
+        return RedirectResponse("/", 303)
+    zurueck = lambda m: RedirectResponse(f"/integrationen?meldung={quote(m)}", 303)
+    if was == "zugang-loeschen":
+        TS_KONF.unlink(missing_ok=True)
+        protokoll(s, "TeamSpeak-Zugang entfernt", "")
+        return zurueck("TeamSpeak-Zugang entfernt.")
+    if was == "zugang":
+        b = benutzer.strip()
+        if not re.fullmatch(r"[A-Za-z0-9_.@-]{1,40}", b):
+            return zurueck("Unzulässiger Benutzername.")
+        if not passwort or len(passwort) > 200 or any(ord(c) < 32 for c in passwort):
+            return zurueck("Das Passwort fehlt oder enthält Steuerzeichen.")
+        # Geprueft wird bei TeamSpeak selbst, ueber stdin - nie als Argument.
+        rc, aus = aktion("kanaele", "pruefen", timeout=60,
+                         eingabe=f"{b}\n{passwort}\n".encode())
+        if rc != 0:
+            protokoll(s, "TeamSpeak-Zugang abgelehnt", "", "fehlgeschlagen", benutzer=b)
+            return zurueck("Nicht gespeichert: " + (aus.strip().splitlines() or ["TeamSpeak lehnt ab"])[-1].replace("FEHLER: ", ""))
+        tmp = TS_KONF.with_suffix(".tmp")
+        tmp.write_text(f"TS_USER={b}\nTS_PASS={passwort}\n")
+        os.chmod(tmp, 0o600)
+        tmp.replace(TS_KONF)
+        protokoll(s, "TeamSpeak-Zugang gesetzt", "", benutzer=b)
+        aktion("kanaele", "abgleich", timeout=30)
+        return zurueck("TeamSpeak-Zugang geprüft und gespeichert.")
+    if was == "einstellungen":
+        o, m = oberkanal.strip(), muster.strip()
+        if not (1 <= len(o) <= 40) or any(ord(c) < 32 for c in o):
+            return zurueck("Der Oberkanal braucht einen Namen (höchstens 40 Zeichen).")
+        if "{name}" not in m or len(m) > 40 or any(ord(c) < 32 for c in m):
+            return zurueck("Das Namensmuster muss {name} enthalten (höchstens 40 Zeichen).")
+        vorher = kanaele_einstellung()
+        neu = {"an": an == "1", "oberkanal": o, "muster": m}
+        try:
+            alles = json.loads(KANAELE_KONF.read_text())
+        except (OSError, ValueError):
+            alles = {}
+        alles["teamspeak"] = neu
+        tmp = KANAELE_KONF.with_suffix(".tmp")
+        tmp.write_text(json.dumps(alles, indent=1, ensure_ascii=False) + "\n")
+        os.chmod(tmp, 0o600)
+        tmp.replace(KANAELE_KONF)
+        protokoll(s, "TeamSpeak-Kanaele " + ("eingeschaltet" if neu["an"] else "ausgeschaltet")
+                  if neu["an"] != vorher["an"] else "TeamSpeak-Kanaele eingestellt", "",
+                  oberkanal=o, muster=m)
+        aktion("kanaele", "abgleich", timeout=30)
+        if not neu["an"]:
+            hinweis = ""
+        elif ts_zugang_benutzer():
+            hinweis = " Die Kanäle entstehen in den nächsten Minuten im Hintergrund."
+        else:
+            hinweis = " Es fehlt noch der Zugang – ohne ihn entsteht nichts."
+        return zurueck("Gespeichert." + hinweis)
+    return zurueck("Unbekannte Aktion.")
+
+
+def kanal_vorschau_html(stack: str) -> str:
+    """Was geschieht mit dem TeamSpeak-Kanal, wenn dieser Server entfernt wird?
+    Nur wenn es ueberhaupt eine Zuordnung gibt - sonst fragt die Seite TeamSpeak
+    gar nicht erst (#137)."""
+    if stack not in ((kanaele_zuordnung().get("teamspeak")) or {}):
+        return ""
+    rc, aus = aktion("kanaele", "vorschau", stack, timeout=30)
+    art, _, text = (aus.strip().splitlines() or [""])[-1].partition("\t")
+    if rc != 0 or not text:
+        return ""
+    return f'<div class={"warn" if art == "weg" else "m"}>{esc(text)}</div>'
 
 
 @app.post("/integrationen/steam")

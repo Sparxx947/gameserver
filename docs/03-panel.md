@@ -324,6 +324,53 @@ Setzen und Entfernen stehen im Protokoll, mit den letzten vier Zeichen.
 > four characters. Checked at Steam before saving; stored under
 > `/opt/panel/daten` (backed up), logged without the value.*
 
+#### TeamSpeak: ein Kanal je Spielserver (#137)
+
+Jens' Wunsch: Jeder installierte Spielserver bekommt einen Kanal auf dem
+TeamSpeak-Server, automatisch, und der Kanal verschwindet wieder, wenn der
+Server entfernt wird. **Aus, bis er hier eingeschaltet wird.** Einzustellen sind
+der Zugang (ServerQuery-Benutzer und -Passwort, nur zum Schreiben, beim Speichern
+bei TeamSpeak geprüft — über stdin, nie als Argument), der **Oberkanal**, unter
+dem die Kanäle entstehen (Vorgabe „Spieleserver"), und das **Namensmuster**
+(`{name}` = Name des Servers). Die Tabelle darunter zeigt, welcher Server welchen
+Kanal hat.
+
+Angelegt und gelöscht wird **nie im Seitenaufruf**, sondern von
+`kanal-verwalten` im Dienst `kanal-abgleich` — angestoßen nach jeder Installation
+und Entfernung, dazu alle fünf Minuten. Welche Server es gibt, sagt
+`/opt/stacks`; die Zuordnung Server → Kanal-ID steht in
+`/opt/panel/daten/kanaele-zuordnung.json`. Gibt es nichts zu tun, verbindet sich
+der Dienst gar nicht erst.
+
+**Gelöscht wird nur, was unberührt ist** (Jens' Entscheidung): von Platzwart
+angelegt — erkannt an der gespeicherten ID, nicht am Namen —, weder umbenannt
+noch verschoben, ohne Unterkanäle, niemand drin. Sonst bleibt der Kanal stehen,
+steht im Protokoll und wird nach `#platzwart-stoerung` gemeldet. Einen Kanal
+gleichen Namens, den jemand von Hand angelegt hat, übernimmt das Werkzeug als
+„von Hand angelegt" und löscht ihn nie. Die Bestätigungsseite „Server entfernen"
+sagt **vor** dem Klick, was mit dem Kanal geschieht.
+
+**Flutschutz.** ServerQuery erreicht TeamSpeak über das Docker-Gateway, nicht
+von `127.0.0.1` — die Anfragen stehen also nicht auf seiner Allowlist. Gemessen:
+drei Anmeldungen kurz hintereinander, und TeamSpeak antwortete `client is
+flooding` und nahm danach länger als zwei Minuten keine Verbindung an. Das
+Werkzeug schickt deshalb höchstens einen Befehl je 0,6 s, eine Verbindung je
+Lauf, und benennt eine Drosselung als solche.
+
+**Discord** folgt, sobald es einen Bot mit dem Recht „Kanäle verwalten" gibt —
+ein Webhook kann keine Kanäle anlegen, und ein solcher Bot-Schlüssel kann den
+ganzen Discord-Server umbauen (E33).
+
+> *One TeamSpeak channel per game server, off until switched on here: write-only
+> ServerQuery credentials (checked at TeamSpeak via stdin), a parent channel and
+> a name pattern. Channels are created and deleted by the kanal-abgleich service,
+> never in a page request — triggered after installs and removals and every five
+> minutes; `/opt/stacks` is the only list of servers. Deleted only if untouched:
+> created by Platzwart (stored id, not name), not renamed or moved, no
+> subchannels, nobody inside — otherwise kept, audited and reported. The removal
+> confirmation page says which before the click. ServerQuery is flood-limited
+> (measured), so commands are paced. Discord follows once a bot exists.*
+
 ## Mods hochladen `/mods/{stack}`
 
 Wo kein Katalog hinreicht, bringt der Betreiber die Datei selbst mit. Nach der
@@ -1497,6 +1544,7 @@ und führte `/konfig` und `/archive` noch als admin-only.
 | GET | `/nutzer` · POST `/nutzer-anlegen` · `/mfa-zuruecksetzen` · `/nutzer-loeschen` | admin | Benutzerverwaltung |
 | GET | `/protokoll` | admin | Protokoll aller Aktionen |
 | GET | `/integrationen` · POST `/integrationen/steam` | admin | Schlüssel fremder Dienste (Steam-Web-API) |
+| POST | `/integrationen/teamspeak` | admin | TeamSpeak-Zugang (geprüft), Kanal-Schalter, Oberkanal, Namensmuster (#137) |
 | GET | `/neustart-fragen` · POST `/neustart` | admin | Maschine neu starten |
 | GET | `/auth-check` | admin | interne Prüfung für Caddy (Terminal) |
 
