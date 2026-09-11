@@ -403,12 +403,26 @@ schreibt die Freigabe, unter derselben Sperre wie der Timer: Schriebe
 Fassung überschreiben. Veröffentlicht wird danach über den einen Weg,
 `port-ermitteln`.
 
+**Whitelist pflegen (#185).** Die Minecraft-Einträge erzwingen die Whitelist —
+ohne einen Weg, Namen einzutragen, kam nach der Freigabe niemand hinein (von Jens
+bemerkt). Die Einstellungsseite hat deshalb bei Minecraft (Java) einen Abschnitt
+**Whitelist**: eintragen, entfernen, Liste. `panel-aktion whitelist` spricht
+dazu `rcon-cli` **im** Container an; der Server schreibt `whitelist.json` selbst,
+sofort und ohne Neustart, und prüft den Namen bei Mojang („That player does not
+exist"). Der Name wird vorher streng geprüft (3–16 Zeichen aus Buchstaben,
+Ziffern, `_`) und geht als eigenes Argument weiter, nie durch eine Shell;
+eingeschleuste Befehle wie `Notch; op Notch` weist zusätzlich schon der Server
+ab (gemessen). Nur bei laufendem Server, nur Java — Bedrock hat eine andere
+Liste.
+
 > *Minecraft and TeamSpeak have no join password. Since #183 their port stays
 > closed until someone with verwalten or admin releases it on the settings page;
 > the confirmation page says what protects the server instead (whitelist, client
 > server password). The "keins only" check and the write live in
 > `spiel-einrichtung --freigeben`, under the timer's lock; publishing goes through
-> `port-ermitteln`.*
+> `port-ermitteln` The settings page manages the Minecraft whitelist
+> (#185) through `rcon-cli` inside the container: live, persisted by the server,
+> names checked strictly and passed as their own argument; Java edition only.*
 
 ### Beim Entfernen verschwindet auch der Leerlauf
 
@@ -1293,6 +1307,7 @@ und führte `/konfig` und `/archive` noch als admin-only.
 | POST | `/passkey/anlegen-start` · `/passkey/anlegen-fertig` · `/passkey-loeschen` | alle | eigene Passkeys |
 | GET | `/spiele` · POST `/installieren` | verwalten | Katalog, Spiel installieren |
 | GET | `/deinstallieren-fragen/{stack}` · POST `/deinstallieren` | verwalten | Katalogspiel entfernen |
+| POST | `/whitelist` | verwalten | Minecraft-Whitelist: eintragen, entfernen |
 | GET | `/freigabe-fragen/{stack}` · POST `/port-freigeben` | verwalten | Spiel ohne Beitrittspasswort von Hand ans Netz geben (nur `keins`) |
 | POST | `/alle` | verwalten | alle anhalten / zuletzt laufende starten |
 | POST | `/aktualisieren` · `/auto-update` · `/leerlauf` | verwalten | Betrieb eines Servers |

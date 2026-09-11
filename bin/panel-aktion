@@ -580,6 +580,29 @@ PY
       /usr/local/bin/dns-pflegen entfernen "$s" >/dev/null 2>&1 || true
     fi
     ;;
+  whitelist)
+    # Minecraft-Whitelist pflegen (#185). Ueber rcon-cli IM Container: der
+    # Server schreibt whitelist.json selbst, sofort und ohne Neustart, und
+    # prueft den Namen bei Mojang. Nur Minecraft Java (itzg/minecraft-server) -
+    # Bedrock hat eine andere Liste. Der Name wird hier streng geprueft (die
+    # Mojang-Regel: 3-16 Zeichen aus Buchstaben, Ziffern, Unterstrich) und geht
+    # als eigenes Argument weiter, nie durch eine Shell.
+    # *Manage the Minecraft whitelist through rcon-cli inside the container. Java
+    #  edition only; the name is checked strictly and passed as its own argument.*
+    s="${2:-}"; was="${3:-}"; spieler="${4:-}"; pruefe_stack "$s"
+    lage=$(docker inspect -f '{{.Config.Image}} {{.State.Running}}' "$s" 2>/dev/null) \
+      || fehler "kein Container"
+    [[ "$lage" == itzg/minecraft-server:* ]] || fehler "Eine Whitelist gibt es hier nur fuer Minecraft (Java)."
+    [[ "$lage" == *" true" ]] || fehler "Die Whitelist laesst sich nur bei laufendem Server pflegen."
+    case "$was" in
+      liste) docker exec "$s" rcon-cli whitelist list ;;
+      hinzu|weg)
+        [[ "$spieler" =~ ^[A-Za-z0-9_]{3,16}$ ]] || fehler "unzulaessiger Spielername (3-16 Zeichen: Buchstaben, Ziffern, _)"
+        if [ "$was" = hinzu ]; then befehl=add; else befehl=remove; fi
+        docker exec "$s" rcon-cli whitelist "$befehl" "$spieler" ;;
+      *) fehler "nur liste, hinzu oder weg" ;;
+    esac
+    ;;
   port-freigeben)
     # Freigabe von Hand fuer Spiele OHNE Beitrittspasswort (#183, E26). Die
     # Pruefung "nur bei passwort_art keins" und das Schreiben der Freigabe

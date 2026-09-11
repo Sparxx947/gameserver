@@ -1433,10 +1433,11 @@ def freigabe_fragen(request: Request, stack: str):
     pi = stackinfo(stack) if STACK_RE.fullmatch(stack) else {}
     if pi.get("passwort_art") != "keins" or not pi.get("einrichtung_offen"):
         return RedirectResponse(einstellungen_von(stack), 303)
-    schutz = ("<b>Minecraft:</b> Ohne Whitelist kann jeder mit der Adresse beitreten. "
-              "Vorher in der <a href=\"/konfig/" + esc(stack) + "\">Konfiguration</a> "
-              "<code>ENFORCE_WHITELIST=TRUE</code> und die Namen unter <code>WHITELIST</code> "
-              "setzen - danach neu starten."
+    schutz = ("<b>Minecraft:</b> Die Whitelist ist erzwungen - hinein kommt nur, wer "
+              "eingetragen ist. Namen trägst du auf der <a href=\"" + einstellungen_von(stack)
+              + "\">Einstellungsseite</a> unter <b>Whitelist</b> ein, sobald der Server "
+              "läuft. Wer <code>ENFORCE_WHITELIST</code> in der Konfiguration abschaltet, "
+              "öffnet den Server für jeden."
               if "minecraft" in stack else
               "<b>TeamSpeak:</b> Das Serverpasswort setzt man im TeamSpeak-Client "
               "(Serververwaltung → Server bearbeiten → Passwort). Ohne das kann jeder "
@@ -1456,6 +1457,21 @@ def freigabe_fragen(request: Request, stack: str):
           f'<input type=hidden name=stack value="{esc(stack)}">'
           f'<button class=y>Ja, {esc(stack)} freigeben</button></form> '
           f'<a class=b href="{einstellungen_von(stack)}">Abbrechen</a>' + FUSS)
+
+
+@app.post("/whitelist")
+def whitelist(request: Request, csrf: str = Form(""), stack: str = Form(""),
+              was: str = Form(""), spieler: str = Form(""), zurueck: str = Form("")):
+    """Minecraft-Whitelist: eintragen oder entfernen (#185)."""
+    s = pruefe(request, csrf)
+    if not darf_verwalten(s):
+        return RedirectResponse("/", 303)
+    if was not in ("hinzu", "weg") or not re.fullmatch(r"[A-Za-z0-9_]{3,16}", spieler):
+        return zurueck_nach(stack, zurueck, "Unzulässiger Spielername (3-16 Zeichen: Buchstaben, Ziffern, _).")
+    rc, aus = aktion("whitelist", stack, was, spieler, timeout=60)
+    protokoll(s, "Whitelist " + ("ergaenzt" if was == "hinzu" else "gekuerzt"), stack,
+              "ok" if rc == 0 else "fehlgeschlagen", spieler=spieler)
+    return zurueck_nach(stack, zurueck, aus.strip()[:200] or "erledigt")
 
 
 @app.post("/port-freigeben")
@@ -2009,6 +2025,39 @@ def server_einstellungen(request: Request, stack: str, meldung: str = ""):
             '<div class=warn>Dieses Spiel kennt kein Beitrittspasswort. Der Port bleibt '
             'deshalb zu, bis ihn jemand bewusst freigibt.</div><div class=verweise>'
             f'<a class="b y" href="/freigabe-fragen/{name}">Port freigeben …</a></div></div>')
+
+    # --- Whitelist: Minecraft (Java) ---------------------------------------
+    # Die Katalogeintraege ERZWINGEN die Whitelist, und die Freigabe (#183)
+    # verweist darauf - ohne diesen Abschnitt kam nach der Freigabe niemand
+    # hinein, und niemand liess sich eintragen (#185, von Jens bemerkt).
+    # *The catalogue enforces the whitelist and the release points at it; without
+    #  this section nobody could join or be added.*
+    if (darf_verwalten(s) and str(pi.get("schluessel", "")).startswith("minecraft")
+            and pi.get("schluessel") != "minecraftbedrock"):
+        rc_w, aus_w = aktion("whitelist", name, "liste", timeout=30)
+        if rc_w != 0:
+            inhalt = f'<p class=z>{esc(aus_w.strip()[:200])}</p>'
+        else:
+            m_w = re.search(r":\s*(.+)$", aus_w.strip())
+            namen = [x.strip() for x in m_w.group(1).split(",")] if m_w else []
+            namen = [x for x in namen if re.fullmatch(r"[A-Za-z0-9_]{3,16}", x)]
+            zeilen = "".join(
+                f'<div style="display:flex;gap:8px;align-items:center;margin:4px 0">'
+                f'<code style="min-width:10em">{esc(x)}</code>'
+                + formular("/whitelist", {"was": "weg", "spieler": x}, "entfernen", "b x")
+                + '</div>' for x in namen)
+            inhalt = ((zeilen or '<p class=z>Noch niemand eingetragen - so kommt niemand hinein.</p>')
+                + f'<form method=post action=/whitelist style="display:flex;gap:6px;margin-top:10px">'
+                  f'<input type=hidden name=csrf value="{csrf}">'
+                  f'<input type=hidden name=stack value="{esc(name)}">'
+                  f'<input type=hidden name=zurueck value=server>'
+                  f'<input type=hidden name=was value=hinzu>'
+                  f'<input name=spieler required pattern="[A-Za-z0-9_]{{3,16}}" '
+                  f'placeholder="Minecraft-Name" maxlength=16>'
+                  f'<button class=b>eintragen</button></form>'
+                + '<p class=z>Wirkt sofort, ohne Neustart. Der Server prüft den Namen bei '
+                  'Mojang.</p>')
+        abschnitte.append('<div class=abschnitt><h2>Whitelist</h2>' + inhalt + '</div>')
 
     # --- Betrieb: was der Server nachts und im Leerlauf von selbst tut ------
     if darf_verwalten(s):
