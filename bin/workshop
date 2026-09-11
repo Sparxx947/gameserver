@@ -1,0 +1,418 @@
+#!/usr/bin/env python3
+"""workshop — Steam-Workshop-Mods fuer Spielserver: pruefen, suchen, eintragen (#130).
+
+Die Server dieser Spiele laden Workshop-Inhalte SELBST, wenn ihre Konfiguration
+die IDs nennt. Dieses Werkzeug pflegt die Liste an der Stelle, an der das Spiel
+sie erwartet - wo das ist und in welcher Form, steht je Spiel in
+/etc/spiele-workshop.json; geraten wird nichts. Vorab geladen wird nur, wo das
+Spiel es verlangt (Project Zomboid braucht die Mod-ID aus dem Inhalt), und dann
+mit dem steamcmd des Images genau dorthin, wo der Server selbst laedt.
+
+  workshop kann    <stack>            unterstuetzt? und ist die Suche verfuegbar?
+  workshop liste   <stack>            eingetragene Mods
+  workshop pruefen <stack> <eingabe>  Link, ID oder Sammlung -> geprueft
+  workshop suche   <stack> <text> [seite]
+  workshop hinzu   <stack> <id>
+  workshop weg     <stack> <id>
+  workshop --selbsttest
+
+Ausgabe tabgetrennt, Zeile fuer Zeile; das Panel liest sie.
+
+== Wogegen hier gebaut wird ==
+Eine eingefuegte ID ist nur eine Zahl - und genau deshalb gefaehrlich: Die
+Zahl eines Mods fuer ein ANDERES Spiel wuerde der Server herunterladen und
+laden wollen. Jede ID wird vor dem Eintragen bei Steam nachgeschlagen und muss
+zu GENAU dem Spiel dieses Servers gehoeren (consumer_app_id == appid aus dem
+Katalog). Gesperrte und nicht gefundene Eintraege werden abgewiesen.
+
+*Every pasted id is looked up at Steam and must belong to exactly this server's
+ game (consumer_app_id == the catalogue appid); banned and missing items are
+ refused. The game servers fetch Workshop items themselves from the list this
+ tool maintains; it pre-fetches only where a game needs it (Project Zomboid needs
+ the mod id from the content), with the image's own steamcmd.*
+"""
+import json
+import os
+import re
+import sys
+import urllib.parse
+import urllib.request
+from pathlib import Path
+
+KATALOG = Path(os.environ.get("WORKSHOP_KATALOG", "/etc/spiele-katalog.json"))
+KONF = Path(os.environ.get("WORKSHOP_KONF", "/etc/spiele-workshop.json"))
+# Vom Panel geschrieben (Seite "Integrationen", nur admin) - Jens: "der Steam-API-
+# Key muss irgendwo im Panel hinterlegbar sein". Deshalb nicht /etc: dort darf das
+# Panel nicht schreiben (ProtectSystem=full), und ein zweiter Ablageort waere eine
+# zweite Wahrheit. /opt/panel/daten ist seit #218 in der Sicherung.
+# *Written by the panel's integrations page; /etc is read-only for the panel.*
+STEAM_KONF = Path(os.environ.get("WORKSHOP_STEAM_KONF", "/opt/panel/daten/steam-api.conf"))
+STACKS = Path(os.environ.get("WORKSHOP_STACKS", "/opt/stacks"))
+GAMES = Path(os.environ.get("WORKSHOP_GAMES", "/srv/games"))
+API = "https://api.steampowered.com"
+ID_MUSTER = re.compile(r"^[0-9]{3,12}$")
+# Groesser als das nimmt das Panel nichts an. Mods landen in der Sicherung
+# (Jens' Entscheidung in #130) - ein einzelner ARK-Mod war 319 MB.
+MAX_BYTES = int(os.environ.get("WORKSHOP_MAX_BYTES", str(2 * 1024 ** 3)))
+
+
+def fehler(*t, code=1):
+    print("FEHLER:", *t, file=sys.stderr)
+    sys.exit(code)
+
+
+# --- Steam ------------------------------------------------------------------
+
+def _post(pfad: str, felder: dict) -> dict:
+    daten = urllib.parse.urlencode(felder).encode()
+    req = urllib.request.Request(f"{API}/{pfad}", data=daten,
+                                 headers={"User-Agent": "platzwart-workshop"})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        return json.loads(r.read())
+
+
+def details(ids: list) -> dict:
+    """{id: details} ueber GetPublishedFileDetails - braucht KEINEN Schluessel."""
+    if not ids:
+        return {}
+    felder = {"itemcount": len(ids)}
+    for i, x in enumerate(ids):
+        felder[f"publishedfileids[{i}]"] = x
+    antwort = _post("ISteamRemoteStorage/GetPublishedFileDetails/v1/", felder)
+    return {d["publishedfileid"]: d for d in antwort["response"].get("publishedfiledetails", [])}
+
+
+def sammlung(cid: str) -> list:
+    """IDs einer Sammlung, [] wenn cid keine Sammlung ist - ohne Schluessel."""
+    antwort = _post("ISteamRemoteStorage/GetCollectionDetails/v1/",
+                    {"collectioncount": 1, "publishedfileids[0]": cid})
+    d = (antwort["response"].get("collectiondetails") or [{}])[0]
+    if d.get("result") != 1:
+        return []
+    return [k["publishedfileid"] for k in d.get("children", []) if k.get("filetype") == 0]
+
+
+def schluessel() -> str:
+    """Steam-Web-API-Schluessel aus dem Panel (0600 panel), sonst ''."""
+    try:
+        for z in STEAM_KONF.read_text().splitlines():
+            if z.startswith("STEAM_API_KEY="):
+                return z.split("=", 1)[1].strip().strip('"')
+    except OSError:
+        pass
+    return ""
+
+
+def suchen(appid: int, text: str, seite: int = 1) -> list:
+    """Workshop-Suche - braucht den Schluessel (ohne: HTTP 403, gemessen)."""
+    k = schluessel()
+    if not k:
+        fehler("keine Suche ohne Steam-Web-API-Schluessel - im Panel unter Integrationen hinterlegen", code=3)
+    q = urllib.parse.urlencode({
+        "key": k, "appid": appid, "search_text": text, "numperpage": 20,
+        "page": seite, "query_type": 12, "filetype": 0, "return_details": "true",
+        "return_short_description": "true"})
+    req = urllib.request.Request(f"{API}/IPublishedFileService/QueryFiles/v1/?{q}",
+                                 headers={"User-Agent": "platzwart-workshop"})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        return json.loads(r.read())["response"].get("publishedfiledetails", [])
+
+
+def ids_aus(eingabe: str) -> list:
+    """Link oder ID -> [id]. Ein Link traegt die ID als ?id=... ."""
+    m = re.search(r"[?&]id=([0-9]{3,12})\b", eingabe) or re.fullmatch(r"\s*([0-9]{3,12})\s*", eingabe)
+    return [m.group(1)] if m else []
+
+
+def urteil(d: dict, appid: int) -> str:
+    """'' = in Ordnung, sonst der Grund - rein, damit sich jede Antwort pruefen laesst."""
+    if not d or d.get("result") != 1:
+        return "bei Steam nicht gefunden"
+    if int(d.get("consumer_app_id") or 0) != int(appid):
+        return f"gehoert zu einem anderen Spiel (App {d.get('consumer_app_id')})"
+    if d.get("banned"):
+        return "von Steam gesperrt"
+    if int(d.get("file_size") or 0) > MAX_BYTES:
+        return f"groesser als {MAX_BYTES // 1024 ** 2} MB"
+    return ""
+
+
+# --- Stack und Spiel ----------------------------------------------------------
+
+def spiel_von(stack: str) -> tuple:
+    """(katalogeintrag, workshop-angabe) - bricht ab, wenn der Stack nicht passt."""
+    if not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?", stack):
+        fehler("unzulaessiger Name")
+    try:
+        p = json.loads((STACKS / stack / "panel.json").read_text())
+    except (OSError, ValueError):
+        fehler(f"{stack}: kein Katalogspiel (keine panel.json)", code=2)
+    sch = p.get("schluessel", stack)
+    g = next((e for e in json.loads(KATALOG.read_text())["spiele"] if e["schluessel"] == sch), None)
+    w = json.loads(KONF.read_text()).get("spiele", {}).get(sch)
+    if not g or not w:
+        fehler(f"{stack}: fuer dieses Spiel gibt es keine Workshop-Anbindung", code=2)
+    return g, w
+
+
+# --- Anpassungen je Spiel -------------------------------------------------------
+# Jede Art weiss nur zwei Dinge: welche IDs eingetragen sind, und wie man eine
+# eintraegt oder austraegt. Was der Server daraus macht, ist seine Sache.
+
+class Anpassung:
+    def __init__(self, stack: str, w: dict):
+        self.stack, self.w = stack, w
+        self.basis = GAMES / stack
+
+    def datei(self) -> Path:
+        """Die Konfigurationsdatei - aufgeloest und INNERHALB des Datenverzeichnisses."""
+        p = (self.basis / self.w["datei"]).resolve()
+        if not str(p).startswith(str(self.basis.resolve()) + "/"):
+            fehler("Konfigurationspfad liegt ausserhalb des Datenverzeichnisses")
+        if not p.is_file():
+            fehler(f"{self.w['datei']} gibt es noch nicht - der Server legt sie beim "
+                   "ersten Start an. Danach erneut versuchen.", code=4)
+        return p
+
+    def liste(self) -> list:
+        raise NotImplementedError
+
+    def setzen(self, ids: list):
+        raise NotImplementedError
+
+
+ARTEN = {}
+
+
+def art(name):
+    def reg(cls):
+        ARTEN[name] = cls
+        return cls
+    return reg
+
+
+def anpassung(stack: str, w: dict) -> Anpassung:
+    cls = ARTEN.get(w.get("art"))
+    if not cls:
+        fehler(f"unbekannte Anbindungsart {w.get('art')!r} in {KONF}")
+    return cls(stack, w)
+
+
+def lese_ini(text: str, feld: str) -> str:
+    import re as _re
+    m = _re.search(rf"^{feld}=([^\r\n]*)$", text, _re.M)
+    return m.group(1).strip() if m else ""
+
+
+def setze_ini(text: str, feld: str, wert: str) -> str:
+    """Genau EINE vorhandene Zeile "<feld>=..." ersetzen - fehlt sie, Abbruch.
+
+    Kein Anhaengen: Ein Feld, das es nicht gibt, liest der Server nicht, und ein
+    stilles Anhaengen saehe erledigt aus.
+    *Replace exactly one existing line; a missing field aborts rather than being
+     appended, which would look done while the server never reads it.*
+    """
+    import re as _re
+    muster = _re.compile(rf"^{feld}=[^\r\n]*$", _re.M)
+    if len(muster.findall(text)) != 1:
+        fehler(f"Feld {feld}= nicht genau einmal in der Konfiguration")
+    return muster.sub(lambda m: f"{feld}={wert}", text)
+
+
+@art("zomboid")
+class Zomboid(Anpassung):
+    """Project Zomboid: WorkshopItems= (Workshop-IDs) UND Mods= (Mod-IDs).
+
+    Der Server laedt nur, was in BEIDEN Zeilen steht: WorkshopItems sagt, was er
+    herunterlaedt, Mods, was er davon laedt. Die Mod-ID steht erst in der
+    mod.info im heruntergeladenen Inhalt - bei Build 42 unter mods/<Name>/42/
+    oder mods/<Name>/common/ (gemessen an zwei Mods am 2026-09-11). Damit nicht
+    zwei Neustarts noetig sind (erst laden, dann aktivieren), laedt dieses
+    Werkzeug den Inhalt beim Eintragen selbst vorab - mit dem steamcmd im
+    Container, als dessen Benutzer, genau dorthin, wo der Server sucht. Gemessen:
+    11 s fuer einen 280-KB-Mod, anonym. Das Format "Mods=A;B" laedt Build 42
+    (Log: "loading GlassmakingPlus").
+    *The server loads only what is in BOTH lines. The mod id lives in mod.info
+     inside the downloaded content, so the content is pre-fetched with the
+     container's steamcmd, as its user, right where the server looks.*
+    """
+
+    def liste(self) -> list:
+        wert = lese_ini(self.datei().read_text(errors="replace"), "WorkshopItems")
+        return [x for x in wert.split(";") if ID_MUSTER.fullmatch(x)]
+
+    def inhalt(self, wid: str) -> Path:
+        p = (self.basis / self.w["inhalt"] / wid).resolve()
+        if not str(p).startswith(str(self.basis.resolve()) + "/"):
+            fehler("Inhaltspfad liegt ausserhalb des Datenverzeichnisses")
+        return p
+
+    def mod_ids(self, wid: str) -> list:
+        ids = []
+        for mi in sorted(self.inhalt(wid).glob("mods/*/**/mod.info")):
+            for z in mi.read_text(errors="replace").splitlines():
+                if z.startswith("id="):
+                    mid = z[3:].strip()
+                    if re.fullmatch(r"[A-Za-z0-9_.\- ]{1,80}", mid) and mid not in ids:
+                        ids.append(mid)
+        return ids
+
+    def vorab_laden(self, wid: str):
+        """Inhalt mit dem steamcmd des Images laden - als Eigentuemer der Daten."""
+        import subprocess
+        besitzer = f"{self.basis.stat().st_uid}:{self.basis.stat().st_gid}"
+        befehl = [self.w["steamcmd"], "+force_install_dir", self.w["install_dir"],
+                  "+login", "anonymous", "+workshop_download_item",
+                  str(self.w["appid_workshop"]), wid, "+quit"]
+        laeuft = subprocess.run(["docker", "inspect", "-f", "{{.State.Running}}", self.stack],
+                                capture_output=True, text=True).stdout.strip() == "true"
+        if laeuft:
+            aufruf = ["docker", "exec", "-u", besitzer, self.stack] + befehl
+        else:
+            # Gestoppt: ein Wegwerfcontainer aus demselben Image, mit demselben
+            # Datenverzeichnis - der Server startet dabei NICHT.
+            bild = subprocess.run(["docker", "inspect", "-f", "{{.Config.Image}}", self.stack],
+                                  capture_output=True, text=True).stdout.strip()
+            if not bild:
+                fehler("kein Container fuer diesen Server")
+            aufruf = ["docker", "run", "--rm", "-u", besitzer, "--entrypoint", befehl[0],
+                      "-v", f"{self.basis}:/serverdata", bild] + befehl[1:]
+        r = subprocess.run(aufruf, capture_output=True, text=True, timeout=1800)
+        if "Success. Downloaded item" not in r.stdout:
+            letzte = (r.stdout.strip().splitlines() or ["keine Ausgabe"])[-1]
+            fehler(f"{wid}: Download gescheitert - {letzte[:160]}")
+
+    def setzen(self, ids: list):
+        p = self.datei()
+        text = p.read_text(errors="replace")
+        alt_ids = self.liste()
+        # Mod-IDs der Eintraege, die gehen: aus ihrem Inhalt, solange er noch da ist.
+        weg_mods = {m for x in alt_ids if x not in ids for m in self.mod_ids(x)}
+        neu_mods = []
+        for x in ids:
+            if not self.mod_ids(x):
+                self.vorab_laden(x)
+            gefunden = self.mod_ids(x)
+            if not gefunden:
+                fehler(f"{x}: kein mod.info im Inhalt - ist das ein Mod fuer Build 42?")
+            neu_mods += [m for m in gefunden if m not in neu_mods]
+        # Von Hand eingetragene Mods (keinem Workshop-Eintrag zugeordnet) bleiben.
+        verwaltet = weg_mods | set(neu_mods)
+        vorhanden = [m for m in lese_ini(text, "Mods").split(";") if m]
+        hand = [m for m in vorhanden if m not in verwaltet]
+        text = setze_ini(text, "WorkshopItems", ";".join(ids))
+        text = setze_ini(text, "Mods", ";".join(hand + neu_mods))
+        vorher = p.stat()
+        p.write_text(text)
+        os.chown(p, vorher.st_uid, vorher.st_gid)
+        # Inhalt ausgetragener Mods entfernen: sonst waechst die Sicherung
+        # (Mods werden mitgesichert) mit Dingen, die niemand mehr laedt.
+        import shutil
+        for x in alt_ids:
+            if x not in ids and self.inhalt(x).is_dir():
+                shutil.rmtree(self.inhalt(x))
+
+
+# --- Befehle --------------------------------------------------------------------
+
+def zeile(d: dict) -> str:
+    return "\t".join([d.get("publishedfileid", ""), (d.get("title") or "").replace("\t", " ")[:120],
+                      str(d.get("file_size") or 0), str(d.get("time_updated") or 0)])
+
+
+def main(a: list) -> int:
+    if not a:
+        print(__doc__.split("==")[0].strip())
+        return 1
+    befehl = a[0]
+    if befehl == "--selbsttest":
+        return selbsttest()
+    if len(a) < 2:
+        fehler("Stack fehlt")
+    stack = a[1]
+    g, w = spiel_von(stack)
+    appid = int(g["appid"])
+    if befehl == "kann":
+        print(f"ok\t{g['name']}\tsuche={'ja' if schluessel() else 'nein'}")
+        return 0
+    anp = anpassung(stack, w)
+    if befehl == "liste":
+        ids = anp.liste()
+        info = details(ids) if ids else {}
+        for x in ids:
+            print(zeile(info.get(x) or {"publishedfileid": x, "title": "(bei Steam nicht gefunden)"}))
+        return 0
+    if befehl == "pruefen" and len(a) == 3:
+        ids = ids_aus(a[2])
+        if not ids:
+            fehler("keine Workshop-ID oder kein Link erkannt")
+        kinder = sammlung(ids[0])
+        ids = kinder or ids
+        info = details(ids)
+        for x in ids:
+            grund = urteil(info.get(x), appid)
+            print(zeile(info.get(x) or {"publishedfileid": x}) + "\t" + (grund or "ok"))
+        return 0
+    if befehl == "suche" and len(a) in (3, 4):
+        text = a[2]
+        if not re.fullmatch(r"[\w .'-]{1,60}", text):
+            fehler("unzulaessiger Suchtext")
+        seite = int(a[3]) if len(a) == 4 and a[3].isdigit() else 1
+        for d in suchen(appid, text, seite):
+            print(zeile(d) + "\t" + (urteil(d, appid) or "ok"))
+        return 0
+    if befehl in ("hinzu", "weg") and len(a) == 3:
+        x = a[2]
+        if not ID_MUSTER.fullmatch(x):
+            fehler("unzulaessige ID")
+        ids = anp.liste()
+        if befehl == "hinzu":
+            grund = urteil(details([x]).get(x), appid)
+            if grund:
+                fehler(f"{x}: {grund}")
+            if x in ids:
+                print(f"ok\t{x} ist schon eingetragen")
+                return 0
+            anp.setzen(ids + [x])
+            print(f"ok\t{x} eingetragen - wirkt beim naechsten Start des Servers")
+        else:
+            if x not in ids:
+                print(f"ok\t{x} war nicht eingetragen")
+                return 0
+            anp.setzen([i for i in ids if i != x])
+            print(f"ok\t{x} ausgetragen - wirkt beim naechsten Start des Servers")
+        return 0
+    fehler("Aufruf: workshop kann|liste <stack> | pruefen <stack> <eingabe> | "
+           "suche <stack> <text> [seite] | hinzu|weg <stack> <id>")
+
+
+def selbsttest() -> int:
+    schlecht = 0
+    faelle = [
+        ("https://steamcommunity.com/sharedfiles/filedetails/?id=2392709985", ["2392709985"]),
+        ("https://steamcommunity.com/workshop/filedetails/?id=123456&searchtext=", ["123456"]),
+        ("2392709985", ["2392709985"]),
+        ("  2392709985 ", ["2392709985"]),
+        ("2392709985; rm -rf /", []),
+        ("abc", []),
+    ]
+    for eingabe, soll in faelle:
+        ist = ids_aus(eingabe)
+        ok = ist == soll
+        schlecht += not ok
+        print(f"  {'ok  ' if ok else 'FEHLER'} ids_aus({eingabe!r}) = {ist}")
+    for d, soll in [({"result": 1, "consumer_app_id": 108600, "file_size": 10}, ""),
+                    ({"result": 1, "consumer_app_id": 4000, "file_size": 10}, "anderen Spiel"),
+                    ({"result": 9}, "nicht gefunden"),
+                    ({"result": 1, "consumer_app_id": 108600, "banned": True}, "gesperrt"),
+                    ({"result": 1, "consumer_app_id": 108600, "file_size": MAX_BYTES + 1}, "groesser")]:
+        ist = urteil(d, 108600)
+        ok = (soll == "" and ist == "") or (soll and soll in ist)
+        schlecht += not ok
+        print(f"  {'ok  ' if ok else 'FEHLER'} urteil({d}) = {ist or 'ok'}")
+    print("alles gruen." if not schlecht else f"{schlecht} FEHLER")
+    return 1 if schlecht else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

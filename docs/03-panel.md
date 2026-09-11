@@ -198,6 +198,62 @@ stillschweigend „an, wegen eines Servers, den es nicht mehr gibt". Gemessen am
 
 ---
 
+## Steam-Workshop `/workshop/{stack}` (#130)
+
+Bei Spielen mit Workshop-Anbindung zeigt die Einstellungsseite einen Abschnitt
+**Workshop**: die eingetragenen Mods mit Titel, Größe und Link, ein Feld für
+**Link, ID oder ganze Sammlung** und — sobald ein Steam-Web-API-Schlüssel
+hinterlegt ist — eine **Suche**. Entscheidungen von Jens (in #130 festgehalten):
+`verwalten` darf das auch, und Mods werden **mitgesichert**.
+
+**Jede ID wird bei Steam nachgeschlagen** und muss zu **genau** dem Spiel dieses
+Servers gehören (`consumer_app_id` = `appid` des Katalogs). Eine eingefügte Zahl
+eines Mods für ein anderes Spiel, ein gesperrter oder ein unbekannter Eintrag
+kommt nicht in die Konfiguration; die Prüfseite nennt den Grund. Größer als 2 GB
+nimmt das Panel nichts an.
+
+**Die Server laden selbst.** `bin/workshop` pflegt die Liste an der Stelle, an der
+das Spiel sie erwartet; beim nächsten Start lädt der Server. Wo das ist, steht je
+Spiel in `/etc/spiele-workshop.json`, jede Angabe am echten Server gemessen.
+
+**Project Zomboid** braucht zwei Zeilen: `WorkshopItems=` (was geladen wird) und
+`Mods=` (was davon aktiv ist). Die Mod-ID steht erst in der `mod.info` im
+heruntergeladenen Inhalt — bei Build 42 unter `mods/<Name>/42/` oder
+`mods/<Name>/common/`. Damit nicht zwei Neustarts nötig sind, lädt `workshop`
+den Inhalt beim Eintragen mit dem steamcmd des Images vorab, als Eigentümer der
+Daten, genau dorthin, wo der Server sucht (gemessen: 7–11 s für kleine Mods).
+Von Hand eingetragene Mods in `Mods=` bleiben stehen; der Inhalt ausgetragener
+Mods wird gelöscht, damit die Sicherung nicht mit Totem wächst. Nachgewiesen
+am Testserver: eingetragen, ausgetragen, neu gestartet — das Log zeigt genau die
+eingetragenen Mods (`loading AreaTasks`, `loading BetterFireExtinguishers`).
+
+> *Workshop section for games with a binding: installed mods, a field for a
+> link, id or whole collection, and a search once a Steam Web API key is set.
+> verwalten may use it and mods are backed up (Jens' decisions in #130). Every
+> id is looked up at Steam and must belong to exactly this game. The servers
+> download themselves; `bin/workshop` maintains the list where each game
+> expects it (`/etc/spiele-workshop.json`, measured per game). Project Zomboid
+> needs both `WorkshopItems=` and `Mods=`; the mod id comes from `mod.info`, so
+> the content is pre-fetched with the image's steamcmd. Proven end to end on a
+> test server.*
+
+### Integrationen `/integrationen` (nur admin)
+
+Schlüssel fremder Dienste — bisher der **Steam-Web-API-Schlüssel** für die
+Workshop-Suche (ohne ihn antwortet Steam auf eine Suche mit 403; Details und
+Sammlungen gehen ohne). Jens: *„der Steam-API-Key muss irgendwo im Panel
+hinterlegbar sein."* Das Feld ist **nur zum Schreiben**: angezeigt wird nie der
+Wert, nur ob einer gesetzt ist und seine letzten vier Zeichen. Beim Speichern
+wird er bei Steam geprüft; ein abgelehnter Schlüssel wird nicht gespeichert.
+Er liegt in `/opt/panel/daten/steam-api.conf` (`0600 panel`) — nicht in `/etc`,
+dort darf das Panel nicht schreiben — und ist damit Teil der Sicherung (#218).
+Setzen und Entfernen stehen im Protokoll, mit den letzten vier Zeichen.
+
+> *Keys for outside services, admin only — so far the Steam Web API key for the
+> Workshop search. Write-only: never shown, only whether one is set and its last
+> four characters. Checked at Steam before saving; stored under
+> `/opt/panel/daten` (backed up), logged without the value.*
+
 ## Mods hochladen `/mods/{stack}`
 
 Wo kein Katalog hinreicht, bringt der Betreiber die Datei selbst mit. Nach der
@@ -1325,6 +1381,7 @@ und führte `/konfig` und `/archive` noch als admin-only.
 | GET | `/spiele` · POST `/installieren` | verwalten | Katalog, Spiel installieren |
 | GET | `/deinstallieren-fragen/{stack}` · POST `/deinstallieren` | verwalten | Katalogspiel entfernen |
 | POST | `/whitelist` | verwalten | Minecraft-Whitelist: eintragen, entfernen |
+| GET | `/workshop/{stack}` · POST `/workshop` | verwalten | Steam-Workshop: suchen, Link/ID/Sammlung prüfen, Mods ein- und austragen |
 | GET | `/freigabe-fragen/{stack}` · POST `/port-freigeben` | verwalten | Spiel ohne Beitrittspasswort von Hand ans Netz geben (nur `keins`) |
 | POST | `/alle` | verwalten | alle anhalten / zuletzt laufende starten |
 | POST | `/aktualisieren` · `/auto-update` · `/leerlauf` | verwalten | Betrieb eines Servers |
@@ -1338,6 +1395,7 @@ und führte `/konfig` und `/archive` noch als admin-only.
 | GET | `/mods/{stack}` · POST `/mod-hochladen` · `/mod-entfernen` | admin | Mods |
 | GET | `/nutzer` · POST `/nutzer-anlegen` · `/mfa-zuruecksetzen` · `/nutzer-loeschen` | admin | Benutzerverwaltung |
 | GET | `/protokoll` | admin | Protokoll aller Aktionen |
+| GET | `/integrationen` · POST `/integrationen/steam` | admin | Schlüssel fremder Dienste (Steam-Web-API) |
 | GET | `/neustart-fragen` · POST `/neustart` | admin | Maschine neu starten |
 | GET | `/auth-check` | admin | interne Prüfung für Caddy (Terminal) |
 

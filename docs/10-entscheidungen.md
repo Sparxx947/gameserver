@@ -858,3 +858,43 @@ Erneuerung scheitert.
 > conditionals, imports a generated file unconditionally — a missing import
 > aborting validation is wanted, because a silent fallback to http-01 is the
 > worst outcome of all.*
+
+---
+
+## E30 — Workshop-Mods: das Spiel lädt, das Panel pflegt die Liste
+
+**Die naheliegende Lösung** wäre ein eigener Downloader: Mods herunterladen und
+irgendwo ablegen. Verworfen, weil die Server von Project Zomboid, Unturned,
+Don't Starve Together und Killing Floor 2 Workshop-Inhalte **selbst** laden, wenn
+ihre Konfiguration die IDs nennt — ein zweiter Download-Weg daneben wäre einer,
+der mit dem Spiel auseinanderlaufen kann. Das Panel pflegt deshalb nur die Liste,
+dort, wo das Spiel sie erwartet; eine Anpassung je Spiel weiß nur, *wo* und *in
+welcher Form* (dieselbe Naht wie die DNS-Anbieter, E24). Vorab geladen wird nur,
+wo das Spiel es verlangt — Project Zomboid braucht die Mod-ID aus dem Inhalt —,
+und dann mit dem steamcmd des Images an genau die Stelle, an der der Server lädt.
+
+**Die Gefahr ist die Zahl.** Eine Workshop-ID ist nur eine Zahl; die eines Mods
+für ein anderes Spiel würde der Server laden wollen. Deshalb wird jede ID bei
+Steam nachgeschlagen und muss zu genau diesem Spiel gehören.
+
+**Entscheidungen von Jens (2026-09-11):** die vier Spiele oben; Auswahl mit Suche
+im Panel (Schlüssel auf der Seite „Integrationen"); `verwalten` darf Mods setzen —
+anders als beim Hochladen eigener Dateien (#131), weil hier nur hineinkommt, was
+Steam diesem Spiel zuordnet; Mods werden mitgesichert, der Ausschluss
+`serverfiles/steamapps` entfällt für diese Spiele.
+
+**Nebenbefunde der Messung:** Project Zomboid (Build 42) startet seine Java-VM mit
+`-Xmx8g`; mit den 4 GB des Katalogs wurde der Server beim Laden der Karte vom
+Kernel beendet und startete alle 45 s neu — der Eintrag hat jetzt 10 GB. Und bei
+allen ich777-Spielen sichert Borg die ganze Spielinstallation mit (#221).
+
+> *The obvious design, an own downloader, was rejected: these game servers fetch
+> Workshop items themselves from a list in their config, so the panel only
+> maintains that list where each game expects it — pre-fetching only where a
+> game needs it (Project Zomboid's mod id), with the image's steamcmd. The
+> danger is the number: every id is looked up and must belong to exactly this
+> game. Jens' decisions: the four games, search via a key on the Integrations
+> page, verwalten may use it, mods are backed up. Side findings: Project
+> Zomboid needs more than 4 GB (`-Xmx8g`), and ich777 games back up their whole
+> install (#221).*
+

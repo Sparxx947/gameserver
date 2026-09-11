@@ -33,6 +33,10 @@ from itsdangerous import BadSignature, URLSafeTimedSerializer
 # Eigenes Datenverzeichnis: /opt/panel selbst gehoert root, damit die App
 # ihren eigenen Code NICHT ueberschreiben kann. Schreibbar ist nur "daten".
 NUTZERDATEI = Path("/opt/panel/daten/nutzer.json")
+# Steam-Web-API-Schluessel fuer die Workshop-Suche (#130). Im Panel hinterlegt
+# (Jens: "der Steam-API-Key muss irgendwo im Panel hinterlegbar sein"), nicht in
+# /etc - dort darf das Panel nicht schreiben. bin/workshop liest ihn als root.
+STEAM_KONF = Path("/opt/panel/daten/steam-api.conf")
 # Selbst gepflegte Zugangsdaten. Noetig, weil manche Server ihre Passwoerter nur
 # GEHASHT oder VERSCHLUESSELT ablegen und sie sich nicht auslesen lassen:
 # Satisfactory (Hash+Salt in der binaeren .sav), TeamSpeak (Hash in SQLite),
@@ -893,6 +897,7 @@ def kopfleiste(s: dict, hier: str = "") -> str:
     if ist_admin(s):
         punkte += [("/nutzer", "Benutzer", "nutzer"),
                    ("/protokoll", "Protokoll", "prot"),
+                   ("/integrationen", "Integrationen", "integ"),
                    ("/terminal/", "Terminal", "term"), ("/neustart-fragen", "Neustart", "reboot")]
     nav = "".join(f'<a class="nv{" hier" if k == hier else ""}" href="{u}">{t}</a>'
                   for u, t, k in punkte)
@@ -1505,6 +1510,159 @@ def whitelist(request: Request, csrf: str = Form(""), stack: str = Form(""),
     return zurueck_nach(stack, zurueck, aus.strip()[:200] or "erledigt")
 
 
+@app.get("/workshop/{stack}", response_class=HTMLResponse)
+def workshop_seite(request: Request, stack: str, eingabe: str = "", q: str = "", seite: int = 1):
+    """Suchergebnisse oder gepruefte Eingabe (Link, ID, Sammlung) mit "hinzufuegen"."""
+    s = angemeldet(request)
+    if not darf_verwalten(s) or not STACK_RE.fullmatch(stack):
+        return RedirectResponse("/", 303)
+    if q:
+        rc, aus = aktion("workshop", "suche", stack, q[:60], str(max(1, min(seite, 50))), timeout=60)
+        kopf = f"Workshop-Suche: {esc(q[:60])}"
+    elif eingabe:
+        rc, aus = aktion("workshop", "pruefen", stack, eingabe.strip()[:200], timeout=60)
+        kopf = "Geprüft"
+    else:
+        return RedirectResponse(einstellungen_von(stack), 303)
+    if rc != 0:
+        koerper = f'<div class=warn>{esc(aus.strip()[:300])}</div>'
+    else:
+        zeilen = []
+        for z in aus.splitlines():
+            teil = z.split("\t")
+            if len(teil) < 5 or not teil[0].isdigit():
+                continue
+            wid, titel, groesse, _, urteil = teil[:5]
+            knopf = ('<form method=post action=/workshop style=display:contents>'
+                     f'<input type=hidden name=csrf value="{s["csrf"]}">'
+                     f'<input type=hidden name=stack value="{esc(stack)}">'
+                     f'<input type=hidden name=zurueck value=server>'
+                     f'<input type=hidden name=was value=hinzu>'
+                     f'<input type=hidden name=wid value="{wid}">'
+                     f'<input type=hidden name=titel value="{esc(titel[:80])}">'
+                     '<button class=p>hinzufügen</button></form>' if urteil == "ok"
+                     else f'<span class=z>{esc(urteil)}</span>')
+            zeilen.append(f'<tr><td>{esc(titel)}<br><span class=z>'
+                          f'<a href="https://steamcommunity.com/sharedfiles/filedetails/?id={wid}" '
+                          f'rel=noreferrer target=_blank>{wid}</a> · {int(groesse or 0) / 1048576:.1f} MB'
+                          f'</span></td><td style=text-align:right>{knopf}</td></tr>')
+        koerper = (f'<table>{"".join(zeilen)}</table>' if zeilen
+                   else '<p class=z>Nichts gefunden.</p>')
+        if q and len(zeilen) >= 20:
+            koerper += (f'<p><a class=b href="/workshop/{esc(stack)}?q={quote(q[:60])}'
+                        f'&seite={seite + 1}">weitere Treffer</a></p>')
+    return HTMLResponse(KOPF + kopfleiste(s) + RUMPF + f"<h1>{kopf} — {esc(stack)}</h1>"
+                        + koerper + '<p class=z>Hinzugefügte Mods lädt der Server beim nächsten Start.</p>'
+                        + f'<a class=b href="{einstellungen_von(stack)}">zurück</a>' + FUSS)
+
+
+@app.post("/workshop")
+def workshop_aendern(request: Request, csrf: str = Form(""), stack: str = Form(""),
+                     was: str = Form(""), wid: str = Form(""), titel: str = Form(""),
+                     zurueck: str = Form("")):
+    """Workshop-Mod ein- oder austragen (#130). Die Pruefung, ob die ID zu GENAU
+    diesem Spiel gehoert, macht bin/workshop bei Steam - nicht diese Route."""
+    s = pruefe(request, csrf)
+    if not darf_verwalten(s):
+        return RedirectResponse("/", 303)
+    if was not in ("hinzu", "weg") or not re.fullmatch(r"[0-9]{3,12}", wid):
+        return zurueck_nach(stack, zurueck, "Unzulässige Workshop-ID.")
+    # Das Vorabladen (Project Zomboid) kann bei grossen Mods dauern.
+    rc, aus = aktion("workshop", was, stack, wid, timeout=1900)
+    protokoll(s, "Workshop-Mod " + ("eingetragen" if was == "hinzu" else "ausgetragen"), stack,
+              "ok" if rc == 0 else "fehlgeschlagen", id=wid, titel=titel[:80])
+    m = (aus.strip().splitlines() or ["erledigt"])[-1].split("\t")[-1] if rc == 0 \
+        else f"Nicht geändert: {aus.strip()[-250:]}"
+    return zurueck_nach(stack, zurueck, m)
+
+
+def steam_schluessel() -> str:
+    try:
+        for z in STEAM_KONF.read_text().splitlines():
+            if z.startswith("STEAM_API_KEY="):
+                return z.split("=", 1)[1].strip()
+    except OSError:
+        pass
+    return ""
+
+
+def steam_schluessel_gilt(k: str) -> str:
+    """'' = gueltig, sonst der Grund. Eine Suchanfrage mit einem Treffer: ohne
+    gueltigen Schluessel antwortet Steam mit 403 (gemessen)."""
+    import urllib.error, urllib.parse, urllib.request
+    url = ("https://api.steampowered.com/IPublishedFileService/QueryFiles/v1/?"
+           + urllib.parse.urlencode({"key": k, "appid": 108600, "numperpage": 1}))
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "platzwart"}),
+                                    timeout=15) as r:
+            return "" if r.status == 200 else f"Steam antwortet mit {r.status}"
+    except urllib.error.HTTPError as e:
+        return "Steam lehnt den Schlüssel ab" if e.code in (401, 403) else f"Steam antwortet mit {e.code}"
+    except OSError as e:
+        return f"Steam nicht erreichbar ({e.__class__.__name__})"
+
+
+@app.get("/integrationen", response_class=HTMLResponse)
+def integrationen(request: Request, meldung: str = ""):
+    """Schluessel fremder Dienste - nur admin. Angezeigt wird nie der Wert, nur
+    ob einer gesetzt ist und seine letzten vier Zeichen: Wer die Seite sieht,
+    soll den Schluessel nicht abschreiben koennen.
+    *Keys for outside services, admin only. Never shown, only whether one is set.*"""
+    s = angemeldet(request)
+    if not ist_admin(s):
+        return RedirectResponse("/", 303)
+    k = steam_schluessel()
+    stand = (f'<p>Gesetzt (…{esc(k[-4:])}). Die Workshop-Suche ist verfügbar.</p>' if k
+             else '<p class=z>Nicht gesetzt — die Workshop-Suche ist aus; Link, ID und '
+                  'Sammlung funktionieren trotzdem.</p>')
+    m = f'<div class=m>{esc(meldung)}</div>' if meldung else ""
+    loeschen = ('<form method=post action=/integrationen/steam style=display:contents>'
+                f'<input type=hidden name=csrf value="{s["csrf"]}">'
+                '<input type=hidden name=was value=loeschen>'
+                '<button class="b x">Schlüssel entfernen</button></form>') if k else ""
+    return HTMLResponse(KOPF + kopfleiste(s, "integ") + RUMPF + "<h1>Integrationen</h1>" + m
+        + '<h2>Steam-Web-API-Schlüssel</h2>'
+        + '<p class=z>Für die Suche im Steam Workshop (#130). Anlegen unter '
+          '<a href="https://steamcommunity.com/dev/apikey" rel=noreferrer target=_blank>'
+          'steamcommunity.com/dev/apikey</a> — als Domain etwas Beliebiges eintragen. '
+          'Beim Speichern wird der Schlüssel bei Steam geprüft.</p>'
+        + stand
+        + '<form method=post action=/integrationen/steam style="display:flex;gap:6px;flex-wrap:wrap">'
+          f'<input type=hidden name=csrf value="{s["csrf"]}">'
+          '<input type=hidden name=was value=setzen>'
+          '<input type=password name=schluessel autocomplete=off maxlength=64 '
+          'placeholder="neuen Schlüssel einfügen" style="min-width:18em">'
+          '<button class=p>speichern</button></form>'
+        + loeschen + FUSS)
+
+
+@app.post("/integrationen/steam")
+def integrationen_steam(request: Request, csrf: str = Form(""), was: str = Form(""),
+                        schluessel: str = Form("")):
+    s = pruefe(request, csrf)
+    if not ist_admin(s):
+        return RedirectResponse("/", 303)
+    if was == "loeschen":
+        STEAM_KONF.unlink(missing_ok=True)
+        protokoll(s, "Steam-API-Schluessel entfernt", "")
+        return RedirectResponse(f"/integrationen?meldung={quote('Schlüssel entfernt.')}", 303)
+    k = schluessel.strip()
+    # Steam-Web-API-Schluessel sind 32 Hexzeichen. Alles andere kommt gar nicht
+    # erst in eine Datei - und schon gar nicht in eine Anfrage an Steam.
+    if not re.fullmatch(r"[A-Fa-f0-9]{32}", k):
+        return RedirectResponse(f"/integrationen?meldung={quote('Das ist kein Steam-Web-API-Schlüssel (32 Hexzeichen).')}", 303)
+    grund = steam_schluessel_gilt(k)
+    if grund:
+        protokoll(s, "Steam-API-Schluessel abgelehnt", "", "fehlgeschlagen", grund=grund)
+        return RedirectResponse(f"/integrationen?meldung={quote('Nicht gespeichert: ' + grund)}", 303)
+    tmp = STEAM_KONF.with_suffix(".tmp")
+    tmp.write_text(f"STEAM_API_KEY={k.upper()}\n")
+    os.chmod(tmp, 0o600)
+    tmp.replace(STEAM_KONF)
+    protokoll(s, "Steam-API-Schluessel gesetzt", "", endung=k[-4:])
+    return RedirectResponse(f"/integrationen?meldung={quote('Schlüssel geprüft und gespeichert.')}", 303)
+
+
 @app.post("/port-freigeben")
 def port_freigeben(request: Request, csrf: str = Form(""), stack: str = Form("")):
     s = pruefe(request, csrf)
@@ -2092,6 +2250,46 @@ def server_einstellungen(request: Request, stack: str, meldung: str = ""):
                 + '<p class=z>Wirkt sofort, ohne Neustart. Der Server prüft den Namen bei '
                   'Mojang.</p>')
         abschnitte.append('<div class=abschnitt><h2>Whitelist</h2>' + inhalt + '</div>')
+
+    # --- Workshop (#130): nur fuer Spiele mit Anbindung --------------------
+    # "verwalten" darf das auch - Jens' Entscheidung in #130, anders als beim
+    # Hochladen eigener Moddateien (#131, nur admin): Hier kommt nur hinein, was
+    # bei Steam zu GENAU diesem Spiel gehoert.
+    # *verwalten may too (Jens' decision in #130): only items Steam confirms
+    #  belong to exactly this game get in.*
+    if darf_verwalten(s):
+        rc_k, aus_k = aktion("workshop", "kann", name, timeout=30)
+        if rc_k == 0:
+            suche_da = "suche=ja" in aus_k
+            rc_l, aus_l = aktion("workshop", "liste", name, timeout=60)
+            if rc_l != 0:
+                inhalt = f'<p class=z>{esc(aus_l.strip()[:200])}</p>'
+            else:
+                ws_zeilen = ""
+                for z in aus_l.splitlines():
+                    teil = z.split("\t")
+                    if len(teil) < 4 or not teil[0].isdigit():
+                        continue
+                    wid, titel, groesse = teil[0], teil[1], int(teil[2] or 0)
+                    ws_zeilen += (f'<div style="display:flex;gap:8px;align-items:center;margin:4px 0">'
+                               f'<span style="flex:1">{esc(titel)} <span class=z>({groesse / 1048576:.1f} MB, '
+                               f'<a href="https://steamcommunity.com/sharedfiles/filedetails/?id={wid}" '
+                               f'rel=noreferrer target=_blank>{wid}</a>)</span></span>'
+                               + formular("/workshop", {"was": "weg", "wid": wid, "titel": titel[:80]},
+                                          "entfernen", "b x") + '</div>')
+                inhalt = ws_zeilen or '<p class=z>Noch keine Workshop-Mods eingetragen.</p>'
+            suchfeld = (f'<form method=get action="/workshop/{name}" style="display:flex;gap:6px;margin-top:10px">'
+                        f'<input name=q maxlength=60 placeholder="im Workshop suchen">'
+                        f'<button class=b>suchen</button></form>' if suche_da else
+                        '<p class=z>Suche im Workshop: dafür einen Steam-API-Schlüssel unter '
+                        '<b>Integrationen</b> hinterlegen (admin).</p>')
+            abschnitte.append(
+                '<div class=abschnitt><h2>Workshop</h2>' + inhalt + suchfeld
+                + f'<form method=get action="/workshop/{name}" style="display:flex;gap:6px;margin-top:6px">'
+                  f'<input name=eingabe maxlength=200 placeholder="Link, ID oder Sammlung einfügen">'
+                  f'<button class=b>prüfen</button></form>'
+                + '<p class=z>Eingetragene Mods lädt der Server <b>beim nächsten Start</b> — nach '
+                  'einer Änderung den Server neu starten. Mods werden mitgesichert.</p></div>')
 
     # --- Betrieb: was der Server nachts und im Leerlauf von selbst tut ------
     if darf_verwalten(s):
