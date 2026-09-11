@@ -6537,7 +6537,12 @@
    "hinweis": "This Docker will download and install SteamCMD. It will also install Valheim and run it. ATTENTION: First Startup can take very long since it downloads the gameserver files! SERVER BROWSER: It could take really long that the serve…",
    "ausschluss": [
     "steamcmd",
-    "serverfiles/steamapps"
+    "serverfiles/steamapps",
+    "serverfiles/valheim_server_Data",
+    "serverfiles/linux64",
+    "serverfiles/docker",
+    "serverfiles/*.so",
+    "serverfiles/*.so.*"
    ],
    "bauart": "ich777",
    "kategorie": "survival"

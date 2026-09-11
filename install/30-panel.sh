@@ -47,6 +47,12 @@ for w in dns-pflegen compose-feld katalog-vorpruefung katalogbilder-holen konfig
   einsetzen "$REPO/bin/$w" "/usr/local/bin/$w" 0755 root:root
 done
 einsetzen "$REPO/etc/spiele-katalog.json" /etc/spiele-katalog.json 0644 root:root
+# Ausschluesse installierter Katalogspiele dem (neuen) Katalog angleichen (#221) -
+# sonst erreicht eine Katalogaenderung bestehende Server nie.
+# *Align installed games' backup exclusions with the (new) catalogue.*
+if [ -f /etc/borg-ausschluss.txt ] && [ -x /usr/local/bin/spiel-verwalten ]; then
+  /usr/local/bin/spiel-verwalten ausschluesse
+fi
 # Die Beitrittsadressen lesen ZWEI Programme: das Panel und platzwart-status.
 # Deshalb eine Datei und nicht eine Tabelle im Quelltext.
 einsetzen "$REPO/etc/spiele-adressen.json" /etc/spiele-adressen.json 0644 root:root
