@@ -27,7 +27,7 @@ ssh -o ConnectTimeout=10 -o BatchMode=yes "$ZIEL" true 2>/dev/null \
 
 VARIABLEN=(DNS_ZONE DNS_ZIEL PANEL_DOMAIN SERVER_IPV4 WELT_NAME ADMIN_USER
            ADMIN_NETZ ADMIN_IP BORG_REPO BORG_TAILSCALE_IP FREMD_IPV4
-           SSH_PASSWORT_AUTH SSH_ROOT_LOGIN)
+           SSH_PASSWORT_AUTH SSH_ROOT_LOGIN ZERTIFIKAT_WEG)
 
 # Jeder Wert muss in konfiguration.env stehen. Fehlt einer, bricht ${!v} unter
 # "set -u" ab, und JEDE Datei erschien als abweichend - nach #187 geschehen,
@@ -179,6 +179,43 @@ SOLL=$(grep -oE 'TTYD_VERSION="[0-9.]+"' "$REPO/install/40-caddy-ttyd.sh" | grep
 IST=$(ssh "$ZIEL" '/usr/local/bin/ttyd --version 2>/dev/null' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)
 if [ "$SOLL" != "$IST" ]; then
   echo "  ABWEICHUNG            ttyd: Repo verlangt $SOLL, Server hat ${IST:-nichts}"
+  anders=$((anders+1))
+else
+  gleich=$((gleich+1))
+fi
+
+# 2b. Der Zertifikatsweg. /etc/caddy/zertifikat.conf und das systemd-Drop-in
+#     werden von Stufe 40 ERZEUGT, nicht eingesetzt - ein byteweiser Vergleich
+#     gegen eine Repo-Datei gibt es also nicht. Verglichen wird stattdessen, ob
+#     die Maschine den Weg faehrt, den ZERTIFIKAT_WEG nennt.
+#
+#     Das ist hier kein Formalismus: Faellt eine Maschine von dns-01 auf http-01
+#     zurueck - weil das Drop-in fehlt, weil ein Paket-Update den Dienst wieder
+#     auf /usr/bin/caddy zeigen laesst -, dann laeuft alles weiter und sieht
+#     richtig aus. Bemerkt wird es, wenn das Zertifikat nach 60 Tagen nicht
+#     erneuert wird.
+# *Both files are generated, so there is no byte comparison; what is compared is
+#  whether the machine runs the path ZERTIFIKAT_WEG names. A machine that falls
+#  back to http-01 keeps working and looks right - until renewal fails 60 days
+#  later.*
+zert_ist=$(ssh "$ZIEL" 'cat /etc/caddy/zertifikat.conf 2>/dev/null' || true)
+if [ "$ZERTIFIKAT_WEG" = "dns-01" ]; then
+  zert_anbieter=$(ssh "$ZIEL" "sed -n 's/^[[:space:]]*ANBIETER[[:space:]]*=[[:space:]]*//p' /etc/dns-gameserver.conf 2>/dev/null" | head -1)
+  laeuft=$(ssh "$ZIEL" 'systemctl show caddy -p ExecStart --value' 2>/dev/null)
+  if ! grep -q "^acme_dns ${zert_anbieter} " <<<"$zert_ist"; then
+    echo "  ABWEICHUNG            zertifikat.conf nennt kein \"acme_dns $zert_anbieter\" — Caddy holt ueber Port 80"
+    anders=$((anders+1))
+  elif ! grep -q "/usr/local/bin/caddy" <<<"$laeuft"; then
+    echo "  ABWEICHUNG            caddy laeuft aus dem Paket, nicht der Bau mit DNS-Modul — acme_dns wirkt nicht"
+    anders=$((anders+1))
+  elif grep -q -- "--environ" <<<"$laeuft"; then
+    echo "  ABWEICHUNG            caddy laeuft mit --environ — der DNS-Token landet im Journal"
+    anders=$((anders+1))
+  else
+    gleich=$((gleich+1))
+  fi
+elif [ -n "$zert_ist" ]; then
+  echo "  ABWEICHUNG            ZERTIFIKAT_WEG=http-01, aber zertifikat.conf ist nicht leer"
   anders=$((anders+1))
 else
   gleich=$((gleich+1))

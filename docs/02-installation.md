@@ -180,6 +180,15 @@ vom Netz, über das man es reparieren würde.
 > handles `--base-path` differently). The config is validated before reload: a
 > typo would take down the panel and the very terminal used to fix it.*
 
+**Zertifikat:** `ZERTIFIKAT_WEG` entscheidet, ob Caddy es über Port 80 holt
+(`http-01`, Vorgabe) oder über einen TXT-Eintrag in der Zone (`dns-01`, ohne
+jeden eingehenden Port). `dns-01` baut beim ersten Mal mit `xcaddy` einen Caddy
+mit dem DNS-Modul — das dauert einige Minuten und braucht Go auf der Maschine.
+Einzelheiten und die Fallstricke: [06-netz-dns-firewall.md](06-netz-dns-firewall.md).
+
+> *`ZERTIFIKAT_WEG` picks between port 80 and a TXT record; the latter needs no
+> inbound port but builds a Caddy with the DNS module on first run.*
+
 ### 50 — Sicherung
 
 Borg, Passphrase, Ausschlussliste, beide Zeitpläne — und ein **Probelauf**, der

@@ -29,7 +29,7 @@ ZIEL="${1:-}"; shift || true
 
 VARIABLEN=(DNS_ZONE DNS_ZIEL PANEL_DOMAIN SERVER_IPV4 WELT_NAME ADMIN_USER
            ADMIN_NETZ ADMIN_IP BORG_REPO BORG_TAILSCALE_IP FREMD_IPV4
-           SSH_PASSWORT_AUTH SSH_ROOT_LOGIN)
+           SSH_PASSWORT_AUTH SSH_ROOT_LOGIN ZERTIFIKAT_WEG)
 
 # Jeder Wert muss in konfiguration.env stehen. Fehlt einer, bricht ${!v} unter
 # "set -u" ab, und JEDE Datei erschien als abweichend - nach #187 geschehen,

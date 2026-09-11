@@ -9,6 +9,32 @@
 	servers {
 		protocols h1
 	}
+
+	# Wie das Zertifikat geholt wird, steht NICHT hier, sondern in einer Datei,
+	# die Stufe 40 aus ZERTIFIKAT_WEG erzeugt:
+	#
+	#   http-01   die Datei ist leer - Caddy macht, was es von sich aus tut
+	#   dns-01    die Datei traegt "acme_dns <anbieter> {env.TOKEN}"
+	#
+	# Erzeugt und nicht eingesetzt, weil ihr Inhalt von einem Wert abhaengt und
+	# nicht aus einer Vorlage kommt - wie /etc/gameserver-version. Fehlt sie,
+	# bricht "caddy validate" ab ("File to import not found") und Stufe 40 haelt
+	# an; ein stiller Rueckfall auf http-01 waere schlimmer, denn er faellt erst
+	# auf, wenn das Zertifikat in 60 Tagen nicht erneuert wird.
+	#
+	# Der Token steht ABSICHTLICH nicht in dieser Datei: die Caddyfile liegt mit
+	# 0644 auf der Maschine. {env.TOKEN} kommt aus /etc/dns-gameserver.conf
+	# (0600 root), das die systemd-Einheit als EnvironmentFile liest - dieselbe
+	# Datei, die dns-pflegen benutzt, kein zweites Exemplar des Geheimnisses.
+	#
+	# *How the certificate is obtained lives in a file stage 40 generates from
+	#  ZERTIFIKAT_WEG: empty for http-01, an acme_dns line for dns-01. Generated
+	#  rather than installed, because its content depends on a value. A missing
+	#  file aborts validation on purpose - silently falling back to http-01
+	#  would surface only when renewal fails 60 days later. The token stays out
+	#  of this 0644 file and arrives through the unit's EnvironmentFile, from
+	#  the same 0600 file dns-pflegen uses.*
+	import /etc/caddy/zertifikat.conf
 }
 
 @@PANEL_DOMAIN@@ {
