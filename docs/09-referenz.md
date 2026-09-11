@@ -396,6 +396,36 @@ liefert 1.6, dessen `--base-path` sich anders verhält.
 
 ## Prüfwerkzeuge (`werkzeuge/`)
 
+**Das SSH-Ziel muss sich als `root` anmelden** — bei `ausrollen.sh` und
+`rueckbau.sh`. Beide schicken ihre Befehle unverpackt über SSH und benutzen
+**kein** `sudo`: `ausrollen.sh` schreibt nach `/etc` und `/usr/local/bin`,
+`rueckbau.sh` ruft `systemctl` und `rm -rf`. `abgleich.sh` liest nur und kommt
+deshalb auch als gewöhnlicher Benutzer zurecht — was die Voraussetzung lange
+verdeckt hat.
+
+Gemessen mit einem Ziel ohne root: `ausgefuehrt: 12   fehlgeschlagen: 77`, und
+das Werkzeug lief bis zum Ende durch. Seit #192 prüfen beide vorher und brechen
+mit einem Satz ab, statt 77 gleichlautende Zeilen zu drucken.
+
+Einzurichten ist das über `~/.ssh/config`:
+
+```
+Host gameserver
+    HostName <maschine>
+    User root
+```
+
+Auf der Maschine muss `PermitRootLogin` dafür eine Schlüsselanmeldung zulassen.
+Das ist die Vorgabe (`SSH_ROOT_LOGIN=prohibit-password`); mit
+`SSH_ROOT_LOGIN=no` können beide Werkzeuge nicht arbeiten.
+
+> *The SSH target must log in as root for `ausrollen.sh` and `rueckbau.sh`: both
+> send their commands unwrapped and use no `sudo`. `abgleich.sh` only reads and
+> therefore works as an ordinary user, which is what hid the requirement.
+> Measured against a non-root target: 77 of 89 steps failed and the tool still
+> ran to the end. Both now check first. This needs `PermitRootLogin` to allow a
+> key login — the default — and cannot work with `SSH_ROOT_LOGIN=no`.*
+
 ### `abgleich.sh <ssh-ziel>`
 
 Vergleicht das Repositorium mit einer laufenden Maschine — **33 Prüfpunkte**:
