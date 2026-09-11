@@ -13,6 +13,9 @@
 #   existing files are backed up to <file>.vor-<date> before being replaced,
 #   and existing secrets are never regenerated.*
 #
+#  Gefuehrt, mit Abfragen und Pruefungen: install/assistent.sh
+#  *Guided, with questions and checks: install/assistent.sh*
+#
 #  Voraussetzungen / prerequisites:
 #    * Debian 12 (bookworm), root
 #    * konfiguration.env ausgefuellt (Vorlage: konfiguration.env.beispiel)
@@ -28,6 +31,15 @@
 #  already. Without a Cloudflare token the stage skips itself.*
 STUFEN=(10-basis 20-docker 25-dns-grundgeruest 30-panel 40-caddy-ttyd 50-sicherung)
 
+# --ja: ohne Rueckfrage. Nur fuer install/assistent.sh, der vorher alles
+# abgefragt, zusammengefasst und bestaetigen lassen hat - eine zweite Rueckfrage
+# mitten im gefuehrten Ablauf waere eine, die man sich abgewoehnt zu lesen.
+# *--ja skips the prompt; used by the guided installer, which has already
+#  summarised everything and asked for confirmation.*
+OHNE_RUECKFRAGE=""
+if [ "${1:-}" = "--ja" ]; then
+  OHNE_RUECKFRAGE=ja; shift
+fi
 if [ $# -gt 0 ]; then
   STUFEN=("$@")
 fi
@@ -91,9 +103,11 @@ if [ -n "$dns_fehlt" ]; then
   warn "Token: Cloudflare-Dashboard, Zone / DNS / Bearbeiten, nur ${DNS_ZONE}."
 fi
 echo
-read -r -p "  Fortfahren? / continue? [j/N] " a
-case "$a" in j|J|y|Y) ;; *) echo "Abgebrochen."; exit 0 ;; esac
-echo
+if [ -z "$OHNE_RUECKFRAGE" ]; then
+  read -r -p "  Fortfahren? / continue? [j/N] " a
+  case "$a" in j|J|y|Y) ;; *) echo "Abgebrochen."; exit 0 ;; esac
+  echo
+fi
 
 for s in "${STUFEN[@]}"; do
   skript="$REPO/install/${s}.sh"

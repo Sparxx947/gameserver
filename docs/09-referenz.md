@@ -1481,6 +1481,48 @@ vorhandene Haken ab, etwa einen `commit-msg`-Haken.
 
 ---
 
+## Einrichtung (`install/`)
+
+| Skript | Aufruf | Zweck |
+|---|---|---|
+| `assistent.sh` | `sudo install/assistent.sh [--nur-konfiguration \| --selbsttest]` | geführte Einrichtung: Neueinrichtung, Wiederaufbau aus der Sicherung oder nur `konfiguration.env`; fragt, prüft, fasst zusammen, richtet erst nach Bestätigung ein ([11](11-neueinrichtung.md)) |
+| `einrichten.sh` | `sudo install/einrichten.sh [--ja] [<stufe> …]` | die Stufen 10–50 (oder die genannten) in Reihenfolge; zeigt vorher, was es tun wird, und fragt — mit `--ja` ohne Rückfrage (so ruft der Assistent es auf) |
+| `10-basis.sh` … `50-sicherung.sh` | über `einrichten.sh` oder einzeln | die Stufen, beschrieben in [02](02-installation.md) |
+| `60-spiele.sh` | `sudo install/60-spiele.sh <stack> …` | handgepflegte Server aus `stacks/` |
+| `70-dns.sh` | `sudo install/70-dns.sh` | ein CNAME je Server |
+| `lib.sh` | wird eingebunden | liest und prüft `konfiguration.env`, `einsetzen`, `rendern`, `passwort`, `version_stempeln` |
+
+**`assistent.sh` im Einzelnen.** Eigenständig, weil `lib.sh` ohne eine gültige
+`konfiguration.env` abbricht — die es zu Beginn noch nicht gibt. Eingaben kommen
+von stdin (Geheimnisse ohne Echo); endet die Eingabe, bricht er ab. Token,
+Webhooks und Passwörter gehen nie als Argument durch ein Programm: `curl` liest
+Kopfzeile bzw. URL aus einer `0600`-Datei (`-H @datei`, `-K`), das Passwort geht
+über `chpasswd` von stdin. Für Tests lassen sich die Zielpfade umlenken:
+`ASSISTENT_KONF` (sonst `konfiguration.env` im Klon), `ASSISTENT_DNS_KONF`,
+`ASSISTENT_MELDEN_KONF`. `--selbsttest` prüft die Regeln mit festen Beispielen,
+darunter die Archivwahl des Wiederaufbaus (neuestes Archiv **vor** dem Start) und
+das Schreiben der Konfiguration aus der Vorlage (jede Variable genau einmal,
+Rechte `0600`, ein fehlender Wert bricht ab).
+
+> *Setup scripts: `assistent.sh` is the guided setup (new install, rebuild from
+> backup, or configuration only — asks, checks, summarises, sets up only after
+> confirmation); `einrichten.sh` runs stages 10–50 or the named ones, showing
+> first what it will do and asking — `--ja` skips the question, which is how the
+> assistant calls it; the stage scripts themselves; `60-spiele.sh` for the
+> hand-maintained servers; `70-dns.sh` for one CNAME per server; `lib.sh`, which
+> reads and validates the configuration. The assistant is standalone because
+> `lib.sh` aborts without a valid `konfiguration.env`, which does not exist yet
+> at the start. Input comes from stdin (secrets without echo), and end of input
+> aborts. Tokens, webhooks and passwords never travel as arguments: curl reads
+> header or URL from a 0600 file, the password goes to chpasswd on stdin. Target
+> paths can be redirected for tests (`ASSISTENT_KONF`, `ASSISTENT_DNS_KONF`,
+> `ASSISTENT_MELDEN_KONF`). `--selbsttest` checks the rules with fixed examples,
+> including the rebuild's archive choice (newest before the start) and writing
+> the configuration from the template (every variable exactly once, 0600, a
+> missing value aborts).*
+
+---
+
 ## systemd
 
 | Unit | Zeitpunkt | Zweck |
@@ -1541,11 +1583,12 @@ schon einmal dazu geführt, dass Aufrufe still fehlschlugen.
 | `/etc/fail2ban/jail.local` | `0644 root` | sshd-Jail, Ausnahmen |
 | `/etc/ssh/sshd_config.d/99-gameserver.conf` | `0644 root` | SSH-Härtung aus `SSH_PASSWORT_AUTH` und `SSH_ROOT_LOGIN` |
 | `/etc/sudoers.d/panel` | `0440 root` | die eine Rechteerweiterung |
-| `/etc/dns-gameserver.conf` | `0600 root` | `ANBIETER=…`, `TOKEN=…` — von Hand angelegt |
+| `/etc/dns-gameserver.conf` | `0600 root` | `ANBIETER=…`, `TOKEN=…` — von `install/assistent.sh` oder von Hand angelegt |
 | `/etc/cloudflare-gameserver.conf` | — | älterer Ort; wird **nicht** mehr gelesen, sondern von Stufe 25/70 einmalig übernommen und nach `.vor-<datum>` verschoben |
-| `/etc/platzwart-melden.conf` | `0600 root` | Discord-Webhooks. **Nicht** von der Einrichtung angelegt; fehlt sie, meldet nichts |
+| `/etc/platzwart-melden.conf` | `0600 root` | Discord-Webhooks. Von `install/assistent.sh` auf Wunsch angelegt, sonst von Hand; die Stufen legen sie **nicht** an; fehlt sie, meldet nichts |
 | `/etc/gameserver-version` | `0644 root` | Fassung, Commit, Stand, Datum der Einrichtung |
 | `/root/.borg-passphrase` | `0600 root` | Schlüssel zur Sicherung |
+| `/root/platzwart-einrichtung-<zeit>.log` | `0600 root` | Ausgabe eines Laufs von `install/assistent.sh`; Erst- und Spielpasswörter schon beim Schreiben geschwärzt |
 | `/opt/panel/app.py` | `0644 root` | die Oberfläche — der Dienst kann seinen eigenen Code nicht überschreiben |
 | `/opt/panel/statisch/passkey.js` | `0644 root` | das einzige JavaScript des Panels (WebAuthn) |
 | `/opt/panel/bilder/` | `panel` | Symbole, `katalog/` (Steam-Header), `eigene/` (selbst gezeichnet), `<stack>.jpg` |
@@ -1645,8 +1688,8 @@ Alle in `konfiguration.env`, alle Pflicht:
 | `SERVER_IPV4` | `203.0.113.10` **oder** `dynamic` | schaltet `dns-ziel.timer` ein oder aus |
 | `WELT_NAME` | `meinserver` | Server- und Weltnamen in den Spielen |
 | `ADMIN_USER` | `admin` | `ttyd.service`, Benutzeranlage |
-| `ADMIN_NETZ` | `203.0.113.0/30` | `fail2ban` |
-| `ADMIN_IP` | `203.0.113.1` | `ufw`-Regel auf Port 22 |
+| `ADMIN_NETZ` | `203.0.113.0/30` | nur `fail2ban` (`ignoreip`: nie gesperrt) — **nicht** der SSH-Zugang; ohne feste Adresse eng halten, nie `0.0.0.0/0` (#259) |
+| `ADMIN_IP` | `203.0.113.1` | `ufw`-Regel auf Port 22 — Adresse oder Netz; ohne feste Adresse `0.0.0.0/0` |
 | `SSH_PASSWORT_AUTH` | `no` (Vorgabe) **oder** `yes` | `sshd_config.d/99-gameserver.conf`: `PasswordAuthentication` **und** `KbdInteractiveAuthentication` |
 | `ZERTIFIKAT_WEG` | `http-01` (Vorgabe) **oder** `dns-01` | Stufe 40: `/etc/caddy/zertifikat.conf`, bei `dns-01` zusätzlich ein Caddy-Bau mit DNS-Modul und ein systemd-Drop-in |
 | `SSH_ROOT_LOGIN` | `prohibit-password` (Vorgabe), `no`, `forced-commands-only`, `yes` | `sshd_config.d/99-gameserver.conf`: `PermitRootLogin`; `yes` nur zusammen mit `SSH_PASSWORT_AUTH=yes` |
@@ -1656,7 +1699,10 @@ Alle in `konfiguration.env`, alle Pflicht:
 Bleibt beim Einbau ein `@@PLATZHALTER@@` stehen, bricht die Einrichtung ab.
 
 > *All values live in `konfiguration.env` and are mandatory; a left-over
-> placeholder aborts the installation.*
+> placeholder aborts the installation. `ADMIN_IP` is the ufw rule on port 22 (an
+> address or network, `0.0.0.0/0` without a static address); `ADMIN_NETZ` is only
+> fail2ban's never-ban list — not SSH access — and must stay narrow, never
+> `0.0.0.0/0` (#259).*
 
 ## Schalter der Werkzeuge
 

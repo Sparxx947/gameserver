@@ -24,6 +24,20 @@ keine — denn man handelt danach.
 > what **is**, not what should be. Drift makes the documentation worse than
 > nothing, because people act on it.*
 
+Eine Maschine von Grund auf einrichten oder aus der Sicherung zurückholen:
+`install/assistent.sh`, beschrieben in `docs/11-neueinrichtung.md`. **Seine
+Prüfregeln stehen doppelt** — der Assistent muss ohne `install/lib.sh`
+auskommen, weil das ohne gültige `konfiguration.env` abbricht (E34). Wer eine
+Regel für einen Konfigurationswert in `lib.sh` ändert, ändert sie auch dort, und
+umgekehrt; `install/assistent.sh --selbsttest` muss danach grün sein.
+
+> *Setting up a machine from scratch or bringing one back from backup:
+> `install/assistent.sh`, described in `docs/11-neueinrichtung.md`. Its
+> validation rules exist twice — the assistant cannot use `install/lib.sh`, which
+> aborts without a valid configuration (E34). Whoever changes a rule for a
+> configuration value in `lib.sh` changes it there too, and vice versa; the
+> assistant's self-test must pass afterwards.*
+
 Der Einstieg zum Verständnis ist `docs/01-architektur.md`, danach
 `docs/10-entscheidungen.md` — dort steht zu jedem ungewöhnlichen Detail, welche
 naheliegende Lösung verworfen wurde und warum.
@@ -332,6 +346,7 @@ Jeder Punkt ist ein realer Vorfall, nicht eine Vermutung.
 | `dig` zur Existenzprüfung | Wertlos, wenn die Zone ein Wildcard hat: es beantwortet jeden erfundenen Namen. Immer die API fragen. |
 | Cloudflare `proxied` | Der Proxy kann nur HTTP(S). Ein Spielport dahinter ist von außen tot. |
 | `borg extract` | Läuft von `/` aus, weil die Archive absolute Pfade tragen. Aus einem anderen Verzeichnis entsteht ein Unterbaum an falscher Stelle, und der Server startet mit leerer Welt — ohne Fehlermeldung. |
+| `borg extract` auf einer neuen Maschine | Stellt Eigentümer nach **Namen** her. Trägt die neue Maschine denselben Namen unter anderer UID, gehört die Welt danach der falschen Nummer (nachgestellt: 1000 kam als 1001 zurück), und ein Container mit fester UID kann nicht mehr schreiben. Spielstände mit `--numeric-ids` auspacken; Panel-Daten nach Namen (dort zählt der neu nummerierte Benutzer `panel`). |
 | ich777-Images | Erwarten `UID`/`GID`, **nicht** `PUID`/`PGID`, und brauchen `steamcmd/` und `serverfiles/` vor dem ersten Start. |
 | Pfadprüfung | **Erst auflösen, dann prüfen.** Unter StarRupture lag ein Symlink `z: -> /` (jedes Wine-Präfix legt ihn an); eine Prüfung vor dem Auflösen macht aus jedem Editor einen Root-Schreibzugriff aufs ganze System. |
 | Spielserver und ihre Konfiguration | Viele schreiben sie beim Start **selbst neu**. Bei Minecraft nachgemessen: geänderte Werte überleben, eigene Kommentare und unbekannte Zeilen verschwinden. |
@@ -360,7 +375,8 @@ Jeder Punkt ist ein realer Vorfall, nicht eine Vermutung.
 > separator and then hit comment fields and booleans; resolve port collisions
 > against really bound ports, local ones included, and never split TCP and UDP;
 > `dig` is worthless with a wildcard; Cloudflare's proxy kills game ports; borg
-> extract must run from `/`; ich777 images want UID/GID and pre-created folders;
+> extract must run from `/`, and on a new machine saves need `--numeric-ids`
+> (by name, a same-named user with another uid takes them over); ich777 images want UID/GID and pre-created folders;
 > resolve paths before checking them; game servers rewrite their configs; never
 > scp files with placeholders; sudo from a unit keeps its mount namespace. Newer
 > ones: the borg lock needs `--lock-wait` everywhere and an honest message;

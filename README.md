@@ -122,6 +122,9 @@ Datei.
 * **Zurückspielen** über das Panel, mit Kopie des Ist-Stands vorher, bei
   laufendem Server vorbereitet; **herunterladen** als tar-Strom; **probeweise
   zurückspielen**, ohne den Server anzufassen.
+* **Wiederaufbau einer verlorenen Maschine**, geführt: `install/assistent.sh`
+  holt Konfiguration, Benutzer samt zweiten Faktoren und jeden Spielstand auf
+  eine frische Maschine zurück ([docs/11](docs/11-neueinrichtung.md#9-wiederaufbau-aus-der-sicherung)).
 
 > *Backup: one Borg archive per game, every 15 minutes for running servers,
 > daily everything including compose files, `/etc` and the panel data. Three
@@ -129,7 +132,9 @@ Datei.
 > so a safety net that reports itself intact while catching nothing is noticed.
 > Restore through the panel with a copy of the current state taken first and the
 > extraction prepared while the server still runs; download as a tar stream;
-> test restores that never touch the server.*
+> test restores that never touch the server. Rebuilding a lost machine is
+> guided: `install/assistent.sh` brings configuration, users with their second
+> factors and every save back onto a fresh machine.*
 
 ### Gemeinschaft
 
@@ -173,6 +178,21 @@ Datei.
 
 ## Schnellstart
 
+**Geführt** — der Assistent fragt alles ab, prüft Zugänge und richtet erst nach
+Bestätigung ein; die ganze Anleitung von der leeren Maschine an steht in
+**[docs/11-neueinrichtung.md](docs/11-neueinrichtung.md)**:
+
+```bash
+git clone https://github.com/Sparxx947/gameserver.git /root/platzwart && cd /root/platzwart
+sudo install/assistent.sh            # Neueinrichtung, Wiederaufbau oder nur Konfiguration
+```
+
+> *Guided: the assistant asks for everything, checks access and sets up only
+> after confirmation; the full guide from an empty machine is
+> docs/11-neueinrichtung.md.*
+
+**Von Hand:**
+
 ```bash
 git clone <dieses-repo> gameserver && cd gameserver
 cp konfiguration.env.beispiel konfiguration.env
@@ -208,7 +228,7 @@ etc/          Konfigurationsdateien nach /etc: Katalog, Mods, Workshop, Adressen
 systemd/      Dienste und Zeitpläne nach /etc/systemd/system
 panel/        Die Weboberfläche (app.py, Abhängigkeiten, Symbole, passkey.js)
 stacks/       compose-Vorlagen der sechs handgepflegten Server
-install/      Einrichtung in Stufen, jede einzeln aufrufbar
+install/      Einrichtung in Stufen, jede einzeln aufrufbar; assistent.sh führt hindurch
 werkzeuge/    Abgleich Repo ↔ Server, Ausrollen, Rückbau, Aufräumen,
               Vollständigkeit, Katalog-Generatoren, Titelbilder
 docs/         Diese Dokumentation
@@ -394,6 +414,7 @@ Dokumentation hier.
 | [08 Betrieb und Störungen](docs/08-betrieb-und-stoerungen.md) | Alltag, Meldungen, Fehlerbilder, bekannte Fallen |
 | [09 Referenz](docs/09-referenz.md) | Jedes Werkzeug, jede Unit, jede Datei, jeder Schalter |
 | [10 Entscheidungen](docs/10-entscheidungen.md) | Warum es so ist und nicht anders |
+| [11 Neueinrichtung](docs/11-neueinrichtung.md) | Von nichts zum laufenden Server: Maschine, Domain, Sicherung, der Assistent, Wiederaufbau |
 | [ABNAHME](ABNAHME.md) | Prüfliste für einen Neuaufbau auf einer frischen Maschine |
 
 ---

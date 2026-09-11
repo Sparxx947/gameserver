@@ -65,7 +65,7 @@ cd /root/gameserver
 cp konfiguration.env.beispiel konfiguration.env && chmod 600 konfiguration.env
 # Werte mit sed setzen, nicht in einem Editor — und danach GEGENLESEN:
 sed -i 's|^DNS_ZONE=.*|DNS_ZONE=<zone>|' konfiguration.env      # usw. je Wert
-grep -E '^[A-Z_]+=' konfiguration.env                            # alles gefüllt?
+grep -E '^[A-Z][A-Z0-9_]*=' konfiguration.env                     # alles gefüllt? (mit Ziffern: SERVER_IPV4)
 printf 'ANBIETER=cloudflare\nTOKEN=%s\n' '<token>' > /etc/dns-gameserver.conf
 chmod 600 /etc/dns-gameserver.conf
 install/einrichten.sh
@@ -88,13 +88,24 @@ mv /tmp/dns-gameserver.conf /etc/
 Erwartet: `KEIN TOKEN` plus Warnblock **vor** der Rückfrage. Kommt die Warnung
 erst mitten im Lauf, ist das ein Fehler — dann hat sie ihren Zweck verfehlt.
 
+**Mit dem Assistenten** ([docs/11](docs/11-neueinrichtung.md)) statt der Befehle
+oben gilt dasselbe, mit zwei Abweichungen: 1.1 liest man in seiner Zusammenfassung
+(`DNS-Zugang`), weil `einrichten.sh --ja` keine Rückfrage stellt; und das
+Erstpasswort (1.3) wiederholt er auf der Schlussseite. 1.4 prüft man dort, indem
+man „keiner“ als DNS-Anbieter wählt: Dann muss **vor** der Zusammenfassung die
+Warnung zu den Namen kommen.
+
 > *Set up: copy the configuration template, fill in each value with sed and read
 > it back, place the DNS token file, run the installer. Expected: the preview
 > shows the DNS provider and file rather than "no token", the run ends with
 > "Grundgeruest steht." and no stage aborts, and the panel password appears once
 > at the end of stage 30. Cross-check 1.4: without the token file the installer
 > must warn before its confirmation prompt — a warning halfway through the run
-> has missed its purpose.*
+> has missed its purpose. With the assistant (docs/11) the same applies with two
+> differences: read 1.1 from its summary, since `einrichten.sh --ja` asks nothing,
+> and the initial password (1.3) is repeated on its final page; for 1.4 choose
+> "none" as DNS provider — the warning about the names must come before the
+> summary.*
 
 ---
 
@@ -114,7 +125,7 @@ docker ps
 | 2.1 Dienste | alle `active` |
 | 2.2 Panel über HTTPS | `200` oder `303`, **gültiges** Zertifikat (kein `curl -k`) |
 | 2.3 Zeitgeber | Sicherung (ohne `BORG_REPO=aus`), Einrichtung, Kanäle, Wache, Spieler, Verlauf, Status, Leerlauf, Auto-Update mit `NEXT`; `dns-ziel.timer` an bei `SERVER_IPV4=dynamic`, sonst aus |
-| 2.4 ufw | 22 nur aus `ADMIN_NETZ`, 80/443 offen, **keine** Spielports |
+| 2.4 ufw | 22 nur aus `ADMIN_IP`, 80/443 offen, **keine** Spielports |
 | 2.5 Neustartzähler | `systemctl show panel -p NRestarts` — muss klein sein |
 | 2.6 Statusseite | `/status` antwortet **ohne** Anmeldung mit `200`, CSP `default-src 'none'` |
 | 2.7 Erstanmeldung | im Browser: Passwort, QR-Code, Code, danach einmalig zehn Wiederherstellungscodes |

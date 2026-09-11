@@ -6,6 +6,19 @@ in Stufen; jede ist einzeln aufrufbar und mehrfach ausführbar.
 > *From a bare Debian 12 machine to a running panel. Installation runs in
 > stages; each can be invoked on its own and re-run safely.*
 
+**Geführt geht es mit `install/assistent.sh`:** Er fragt jeden Wert ab, prüft
+Zugänge (DNS-Token, Sicherungsziel, SSH-Schlüssel) und ruft danach genau die
+Stufen dieses Kapitels auf. Die vollständige Anleitung von der leeren Maschine
+bis zur Abnahme — samt Domain, Sicherungsziel und Wiederaufbau aus der
+Sicherung — steht in [11-neueinrichtung.md](11-neueinrichtung.md). Dieses Kapitel
+beschreibt die Stufen selbst und den Weg von Hand.
+
+> *Guided: `install/assistent.sh` asks for every value, checks access (DNS
+> token, backup target, SSH key) and then calls exactly the stages in this
+> chapter. The complete guide from an empty machine to acceptance — domain,
+> backup target and rebuild from backup included — is 11-neueinrichtung.md. This
+> chapter describes the stages themselves and the manual path.*
+
 ---
 
 ## Vorher prüfen
@@ -95,7 +108,7 @@ sichert jede vorhandene Zieldatei vor dem Überschreiben nach
 Pakete, die drei Benutzer (`<admin>`, `panel`, `spiele` mit UID 4711),
 SSH-Härtung, ufw und fail2ban.
 
-**Was ufw hier öffnet:** Port 22 nur aus `ADMIN_NETZ`, Port 80 und 443 für alle,
+**Was ufw hier öffnet:** Port 22 nur aus `ADMIN_IP`, Port 80 und 443 für alle,
 und alles auf `tailscale0`. **Spielports stehen bewusst nicht drin** — die macht
 Docker selbst auf, und zwar an ufw vorbei (siehe
 [06-netz-dns-firewall.md](06-netz-dns-firewall.md)).
@@ -107,7 +120,7 @@ ab, statt weiterzulaufen. Die Werte und ihre Folgen stehen in
 [06-netz-dns-firewall.md](06-netz-dns-firewall.md#ssh).
 
 > *Stage 10: packages, the three users, SSH hardening, ufw and fail2ban. ufw
-> opens 22 from `ADMIN_NETZ` only, 80/443 for everyone, and everything on
+> opens 22 from `ADMIN_IP` only, 80/443 for everyone, and everything on
 > `tailscale0`. Game ports are deliberately absent — Docker opens those itself,
 > bypassing ufw. SSH hardening takes its two values from `konfiguration.env`,
 > defaulting to key-only login; a config `sshd -t` rejects is rolled back and
