@@ -468,8 +468,27 @@ done
 # Konfiguration (compose-Dateien mit Passwoertern, /etc) — nur im vollen Lauf.
 if [ "$ALLE" -eq 1 ] && [ -z "$NUR" ]; then
   sichere "config" "/opt/stacks"
-  borg create --compression zstd,6 "$REPO::etc-${ZEIT}" /etc >/dev/null 2>&1 \
-    && borg prune --glob-archives "etc-*" "${prune_regeln[@]}" "$REPO" >/dev/null 2>&1
+  # /etc und die Panel-Daten ohne sichere(): beide sind klein (die Panel-Daten
+  # rund 36 KB), und die Plausibilitaetspruefung dort meldete sie als "praktisch
+  # leer". Aber mit Fehlerstatus - hier stand "... >/dev/null 2>&1 && prune", und
+  # eine gescheiterte /etc-Sicherung meldete niemand (#218).
+  # */etc and the panel data without sichere() (both are small and would trip the
+  #  "practically empty" check), but with an error status - the /etc archive used
+  #  to fail silently.*
+  klein_sichern() {   # klein_sichern <praefix> <pfad>
+    borg create --compression zstd,6 "$REPO::$1-${ZEIT}" "$2" >/dev/null 2>&1 \
+      && borg prune --glob-archives "$1-*" "${prune_regeln[@]}" "$REPO" >/dev/null 2>&1 \
+      || { echo "FEHLER: Sicherung $1 ($2)" >&2; fehler=1; }
+  }
+  klein_sichern etc /etc
+  # Panel-Daten (#218): Benutzer mit Passwort-Hashes, TOTP-Geheimnissen und
+  # Passkeys, die Zugangsdaten und das Protokoll. Standen in KEINER Sicherung -
+  # ging die Maschine verloren, waren alle Anmeldungen, zweiten Faktoren und
+  # Passkeys weg. Das Repository ist verschluesselt; die DNS-Zugangsdaten aus
+  # /etc liegen dort schon.
+  # *Users with hashes, TOTP secrets and passkeys, credentials and audit log -
+  #  previously in no archive at all.*
+  klein_sichern panel /opt/panel/daten
 fi
 
 borg compact "$REPO" >/dev/null 2>&1

@@ -54,7 +54,24 @@ tadellos aus, während nichts gesichert wird.
 
 ## Was gesichert wird — und was nicht
 
-Gesichert werden **Spielstände, Serverkonfiguration und die compose-Dateien**.
+Gesichert werden **Spielstände, Serverkonfiguration und die compose-Dateien**,
+im täglichen Vollauf dazu `/etc` (Archiv `etc-*`) und die **Panel-Daten**
+(`panel-*`): `/opt/panel/daten` mit den Benutzern samt Passwort-Hashes,
+TOTP-Geheimnissen und Passkeys, den Zugangsdaten und dem Protokoll.
+
+**Die Panel-Daten standen bis #218 in keinem Archiv.** Beim Verlust der Maschine
+wären alle Anmeldungen, zweiten Faktoren und Passkeys weg gewesen, dazu das
+Protokoll — aufgefallen beim Entfernen der Altdatei `konfig.json` (#216). Das
+Repository ist verschlüsselt; die DNS-Zugangsdaten aus `/etc` liegen dort schon.
+Beide kleinen Archive laufen ohne die Plausibilitätsprüfung der Spielstände (die
+Panel-Daten sind rund 36 KB und würden als „praktisch leer" gemeldet), aber
+**mit Fehlerstatus**: Die `/etc`-Sicherung scheiterte bis dahin still.
+
+> *The daily full run also archives `/etc` (`etc-*`) and the panel data
+> (`panel-*`: users with hashes, TOTP secrets and passkeys, credentials, audit
+> log). The panel data was in no archive until #218 — losing the machine would
+> have lost every login and second factor. Both small archives skip the
+> save-size check but now report failure; the `/etc` one used to fail silently.*
 
 Nicht gesichert wird die **Spielinstallation**. SteamCMD lädt sie jederzeit neu;
 Enshrouded allein sind 8,9 GB, die sich nie ändern. Sie mitzunehmen kostet Platz
@@ -201,11 +218,24 @@ kann, verliert den Fortschritt der Sitzung.
    cd / && borg extract "$REPO::config-20260906-040000"
    ```
 4. Je Spiel den letzten Stand auspacken (siehe oben).
-5. Container starten, DNS mit `dns-pflegen setzen <name>` neu eintragen.
+5. **Panel-Daten** zurückholen — Benutzer, zweite Faktoren, Passkeys,
+   Zugangsdaten, Protokoll:
+   ```bash
+   cd / && borg extract "$REPO::panel-<zeitstempel>"
+   systemctl restart panel
+   ```
+   Eigentümer und Rechte kommen mit (`panel:panel`, `nutzer.json` `0600`).
+   Hat Stufe 30 schon einen neuen ersten Benutzer angelegt, ersetzt das
+   Auspacken ihn — gewollt, denn danach gelten die alten Anmeldungen wieder.
+   Probeweise ausgepackt am 2026-09-11: `nutzer.json` und `zugangsdaten.json`
+   bytegleich mit den laufenden.
+6. Container starten, DNS mit `dns-pflegen setzen <name>` neu eintragen.
 
 > *Total loss: rebuild stages 10–50, restore the passphrase from its off-host
 > copy, extract the `config-*` archive for the compose files, extract each game's
-> latest state, start the containers and re-create the DNS records.*
+> latest state, extract the `panel-*` archive (users, second factors, passkeys,
+> credentials, audit log — owner and modes come along) and restart the panel,
+> then start the containers and re-create the DNS records.*
 
 ---
 
