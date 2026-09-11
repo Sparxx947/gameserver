@@ -181,12 +181,17 @@ class Anpassung:
                    "ersten Start an. Danach erneut versuchen.", code=4)
         return p
 
-    def inhalt(self, wid: str) -> Path:
+    def inhalt(self, wid: str, ordner: str = "") -> Path:
         """Heruntergeladener Inhalt einer ID - INNERHALB des Datenverzeichnisses."""
-        p = (self.basis / self.w["inhalt"] / wid).resolve()
+        p = (self.basis / (ordner or self.inhaltsordner()[0]) / wid).resolve()
         if not str(p).startswith(str(self.basis.resolve()) + "/"):
             fehler("Inhaltspfad liegt ausserhalb des Datenverzeichnisses")
         return p
+
+    def inhaltsordner(self) -> list:
+        """"inhalt" ist ein Pfad oder eine Liste - DST laedt je Shard getrennt."""
+        i = self.w["inhalt"]
+        return [i] if isinstance(i, str) else list(i)
 
     def aufraeumen(self, ids: list):
         """Inhalt JEDER nicht eingetragenen ID loeschen - nicht nur der gerade
@@ -201,12 +206,13 @@ class Anpassung:
         *Delete the content of every id not listed, not just the one removed:
          Steam once restored a deleted folder on the next start (1 of 3 tries).*"""
         import shutil
-        ordner = self.inhalt("0").parent
-        if not ordner.is_dir():
-            return
-        for d in ordner.iterdir():
-            if d.is_dir() and not d.is_symlink() and ID_MUSTER.fullmatch(d.name) and d.name not in ids:
-                shutil.rmtree(d)
+        for o in self.inhaltsordner():
+            ordner = self.inhalt("0", o).parent
+            if not ordner.is_dir():
+                continue
+            for d in ordner.iterdir():
+                if d.is_dir() and not d.is_symlink() and ID_MUSTER.fullmatch(d.name) and d.name not in ids:
+                    shutil.rmtree(d)
 
     def liste(self) -> list:
         raise NotImplementedError
@@ -392,6 +398,141 @@ class Unturned(Anpassung):
         self.aufraeumen(ids)
 
 
+# Don't Starve Together: zwei Lua-Dateien.
+SETUP_ZEILE = re.compile(r'^[ \t]*ServerModSetup\(\s*"([0-9]{3,12})"\s*\)[ \t]*\r?\n?', re.M)
+
+
+def dst_setup_ids(text: str) -> list:
+    """IDs aus ServerModSetup("...")-Zeilen - auskommentierte (--) nicht. Rein."""
+    return [m.group(1) for m in SETUP_ZEILE.finditer(text)]
+
+
+def dst_setup_setzen(text: str, ids: list) -> str:
+    """ServerModSetup-Zeilen auf ids setzen; Kommentare, ServerModCollectionSetup
+    und alles andere bleiben. Rein."""
+    text = SETUP_ZEILE.sub("", text)
+    if text and not text.endswith("\n"):
+        text += "\n"
+    return text + "".join(f'ServerModSetup("{x}")\n' for x in ids)
+
+
+def lua_blockende(text: str, auf: int) -> int:
+    """Index hinter der "}", die die "{" bei auf schliesst - Zeichenketten und
+    Kommentare werden uebersprungen. -1, wenn sie nicht schliesst. Rein.
+    *Index past the brace closing the one at auf, skipping strings and comments.*"""
+    tiefe, i, n = 0, auf, len(text)
+    while i < n:
+        c = text[i]
+        if text.startswith("--[[", i):
+            j = text.find("]]", i + 4); i = n if j < 0 else j + 2; continue
+        if text.startswith("--", i):
+            j = text.find("\n", i); i = n if j < 0 else j + 1; continue
+        if text.startswith("[[", i):
+            j = text.find("]]", i + 2); i = n if j < 0 else j + 2; continue
+        if c in "\"'":
+            i += 1
+            while i < n and text[i] != c:
+                i += 2 if text[i] == "\\" else 1
+            i += 1; continue
+        if c == "{":
+            tiefe += 1
+        elif c == "}":
+            tiefe -= 1
+            if tiefe == 0:
+                return i + 1
+        i += 1
+    return -1
+
+
+def dst_eintrag(text: str, wid: str):
+    """(anfang, ende) des Eintrags ["workshop-<id>"]={...} samt Komma, sonst None."""
+    m = re.search(rf'\[\s*["\']workshop-{wid}["\']\s*\]\s*=\s*\{{', text)
+    if not m:
+        return None
+    ende = lua_blockende(text, m.end() - 1)
+    if ende < 0:
+        fehler(f"modoverrides.lua: Eintrag workshop-{wid} schliesst nicht")
+    k = re.match(r"[ \t]*,?[ \t]*\r?\n?", text[ende:])
+    anfang = text.rfind("\n", 0, m.start()) + 1
+    if text[anfang:m.start()].strip():
+        anfang = m.start()                 # steht nicht allein auf der Zeile
+    return anfang, ende + k.end()
+
+
+def dst_overrides_setzen(text: str, ids: list, weg: list) -> str:
+    """modoverrides.lua: fehlende ids als aktiviert eintragen, ids aus weg
+    entfernen - nur diese. Vorhandene Eintraege behalten ihre Einstellungen
+    (configuration_options), werden aber aktiviert. Rein.
+    *Add missing ids enabled, remove only the ids in weg; existing entries keep
+     their configuration_options but are enabled.*"""
+    if not text.strip():
+        text = "return {\n}\n"
+    for x in weg:
+        spanne = dst_eintrag(text, x)
+        if spanne:
+            text = text[:spanne[0]] + text[spanne[1]:]
+    kopf = re.search(r"^\s*return\s*\{", text, re.M)
+    if not kopf:
+        fehler("modoverrides.lua beginnt nicht mit \"return {\" - bitte von Hand pruefen")
+    for x in ids:
+        spanne = dst_eintrag(text, x)
+        if spanne:
+            block = text[spanne[0]:spanne[1]]
+            text = text[:spanne[0]] + re.sub(r"enabled\s*=\s*false", "enabled=true", block) + text[spanne[1]:]
+        else:
+            neu = f'\n  ["workshop-{x}"]={{ configuration_options={{ }}, enabled=true }},'
+            text = text[:kopf.end()] + neu + text[kopf.end():]
+    return text
+
+
+@art("dst")
+class Dst(Anpassung):
+    """Don't Starve Together: ZWEI Dateien, wie bei Project Zomboid.
+
+    serverfiles/mods/dedicated_server_mods_setup.lua sagt mit ServerModSetup("<id>"),
+    was der Server beim Start herunterlaedt; modoverrides.lua in jedem Shard
+    (Cluster_1/Master, Cluster_1/Caves) sagt mit ["workshop-<id>"]={ enabled=true },
+    was er davon laedt. Anders als bei Zomboid steht der Name im Eintrag schon in
+    der ID - kein Vorabladen noetig. Gemessen am 2026-09-11: Der Server laedt und
+    aktiviert die Mod schon VOR der Anmeldung bei Klei ("Loading mod:
+    workshop-378160973 (Global Positions)"), nach
+    serverfiles/ugc_mods/Cluster_1/<Shard>/content/322330/<id>.
+    *Two files like Zomboid: the setup file says what to download, each shard's
+     modoverrides.lua what to enable. The id is the name, so no pre-fetch.*
+    """
+
+    def shards(self) -> list:
+        """modoverrides.lua der Shards, die es gibt - mindestens Master."""
+        raus = []
+        for rel in self.w["overrides"]:
+            p = (self.basis / rel).resolve()
+            if not str(p).startswith(str(self.basis.resolve()) + "/"):
+                fehler("Konfigurationspfad liegt ausserhalb des Datenverzeichnisses")
+            if p.parent.is_dir():
+                raus.append(p)
+        if not raus:
+            fehler("Der Cluster (Cluster_1/Master) ist noch nicht angelegt - der Server legt ihn "
+                   "beim ersten Start an. Danach erneut versuchen.", code=4)
+        return raus
+
+    def liste(self) -> list:
+        return dst_setup_ids(self.datei().read_text(errors="replace"))
+
+    def setzen(self, ids: list):
+        p = self.datei()
+        shards = self.shards()
+        alt_ids = self.liste()
+        weg = [x for x in alt_ids if x not in ids]
+        besitzer = p.stat()
+        for o in shards:
+            text = o.read_text(errors="replace") if o.is_file() else ""
+            o.write_text(dst_overrides_setzen(text, ids, weg))
+            os.chown(o, besitzer.st_uid, besitzer.st_gid)
+        p.write_text(dst_setup_setzen(p.read_text(errors="replace"), ids))
+        os.chown(p, besitzer.st_uid, besitzer.st_gid)
+        self.aufraeumen(ids)
+
+
 # --- Befehle --------------------------------------------------------------------
 
 def zeile(d: dict) -> str:
@@ -503,6 +644,29 @@ def selbsttest() -> int:
         ("unturned_ids(gesetzt)", unturned_ids(neu) == ["3485061773", "3692068824"]),
         ("Handeintrag bleibt", json.loads(unturned_setzen('{"File_IDs": ["notiz", 3485061773]}',
                                                           []))["File_IDs"] == ["notiz"]),
+    ]:
+        schlecht += not ok
+        print(f"  {'ok  ' if ok else 'FEHLER'} {name}")
+    setup = ('--ServerModSetup("350811795")\nServerModCollectionSetup("379114180")\n'
+             'ServerModSetup("378160973")\n')
+    ov = ('return {\n  ["workshop-378160973"]={ configuration_options={ SHOWPLAYERS="}", x={1,2} },'
+          ' enabled=true },\n  -- ["workshop-999"]={ enabled=true },\n'
+          '  ["workshop-111111"]={ enabled=false },\n}\n')
+    neu_ov = dst_overrides_setzen(ov, ["111111", "376333686"], ["378160973"])
+    for name, ok in [
+        ("dst_setup_ids ohne Kommentar", dst_setup_ids(setup) == ["378160973"]),
+        ("dst_setup_setzen laesst Kommentar und Sammlung",
+         dst_setup_setzen(setup, ["1", "376333686"]) == '--ServerModSetup("350811795")\n'
+         'ServerModCollectionSetup("379114180")\nServerModSetup("1")\nServerModSetup("376333686")\n'),
+        ("lua_blockende ueberspringt } in Zeichenkette", lua_blockende('{ a="}", b={1} } x', 0) == 16),
+        ("lua_blockende: Kommentar, Langstring, Maskierung, offen",
+         [lua_blockende(s, 0) for s in ('{ -- }\n }', '{ [[ } ]] }', '{ "a\\"}" }', '{ {')] == [9, 11, 10, -1]),
+        ("modoverrides: ausgetragen samt Optionen", "378160973" not in neu_ov and "SHOWPLAYERS" not in neu_ov),
+        ("modoverrides: Kommentar bleibt", '-- ["workshop-999"]' in neu_ov),
+        ("modoverrides: vorhandener aktiviert", '["workshop-111111"]={ enabled=true }' in neu_ov),
+        ("modoverrides: neuer eingetragen", '["workshop-376333686"]={ configuration_options={ }, enabled=true }' in neu_ov),
+        ("modoverrides: leer -> angelegt", dst_overrides_setzen("", ["5"], []) ==
+         'return {\n  ["workshop-5"]={ configuration_options={ }, enabled=true },\n}\n'),
     ]:
         schlecht += not ok
         print(f"  {'ok  ' if ok else 'FEHLER'} {name}")

@@ -16,6 +16,15 @@
       "datei": "serverfiles/Servers/Default/WorkshopDownloadConfig.json",
       "inhalt": "serverfiles/Servers/Default/Workshop/Steam/content/304930",
       "gemessen": "2026-09-11, ich777-Image: File_IDs in Servers/Default/WorkshopDownloadConfig.json, der Server laedt beim Start selbst nach Servers/Default/Workshop/Steam/content/304930/<id>"
+    },
+    "dontstarvetogether": {
+      "art": "dst",
+      "datei": "serverfiles/mods/dedicated_server_mods_setup.lua",
+      "overrides": [
+        ".klei/DoNotStarveTogether/Cluster_1/Master/modoverrides.lua"
+      ],
+      "inhalt": "serverfiles/ugc_mods/Cluster_1/Master/content/322330",
+      "gemessen": "2026-09-11, ich777-Image: ServerModSetup(\"<id>\") in serverfiles/mods/dedicated_server_mods_setup.lua, [\"workshop-<id>\"]={ enabled=true } in Cluster_1/Master/modoverrides.lua; Inhalt unter serverfiles/ugc_mods/Cluster_1/Master/content/322330/<id>. Nur der Shard Master - die Hoehlen (Caves) sind im Katalog aus und nicht gemessen."
     }
   }
 }

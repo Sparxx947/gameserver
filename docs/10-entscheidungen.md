@@ -890,6 +890,11 @@ allen ich777-Spielen sichert Borg die ganze Spielinstallation mit (#221). Und
 Unturned ist über Steams Relay per „Server Code" erreichbar, **ohne** dass ein
 Port veröffentlicht ist — während sein Beitrittspasswort in einer beim ersten
 Start leeren `Commands.dat` steht, die die Einrichtung nicht füllen kann (#223).
+Don't Starve Together ließ sich aus dem Katalog nie starten: Sein Startskript
+ruft `mkdir` ohne `-p` auf `.klei/DoNotStarveTogether/Cluster_1` auf und legt
+sich ohne den Elternordner schlafen (jetzt Katalogfeld `ordner`); es lädt 4,5
+statt geschätzter 2 GB; und es braucht ein Cluster-Token vom Klei-Konto des
+Betreibers — das bringt kein Katalog mit.
 
 > *The obvious design, an own downloader, was rejected: these game servers fetch
 > Workshop items themselves from a list in their config, so the panel only
@@ -900,7 +905,10 @@ Start leeren `Commands.dat` steht, die die Einrichtung nicht füllen kann (#223)
 > page, verwalten may use it, mods are backed up. Side findings: Project
 > Zomboid needs more than 4 GB (`-Xmx8g`), ich777 games back up their whole
 > install (#221), and Unturned is joinable through Steam's relay by server code
-> without any published port while its password file starts empty (#223).*
+> without any published port while its password file starts empty (#223).
+> Don't Starve Together never started from the catalogue (its script runs
+> mkdir without -p and sleeps forever; now the `ordner` field), downloads 4.5
+> instead of 2 GB, and needs a cluster token from the operator's Klei account.*
 
 ---
 
