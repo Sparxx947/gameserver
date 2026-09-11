@@ -396,18 +396,18 @@ liefert 1.6, dessen `--base-path` sich anders verhält.
 
 ## Prüfwerkzeuge (`werkzeuge/`)
 
-**Das SSH-Ziel muss sich als `root` anmelden** — bei `ausrollen.sh` und
-`rueckbau.sh`. Beide schicken ihre Befehle unverpackt über SSH und benutzen
-**kein** `sudo`: `ausrollen.sh` schreibt nach `/etc` und `/usr/local/bin`,
-`rueckbau.sh` ruft `systemctl` und `rm -rf`. `abgleich.sh` liest nur und kommt
-deshalb auch als gewöhnlicher Benutzer zurecht — was die Voraussetzung lange
-verdeckt hat.
+**Auf dem Ziel braucht es root — per Anmeldung oder per `sudo` ohne Passwort**
+(#192, #214). `ausrollen.sh`, `rueckbau.sh` und `aufraeumen.sh` schreiben nach
+`/etc` und `/usr/local/bin` und rufen `systemctl` und `rm -rf`. Alle drei
+ermitteln vorab über `werkzeuge/ziel.sh`, welcher Weg geht, und brechen sonst
+mit einem Satz ab, der beide nennt. `abgleich.sh` liest nur: ohne beides läuft
+es weiter und warnt, dass Dateien, die nur root lesen darf, dann als abweichend
+erscheinen.
 
 Gemessen mit einem Ziel ohne root: `ausgefuehrt: 12   fehlgeschlagen: 77`, und
-das Werkzeug lief bis zum Ende durch. Seit #192 prüfen beide vorher und brechen
-mit einem Satz ab, statt 77 gleichlautende Zeilen zu drucken.
+das Werkzeug lief bis zum Ende durch — deshalb die Prüfung vorab.
 
-Einzurichten ist das über `~/.ssh/config`:
+**Weg 1 — root-Login per Schlüssel** (so läuft die Maschine heute):
 
 ```
 Host gameserver
@@ -415,24 +415,43 @@ Host gameserver
     User root
 ```
 
-Auf der Maschine muss `PermitRootLogin` dafür eine Schlüsselanmeldung zulassen.
-Das ist die Vorgabe (`SSH_ROOT_LOGIN=prohibit-password`); mit
-`SSH_ROOT_LOGIN=no` können beide Werkzeuge nicht arbeiten.
+Verlangt, dass `PermitRootLogin` eine Schlüsselanmeldung zulässt — die Vorgabe
+(`SSH_ROOT_LOGIN=prohibit-password`).
 
-> *The SSH target must log in as root for `ausrollen.sh` and `rueckbau.sh`: both
-> send their commands unwrapped and use no `sudo`. `abgleich.sh` only reads and
-> therefore works as an ordinary user, which is what hid the requirement.
-> Measured against a non-root target: 77 of 89 steps failed and the tool still
-> ran to the end. Both now check first. This needs `PermitRootLogin` to allow a
-> key login — the default — and cannot work with `SSH_ROOT_LOGIN=no`.*
+**Weg 2 — ein Benutzer mit `sudo` ohne Passwortabfrage** (Jens am 2026-09-11:
+„auch ohne root sollte das möglich sein"). Dann läuft jeder Befehl als
+`sudo -n bash -c <gequotet>`. Nur *passwortloses* sudo geht, weil die Werkzeuge
+Dutzende einzelner Befehle über SSH ohne Terminal schicken. Auf der Maschine
+etwa in `/etc/sudoers.d/`:
+
+```
+<benutzer> ALL=(ALL) NOPASSWD: ALL
+```
+
+**Sicherheitlich ist das gleichwertig mit Weg 1** — wer den Schlüssel dieses
+Benutzers hat, ist root. Es ist der Weg für `SSH_ROOT_LOGIN=no`. Die Einrichtung
+legt ihn nicht an; der Verwaltungsbenutzer hat heute sudo nur **mit** Passwort.
+
+Nachgewiesen: Beide Wege liefern gegen die echte Maschine dieselben Ergebnisse
+(`PLATZWART_MIT_SUDO=1` erzwingt Weg 2 auch bei root-Login; das Journal zeigte
+194 `sudo … bash -c`-Aufrufe), auch der Rückspielzweig von `ausrollen.sh`.
+
+> *Root is needed on the target, by login or by passwordless sudo (#192, #214).
+> The three writing tools determine the way through `werkzeuge/ziel.sh` and stop
+> with one sentence naming both; `abgleich.sh` only warns. Way 1: root key login
+> (today's setup). Way 2: a user with `NOPASSWD` sudo — every command runs as
+> `sudo -n bash -c <quoted>`; only passwordless sudo works over terminal-less
+> SSH, and it is equivalent to way 1 security-wise. Both ways produce identical
+> results against the real machine (`PLATZWART_MIT_SUDO=1` forces way 2).*
 
 ### `abgleich.sh <ssh-ziel>`
 
-Vergleicht das Repositorium mit einer laufenden Maschine — **33 Prüfpunkte**:
+Vergleicht das Repositorium mit einer laufenden Maschine. Keine Zahl hier — sie
+veraltet lautlos (die Liste wuchs von 22 auf über 100 Dateien); der Lauf nennt sie:
 
 | Was | Wie verglichen |
 |---|---|
-| 22 Dateien (Werkzeuge, `/etc`, Units, `app.py`) | byte-genau, nach Einsetzen der Platzhalter |
+| alle ausgerollten Dateien (Liste `PAARE`: Werkzeuge, `/etc`, Units, `app.py`) | byte-genau, nach Einsetzen der Platzhalter |
 | Python-Umgebung des Panels | `pip list --format=freeze` gegen `panel/requirements.txt` |
 | ttyd | installierte Version gegen `TTYD_VERSION` in Stufe 40 |
 | 3 Symbole | byte-genau |
