@@ -439,6 +439,21 @@ Fehler, nicht das Vergessen.
 > replacing atomically; aborts on a left-over placeholder or unknown target. It
 > exists because two files were scp'd across untouched in a single day.*
 
+**Drei Ziele fragt es nach dem Tausch den Dienst (#204):** die Caddyfile
+(`caddy validate`), die sshd-Härtung (`sshd -t`) und die sudoers-Regel des
+Panels (`visudo -c`). Lehnt der Dienst ab, kommt die gerade angelegte Sicherung
+zurück, und der Lauf endet mit Fehler. Genau dort schlägt eine kaputte Datei
+nämlich spät und hart zu: beim nächsten Neustart ist das Panel weg, die
+SSH-Anmeldung gesperrt oder die sudo-Brücke gebrochen. Anlass war die
+Caddyfile aus #202, die eine Datei importiert, die nur Stufe 40 anlegt.
+Nachgewiesen mit einer absichtlich kaputten Caddyfile: abgelehnt, die gültige
+Fassung stand danach wieder da, Caddy lief unberührt weiter.
+
+> *Three targets are validated by their service after the swap — Caddyfile,
+> sshd drop-in, sudoers — and the backup is restored if the service refuses.
+> That is where a bad file bites late and hard. Proven with a deliberately
+> broken Caddyfile.*
+
 ### Die Fassung
 
 `VERSION` im Wurzelverzeichnis nennt die Fassung dieses Bausatzes. Beim

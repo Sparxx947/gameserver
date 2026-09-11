@@ -27,6 +27,25 @@ set -a; . "$KONF"; set +a
 ZIEL="${1:-}"; shift || true
 [ -n "$ZIEL" ] && [ $# -gt 0 ] || { echo "Aufruf: $0 <ssh-ziel> <repo-datei> [...]"; exit 2; }
 
+# Ziele, bei denen eine kaputte Datei SPAETER und hart zuschlaegt: Caddy liest
+# die Caddyfile erst beim naechsten Neustart (Panel weg), sshd die Haertung
+# ebenso (Aussperrung), sudo die Panel-Regel beim naechsten Aufruf (das Panel
+# verliert seine Bruecke). Nach dem Tausch wird der Dienst gefragt, ob er die
+# Datei annimmt; wenn nicht, kommt die gerade angelegte Sicherung zurueck (#204).
+# Anlass: Die Caddyfile aus #202 importiert eine Datei, die nur Stufe 40 anlegt -
+# allein ausgerollt, haette "caddy validate" sie abgelehnt, bemerkt erst nach dem
+# naechsten Neustart.
+# *Targets where a bad file bites later and hard. After the swap the service is
+#  asked whether it accepts the file; if not, the just-made backup comes back.*
+pruefbefehl() {
+  case "$1" in
+    /etc/caddy/Caddyfile)         echo "caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile" ;;
+    /etc/ssh/sshd_config.d/*)     echo "sshd -t" ;;
+    /etc/sudoers.d/*)             echo "visudo -cf '$1'" ;;
+    *)                            echo "" ;;
+  esac
+}
+
 VARIABLEN=(DNS_ZONE DNS_ZIEL PANEL_DOMAIN SERVER_IPV4 WELT_NAME ADMIN_USER
            ADMIN_NETZ ADMIN_IP BORG_REPO BORG_TAILSCALE_IP FREMD_IPV4
            SSH_PASSWORT_AUTH SSH_ROOT_LOGIN ZERTIFIKAT_WEG)
@@ -115,13 +134,22 @@ for datei in "$@"; do
     fehler=1; continue
   fi
 
-  # Sicherung auf der Maschine, dann atomar ersetzen.
+  # Sicherung auf der Maschine, dann atomar ersetzen - und wo es einen
+  # Pruefbefehl gibt, den Dienst fragen; lehnt er ab, die Sicherung zurueck.
+  pruef=$(pruefbefehl "$pfad")
+  sicherung="$pfad.vor-$(date +%Y%m%d-%H%M%S)"
   printf '%s\n' "$text" | ssh "$ZIEL" "
-    [ -f '$pfad' ] && cp -a '$pfad' '$pfad.vor-$(date +%Y%m%d-%H%M%S)'
+    [ -f '$pfad' ] && cp -a '$pfad' '$sicherung'
     cat > '$pfad.neu' && chmod $modus '$pfad.neu' && chown $eigner '$pfad.neu' \
-      && mv '$pfad.neu' '$pfad'" \
-    && { echo "ausgerollt: $datei -> $pfad"; ausgerollt=1; } \
-    || { echo "FEHLGESCHLAGEN: $datei"; fehler=1; }
+      && mv '$pfad.neu' '$pfad' || exit 1
+    if [ -n \"$pruef\" ] && ! $pruef >/tmp/ausrollen-pruefung.txt 2>&1; then
+      if [ -f '$sicherung' ]; then cp -a '$sicherung' '$pfad'; else rm -f '$pfad'; fi
+      echo '  abgelehnt von: $pruef'; sed 's/^/    /' /tmp/ausrollen-pruefung.txt | tail -5
+      rm -f /tmp/ausrollen-pruefung.txt; exit 3
+    fi
+    rm -f /tmp/ausrollen-pruefung.txt" \
+    && { echo "ausgerollt: $datei -> $pfad${pruef:+ (geprueft: ${pruef%% *})}"; ausgerollt=1; } \
+    || { echo "FEHLGESCHLAGEN: $datei - vorige Fassung bleibt bzw. ist zurueck"; fehler=1; }
 done
 
 # Wurde etwas von Hand nachgerollt, stimmt der Versionsstempel nicht mehr genau:
