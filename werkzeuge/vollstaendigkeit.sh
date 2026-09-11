@@ -346,6 +346,26 @@ while read -r v; do
 done < <(grep -rhoE '\bE[0-9]{1,2}\b' docs/*.md CLAUDE.md README.md 2>/dev/null \
          | sort -u)
 
+# --- 8b. Jede Route des Panels steht in der Routentabelle -------------------
+# Die Tabelle in docs/03-panel.md kannte am 2026-09-11 22 von 61 Routen und
+# fuehrte /konfig und /archive noch als admin-only. Eine Referenz, die nur einen
+# Teil kennt, ist die, nach der man die falsche Rolle vergibt (#179).
+# *The route table knew 22 of 61 routes and listed two with the wrong role.*
+echo "== Steht jede Route des Panels in der Routentabelle? =="
+python3 - <<'PRUEF' || fehler=1
+import re, sys
+code = set(re.findall(r'@app\.(?:get|post)\("([^"]+)"', open("panel/app.py").read()))
+doku = open("docs/03-panel.md").read()
+abschnitt = doku[doku.index("## Alle Routen"):]
+abschnitt = abschnitt[:abschnitt.index("\n## ", 5)] if "\n## " in abschnitt[5:] else abschnitt
+genannt = set(re.findall(r"`(/[^`]*)`", abschnitt))
+fehlt = sorted(code - genannt)
+if fehlt:
+    print("  Routen ohne Eintrag in docs/03-panel.md -> 'Alle Routen':")
+    print("    " + "\n    ".join(fehlt))
+    sys.exit(1)
+PRUEF
+
 # --- 9. Ports des Spielekatalogs --------------------------------------------
 # Am 2026-09-10 veroeffentlichte der Katalog die gotty-Webkonsole von FiveM und
 # RedM (Serverkonsole ohne Anmeldung) und RCON bei gut fuenfzig Spielen - die
