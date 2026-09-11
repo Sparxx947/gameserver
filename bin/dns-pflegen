@@ -744,6 +744,21 @@ def anbieter_zeigen():
 
 if __name__ == "__main__":
     a = sys.argv[1:] or ["liste"]
+    # Jedes Verb nimmt GENAU so viele Argumente, wie es braucht; alles andere
+    # bricht ab (#198). Vorher sah nur setzen/entfernen auf die Zahl - und
+    # "dns-pflegen ziel-setzen --trocken" schrieb zwei echte Eintraege in die
+    # Zone, weil das Werkzeug das Argument, das "nur zeigen" verlangte, wortlos
+    # verwarf. Hier wirkt ein Fehlgriff auf etwas, das jeder sieht, der die
+    # Zone aufloest, und das keine lokale Sicherung zuruecknimmt.
+    # *Every verb takes exactly its number of arguments; anything else aborts.
+    #  "ziel-setzen --trocken" used to rewrite two live records.*
+    STELLEN = {"setzen": 1, "entfernen": 1, "liste": 0, "pruefen": 0, "ziel-zeigen": 0,
+               "ziel-setzen": 0, "grundgeruest": 0, "anbieter": 0}
+    if a[0] not in STELLEN or len(a) - 1 != STELLEN[a[0]]:
+        fehler("Aufruf: dns-pflegen setzen|entfernen <name> | liste | pruefen "
+               "| ziel-zeigen | ziel-setzen | grundgeruest | anbieter\n"
+               "Keine weiteren Argumente, keine Schalter. Nur ansehen, was ziel-setzen "
+               "schreiben wuerde:  dns-pflegen ziel-zeigen")
     if a[0] == "setzen" and len(a) == 2:
         setzen(a[1])
     elif a[0] == "entfernen" and len(a) == 2:
