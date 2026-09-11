@@ -55,6 +55,17 @@ exit 2; }
 fern() { ssh -n -o BatchMode=yes -o ConnectTimeout=10 "$ZIEL" "$@"; }
 fern true 2>/dev/null || { echo "Nicht erreichbar: $ZIEL"; exit 2; }
 
+# Wie rueckbau.sh und ausrollen.sh (#192/#210): Die Befehle gehen ohne sudo ueber
+# SSH, ohne root scheiterte jeder Loeschschritt einzeln, und die Bilanz am Ende
+# saehe aus wie "wenig aufzuraeumen".
+# *Same check as rueckbau.sh and ausrollen.sh: without root every removal would
+#  fail on its own and the summary would read like "little to clean up".*
+if [ "$(fern 'id -u' 2>/dev/null)" != "0" ]; then
+  echo "FEHLER: $ZIEL meldet sich nicht als root an - aufraeumen.sh loescht ohne sudo." >&2
+  echo "        Ziel mit root-Anmeldung verwenden (root@<maschine> oder \"User root\" in ~/.ssh/config)." >&2
+  exit 2
+fi
+
 # Die Grenze wird auf DIESER Maschine gerechnet, und die kann BSD-date haben
 # (macOS) oder GNU-date (Linux). Beide Formen probieren statt eine anzunehmen.
 # *Computed on this workstation, which may have BSD or GNU date.*
