@@ -6284,12 +6284,16 @@
    },
    "passwort": {
     "art": "datei",
-    "pfad": "",
-    "feld": ""
+    "pfad": "serverfiles/Servers/Default/Server/Commands.dat",
+    "feld": "Password",
+    "befehle": {
+     "Password": "{PASSWORT}",
+     "MaxPlayers": "{SPIELER}"
+    }
    },
    "adresse_port": 30034,
    "spieler": 4,
-   "hinweis": "Abweichender Port (Standard war belegt): 27015->30034, 27016->30036, 27017->30038. This Docker will download and install SteamCMD. It will also install Unturned and run it (if you want to install Rocket Mod set the Variable 'Install Rocket Mod' to 'true' without quotes). ATTENTION: First Startup can take very lo… Das Beitrittspasswort steht bei diesem Spiel in der Serverkonfiguration, die der erste Start anlegt - nicht in der Umgebung. Workshop-Mods (Servers/Default/Workshop) werden mitgesichert.",
+   "hinweis": "Abweichender Port (Standard war belegt): 27015->30034, 27016->30036, 27017->30038. This Docker will download and install SteamCMD. It will also install Unturned and run it (if you want to install Rocket Mod set the Variable 'Install Rocket Mod' to 'true' without quotes). ATTENTION: First Startup can take very lo… Beitrittspasswort und Spielerzahl stehen in Servers/Default/Server/Commands.dat (Password, MaxPlayers); die Installation schreibt sie VOR dem ersten Start, weil Unturned ueber Steams Relay per Server Code auch ohne veroeffentlichten Port erreichbar ist. Der Port geht erst auf, wenn der Server per Abfrage ein Passwort verlangt. Workshop-Mods (Servers/Default/Workshop) werden mitgesichert.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"

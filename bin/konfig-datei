@@ -40,6 +40,13 @@ BASEN = (Path("/srv/games"), Path("/srv/dienste"))
 UID = GID = 4711
 MAX_BYTES = 256 * 1024          # groesser ist keine Konfiguration mehr
 ENDUNGEN = {".ini", ".cfg", ".json", ".properties", ".conf", ".txt", ".yaml", ".yml", ".xml"}
+# Einzelne Dateinamen mit fremder Endung, die Text-Konfiguration SIND. Nur mit
+# vollem Namen: .dat ist sonst oft binaer (Spielstaende, Unturneds Server/*.dat).
+# Commands.dat traegt Unturneds Beitrittspasswort (#223) - ohne sie waere der
+# Hinweis "Passwort von Hand setzen (Konfigdateien)" dort nicht erfuellbar.
+# *Single file names with a foreign suffix that ARE text configuration. Full
+#  names only: .dat is often binary. Commands.dat holds Unturned's password.*
+NAMEN = {"Commands.dat"}
 
 # Rauschen, das zwar wie Konfiguration aussieht, aber keine ist. Ohne diesen
 # Filter stehen bei Palworld fuenf CrashReportClient.ini und bei StarRupture
@@ -119,7 +126,7 @@ def sicherer_pfad(wurzel: Path, rel: str) -> Path:
     ziel = (wurzel / rel).resolve()
     if not (ziel == wurzel or wurzel in ziel.parents):
         fehler("Pfad zeigt aus dem Datenverzeichnis heraus")
-    if ziel.suffix.lower() not in ENDUNGEN:
+    if ziel.suffix.lower() not in ENDUNGEN and ziel.name not in NAMEN:
         fehler(f"Endung nicht erlaubt: {ziel.suffix or '(keine)'}")
     if RAUSCHEN.search(str(ziel.relative_to(wurzel))):
         fehler("diese Datei ist nicht zur Bearbeitung freigegeben")
@@ -136,7 +143,7 @@ def kandidaten(wurzel: Path):
         if p.is_symlink() or not p.is_file():
             continue
         rel = str(p.relative_to(wurzel))
-        if p.suffix.lower() not in ENDUNGEN or RAUSCHEN.search(rel):
+        if (p.suffix.lower() not in ENDUNGEN and p.name not in NAMEN) or RAUSCHEN.search(rel):
             continue
         try:
             groesse = p.stat().st_size

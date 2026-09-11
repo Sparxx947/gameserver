@@ -391,6 +391,11 @@ def installieren(sch: str):
         # *Public ports published only after the join password, by
         #  port-ermitteln - the one path.*
         "ports_ausstehend": ports_aufteilen(g)[1],
+        # Datei, die das Spiel mit einem Befehl je Zeile liest und beim ersten
+        # Start LEER anlegt (Unturned, #223) - die Einrichtung legt die Zeilen an.
+        # *A one-command-per-line file the game creates empty (Unturned, #223).*
+        **({"befehlsdatei": {"pfad": g["passwort"]["pfad"], "zeilen": g["passwort"]["befehle"]}}
+           if g["passwort"].get("befehle") else {}),
     }, indent=1) + "\n")
     # panel.json enthaelt die Passwoerter - deshalb 0640 und Gruppe panel,
     # nicht world-readable.
@@ -402,6 +407,18 @@ def installieren(sch: str):
     zugang_eintragen(sch, g["name"], pw, admin, g["passwort"]["art"])
     ausschluss_setzen(sch, g.get("ausschluss", []))
     bild_holen(g)
+
+    # Befehlsdatei VOR dem ersten Start (#223): Unturned ist ueber Steams Relay
+    # erreichbar, ohne dass ein Port veroeffentlicht ist - der erste Start darf
+    # also nicht ohne Passwort laufen. Scheitert das Schreiben, startet nichts.
+    # *Before the first start: Unturned is reachable through Steam's relay
+    #  without a published port. If writing fails, nothing starts.*
+    if g["passwort"].get("befehle"):
+        r = subprocess.run(["/usr/local/bin/spiel-einrichtung", "--vorab", sch],
+                           capture_output=True, text=True, timeout=600)
+        if r.returncode != 0:
+            fehler(f"{sch} angelegt, aber NICHT gestartet: Beitrittspasswort liess sich nicht "
+                   f"vorab setzen ({(r.stderr or r.stdout).strip()[:160]})")
 
     # Starten nur, wenn der Arbeitsspeicher es hergibt. Sonst waere der erste
     # Eindruck ein Container, den der OOM-Killer abraeumt - siehe StarRupture.

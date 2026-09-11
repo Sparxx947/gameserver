@@ -61,6 +61,7 @@ im Katalog nach, und den Katalog kann die Oberfläche nur lesen.
 | `volumes` | Bind-Mounts, immer unter `/srv/games/<schluessel>` |
 | `env` | Umgebung. `{PASSWORT}` und `{ADMIN}` werden beim Installieren durch die frisch gewürfelten Passwörter ersetzt, `{SPIELER}` durch den Wert aus `spieler` — bei Spielen, deren Spielerzahl als Startparameter steht (#177) |
 | `passwort.art` | `env` (Passwort steht in der Umgebung), `datei` (der Server legt eine Konfigurationsdatei an), `params` (Passwort als Startparameter in `GAME_PARAMS`; der Port folgt erst, wenn der laufende Server per A2S „Passwort nötig“ meldet — E27), `keins` (das Spiel kennt kein Beitrittspasswort; der Port geht erst nach einer Freigabe von Hand auf — #183) |
+| `passwort.befehle` | nur mit `passwort.pfad`: Befehle, die in eine Datei mit **einem Befehl je Zeile** gehören, z. B. `{"Password": "{PASSWORT}", "MaxPlayers": "{SPIELER}"}` bei Unturneds `Commands.dat`. Die Installation schreibt sie **vor dem ersten Start**; der Port folgt erst, wenn der laufende Server per A2S „Passwort nötig" meldet (E31) |
 | `adresse_port` | der Port, der in der Beitrittsadresse steht |
 | `spieler` | Sollwert für die Spielerzahl |
 | `hinweis` | wird in der Oberfläche angezeigt; hier stehen Fallstricke |
