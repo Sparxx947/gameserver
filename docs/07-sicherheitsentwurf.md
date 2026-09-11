@@ -216,6 +216,35 @@ abgetippt, und manche Spiele filtern Sonderzeichen still weg.
 
 ---
 
+## Der TeamSpeak-Zugang im Panel (#137)
+
+Für die Kanäle je Spielserver liegt der **ServerQuery-Zugang** des
+TeamSpeak-Servers (`serveradmin`) in `/opt/panel/daten/teamspeak.conf`,
+`0600 panel`. Wer ihn hat, kann den TeamSpeak-Server vollständig verwalten —
+Kanäle, Rechte, Nutzer. Das ist eine bewusste Ausweitung: Vorher stand der Zugang
+nur in den Zugangsdaten zum Ablesen, jetzt benutzt ihn ein Dienst.
+
+Was ihn begrenzt: ServerQuery ist nur auf `127.0.0.1` veröffentlicht (Grenze 4),
+also nur von der Maschine selbst erreichbar. Das Panel prüft den Zugang nicht
+selbst, sondern über `panel-aktion kanaele pruefen`, das ihn über **stdin**
+bekommt — nie als Argument, das in der Prozessliste stünde. Angezeigt wird nie
+das Passwort, nur der Benutzer. Gelöscht wird ausschließlich, was Platzwart
+nachweislich selbst angelegt hat und was seitdem niemand angefasst hat.
+
+Ein **Discord-Bot** für dieselbe Aufgabe wäre eine größere Stufe: Das Recht
+„Kanäle verwalten" erlaubt, den ganzen Discord-Server umzubauen. Er kommt erst,
+wenn Jens einen anlegt, und gehört dann hier dazu (E33).
+
+> *For per-server channels the TeamSpeak ServerQuery login (`serveradmin`) is
+> stored in `/opt/panel/daten/teamspeak.conf`, 0600 panel — full control of the
+> TeamSpeak server, a deliberate widening. Bounded by ServerQuery listening on
+> localhost only; checked via `panel-aktion` over stdin, never as an argument;
+> the password is never displayed; only channels Platzwart provably created and
+> nobody touched are ever deleted. A Discord bot with Manage Channels would be a
+> larger step and waits until Jens creates one.*
+
+---
+
 ## Wiederherstellungscodes
 
 Zehn Einmalcodes, erzeugt in dem Moment, in dem der Benutzer seinen zweiten

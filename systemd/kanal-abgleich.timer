@@ -1,0 +1,12 @@
+[Unit]
+Description=Platzwart: TeamSpeak-Kanaele alle fuenf Minuten abgleichen
+
+[Timer]
+# Installation und Entfernung stossen den Dienst sofort an; der Timer faengt
+# ab, was dabei scheiterte (TeamSpeak aus, Flutschutz, kein Zugang).
+OnBootSec=4min
+OnUnitActiveSec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

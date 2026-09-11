@@ -196,11 +196,29 @@ echte `compose.yaml` und lässt `docker compose config -q` darauf laufen, fragt
 
 Ergebnis vom 2026-09-06: 34 ohne Befund, 5 Hinweis, 0 Fehler, 2 installiert.
 
+### `kanal-verwalten` (#137)
+
+```
+kanal-verwalten abgleich            Kanäle an die installierten Server angleichen
+kanal-verwalten vorschau <stack>    was beim Entfernen mit dem Kanal geschieht
+kanal-verwalten pruefen             Zugang prüfen (Benutzer, Passwort über stdin)
+kanal-verwalten --selbsttest
+```
+
+Ein TeamSpeak-Kanal je Spielserver. Läuft als `kanal-abgleich.service` (Timer
+alle fünf Minuten, dazu angestoßen nach Installation und Entfernung). Aus, bis
+auf der Seite Integrationen eingeschaltet. Löscht nur Unberührtes. Daten:
+`/opt/panel/daten/{kanaele.json, teamspeak.conf, kanaele-zuordnung.json}`.
+
+> *One TeamSpeak channel per game server, run by `kanal-abgleich.service`; off
+> until switched on under Integrations; deletes only what is untouched.*
+
 ### `compose-feld`
 
 ```
-compose-feld lesen  <stack>
-compose-feld setzen <stack> <name>          (Wert über stdin)
+compose-feld lesen   <stack>
+compose-feld setzen  <stack> <name>         (Wert über stdin)
+compose-feld anlegen <stack> <name>         (Wert über stdin; nur für katalog-abgleich)
 ```
 
 Liest und setzt die Umgebungsvariablen eines Stacks. Geändert wird

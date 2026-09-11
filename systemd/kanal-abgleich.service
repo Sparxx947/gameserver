@@ -1,0 +1,10 @@
+[Unit]
+Description=Platzwart: TeamSpeak-Kanaele an die installierten Spielserver angleichen (#137)
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/kanal-verwalten abgleich
+# Ohne Haertung wie spiel-einrichtung: schreibt nach /opt/panel/daten (Zuordnung,
+# Protokoll) und ruft platzwart-melden. Laeuft der Schalter aus, oder gibt es
+# nichts zu tun, verbindet sich der Dienst gar nicht erst mit TeamSpeak.

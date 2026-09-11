@@ -583,7 +583,8 @@ except Exception:
     #  catalogue, there is no entry to restore them from.*
     s="${2:-}"; pruefe_stack "$s"
     [ -f "/opt/stacks/$s/panel.json" ] && fehler "Dieser Server kam aus dem Katalog - dafuer ist 'deinstallieren' zustaendig."
-    /usr/local/bin/spiel-verwalten fremd-entfernen "$s"
+    /usr/local/bin/spiel-verwalten fremd-entfernen "$s" || exit 1
+    systemctl start --no-block kanal-abgleich.service >/dev/null 2>&1 || true
     ;;
   groesse)
     # Wieviel wuerde geloescht? Gehoert VOR die Rueckfrage.
@@ -665,12 +666,28 @@ PY
     # die Form, damit gar nichts Unerwartetes weitergereicht wird.
     [[ "$s" =~ ^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$ ]] || fehler "unzulaessiger Name"
     /usr/local/bin/spiel-verwalten installieren "$s" || exit 1
+    # Kanal anlegen (#137) - im Hintergrund; ist der Schalter aus, tut das nichts.
+    systemctl start --no-block kanal-abgleich.service >/dev/null 2>&1 || true
     # DNS-Namen anlegen, wenn der Cloudflare-Zugang eingerichtet ist. Ein
     # fehlender Zugang ist kein Grund, die Installation als gescheitert zu
     # melden - das Spiel laeuft auch ueber die IP-Adresse.
     if [ -f /etc/dns-gameserver.conf ]; then
       /usr/local/bin/dns-pflegen setzen "$s" >/dev/null 2>&1 || true
     fi
+    ;;
+  kanaele)
+    # TeamSpeak-Kanaele je Server (#137). Das Anlegen und Loeschen selbst macht
+    # nur der Dienst kanal-abgleich - nie ein Seitenaufruf. Hier nur: anstossen,
+    # die Vorschau fuer die Bestaetigungsseite, und einen Zugang pruefen (der
+    # kommt ueber stdin, nie als Argument - Argumente stehen in der Prozessliste).
+    # *Channels are created/deleted only by the kanal-abgleich service; here:
+    #  trigger it, preview for the confirmation page, check credentials via stdin.*
+    case "${2:-}" in
+      abgleich) systemctl start --no-block kanal-abgleich.service && echo "ok" ;;
+      vorschau) s="${3:-}"; pruefe_stack "$s"; exec /usr/local/bin/kanal-verwalten vorschau "$s" ;;
+      pruefen)  exec /usr/local/bin/kanal-verwalten pruefen ;;
+      *) fehler "unbekannte Kanalaktion" ;;
+    esac
     ;;
   deinstallieren)
     s="${2:-}"; pruefe_stack "$s"
@@ -684,6 +701,8 @@ PY
     if [ -f /etc/dns-gameserver.conf ]; then
       /usr/local/bin/dns-pflegen entfernen "$s" >/dev/null 2>&1 || true
     fi
+    # Kanal pruefen und ggf. entfernen (#137) - im Hintergrund, nie im Aufruf.
+    systemctl start --no-block kanal-abgleich.service >/dev/null 2>&1 || true
     ;;
   whitelist)
     # Minecraft-Whitelist pflegen (#185). Ueber rcon-cli IM Container: der

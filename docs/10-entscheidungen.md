@@ -986,3 +986,41 @@ Am laufenden Valheim-Server ist er aus.
 > Valheim updates. The switch is visible in the panel, off on the running
 > server, and uploads are refused until BepInEx is present.*
 
+---
+
+## E33 — Kanäle je Spielserver: erst TeamSpeak, und gelöscht wird nur Unberührtes
+
+**Entscheidungen von Jens (2026-09-11, #137):** Zuerst TeamSpeak; Discord folgt,
+wenn er einen Bot anlegt — der Entwurf bleibt auf beide ausgelegt. Und beim
+Entfernen eines Servers wird dessen Kanal **automatisch gelöscht, aber nur, wenn
+er unberührt ist**; sonst bleibt er stehen und wird gemeldet.
+
+**Warum „unberührt" so eng gefasst ist:** Ein Kanal kann Monate an Unterhaltung
+tragen, und „der Container wurde gelöscht" ist ein schwacher Grund, sie zu
+verlieren. Unberührt heißt: von Platzwart angelegt, erkannt an der gespeicherten
+Kanal-ID — **nicht am Namen**, denn ein Namensvergleich löscht einen Kanal, den
+jemand ähnlich benannt hat —, weder umbenannt noch verschoben, ohne
+Unterkanäle, niemand drin. Jede Abweichung heißt, dass ein Mensch den Kanal zu
+seinem gemacht hat. Ein Kanal gleichen Namens, den jemand von Hand angelegt hat,
+wird übernommen, aber als fremd markiert und nie gelöscht.
+
+**Warum nie im Seitenaufruf:** TeamSpeak ist ein fremder Dienst mit Ausfällen
+und einem Flutschutz, der beim Test nach drei schnellen Anmeldungen zuschlug.
+Ein Panel, das beim Installieren auf ihn wartet, hängt, wenn er hängt. Deshalb
+ein eigener Dienst, der sich nur verbindet, wenn es etwas zu tun gibt.
+
+**Nachgewiesen** am echten TeamSpeak-Server, abgeschottet (eigener Datenordner,
+erfundene Server, Oberkanal „Platzwart-Test", niemand online): angelegt,
+zweiter Lauf ohne Verbindung, Vorschau „wird mit gelöscht", ein von Hand
+umbenannter Kanal → „bleibt stehen: umbenannt", ein von Hand angelegter Kanal
+gleichen Namens → fremd; nach dem Entfernen der Server wurde genau der
+unberührte gelöscht, die beiden anderen blieben und wurden gemeldet.
+
+> *Jens' decisions: TeamSpeak first, Discord once a bot exists; on removal a
+> channel is deleted automatically only if untouched — created by Platzwart
+> (stored id, not name), not renamed or moved, no subchannels, nobody inside;
+> a same-named channel made by hand is adopted as foreign and never deleted.
+> Never in a page request: TeamSpeak has outages and a flood limit that hit
+> after three quick logins in testing. Proven against the real server in an
+> isolated run.*
+
