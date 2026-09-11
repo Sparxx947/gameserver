@@ -1699,13 +1699,22 @@ def kanal_abschnitt(s: dict) -> str:
 def kanal_tabelle(zu: dict, dienst: str) -> str:
     """Server -> Kanal eines Dienstes, dazu die stehen gelassenen."""
     von = {k: v for k, v in (zu.get(dienst) or {}).items() if not k.startswith("_")}
-    raute = "#" if dienst == "discord" else ""
+
+    def kanaele(v: dict) -> list:
+        """[(Anzeige, eintrag)] - Discord fuehrt je Server Text und Sprache (#244),
+        aeltere Eintraege nur den Textkanal; TeamSpeak einen Kanal."""
+        if dienst != "discord":
+            return [(str(v.get("name", "")), v)]
+        teile = {"text": v} if "id" in v else v
+        return [(("🔊 " if a == "sprache" else "#") + str(e.get("name", "")), e)
+                for a, e in sorted(teile.items(), key=lambda x: x[0] != "text") if isinstance(e, dict)]
+
     zeilen = "".join(
-        f"<tr><td>{esc(k)}</td><td>{raute}{esc(str(v.get('name', '')))}</td>"
-        f"<td class=z>{'von Hand angelegt – wird nie gelöscht' if v.get('fremd') else 'von Platzwart angelegt'}</td></tr>"
-        for k, v in sorted(von.items()))
+        f"<tr><td>{esc(k)}</td><td>{esc(anzeige)}</td>"
+        f"<td class=z>{'von Hand angelegt – wird nie gelöscht' if e.get('fremd') else 'von Platzwart angelegt'}</td></tr>"
+        for k, v in sorted(von.items()) for anzeige, e in kanaele(v))
     verwaist = "".join(
-        f"<tr><td>{esc(k)}</td><td>{raute}{esc(str(v.get('name', '')))}</td><td class=z>blieb stehen: {esc(str(v.get('grund', '')))}</td></tr>"
+        f"<tr><td>{esc(k.split(':')[0])}</td><td>{esc(str(v.get('name', '')))}</td><td class=z>blieb stehen: {esc(str(v.get('grund', '')))}</td></tr>"
         for k, v in sorted(((zu.get("verwaist") or {}).get(dienst) or {}).items()))
     return (f"<table><tr><th>Server</th><th>Kanal</th><th></th></tr>{zeilen}{verwaist}</table>"
             if zeilen or verwaist else '<p class=z>Noch keine Kanäle angelegt.</p>')
@@ -1718,9 +1727,9 @@ def discord_abschnitt(s: dict, zu: dict) -> str:
     csrf = f'<input type=hidden name=csrf value="{s["csrf"]}">'
     return (
         '<h2>Discord: ein Kanal je Spielserver</h2>'
-        '<p class=z>Wie bei TeamSpeak — ein Textkanal je Spielserver in einer eigenen Kategorie. '
-        'Gelöscht wird ein Kanal nur, wenn er unberührt ist <b>und noch nie eine Nachricht darin '
-        'stand</b>; Discord bewahrt den Verlauf, und der geht nie mit verloren.</p>'
+        '<p class=z>Wie bei TeamSpeak — je Spielserver ein Text- und ein Sprachkanal in einer eigenen Kategorie. '
+        'Gelöscht wird ein Kanal nur, wenn er unberührt ist, <b>noch nie eine Nachricht darin '
+        'stand</b> und – beim Sprachkanal – gerade niemand drin ist; Discord bewahrt den Verlauf, und der geht nie mit verloren.</p>'
         + (f'<p>Bot gesetzt{" (" + esc(st["bot"]) + ")" if st["bot"] else ""} für den Server '
            f'<code>{esc(st["guild"])}</code>. <span class=z>Der Bot hat Administratorrechte auf dem '
            'Discord-Server — bewusst so entschieden (E33).</span></p>' if st["gesetzt"]

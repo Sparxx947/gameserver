@@ -1038,3 +1038,16 @@ einer privaten Testkategorie am echten Server; Testkanäle danach gelöscht.
 > permissions and never a single message. Proven with a private test category
 > on the real server.*
 
+**Nachtrag Sprachkanäle (#244, Jens' Wunsch):** Je Server zusätzlich ein
+Sprachkanal. Weil Discords REST-Schnittstelle nicht verrät, wer in einem
+Sprachkanal sitzt, liest `kanal-verwalten` die Belegung über eine kurze
+Gateway-Sitzung — nur wenn ein Sprachkanal gelöscht werden soll. Scheitert die
+Messung, wird nicht gelöscht, sondern beim nächsten Lauf erneut gefragt: Eine
+Regel, die man nicht prüfen kann, darf nicht als erfüllt gelten.
+
+> *Voice channels addendum: one voice channel per server as well. Discord's REST
+> API cannot tell who sits in a voice channel, so occupancy is read over a short
+> Gateway session, only when a voice channel is due for deletion. If that fails,
+> nothing is deleted and the next run asks again — a rule that cannot be checked
+> must not count as satisfied.*
+

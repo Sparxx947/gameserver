@@ -437,12 +437,16 @@ def d_rechte(kanal: dict) -> list:
                   for o in kanal.get("permission_overwrites") or [])
 
 
-def urteil_discord(eintrag: dict, k) -> tuple:
-    """(loeschen, grund) fuer den Discord-Kanal eines entfernten Servers. Rein.
+def urteil_discord(eintrag: dict, k, belegt=None) -> tuple:
+    """(loeschen, grund) fuer einen Discord-Kanal eines entfernten Servers. Rein.
 
     Wie bei TeamSpeak - dazu die Kanalrechte und der Verlauf: Ein Kanal, in dem
-    je eine Nachricht stand, wird nie geloescht; Discord bewahrt den Verlauf,
-    und "der Container wurde entfernt" ist kein Grund, ihn zu verlieren.
+    je eine Nachricht stand (bei Sprachkanaelen: im Text-Chat des Sprachkanals),
+    wird nie geloescht; Discord bewahrt den Verlauf, und "der Container wurde
+    entfernt" ist kein Grund, ihn zu verlieren.
+    belegt: bei Sprachkanaelen die Menge der belegten Kanal-IDs aus dem Gateway,
+    None = nicht messbar (dann wird nicht geloescht, sondern spaeter erneut
+    geprueft - siehe abgleich_discord).
     """
     if eintrag.get("fremd"):
         return False, "nicht von Platzwart angelegt"
@@ -456,7 +460,119 @@ def urteil_discord(eintrag: dict, k) -> tuple:
         return False, "Kanalrechte geändert"
     if k.get("last_message_id"):
         return False, "es stehen Nachrichten darin"
+    if k.get("type") == 2:
+        if belegt is None:
+            return False, "Belegung nicht messbar"
+        if str(k.get("id")) in belegt:
+            return False, "es ist gerade jemand drin"
     return True, "unberührt und ohne Nachrichten"
+
+
+ARTEN = {"text": 0, "sprache": 2}          # Discord-Kanaltypen
+
+
+def d_eintraege(eintrag: dict) -> dict:
+    """{"text": {...}, "sprache": {...}} - auch aus der alten, flachen Form
+    (nur Textkanal, bis #244). Rein."""
+    if "id" in eintrag:
+        return {"text": eintrag}
+    return {a: v for a, v in eintrag.items() if a in ARTEN and isinstance(v, dict)}
+
+
+def sprach_belegung(z: dict) -> set:
+    """IDs der Sprachkanaele, in denen gerade jemand ist (#244).
+
+    Discords REST-API kennt keine Belegung von Sprachkanaelen - die gibt es nur
+    ueber das Gateway. Deshalb eine kurze Gateway-Sitzung: anmelden mit den
+    Intents GUILDS und GUILD_VOICE_STATES (beide NICHT privilegiert), das
+    GUILD_CREATE des eigenen Servers abwarten, dessen voice_states lesen,
+    trennen. Nur die Standardbibliothek - kein websocket-Paket auf der Maschine.
+    Wirft DiscordFehler, wenn es nicht klappt; dann wird nichts geloescht.
+    *Voice occupancy exists only on the Gateway: identify with the non-privileged
+     GUILDS + GUILD_VOICE_STATES intents, read voice_states from GUILD_CREATE,
+     disconnect. Stdlib only. Raises on failure, and then nothing is deleted.*
+    """
+    import base64
+    import ssl
+    import struct
+    info = discord(z, "GET", "/gateway/bot") or {}
+    host = str(info.get("url") or "wss://gateway.discord.gg").replace("wss://", "").strip("/")
+    try:
+        s = ssl.create_default_context().wrap_socket(socket.create_connection((host, 443), timeout=15),
+                                                     server_hostname=host)
+        s.settimeout(15)
+    except OSError as e:
+        raise DiscordFehler(f"Discord-Gateway nicht erreichbar ({e.__class__.__name__})")
+    puffer = b""
+
+    def lies(n: int) -> bytes:
+        nonlocal puffer
+        while len(puffer) < n:
+            d = s.recv(65536)
+            if not d:
+                raise DiscordFehler("Discord-Gateway hat die Verbindung beendet")
+            puffer += d
+        raus, puffer = puffer[:n], puffer[n:]
+        return raus
+
+    def sende(op: int, nutz: bytes):
+        maske = os.urandom(4)
+        n = len(nutz)
+        kopf = bytes([0x80 | op]) + (bytes([0x80 | n]) if n < 126 else
+                                     bytes([0x80 | 126]) + struct.pack(">H", n) if n < 65536 else
+                                     bytes([0x80 | 127]) + struct.pack(">Q", n))
+        s.sendall(kopf + maske + bytes(b ^ maske[i % 4] for i, b in enumerate(nutz)))
+
+    def nachricht():
+        teile, op_erst = b"", None
+        while True:
+            b1, b2 = lies(2)
+            op, n = b1 & 0x0F, b2 & 0x7F
+            n = struct.unpack(">H", lies(2))[0] if n == 126 else struct.unpack(">Q", lies(8))[0] if n == 127 else n
+            daten = lies(n)
+            if op == 9:                              # Ping -> Pong
+                sende(10, daten)
+                continue
+            if op == 8:
+                raise DiscordFehler(f"Discord-Gateway schliesst ({struct.unpack('>H', daten[:2])[0] if len(daten) >= 2 else '?'})")
+            op_erst = op_erst or op
+            teile += daten
+            if b1 & 0x80:
+                return json.loads(teile.decode("utf-8", "replace"))
+
+    try:
+        schluessel = base64.b64encode(os.urandom(16)).decode()
+        s.sendall((f"GET /?v=10&encoding=json HTTP/1.1\r\nHost: {host}\r\nUpgrade: websocket\r\n"
+                   f"Connection: Upgrade\r\nSec-WebSocket-Key: {schluessel}\r\nSec-WebSocket-Version: 13\r\n"
+                   "User-Agent: DiscordBot (platzwart, 1)\r\n\r\n").encode())
+        while b"\r\n\r\n" not in puffer:
+            d = s.recv(4096)
+            if not d:
+                raise DiscordFehler("Discord-Gateway: kein Handshake")
+            puffer += d
+        kopf, puffer = puffer.split(b"\r\n\r\n", 1)
+        if b" 101 " not in kopf.split(b"\r\n", 1)[0]:
+            raise DiscordFehler("Discord-Gateway: Handshake abgelehnt")
+        frist = time.time() + 20
+        while time.time() < frist:
+            m = nachricht()
+            if m.get("op") == 10:
+                sende(1, json.dumps({"op": 2, "d": {
+                    "token": z["DISCORD_TOKEN"], "intents": (1 << 0) | (1 << 7),
+                    "properties": {"os": "linux", "browser": "platzwart", "device": "platzwart"}}}).encode())
+            elif m.get("op") == 9:
+                raise DiscordFehler("Discord-Gateway: Sitzung abgelehnt")
+            elif m.get("op") == 0 and m.get("t") == "GUILD_CREATE" and str((m.get("d") or {}).get("id")) == str(z.get("DISCORD_GUILD")):
+                return {str(v["channel_id"]) for v in m["d"].get("voice_states", []) if v.get("channel_id")}
+        raise DiscordFehler("Discord-Gateway: keine Serverdaten erhalten")
+    except (OSError, ValueError, struct.error) as e:
+        raise DiscordFehler(f"Discord-Gateway: {e.__class__.__name__}")
+    finally:
+        try:
+            sende(8, struct.pack(">H", 1000))
+            s.close()
+        except OSError:
+            pass
 
 
 def abgleich_discord() -> int:
@@ -466,16 +582,19 @@ def abgleich_discord() -> int:
         return 0
     zu = lies_json(ZUORDNUNG, {})
     dc = zu.setdefault("discord", {})
-    von = {k: v for k, v in dc.items() if not k.startswith("_")}
+    von = {k: d_eintraege(v) for k, v in dc.items() if not k.startswith("_")}
     da = server()
-    fehlend = [s for s in da if s not in von]
+    # Fehlend ist, wo ein Server keinen Text- ODER keinen Sprachkanal hat - so
+    # bekommen auch Server aus der Zeit vor #244 ihren Sprachkanal nachgereicht.
+    # *Missing = a server lacks its text OR voice channel; older ones get voice added.*
+    fehlend = [(s, a) for s in da for a in ARTEN if a not in von.get(s, {})]
     weg = [s for s in von if s not in da]
     if not fehlend and not weg:
         print("ok\tDiscord: nichts zu tun")
         return 0
     z = discord_zugang()
     g = z.get("DISCORD_GUILD", "")
-    angelegt, geloescht, stehen = [], [], []
+    angelegt, geloescht, stehen, spaeter = [], [], [], []
     try:
         if not re.fullmatch(r"[0-9]{15,22}", g):
             raise DiscordFehler("keine gueltige Discord-Server-ID hinterlegt")
@@ -493,37 +612,57 @@ def abgleich_discord() -> int:
                 kat = {"id": r["id"], "name": r["name"]}
                 protokoll("Discord-Kategorie angelegt", e["kategorie"], id=r["id"])
             dc["_kategorie"] = kat
-        for s in fehlend:
-            name = kanalname(e["muster"], da[s]) if len(kanalname(e["muster"], da[s])) else da[s]
-            gleich = [c for c in liste if c.get("type") == 0 and c.get("parent_id") == kat.get("id")
-                      and c.get("name") == d_name(name)]
+        for s, art in fehlend:
+            name = kanalname(e["muster"], da[s])
+            vergleich = d_name(name) if art == "text" else name
+            eintrag = von.setdefault(s, {})
+            gleich = [c for c in liste if c.get("type") == ARTEN[art] and c.get("parent_id") == kat.get("id")
+                      and c.get("name") == vergleich]
             if gleich:
-                dc[s] = {"id": gleich[0]["id"], "name": gleich[0]["name"], "parent": kat["id"],
-                         "fremd": True, "seit": int(time.time())}
-                protokoll("Discord-Kanal vorgefunden (nicht angelegt, wird nie geloescht)", s, name=gleich[0]["name"])
-                continue
-            time.sleep(PAUSE)
-            r = discord(z, "POST", f"/guilds/{g}/channels",
-                        {"name": name, "type": 0, "parent_id": kat["id"],
-                         "topic": f"Angelegt von Platzwart für {da[s]}"})
-            dc[s] = {"id": r["id"], "name": r["name"], "parent": r.get("parent_id"),
-                     "rechte": d_rechte(r), "seit": int(time.time())}
-            angelegt.append(r["name"])
-            protokoll("Discord-Kanal angelegt", s, name=r["name"], id=r["id"])
-        for s in weg:
-            eintrag = dc[s]
-            loeschen, grund = urteil_discord(eintrag, kanaele.get(str(eintrag.get("id"))) or {"_fehlt": True})
-            if loeschen:
-                time.sleep(PAUSE)
-                discord(z, "DELETE", f"/channels/{eintrag['id']}")
-                geloescht.append(eintrag["name"])
-                protokoll("Discord-Kanal geloescht", s, name=eintrag["name"], grund=grund)
+                eintrag[art] = {"id": gleich[0]["id"], "name": gleich[0]["name"], "parent": kat["id"],
+                                "fremd": True, "seit": int(time.time())}
+                protokoll("Discord-Kanal vorgefunden (nicht angelegt, wird nie geloescht)", s,
+                          name=gleich[0]["name"], art=art)
             else:
-                stehen.append(f"{eintrag.get('name')} ({grund})")
-                protokoll("Discord-Kanal bleibt stehen", s, "nicht geloescht", name=eintrag.get("name"), grund=grund)
-                zu.setdefault("verwaist", {}).setdefault("discord", {})[s] = {
-                    **eintrag, "grund": grund, "bis": int(time.time())}
-            del dc[s]
+                time.sleep(PAUSE)
+                daten = {"name": name, "type": ARTEN[art], "parent_id": kat["id"]}
+                if art == "text":
+                    daten["topic"] = f"Angelegt von Platzwart für {da[s]}"
+                r = discord(z, "POST", f"/guilds/{g}/channels", daten)
+                eintrag[art] = {"id": r["id"], "name": r["name"], "parent": r.get("parent_id"),
+                                "rechte": d_rechte(r), "seit": int(time.time())}
+                angelegt.append(("🔊 " if art == "sprache" else "#") + r["name"])
+                protokoll("Discord-Kanal angelegt", s, name=r["name"], id=r["id"], art=art)
+            dc[s] = eintrag
+        # Belegung nur messen, wenn ein Sprachkanal zum Loeschen ansteht.
+        belegt = None
+        if any("sprache" in von[s] for s in weg):
+            try:
+                belegt = sprach_belegung(z)
+            except DiscordFehler as f:
+                print(f"Hinweis: Belegung der Sprachkanaele nicht messbar - {f}", file=sys.stderr)
+        for s in weg:
+            for art, eintrag in list(von[s].items()):
+                loeschen, grund = urteil_discord(eintrag, kanaele.get(str(eintrag.get("id"))) or {"_fehlt": True}, belegt)
+                if loeschen:
+                    time.sleep(PAUSE)
+                    discord(z, "DELETE", f"/channels/{eintrag['id']}")
+                    geloescht.append(("🔊 " if art == "sprache" else "#") + eintrag["name"])
+                    protokoll("Discord-Kanal geloescht", s, name=eintrag["name"], art=art, grund=grund)
+                elif grund == "Belegung nicht messbar":
+                    spaeter.append(eintrag["name"])      # bleibt zugeordnet, naechster Lauf
+                    continue
+                else:
+                    stehen.append(f"{eintrag.get('name')} ({grund})")
+                    protokoll("Discord-Kanal bleibt stehen", s, "nicht geloescht",
+                              name=eintrag.get("name"), art=art, grund=grund)
+                    zu.setdefault("verwaist", {}).setdefault("discord", {})[f"{s}:{art}"] = {
+                        **eintrag, "grund": grund, "bis": int(time.time())}
+                del von[s][art]
+            if von[s]:
+                dc[s] = von[s]
+            else:
+                del dc[s]
     except DiscordFehler as f:
         melden("Discord-Kanaele: Abgleich gescheitert", str(f))
         print(f"FEHLER: {f}", file=sys.stderr)
@@ -533,11 +672,12 @@ def abgleich_discord() -> int:
     if stehen:
         melden("Discord-Kanal nicht geloescht",
                "Der Server ist entfernt, sein Kanal bleibt stehen, weil ihn ein Mensch zu seinem "
-               "gemacht hat oder Nachrichten darin stehen:\n" + "\n".join(stehen))
+               "gemacht hat, Nachrichten darin stehen oder jemand drin ist:\n" + "\n".join(stehen))
     print("ok\tDiscord: " + ("; ".join(x for x in [
         f"angelegt: {', '.join(angelegt)}" if angelegt else "",
         f"geloescht: {', '.join(geloescht)}" if geloescht else "",
-        f"stehen gelassen: {', '.join(stehen)}" if stehen else ""] if x) or "erledigt"))
+        f"stehen gelassen: {', '.join(stehen)}" if stehen else "",
+        f"Belegung nicht messbar, spaeter: {', '.join(spaeter)}" if spaeter else ""] if x) or "erledigt"))
     return 0
 
 
@@ -548,21 +688,29 @@ def abgleich() -> int:
 
 def vorschau_discord(stack: str):
     e = einstellung_discord()
-    eintrag = (lies_json(ZUORDNUNG, {}).get("discord") or {}).get(stack)
-    if not eintrag:
+    roh = (lies_json(ZUORDNUNG, {}).get("discord") or {}).get(stack)
+    if not roh:
         return
-    if not e["an"]:
-        print(f"bleibt\tDiscord-Kanal #{eintrag['name']} bleibt stehen - die Kanalverwaltung ist ausgeschaltet.")
-        return
-    try:
-        k = discord(discord_zugang(), "GET", f"/channels/{eintrag['id']}")
-    except DiscordFehler as f:
-        print(f"unbekannt\tDiscord-Kanal #{eintrag['name']}: gerade nicht prüfbar ({f}). "
-              "Gelöscht wird er nur, wenn er beim Abgleich unberührt ist.")
-        return
-    loeschen, grund = urteil_discord(eintrag, k)
-    print(f"{'weg' if loeschen else 'bleibt'}\tDiscord-Kanal #{eintrag['name']} "
-          + (f"wird mit gelöscht ({grund})." if loeschen else f"bleibt stehen: {grund}."))
+    eintraege = d_eintraege(roh)
+    for art, eintrag in eintraege.items():
+        zeichen = "Sprachkanal 🔊 " if art == "sprache" else "Kanal #"
+        if not e["an"]:
+            print(f"bleibt\tDiscord-{zeichen}{eintrag['name']} bleibt stehen - die Kanalverwaltung ist ausgeschaltet.")
+            continue
+        try:
+            k = discord(discord_zugang(), "GET", f"/channels/{eintrag['id']}")
+        except DiscordFehler as f:
+            print(f"unbekannt\tDiscord-{zeichen}{eintrag['name']}: gerade nicht prüfbar ({f}).")
+            continue
+        # Die Belegung eines Sprachkanals kennt nur das Gateway - fuer die
+        # Vorschau zu teuer. Sie sagt deshalb, dass beim Abgleich geprueft wird.
+        # *Occupancy needs the Gateway - too costly for the preview.*
+        loeschen, grund = urteil_discord(eintrag, k, set())
+        if loeschen:
+            nachsatz = " - sitzt dann jemand drin, bleibt er stehen" if art == "sprache" else ""
+            print(f"weg\tDiscord-{zeichen}{eintrag['name']} wird mit gelöscht ({grund}{nachsatz}).")
+        else:
+            print(f"bleibt\tDiscord-{zeichen}{eintrag['name']} bleibt stehen: {grund}.")
 
 
 def vorschau(stack: str) -> int:
@@ -686,6 +834,13 @@ def selbsttest() -> int:
         {"id": "5", "type": 0, "allow": "0", "deny": "1024"}]})[0] is False)
     pruef("Discord weg -> nichts", urteil_discord(de, {"_fehlt": True})[0] is False)
     pruef("Discord fremd -> bleibt", urteil_discord({**de, "fremd": True}, dk)[0] is False)
+    sk = {**dk, "id": "12", "type": 2}
+    se = {**de, "id": "12"}
+    pruef("Sprachkanal leer -> loeschen", urteil_discord(se, sk, set())[0] is True)
+    pruef("Sprachkanal besetzt -> bleibt", urteil_discord(se, sk, {"12"}) == (False, "es ist gerade jemand drin"))
+    pruef("Sprachkanal Belegung unbekannt -> bleibt", urteil_discord(se, sk, None) == (False, "Belegung nicht messbar"))
+    pruef("alte flache Form -> Textkanal", d_eintraege(de) == {"text": de})
+    pruef("neue Form", d_eintraege({"text": de, "sprache": se}) == {"text": de, "sprache": se})
     print("alles gruen." if not schlecht else f"{schlecht} FEHLER")
     return 1 if schlecht else 0
 
