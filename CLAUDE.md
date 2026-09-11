@@ -129,6 +129,11 @@ aufweicht, macht aus einem abgesicherten System ein offenes. Begründung in
    compose.yaml, bevor der Server zum ersten Mal startet) und Verwaltungsports
    auf `127.0.0.1` (öffnen nichts nach außen).
 
+   **Beim Passwort als Startparameter (`params`) entscheidet der laufende
+   Server**, nicht die Einrichtung: Erst wenn er per A2S „Passwort nötig“
+   meldet, geht der Port auf (E27). Eine mitgelieferte `server.cfg` kann den
+   Parameter überschreiben — „gesetzt“ ist dort kein Beweis.
+
 > *Five non-negotiables carrying the whole security design: the panel never gets
 > the Docker socket and nobody joins the `docker` group; `panel-aktion` validates
 > every parameter against an allow-list with no eval; only individual fields are

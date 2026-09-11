@@ -605,3 +605,50 @@ den Zustand, und die Statusseite blendet solche Server aus.
 > before first start) and localhost-bound management ports. Deliberately left
 > open: the six-hour give-up case still publishes without a password.*
 
+---
+
+## E27 — Beim Startparameter entscheidet der Server, nicht die Einrichtung
+
+Eine echte Testinstallation von Half-Life Deathmatch (#167) zeigte: `hlds` und
+`srcds` legen **keine** `server.cfg` an. Die Einrichtung fand kein Passwortfeld,
+hätte nach sechs Stunden aufgegeben — und dann den Port veröffentlicht (der Fall,
+den E26 offenließ). Gemessen per A2S: `Passwort nötig: nein`. Betroffen laut den
+Startskripten der Images: neun Source-/GoldSrc-Spiele aus der ich777-Bauart.
+
+**Die naheliegende Lösung reicht nicht.** `+sv_password` in `GAME_PARAMS` wirkt —
+gemessen, danach `Passwort nötig: ja`. Aber ein Spiel, das eine eigene
+`server.cfg` mit `sv_password ""` mitbringt, überschreibt den Startparameter beim
+Kartenstart. Hätte die Passwortart `params` wie `env` sofort als erledigt
+gegolten, wäre der Port bei genau so einem Spiel offen aufgegangen — und niemand
+hätte es gemerkt, weil die Einrichtung „gesetzt“ gemeldet hätte.
+
+**Deshalb fragt die Einrichtung den laufenden Server.** A2S_INFO trägt ein Feld
+*visibility*; erst wenn es „Passwort nötig“ meldet, gilt die Einrichtung als
+beendet, und erst dann trägt `port-ermitteln` den Port ein. Gefragt wird die
+Container-Adresse — der Hostport ist ja gerade nicht veröffentlicht. Alle drei
+Antworten sind am echten Code gemessen: ja (HLDM mit Parameter, Enshrouded,
+Valheim), nein (HLDM ohne), keine Antwort (Valheims Spielport).
+
+**Kein Aufgeben nach sechs Stunden.** Wer „kein Passwort“ gemessen hat,
+veröffentlicht nicht. Die Karte zeigt dann den Grund, der Port bleibt zu. Das
+weicht für diese Passwortart bewusst von E26 ab: dort fehlt eine Messung, hier
+liegt sie vor.
+
+**Warum kein `+rcon_password`:** Startparameter stehen in der Prozessliste und
+sind für jeden lokalen Benutzer lesbar. Ohne RCON-Passwort ist RCON ganz aus —
+das Sicherste, und das Panel braucht es nicht.
+
+**Nachgewiesen von außen:** HLDM neu installiert, nach rund 2,5 Minuten
+bestätigt und veröffentlicht; A2S über die öffentliche Adresse meldet
+`Passwort nötig: ja`, RCON ist von außen zu, SSH als Kontrollwert offen.
+
+> *A real test install of Half-Life Deathmatch showed that hlds/srcds never
+> create a server.cfg: setup would have given up after six hours and published
+> the port with no password (measured via A2S). `+sv_password` in GAME_PARAMS
+> works, but a shipped server.cfg with an empty sv_password would override it at
+> map start — so a parameter alone cannot count as done. Setup now asks the
+> running server: only when A2S reports "password required" is setup finished
+> and the port published, queried on the container address. There is no
+> six-hour give-up for this type — having measured "no password", nothing is
+> published. No `+rcon_password`, because start parameters are visible in the
+> process list; RCON stays off. Verified from outside after a fresh install.*

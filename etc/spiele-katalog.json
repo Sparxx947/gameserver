@@ -1741,20 +1741,20 @@
    ],
    "env": {
     "GAME_ID": "90",
-    "GAME_PARAMS": "+maxplayers 32 +map de_dust",
+    "GAME_PARAMS": "+maxplayers 32 +map de_dust +sv_password {PASSWORT}",
     "UID": "4711",
     "GID": "4711",
     "UMASK": "000",
     "DATA_PERM": "770"
    },
    "passwort": {
-    "art": "datei",
+    "art": "params",
     "pfad": "",
-    "feld": ""
+    "feld": "+sv_password"
    },
    "adresse_port": 30104,
    "spieler": 4,
-   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30101/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30104. Counter-Strike 1.6, der Klassiker. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30101/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30104. Counter-Strike 1.6, der Klassiker. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort steht als Startparameter (+sv_password in GAME_PARAMS) - dieser Server legt keine server.cfg an, in die man es schreiben koennte. Den Port gibt die Einrichtung erst frei, wenn der laufende Server per Abfrage meldet, dass er ein Passwort verlangt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -1856,20 +1856,20 @@
    ],
    "env": {
     "GAME_ID": "462310",
-    "GAME_PARAMS": "+map sicily +mp_gamemode frontline",
+    "GAME_PARAMS": "+map sicily +mp_gamemode frontline +sv_password {PASSWORT}",
     "UID": "4711",
     "GID": "4711",
     "UMASK": "000",
     "DATA_PERM": "770"
    },
    "passwort": {
-    "art": "datei",
+    "art": "params",
     "pfad": "",
-    "feld": ""
+    "feld": "+sv_password"
    },
    "adresse_port": 30107,
    "spieler": 4,
-   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30103/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30107. Zweiter Weltkrieg, taktisch und ohne Fadenkreuz. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30103/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30107. Zweiter Weltkrieg, taktisch und ohne Fadenkreuz. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort steht als Startparameter (+sv_password in GAME_PARAMS) - dieser Server legt keine server.cfg an, in die man es schreiben koennte. Den Port gibt die Einrichtung erst frei, wenn der laufende Server per Abfrage meldet, dass er ein Passwort verlangt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -2390,20 +2390,20 @@
    ],
    "env": {
     "GAME_ID": "295230",
-    "GAME_PARAMS": "+maxplayers 20 +map fof_fistful",
+    "GAME_PARAMS": "+maxplayers 20 +map fof_fistful +sv_password {PASSWORT}",
     "UID": "4711",
     "GID": "4711",
     "UMASK": "000",
     "DATA_PERM": "770"
    },
    "passwort": {
-    "art": "datei",
+    "art": "params",
     "pfad": "",
-    "feld": ""
+    "feld": "+sv_password"
    },
    "adresse_port": 30110,
    "spieler": 4,
-   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30104/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30110. Western-Shooter mit Revolvern und Fausthieben. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30104/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30110. Western-Shooter mit Revolvern und Fausthieben. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort steht als Startparameter (+sv_password in GAME_PARAMS) - dieser Server legt keine server.cfg an, in die man es schreiben koennte. Den Port gibt die Einrichtung erst frei, wenn der laufende Server per Abfrage meldet, dass er ein Passwort verlangt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -2505,20 +2505,20 @@
    ],
    "env": {
     "GAME_ID": "4020",
-    "GAME_PARAMS": "-secure +maxplayers 12 +map gm_flatgrass",
+    "GAME_PARAMS": "-secure +maxplayers 12 +map gm_flatgrass +sv_password {PASSWORT}",
     "UID": "4711",
     "GID": "4711",
     "UMASK": "000",
     "DATA_PERM": "770"
    },
    "passwort": {
-    "art": "datei",
+    "art": "params",
     "pfad": "",
-    "feld": ""
+    "feld": "+sv_password"
    },
    "adresse_port": 30112,
    "spieler": 4,
-   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30105/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30112. Sandbox mit Source-Physik, alles ist moeglich. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30105/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30112. Sandbox mit Source-Physik, alles ist moeglich. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort steht als Startparameter (+sv_password in GAME_PARAMS) - dieser Server legt keine server.cfg an, in die man es schreiben koennte. Den Port gibt die Einrichtung erst frei, wenn der laufende Server per Abfrage meldet, dass er ein Passwort verlangt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -2581,20 +2581,20 @@
    ],
    "env": {
     "GAME_ID": "90",
-    "GAME_PARAMS": "-secure +maxplayers 32 +map gasworks.bsp",
+    "GAME_PARAMS": "-secure +maxplayers 32 +map gasworks.bsp +sv_password {PASSWORT}",
     "UID": "4711",
     "GID": "4711",
     "UMASK": "000",
     "DATA_PERM": "770"
    },
    "passwort": {
-    "art": "datei",
+    "art": "params",
     "pfad": "",
-    "feld": ""
+    "feld": "+sv_password"
    },
    "adresse_port": 30113,
    "spieler": 4,
-   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30106/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30113. Half-Life 1 im Deathmatch. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30106/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30113. Half-Life 1 im Deathmatch. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort steht als Startparameter (+sv_password in GAME_PARAMS) - dieser Server legt keine server.cfg an, in die man es schreiben koennte. Den Port gibt die Einrichtung erst frei, wenn der laufende Server per Abfrage meldet, dass er ein Passwort verlangt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -2817,20 +2817,20 @@
    ],
    "env": {
     "GAME_ID": "237410",
-    "GAME_PARAMS": "+map market_coop +maxplayers 6",
+    "GAME_PARAMS": "+map market_coop +maxplayers 6 +sv_password {PASSWORT}",
     "UID": "4711",
     "GID": "4711",
     "UMASK": "000",
     "DATA_PERM": "770"
    },
    "passwort": {
-    "art": "datei",
+    "art": "params",
     "pfad": "",
-    "feld": ""
+    "feld": "+sv_password"
    },
    "adresse_port": 30115,
    "spieler": 4,
-   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30108/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30115. Taktischer Shooter ohne Trefferanzeige. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30108/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30115. Taktischer Shooter ohne Trefferanzeige. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort steht als Startparameter (+sv_password in GAME_PARAMS) - dieser Server legt keine server.cfg an, in die man es schreiben koennte. Den Port gibt die Einrichtung erst frei, wenn der laufende Server per Abfrage meldet, dass er ein Passwort verlangt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -3256,20 +3256,20 @@
    ],
    "env": {
     "GAME_ID": "222840",
-    "GAME_PARAMS": "+maxplayers 4 +map l4d_farm04_barn",
+    "GAME_PARAMS": "+maxplayers 4 +map l4d_farm04_barn +sv_password {PASSWORT}",
     "UID": "4711",
     "GID": "4711",
     "UMASK": "000",
     "DATA_PERM": "770"
    },
    "passwort": {
-    "art": "datei",
+    "art": "params",
     "pfad": "",
-    "feld": ""
+    "feld": "+sv_password"
    },
    "adresse_port": 30119,
    "spieler": 4,
-   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30109/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30119. Koop-Kampagne gegen Zombies, genau 4 Spieler. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30109/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30119. Koop-Kampagne gegen Zombies, genau 4 Spieler. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort steht als Startparameter (+sv_password in GAME_PARAMS) - dieser Server legt keine server.cfg an, in die man es schreiben koennte. Den Port gibt die Einrichtung erst frei, wenn der laufende Server per Abfrage meldet, dass er ein Passwort verlangt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -4614,20 +4614,20 @@
    ],
    "env": {
     "GAME_ID": "17575",
-    "GAME_PARAMS": "-maxplayers 18 +map bt_island",
+    "GAME_PARAMS": "-maxplayers 18 +map bt_island +sv_password {PASSWORT}",
     "UID": "4711",
     "GID": "4711",
     "UMASK": "000",
     "DATA_PERM": "770"
    },
    "passwort": {
-    "art": "datei",
+    "art": "params",
     "pfad": "",
-    "feld": ""
+    "feld": "+sv_password"
    },
    "adresse_port": 30125,
    "spieler": 4,
-   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30113/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30125. Piraten gegen Wikinger gegen Ritter, Nahkampf. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30113/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30125. Piraten gegen Wikinger gegen Ritter, Nahkampf. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort steht als Startparameter (+sv_password in GAME_PARAMS) - dieser Server legt keine server.cfg an, in die man es schreiben koennte. Den Port gibt die Einrichtung erst frei, wenn der laufende Server per Abfrage meldet, dass er ein Passwort verlangt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -5795,20 +5795,20 @@
    ],
    "env": {
     "GAME_ID": "232250",
-    "GAME_PARAMS": "+sv_pure 1 +randommap +maxplayers 24",
+    "GAME_PARAMS": "+sv_pure 1 +randommap +maxplayers 24 +sv_password {PASSWORT}",
     "UID": "4711",
     "GID": "4711",
     "UMASK": "000",
     "DATA_PERM": "770"
    },
    "passwort": {
-    "art": "datei",
+    "art": "params",
     "pfad": "",
-    "feld": ""
+    "feld": "+sv_password"
    },
    "adresse_port": 30130,
    "spieler": 4,
-   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30118/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30130. Klassenbasierter Team-Shooter, neun Klassen. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30118/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30130. Klassenbasierter Team-Shooter, neun Klassen. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort steht als Startparameter (+sv_password in GAME_PARAMS) - dieser Server legt keine server.cfg an, in die man es schreiben koennte. Den Port gibt die Einrichtung erst frei, wenn der laufende Server per Abfrage meldet, dass er ein Passwort verlangt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"

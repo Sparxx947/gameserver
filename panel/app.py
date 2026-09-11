@@ -1243,6 +1243,8 @@ def spiele(request: Request, meldung: str = "", q: str = "", kat: str = "", b: s
                      f'<button class=p>installieren</button></form>')
             stand = '<span class="s off">nicht installiert</span>'
         pw = ("Beitrittspasswort wird beim Anlegen gesetzt" if g["passwort"]["art"] == "env"
+              else "Passwort als Startparameter; Port erst, wenn der Server es bestätigt"
+              if g["passwort"]["art"] == "params"
               else "kein Passwort möglich" if g["passwort"]["art"] == "keins"
               else "Passwort wird nach dem ersten Start gesetzt")
         karten.append(f"""<div class=c>{bild}<div class=cb>
