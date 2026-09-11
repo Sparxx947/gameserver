@@ -182,20 +182,20 @@
    ],
    "env": {
     "GAME_ID": "635",
-    "GAME_PARAMS": "+map lobby -maxplayers 4 +exec server.cfg",
+    "GAME_PARAMS": "+map lobby -maxplayers 4 +exec server.cfg +sv_password {PASSWORT}",
     "UID": "4711",
     "GID": "4711",
     "UMASK": "000",
     "DATA_PERM": "770"
    },
    "passwort": {
-    "art": "datei",
+    "art": "params",
     "pfad": "",
-    "feld": ""
+    "feld": "+sv_password"
    },
    "adresse_port": 30100,
    "spieler": 4,
-   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:27015/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30100. Koop-Shooter aus der Vogelperspektive, bis 4. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:27015/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30100. Koop-Shooter aus der Vogelperspektive, bis 4. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort steht als Startparameter (+sv_password in GAME_PARAMS) - dieser Server legt keine Konfiguration mit Passwortfeld an. Den Port gibt die Einrichtung erst frei, wenn der laufende Server per Abfrage meldet, dass er ein Passwort verlangt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -220,20 +220,20 @@
    ],
    "env": {
     "GAME_ID": "563560",
-    "GAME_PARAMS": "+map lobby -maxplayers 4 +exec server.cfg",
+    "GAME_PARAMS": "+map lobby -maxplayers 4 +exec server.cfg +sv_password {PASSWORT}",
     "UID": "4711",
     "GID": "4711",
     "UMASK": "000",
     "DATA_PERM": "770"
    },
    "passwort": {
-    "art": "datei",
+    "art": "params",
     "pfad": "",
-    "feld": ""
+    "feld": "+sv_password"
    },
    "adresse_port": 30101,
    "spieler": 4,
-   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30100/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30101. Alien Swarm mit neuen Kampagnen, Koop bis 4. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30100/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30101. Alien Swarm mit neuen Kampagnen, Koop bis 4. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort steht als Startparameter (+sv_password in GAME_PARAMS) - dieser Server legt keine Konfiguration mit Passwortfeld an. Den Port gibt die Einrichtung erst frei, wenn der laufende Server per Abfrage meldet, dass er ein Passwort verlangt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
@@ -4035,20 +4035,20 @@
    ],
    "env": {
     "GAME_ID": "313600",
-    "GAME_PARAMS": "+maxplayers 32 +map nt_dawn_ctg",
+    "GAME_PARAMS": "+maxplayers 32 +map nt_dawn_ctg +sv_password {PASSWORT}",
     "UID": "4711",
     "GID": "4711",
     "UMASK": "000",
     "DATA_PERM": "770"
    },
    "passwort": {
-    "art": "datei",
+    "art": "params",
     "pfad": "",
-    "feld": ""
+    "feld": "+sv_password"
    },
    "adresse_port": 30124,
    "spieler": 4,
-   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30411/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30124. Cyberpunk-Taktikshooter auf Source-Basis. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort setzt der Einrichtungsschritt in der Serverkonfiguration, die der erste Start anlegt.",
+   "hinweis": "Verwaltungszugang (RCON auf 127.0.0.1:30411/tcp) ist nur lokal erreichbar, nicht aus dem Internet. Abweichender Port (Standard war belegt): 27015->30124. Cyberpunk-Taktikshooter auf Source-Basis. Aus der ich777-Vorlage uebernommen; Speicher- und Plattenbedarf sind geschaetzt und im Panel aenderbar. Das Beitrittspasswort steht als Startparameter (+sv_password in GAME_PARAMS) - dieser Server legt keine Konfiguration mit Passwortfeld an. Den Port gibt die Einrichtung erst frei, wenn der laufende Server per Abfrage meldet, dass er ein Passwort verlangt.",
    "ausschluss": [
     "steamcmd",
     "serverfiles/steamapps"
