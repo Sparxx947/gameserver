@@ -25,6 +25,12 @@ set -a; . "$KONF"; set +a
 ssh -o ConnectTimeout=10 -o BatchMode=yes "$ZIEL" true 2>/dev/null \
   || { echo "Nicht erreichbar: $ZIEL"; exit 2; }
 
+# Liest nur - ohne root und ohne sudo -n laeuft es weiter, warnt aber: Dateien,
+# die nur root lesen darf (sudoers, DNS-Zugang), erscheinen dann als abweichend.
+# *Read-only: without root or sudo it continues, with a warning.*
+. "$(dirname "${BASH_SOURCE[0]}")/ziel.sh"
+ziel_rechte weich
+
 VARIABLEN=(DNS_ZONE DNS_ZIEL PANEL_DOMAIN SERVER_IPV4 WELT_NAME ADMIN_USER
            ADMIN_NETZ ADMIN_IP BORG_REPO BORG_TAILSCALE_IP FREMD_IPV4
            SSH_PASSWORT_AUTH SSH_ROOT_LOGIN ZERTIFIKAT_WEG)
@@ -123,7 +129,7 @@ PAARE=(
 # sie verglichen wie jede andere.
 # *Some files belong on some machines only. Absent where they do not apply
 #  counts as "not applicable", not "missing"; present, they are compared.*
-PALWORLD_DA=$(ssh "$ZIEL" 'test -d /opt/stacks/palworld && echo ja' 2>/dev/null || true)
+PALWORLD_DA=$(am_ziel 'test -d /opt/stacks/palworld && echo ja' 2>/dev/null || true)
 gilt_hier() {
   case "$1" in
     /etc/systemd/system/palworld-neustart.*) [ "$PALWORLD_DA" = ja ] ;;
@@ -135,7 +141,7 @@ gilt_hier() {
 gleich=0; anders=0; fehlt=0; entfaellt=0
 for p in "${PAARE[@]}"; do
   lokal="$REPO/${p%%:*}"; fern="${p#*:}"
-  if ! ssh "$ZIEL" "test -f '$fern'" 2>/dev/null; then
+  if ! am_ziel "test -f '$fern'" 2>/dev/null; then
     if gilt_hier "$fern"; then
       printf '  FEHLT auf dem Server  %s\n' "$fern"; fehlt=$((fehlt+1))
     else
@@ -153,7 +159,7 @@ for p in "${PAARE[@]}"; do
   #  the comparison fires after every install and people learn to ignore it.*
   entblocken() { sed '/^# >>> panel:/,/^# <<< panel:/d'; }
   if [ "$fern" = "/etc/borg-ausschluss.txt" ]; then
-    lv=$(rendern "$lokal" | entblocken); fv=$(ssh "$ZIEL" "cat '$fern'" | entblocken)
+    lv=$(rendern "$lokal" | entblocken); fv=$(am_ziel "cat '$fern'" | entblocken)
     if [ "$lv" = "$fv" ]; then gleich=$((gleich+1)); else
       echo "  ABWEICHUNG            $fern"
       diff -u <(printf '%s\n' "$lv") <(printf '%s\n' "$fv") | sed -n '3,23p' | sed 's/^/      /'
@@ -161,11 +167,11 @@ for p in "${PAARE[@]}"; do
     fi
     continue
   fi
-  if diff -q <(rendern "$lokal") <(ssh "$ZIEL" "cat '$fern'") >/dev/null 2>&1; then
+  if diff -q <(rendern "$lokal") <(am_ziel "cat '$fern'") >/dev/null 2>&1; then
     gleich=$((gleich+1))
   else
     printf '  ABWEICHUNG            %s\n' "$fern"
-    diff -u <(rendern "$lokal") <(ssh "$ZIEL" "cat '$fern'") \
+    diff -u <(rendern "$lokal") <(am_ziel "cat '$fern'") \
       | sed -n '3,23p' | sed 's/^/      /'
     anders=$((anders+1))
   fi
@@ -185,11 +191,11 @@ echo
 echo "-- Weiteres --"
 
 # 1. Python-Umgebung des Panels
-if ! diff -q <(ssh "$ZIEL" '/opt/panel/venv/bin/pip list --format=freeze' 2>/dev/null) \
+if ! diff -q <(am_ziel '/opt/panel/venv/bin/pip list --format=freeze' 2>/dev/null) \
               "$REPO/panel/requirements.txt" >/dev/null 2>&1; then
   echo "  ABWEICHUNG            panel/requirements.txt <-> venv auf dem Server"
   diff -u "$REPO/panel/requirements.txt" \
-          <(ssh "$ZIEL" '/opt/panel/venv/bin/pip list --format=freeze') \
+          <(am_ziel '/opt/panel/venv/bin/pip list --format=freeze') \
     | sed -n '3,23p' | sed 's/^/      /'
   anders=$((anders+1))
 else
@@ -199,7 +205,7 @@ fi
 # 2. ttyd — die Version ist in Stufe 40 festgeschrieben, das Binary kommt aber
 #    von GitHub und nicht aus diesem Repositorium.
 SOLL=$(grep -oE 'TTYD_VERSION="[0-9.]+"' "$REPO/install/40-caddy-ttyd.sh" | grep -oE '[0-9.]+')
-IST=$(ssh "$ZIEL" '/usr/local/bin/ttyd --version 2>/dev/null' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)
+IST=$(am_ziel '/usr/local/bin/ttyd --version 2>/dev/null' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)
 if [ "$SOLL" != "$IST" ]; then
   echo "  ABWEICHUNG            ttyd: Repo verlangt $SOLL, Server hat ${IST:-nichts}"
   anders=$((anders+1))
@@ -221,10 +227,10 @@ fi
 #  whether the machine runs the path ZERTIFIKAT_WEG names. A machine that falls
 #  back to http-01 keeps working and looks right - until renewal fails 60 days
 #  later.*
-zert_ist=$(ssh "$ZIEL" 'cat /etc/caddy/zertifikat.conf 2>/dev/null' || true)
+zert_ist=$(am_ziel 'cat /etc/caddy/zertifikat.conf 2>/dev/null' || true)
 if [ "$ZERTIFIKAT_WEG" = "dns-01" ]; then
-  zert_anbieter=$(ssh "$ZIEL" "sed -n 's/^[[:space:]]*ANBIETER[[:space:]]*=[[:space:]]*//p' /etc/dns-gameserver.conf 2>/dev/null" | head -1)
-  laeuft=$(ssh "$ZIEL" 'systemctl show caddy -p ExecStart --value' 2>/dev/null)
+  zert_anbieter=$(am_ziel "sed -n 's/^[[:space:]]*ANBIETER[[:space:]]*=[[:space:]]*//p' /etc/dns-gameserver.conf 2>/dev/null" | head -1)
+  laeuft=$(am_ziel 'systemctl show caddy -p ExecStart --value' 2>/dev/null)
   if ! grep -q "^acme_dns ${zert_anbieter} " <<<"$zert_ist"; then
     echo "  ABWEICHUNG            zertifikat.conf nennt kein \"acme_dns $zert_anbieter\" — Caddy holt ueber Port 80"
     anders=$((anders+1))
@@ -250,7 +256,7 @@ fi
 # *The self-made icons and artwork. Steam headers under bilder/katalog are
 #  deliberately not compared: third-party works, fetched at runtime.*
 for bild in favicon.svg favicon.ico apple-touch-icon.png; do
-  if ! ssh "$ZIEL" "cat /opt/panel/bilder/$bild" 2>/dev/null | cmp -s - "$REPO/panel/bilder/$bild"; then
+  if ! am_ziel "cat /opt/panel/bilder/$bild" 2>/dev/null | cmp -s - "$REPO/panel/bilder/$bild"; then
     echo "  ABWEICHUNG            panel/bilder/$bild"
     anders=$((anders+1))
   else
@@ -260,7 +266,7 @@ done
 for bild in "$REPO"/panel/bilder/eigene/*.jpg; do
   [ -e "$bild" ] || continue
   name=$(basename "$bild")
-  if ! ssh "$ZIEL" "cat /opt/panel/bilder/eigene/$name" 2>/dev/null | cmp -s - "$bild"; then
+  if ! am_ziel "cat /opt/panel/bilder/eigene/$name" 2>/dev/null | cmp -s - "$bild"; then
     echo "  ABWEICHUNG            panel/bilder/eigene/$name"
     anders=$((anders+1))
   else
@@ -275,10 +281,10 @@ done
 # *Not file by file - the images are not in the repository. Only whether every
 #  catalogue entry has one: exactly that was missing, and it surfaced only when
 #  Minecraft's tile stayed blank.*
-if ssh "$ZIEL" "/usr/local/bin/katalogbilder-holen --pruefen" 2>/dev/null | grep -q "0 fehlen"; then
+if am_ziel "/usr/local/bin/katalogbilder-holen --pruefen" 2>/dev/null | grep -q "0 fehlen"; then
   gleich=$((gleich+1))
 else
-  echo "  ABWEICHUNG            Katalogbilder: $(ssh "$ZIEL" '/usr/local/bin/katalogbilder-holen --pruefen' 2>/dev/null)"
+  echo "  ABWEICHUNG            Katalogbilder: $(am_ziel '/usr/local/bin/katalogbilder-holen --pruefen' 2>/dev/null)"
   anders=$((anders+1))
 fi
 
@@ -295,7 +301,7 @@ fi
 #  workflow, and reporting it every time would train people to ignore the
 #  message. Actual drift is found precisely by the file comparison above.*
 SOLL_V=$(cat "$REPO/VERSION" 2>/dev/null || echo unbekannt)
-STEMPEL=$(ssh "$ZIEL" 'cat /etc/gameserver-version 2>/dev/null' || true)
+STEMPEL=$(am_ziel 'cat /etc/gameserver-version 2>/dev/null' || true)
 IST_V=$(grep -m1 '^VERSION=' <<<"$STEMPEL" | cut -d= -f2)
 IST_STAND=$(grep -m1 '^STAND=' <<<"$STEMPEL" | cut -d= -f2)
 IST_COMMIT=$(grep -m1 '^COMMIT=' <<<"$STEMPEL" | cut -d= -f2)
@@ -319,7 +325,7 @@ fi
 #  what separates fixed from dynamic mode. An installed but disabled timer looks
 #  perfect in a file comparison while the address goes stale.*
 if [ "$SERVER_IPV4" = "dynamic" ]; then SOLL_ZG=enabled; else SOLL_ZG=disabled; fi
-IST_ZG=$(ssh "$ZIEL" 'systemctl is-enabled dns-ziel.timer 2>/dev/null' || true)
+IST_ZG=$(am_ziel 'systemctl is-enabled dns-ziel.timer 2>/dev/null' || true)
 if [ "$IST_ZG" != "$SOLL_ZG" ]; then
   echo "  ABWEICHUNG            dns-ziel.timer: SERVER_IPV4=$SERVER_IPV4 verlangt $SOLL_ZG, Server meldet ${IST_ZG:-nichts}"
   anders=$((anders+1))
@@ -333,7 +339,7 @@ fi
 # *In dynamic mode, does the A record still match the real address? Measured on
 #  the server: from here one would measure this machine's address instead.*
 if [ "$SERVER_IPV4" = "dynamic" ]; then
-  if ausgabe=$(ssh "$ZIEL" '/usr/local/bin/dns-pflegen ziel-zeigen' 2>&1); then
+  if ausgabe=$(am_ziel '/usr/local/bin/dns-pflegen ziel-zeigen' 2>&1); then
     gleich=$((gleich+1))
   else
     echo "  ABWEICHUNG            A-Eintrag und gemessene Adresse gehen auseinander"
@@ -349,7 +355,7 @@ fi
 #  perfect while nothing is backed up. What counts is whether they run.*
 if [ "$BORG_REPO" = "aus" ]; then SOLL_SI=disabled; else SOLL_SI=enabled; fi
 for u in spiele-sicherung.timer spiele-sicherung-voll.timer; do
-  IST_SI=$(ssh "$ZIEL" "systemctl is-enabled $u 2>/dev/null" || true)
+  IST_SI=$(am_ziel "systemctl is-enabled $u 2>/dev/null" || true)
   if [ "$IST_SI" != "$SOLL_SI" ]; then
     echo "  ABWEICHUNG            $u: BORG_REPO=$BORG_REPO verlangt $SOLL_SI, Server meldet ${IST_SI:-nichts}"
     anders=$((anders+1))
@@ -387,7 +393,7 @@ erwartet=$(mktemp)
 # derselben Stelle schon so.
 # *Pinned collation: German sorting ignores hyphens, comm then warns and its
 #  result is undefined.*
-fremd=$(ssh "$ZIEL" 'ls -1 /usr/local/bin 2>/dev/null' | LC_ALL=C sort | LC_ALL=C comm -23 - "$erwartet")
+fremd=$(am_ziel 'ls -1 /usr/local/bin 2>/dev/null' | LC_ALL=C sort | LC_ALL=C comm -23 - "$erwartet")
 rm -f "$erwartet"
 if [ -n "$fremd" ]; then
   echo

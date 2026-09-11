@@ -27,18 +27,13 @@ set -a; . "$KONF"; set +a
 ZIEL="${1:-}"; shift || true
 [ -n "$ZIEL" ] && [ $# -gt 0 ] || { echo "Aufruf: $0 <ssh-ziel> <repo-datei> [...]"; exit 2; }
 
-# Geschrieben wird nach /etc und /usr/local/bin, ohne sudo. Ohne root scheitert
-# jede einzelne Datei mit "Permission denied" aus der fernen Shell - und der
-# Lauf meldet je Datei FEHLGESCHLAGEN, ohne zu sagen, dass es an der Anmeldung
-# liegt. Dieselbe Pruefung wie in rueckbau.sh (#192).
-# *Writes into /etc and /usr/local/bin without sudo; without root every file
-#  fails individually without saying that the login is the reason.*
-if [ "$(ssh -n -o BatchMode=yes -o ConnectTimeout=10 "$ZIEL" 'id -u' 2>/dev/null)" != "0" ]; then
-  echo "FEHLER: $ZIEL meldet sich nicht als root an — ausrollen.sh schreibt nach /etc" >&2
-  echo "        und /usr/local/bin und benutzt kein sudo. Ziel mit root-Anmeldung" >&2
-  echo "        verwenden (root@<maschine> oder \"User root\" in ~/.ssh/config)." >&2
-  exit 2
-fi
+# Geschrieben wird nach /etc und /usr/local/bin - als root oder ueber sudo -n
+# (#214). Ohne beides scheiterte frueher jede Datei einzeln mit "Permission
+# denied", ohne zu sagen, dass es an der Anmeldung liegt (#192). ziel.sh prueft
+# das einmal vorab und nennt beide Wege.
+# *Writes as root or through sudo -n; ziel.sh checks once and names both ways.*
+. "$(dirname "${BASH_SOURCE[0]}")/ziel.sh"
+ziel_rechte
 
 # Ziele, bei denen eine kaputte Datei SPAETER und hart zuschlaegt: Caddy liest
 # die Caddyfile erst beim naechsten Neustart (Panel weg), sshd die Haertung
@@ -129,7 +124,7 @@ for datei in "$@"; do
       echo "ABBRUCH: $datei ist binaer und enthaelt einen Platzhalter."
       fehler=1; continue
     fi
-    ssh "$ZIEL" "
+    am_ziel_mit_eingabe "
       [ -f '$pfad' ] && cp -a '$pfad' '$pfad.vor-$(date +%Y%m%d-%H%M%S)'
       cat > '$pfad.neu' && chmod $modus '$pfad.neu' && chown $eigner '$pfad.neu' \
         && mv '$pfad.neu' '$pfad'" < "$quelle" \
@@ -151,7 +146,7 @@ for datei in "$@"; do
   # Pruefbefehl gibt, den Dienst fragen; lehnt er ab, die Sicherung zurueck.
   pruef=$(pruefbefehl "$pfad")
   sicherung="$pfad.vor-$(date +%Y%m%d-%H%M%S)"
-  printf '%s\n' "$text" | ssh "$ZIEL" "
+  printf '%s\n' "$text" | am_ziel_mit_eingabe "
     [ -f '$pfad' ] && cp -a '$pfad' '$sicherung'
     cat > '$pfad.neu' && chmod $modus '$pfad.neu' && chown $eigner '$pfad.neu' \
       && mv '$pfad.neu' '$pfad' || exit 1
@@ -172,7 +167,7 @@ done
 # *A hand-rolled file leaves the release name correct but individual files
 #  newer. "1.0.0, but touched since" is a different answer from "1.0.0".*
 if [ "${ausgerollt:-0}" -eq 1 ]; then
-  ssh "$ZIEL" "[ -f /etc/gameserver-version ] && sed -i 's/^STAND=.*/STAND=geaendert/' /etc/gameserver-version" \
+  am_ziel "[ -f /etc/gameserver-version ] && sed -i 's/^STAND=.*/STAND=geaendert/' /etc/gameserver-version" \
     || echo "Hinweis: kein Versionsstempel auf $ZIEL — Einrichtung lief vor der Versionierung."
 fi
 
