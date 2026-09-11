@@ -63,6 +63,68 @@ pruefe_archiv() {
     [[ "$2" == "$1-"* ]] || fehler "Archiv gehoert nicht zu diesem Stack"
 }
 
+# Ausgeschlossene Pfade ueberleben das Zurueckspielen (#231).
+#
+# Sie stehen bewusst NICHT im Archiv (gross, neu ladbar). Ein "rm -rf" des
+# Datenverzeichnisses loescht sie trotzdem - deshalb werden sie vorher
+# weggelegt und danach zurueckgelegt. Die erste Fassung verschob jede Zeile
+# der Ausschlussliste woertlich und legte sie mit basename zurueck. Beides
+# ging schief, sobald es mehr gab als FOUNDRYs "server": Zeilen mit Platzhalter
+# (sh:/srv/games/*/server/*.dat) fanden nichts - Enshrouded haette 32
+# Spieldateien verloren -, und verschachtelte Pfade kamen ganz oben an
+# (Windroses server/R5/Content als windrose/Content).
+#
+# Jetzt: Platzhalter aufloesen wie Borgs sh:-Stil (* ueberspringt kein /),
+# nur Pfade unter dem Datenverzeichnis, nichts unterhalb eines schon
+# gewaehlten Pfades, und alles an denselben RELATIVEN Ort.
+# *Excluded paths survive the restore. Globs are expanded like borg's sh:
+#  style, only paths under the data dir, nothing below a path already taken,
+#  and everything goes back to the same RELATIVE place (#231).*
+AUSSCHLUSS_DATEI=/etc/borg-ausschluss.txt
+
+# verschonen <basis> <ablage>: Pfade wegraeumen, relative Pfade auf stdout.
+verschonen() {
+  local basis="$1" ablage="$2" muster p rel k weiter
+  local -a treffer=() genommen=()
+  local IFS=$'\n'
+  shopt -s nullglob
+  while IFS= read -r muster; do
+    muster=${muster#sh:}
+    [ -n "$muster" ] || continue
+    for p in $muster; do
+      case "$p" in "$basis"/*) treffer+=("$p") ;; esac
+    done
+  done < <(grep -v '^[[:space:]]*#' "$AUSSCHLUSS_DATEI" 2>/dev/null)
+  shopt -u nullglob
+  [ ${#treffer[@]} -gt 0 ] || return 0
+  while IFS= read -r p; do
+    weiter=0
+    for k in "${genommen[@]}"; do
+      case "$p" in "$k"/*) weiter=1; break ;; esac
+    done
+    [ $weiter -eq 1 ] && continue
+    [ -e "$p" ] || [ -L "$p" ] || continue
+    rel=${p#"$basis"/}
+    mkdir -p "$ablage/$(dirname "$rel")" && mv "$p" "$ablage/$rel" || return 1
+    genommen+=("$p")
+    printf '%s\n' "$rel"
+  done < <(printf '%s\n' "${treffer[@]}" | LC_ALL=C sort -u)
+}
+
+# zuruecklegen <basis> <ablage> <liste>: an denselben relativen Ort zurueck.
+# Liegt dort schon etwas (das Archiv stammt aus einer Zeit mit anderer
+# Ausschlussliste), gewinnt der weggelegte Stand - er ist die Installation,
+# die gerade lief; der Ist-Stand liegt ohnehin daneben.
+zuruecklegen() {
+  local basis="$1" ablage="$2" liste="$3" rel
+  while IFS= read -r rel; do
+    [ -n "$rel" ] || continue
+    mkdir -p "$basis/$(dirname "$rel")"
+    rm -rf "${basis:?}/$rel"
+    mv "$ablage/$rel" "$basis/$rel" || return 1
+  done < "$liste"
+}
+
 case "${1:-}" in
   status)
     # EIN docker-stats-Aufruf fuer alle Container, nicht einer je Container:
@@ -175,28 +237,21 @@ except Exception:
     ( cd "$tmp" && timeout 900 borg extract "$REPO::$a" ) || fehler "Extrahieren fehlgeschlagen"
     quelle="$tmp${basis}"
     [ -d "$quelle" ] || fehler "Archiv enthaelt $basis nicht"
-    # Ausgeschlossene Pfade UEBERLEBEN das Zurueckspielen.
-    #
-    # Die Spieldateien stehen bewusst in /etc/borg-ausschluss.txt - sie sind
-    # gross und jederzeit neu ladbar. Ein "rm -rf $basis/*" loescht sie
-    # trotzdem, und das Archiv kann sie nicht ersetzen, weil es sie gar nicht
-    # enthaelt. Genau so verlor FOUNDRY am 06.09. sein server-Verzeichnis: nach
-    # der Wiederherstellung war der Mountpunkt weg, und Docker haette ihn beim
-    # naechsten Start als root neu angelegt.
-    # *Excluded paths survive the restore: they are deliberately not in the
-    #  archive, so deleting them means they are simply gone. That is how FOUNDRY
-    #  lost its server directory.*
-    while IFS= read -r muster; do
-      p=${muster#sh:}
-      case "$p" in "$basis"/*) mv "$p" "$tmp/verschont-$(basename "$p")" 2>/dev/null ;; esac
-    done < <(grep -v '^[[:space:]]*#' /etc/borg-ausschluss.txt 2>/dev/null)
+    # Ausgeschlossene Pfade UEBERLEBEN das Zurueckspielen - verschonen() oben.
+    # Genau so verlor FOUNDRY am 06.09. sein server-Verzeichnis: nach der
+    # Wiederherstellung war der Mountpunkt weg. Scheitert das Weglegen, wird
+    # NICHTS geloescht.
+    # *Excluded paths survive the restore; if moving them away fails, nothing
+    #  is deleted.*
+    if ! verschonen "$basis" "$tmp/verschont" > "$tmp/verschont.liste"; then
+      zuruecklegen "$basis" "$tmp/verschont" "$tmp/verschont.liste"
+      fehler "Ausgeschlossene Pfade liessen sich nicht wegraeumen - nichts geloescht"
+    fi
 
     rm -rf "${basis:?}"/* && cp -a "$quelle/." "$basis/" || fehler "Kopieren fehlgeschlagen"
 
-    for v in "$tmp"/verschont-*; do
-      [ -e "$v" ] || continue
-      mv "$v" "$basis/$(basename "${v#"$tmp"/verschont-}")" 2>/dev/null
-    done
+    zuruecklegen "$basis" "$tmp/verschont" "$tmp/verschont.liste" \
+      || fehler "Ausgeschlossene Pfade liessen sich nicht zuruecklegen - sie liegen unter $sich"
 
     # Eigentuemer vom Ist-Stand uebernehmen statt hart 4711 zu setzen. Die
     # Katalogspiele laufen als 4711, von Hand gebaute Stacks nicht zwingend:
