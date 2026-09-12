@@ -1,0 +1,42 @@
+#!/bin/bash
+# pre-push — haelt einen Push auf main auf.
+#
+# Die Regel steht seit Monaten in CLAUDE.md ("Niemals direkt auf main pushen"),
+# und nichts hat sie durchgesetzt: Es gab einen pre-commit- und einen
+# commit-msg-Haken, aber keinen pre-push. Am 2026-09-12 ist genau das passiert -
+# nach einem Merge stand der Arbeitszweig wieder auf main, die naechste Arbeit
+# landete dort und ging durch. Eine Regel, die nur auf Papier steht, gilt so
+# lange, wie niemand ausrutscht.
+#
+# *The rule lived in CLAUDE.md for months with nothing enforcing it: there was a
+#  pre-commit and a commit-msg hook, but no pre-push. After a merge the working
+#  branch was main again, the next piece of work landed there and went through.*
+#
+# Einbauen:
+#   ln -sf ../../werkzeuge/git-hooks/pre-push .git/hooks/pre-push
+#
+# Vorbei, wenn es sein muss (das Wiki hat keine Pull Requests):
+#   GIT_PUSH_MAIN_OK=1 git push
+set -uo pipefail
+
+[ -n "${GIT_PUSH_MAIN_OK:-}" ] && exit 0
+
+geschuetzt="refs/heads/main refs/heads/master"
+while read -r _ _ fern_ref _; do
+  for g in $geschuetzt; do
+    [ "$fern_ref" = "$g" ] || continue
+    echo "pre-push: Push auf ${fern_ref#refs/heads/} abgelehnt." >&2
+    echo "  Regel (CLAUDE.md): Issue -> Zweig -> Pull Request -> Merge." >&2
+    echo "  Der Zweig steht nach einem Merge wieder auf main - dort weiterzuarbeiten" >&2
+    echo "  ist der haeufige Ausrutscher, und genau den faengt dieser Haken." >&2
+    echo "" >&2
+    echo "  Arbeit auf einen Zweig holen:" >&2
+    echo "    git branch fix/<kurzname> && git reset --hard origin/main" >&2
+    echo "    git checkout fix/<kurzname>" >&2
+    echo "" >&2
+    echo "  Wenn es wirklich sein muss (Wiki, kein Pull Request moeglich):" >&2
+    echo "    GIT_PUSH_MAIN_OK=1 git push" >&2
+    exit 1
+  done
+done
+exit 0
