@@ -386,7 +386,8 @@ Spieldaten darf den Spielern nicht die Platte wegnehmen.
 | Bild | Ursache | Weg |
 |---|---|---|
 | `/statistik` antwortet 401 | keine gültige Sitzung oder Rolle unter `verwalten` | im Panel anmelden; Rolle prüfen |
-| Grafana zeigt „Datasource not found" | Bereitstellung nicht gelesen | `docker compose logs grafana` im Stack-Verzeichnis; `modul-verwalten anwenden statistik` |
+| Grafana zeigt „Datasource not found" | Bereitstellung nicht gelesen | `docker compose logs grafana` im Modulverzeichnis; `modul-verwalten anwenden statistik` |
+| Grafana startet immer wieder neu, `GF_PATHS_DATA is not writable` | ein Elternordner der Daten ist `0700 root` | `chmod 755 /srv/module /srv/module/<modul>` — behoben seit #266 |
 | Tafeln bleiben leer | Prometheus erreicht node_exporter nicht | `docker compose exec prometheus wget -qO- localhost:9090/api/v1/targets` |
 | Platzwart-Zahlen fehlen | Sammler läuft nicht | `systemctl status platzwart-metriken.timer`, `platzwart-metriken --zeigen` |
 | Spalten im Dashboard hören auf | Sammlerlauf ausgefallen | Lücke ist Absicht — `platzwart_metriken_lauf_zeit_sekunden` zeigt den letzten Lauf |
