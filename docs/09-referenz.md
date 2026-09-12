@@ -669,7 +669,10 @@ laut. Exit 1 nur, wenn das Melden selbst scheiterte.
 > protection — every stack in the `SCHUTZ` table, either by its compose
 > environment field or, for Palworld, by the game configuration that actually
 > governs; `unbestimmt` entries never report but must carry a reason, and no
-> message ever names a value. `--trocken` shows without
+> message ever names a value. It also reports any file that can hold secrets —
+> compose files, `panel.json`, credentials, accounts, `*.conf`, a module's
+> `.env` — left world-readable, naming the path and never the content; the audit
+> log, network state and config counters are excluded, being 0644 by design. `--trocken` shows without
 > reporting; `--selbsttest` runs the decisions on made-up numbers, one silent
 > and one loud case each. Exit 1 only if reporting itself failed.*
 
