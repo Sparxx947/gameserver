@@ -54,8 +54,14 @@ jobs:
             case "$w" in */vollstaendigkeit.sh) continue ;; esac
             # Ausgang in einer Variablen festhalten, nicht mit "$?" nach einem
             # if abfragen - das liest sich richtig und ist es doch nur zufaellig.
-            timeout 300 "$w" --selbsttest > /tmp/st.log 2>&1
-            rc=$?
+            # "|| rc=$?" ist Pflicht, nicht Stil: Der Laeufer fuehrt diesen
+            # Schritt mit "bash -e" aus, und ein nackter Aufruf mit Exit != 0
+            # beendet ihn sofort - der erste Fehlschlag verschwand damit
+            # wortlos, samt der Zeile, die sagt, welches Werkzeug es war.
+            # *The runner uses "bash -e", so a bare failing call aborts the step
+            #  before the result is ever examined.*
+            rc=0
+            timeout 300 "$w" --selbsttest > /tmp/st.log 2>&1 || rc=$?
             case "$rc" in
               0) printf 'ok             %s\n' "$w" ;;
               2) printf 'uebersprungen  %s (hier nicht pruefbar)\n' "$w" ;;
