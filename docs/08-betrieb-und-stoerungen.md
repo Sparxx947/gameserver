@@ -568,6 +568,49 @@ Palworld-Stack (#252).
 
 ---
 
+### Bei Palworld gilt die Spielkonfiguration, nicht die compose-Datei
+
+Der Stack setzt `DISABLE_GENERATE_SETTINGS: "true"`, damit das Abbild die von
+Nitrado übernommenen Einstellungen nicht überschreibt. Das Abbild sagt in
+`start.sh` selbst, was das kostet: *„Env vars will not be applied"*. Gemessen
+am 2026-09-12 (#286) wirken nur noch:
+
+| wirkt | wirkt nicht |
+|---|---|
+| `PORT`, `QUERY_PORT`, `COMMUNITY` (werden Startargumente) | `SERVER_NAME`, `PLAYERS` |
+| `TZ`, `PUID`/`PGID`, `BACKUP_*`, `AUTO_UPDATE_ENABLED` (tut das Abbild selbst) | `SERVER_PASSWORD`, `ADMIN_PASSWORD` |
+
+Es gilt allein
+`/srv/games/palworld/Pal/Saved/Config/LinuxServer/PalWorldSettings.ini`. Die
+Passwörter stehen trotzdem in der compose-Datei, weil das Panel die
+Zugangsdaten von dort liest — **aber nichts hält beide Seiten von selbst
+gleich**. Deshalb vergleicht `platzwart-wache` sie bei jedem Lauf und meldet
+drei Fälle: Konfiguration fehlt, Passwort dort leer, oder die beiden Seiten
+sagen Verschiedenes. Der Fall „fehlt" ist der gefährliche: Das Abbild legt dann
+`DefaultPalWorldSettings.ini` an — ohne Passwort, bei offenem Spielport, also
+genau das, was E26 verbietet.
+
+`RCON_ENABLED`/`RCON_PORT` standen bis #286 ebenfalls im Stack und versprachen
+einen Dienst, den es nie gab (`RCONEnabled=False` in der ini, nichts lauschte
+auf 25575). Sie sind entfernt; RCON ist im Abbild ohnehin abgekündigt. Wer
+einen Verwaltungsweg braucht, nimmt die REST-API — die ist in der ini bereits
+an und lauscht nur containerintern.
+
+> *Palworld's stack sets `DISABLE_GENERATE_SETTINGS`, so the image applies no
+> environment variables at all — only `PORT`, `QUERY_PORT` and `COMMUNITY`
+> (which become start arguments) and what the image does itself (timezone, ids,
+> backup, auto-update). Name, player cap and both passwords live solely in
+> `PalWorldSettings.ini`. The passwords remain in the compose file because the
+> panel reads credentials from there, but nothing keeps the two sides equal, so
+> `platzwart-wache` compares them every run and reports three cases: missing
+> configuration, empty password, or the two sides disagreeing. Missing is the
+> dangerous one — the image then writes the password-less default while the game
+> port is open, exactly what E26 forbids. `RCON_ENABLED`/`RCON_PORT` promised a
+> service that never existed and were removed (#286); RCON is deprecated in the
+> image, and the REST API is already enabled, container-internal only.*
+
+---
+
 ## Geschichte: was erledigt ist, aber lehrreich bleibt
 
 ### StarRupture — am 2026-09-08 durchgemessen, am 2026-09-09 entfernt
