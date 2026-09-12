@@ -1,0 +1,67 @@
+# Die Gates laufen bisher NUR lokal, im pre-commit-Haken. Wer ihn nicht
+# installiert hat - jeder Mitarbeitende, jeder Beitrag aus einem Fork -, schiebt
+# ungeprueft; und GAMESERVER_KEIN_GATE=1 geht bewusst daran vorbei. Hier laufen
+# dieselben Pruefungen noch einmal dort, wo niemand sie vergessen kann.
+#
+# *The gates only ran locally in the pre-commit hook, so anyone without it -
+#  every collaborator, every fork - pushed unchecked. This runs the same checks
+#  where nobody can forget them.*
+name: Pruefung
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  vollstaendigkeit:
+    name: Vollstaendigkeitspruefung
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # shellcheck ist die einzige Zutat, die der Laeufer nicht schon hat;
+      # python3 und git bringt er mit, und die Werkzeuge benutzen ausschliesslich
+      # die Standardbibliothek.
+      - name: shellcheck bereitstellen
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+      # konfiguration.env wird BEWUSST nicht angelegt: Sie enthaelt die
+      # Standortwerte dieser einen Maschine. Ohne sie entfaellt genau die eine
+      # Pruefung, die sie braucht (Abschnitt 4c) - mit der Vorlage dagegen
+      # schluege sie an, weil deren Beispielwerte in der Doku stehen. Gemessen
+      # am 2026-09-12, beide Wege ausprobiert.
+      - name: Alle Gates
+        run: bash werkzeuge/vollstaendigkeit.sh
+
+  selbsttests:
+    name: Selbsttests der Werkzeuge
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Die Vollstaendigkeitspruefung FUEHRT die Selbsttests zwar aus, wirft ihr
+      # Ergebnis aber weg - sie sieht nur nach, ob einer das System anfasst. Ein
+      # kaputter Selbsttest fiel damit niemandem auf. Hier zaehlt sein Ausgang.
+      # Exit 2 heisst "hier nicht pruefbar" (spieler-zaehlen braucht einen
+      # antwortenden Server als Gegenprobe) und gilt als uebersprungen.
+      # *The completeness check runs the self-tests but discards their result;
+      #  here the exit code counts. Exit 2 means "not verifiable here".*
+      - name: Jeden Selbsttest fahren
+        run: |
+          schlecht=0
+          for w in $(grep -l -- "--selbsttest" bin/* werkzeuge/* 2>/dev/null); do
+            case "$w" in */vollstaendigkeit.sh) continue ;; esac
+            # Ausgang in einer Variablen festhalten, nicht mit "$?" nach einem
+            # if abfragen - das liest sich richtig und ist es doch nur zufaellig.
+            timeout 300 "$w" --selbsttest > /tmp/st.log 2>&1
+            rc=$?
+            case "$rc" in
+              0) printf 'ok             %s\n' "$w" ;;
+              2) printf 'uebersprungen  %s (hier nicht pruefbar)\n' "$w" ;;
+              *) printf 'FEHLGESCHLAGEN %s (Exit %s)\n' "$w" "$rc"
+                 sed 's/^/    /' /tmp/st.log | tail -20
+                 schlecht=$((schlecht + 1)) ;;
+            esac
+          done
+          [ "$schlecht" -eq 0 ] || { echo "$schlecht Selbsttest(s) fehlgeschlagen"; exit 1; }
