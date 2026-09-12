@@ -445,7 +445,7 @@ python3 werkzeuge/katalog-ports.py || fehler=1
 echo "== Ports der Module (alle auf 127.0.0.1) =="
 if [ -f etc/module-katalog.json ]; then
   python3 - <<'PY' || fehler=1
-import json, sys
+import json, pathlib, re, sys
 schlecht = 0
 for m in json.load(open("etc/module-katalog.json")).get("module", []):
     for p in m.get("ports", []):
@@ -459,6 +459,31 @@ for m in json.load(open("etc/module-katalog.json")).get("module", []):
     if m.get("ziel") and not m["ziel"].startswith("127.0.0.1:"):
         print(f"  {m['schluessel']}: Ziel {m['ziel']} liegt nicht auf 127.0.0.1")
         schlecht += 1
+    # Die Einhaengepunkte der compose-Datei muessen zum Katalog passen. Beim
+    # Umzug der Daten nach /srv/module blieb die compose-Datei auf dem alten
+    # Pfad stehen (#268): Docker legte den fehlenden Ordner als root an, der
+    # vorbereitete Ordner blieb unbenutzt, und Grafana lief in eine
+    # Neustartschleife - waehrend die Installation Erfolg meldete. Eine
+    # Uebereinstimmung, die man sich merken muss, merkt sich irgendwann niemand.
+    # *Mount sources must match the catalogue: after moving the data the compose
+    #  file kept the old path, docker created it as root, and Grafana
+    #  restart-looped while the install reported success.*
+    cyaml = pathlib.Path("etc/module") / m["schluessel"] / "compose.yaml"
+    if cyaml.exists():
+        erlaubt = (m["daten"] + "/", f"/etc/module/{m['schluessel']}/", "/var/lib/", "./")
+        # Nur SCHREIBBARE Einhaengepunkte. Ein Exporter lebt davon, /proc, /sys
+        # oder den Docker-Ordner LESEND zu sehen - das ist sein Zweck und keine
+        # Abweichung. Geprueft wird, wohin ein Modul schreiben kann.
+        # *Read-only mounts are an exporter's purpose; only writable ones matter.*
+        for mm in re.finditer(r"^\s+- (/[^:]+|\./[^:]+):([^:\s]+)(:(\S+))?\s*$",
+                              cyaml.read_text(), re.M):
+            quelle, optionen = mm.group(1), (mm.group(4) or "")
+            if "ro" in optionen.split(","):
+                continue
+            if not quelle.startswith(erlaubt):
+                print(f"  {m['schluessel']}: Einhaengepunkt {quelle} steht weder unter "
+                      f"{m['daten']} noch /etc/module/{m['schluessel']} noch /var/lib")
+                schlecht += 1
     for s in m.get("schalter", []):
         if s.get("art") not in ("profil", "sammler", "grafana"):
             print(f"  {m['schluessel']}/{s.get('name')}: unbekannte Art {s.get('art')!r}")
