@@ -318,6 +318,17 @@ if ! python3 werkzeuge/katalog-kategorien.py etc/spiele-katalog.json --pruefen 2
   fehler=1
 fi
 
+# --- 7d. Zeigen die Verweise zwischen den Kapiteln irgendwohin? -------------
+# Die Kapitel verweisen dicht aufeinander, und ein Verweis stirbt lautlos: Datei
+# umbenannt, Ueberschrift umformuliert, Link zeigt ins Leere. Auffallen wuerde
+# es beim Lesen - also selten, und dann beim Falschen. Geprueft wird Datei UND
+# Anker; Code wird vorher entfernt, sonst sieht jeder regulaere Ausdruck mit
+# Zeichenklasse wie ein Verweis aus.
+# *Chapters link densely and a link dies silently. File and anchor are checked;
+#  code is stripped first, or every character class looks like a link.*
+echo "== Zeigen die Doku-Verweise irgendwohin? =="
+python3 werkzeuge/doku-links.py || fehler=1
+
 # --- 7c. Ist die Dokumentation zweisprachig? ---------------------------------
 # Die Regel stand nur als Satz in CLAUDE.md. Am 2026-09-11 fehlte der englische
 # Absatz in 83 Abschnitten, und niemand hatte es bemerkt.

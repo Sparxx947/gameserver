@@ -1,0 +1,105 @@
+# Der Katalog verspricht 185 Mal "ein Klick, und dieser Server steht". Die
+# Zusage haengt an Dingen, die anderen gehoeren: Ein Abbild kann aus der
+# Registry verschwinden, ein Steam-Titelbild kann wegfallen, und umgekehrt
+# wachsen die Quellen (ich777, LinuxGSM) weiter, ohne dass es jemand bemerkt.
+# Alles drei faellt heute erst beim Installieren auf - also beim Falschen.
+#
+# Gepflegt wird EIN Issue, kein woechentlicher Stapel: Findet sich nichts, wird
+# es geschlossen; findet sich etwas, steht der aktuelle Stand darin.
+#
+# *The catalogue promises 185 times over that one click brings a server up, and
+#  that promise rests on things owned by others. One issue is kept current
+#  rather than a weekly pile.*
+name: Bestandspflege
+
+on:
+  schedule:
+    - cron: "17 5 * * 1"     # montags, 05:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  bestand:
+    name: Katalog gegen die Wirklichkeit halten
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Die Erzeuger koennen das laengst - im Berichtsmodus schreiben sie
+      # nichts, sie zaehlen nur, was die Quelle mehr hat als wir.
+      - name: Neue Spiele bei den Quellen
+        run: |
+          python3 werkzeuge/katalog-ergaenzen.py etc/spiele-katalog.json > ich777.txt 2>&1 || true
+          python3 werkzeuge/katalog-lgsm.py      etc/spiele-katalog.json > lgsm.txt   2>&1 || true
+          grep -h "^Neu:" ich777.txt lgsm.txt || true
+
+      - name: Abbilder und Titelbilder
+        run: python3 werkzeuge/katalog-bestand.py --markdown > bestand.txt 2>&1 || true
+
+      - name: Bericht zusammenstellen
+        id: bericht
+        run: |
+          : > bericht.md
+          ich=$(grep -h "^Neu:" ich777.txt | grep -oE "[0-9]+" | head -1)
+          lgsm=$(grep -h "^Neu:" lgsm.txt   | grep -oE "[0-9]+" | head -1)
+          if [ "${ich:-0}" != "0" ] || [ "${lgsm:-0}" != "0" ]; then
+            {
+              echo "## Neue Spiele bei den Quellen"
+              echo
+              echo "ich777 haette **${ich:-0}** weitere, LinuxGSM **${lgsm:-0}**."
+              echo "Aufnehmen mit \`werkzeuge/katalog-ergaenzen.py etc/spiele-katalog.json --schreiben\`"
+              echo "bzw. \`werkzeuge/katalog-lgsm.py … --schreiben\` - danach Gates laufen lassen."
+              echo
+              echo '<details><summary>Bericht ich777</summary>'; echo
+              echo '```'; tail -30 ich777.txt; echo '```'; echo '</details>'
+              echo '<details><summary>Bericht LinuxGSM</summary>'; echo
+              echo '```'; tail -30 lgsm.txt; echo '```'; echo '</details>'
+              echo
+            } >> bericht.md
+          fi
+          if grep -q "^- " bestand.txt; then
+            {
+              echo "## Was der Katalog verspricht, gibt es nicht mehr"
+              echo
+              grep "^- " bestand.txt
+              echo
+            } >> bericht.md
+          fi
+          # Die Zaehlzeilen immer mitgeben: Eine Pruefung, die nur bei Funden
+          # etwas sagt, laesst offen, ob sie ueberhaupt gelaufen ist.
+          {
+            echo "---"
+            echo "Gemessen am $(date -u '+%Y-%m-%d %H:%M') UTC:"
+            grep -hE "geprueft" bestand.txt | sed 's/^ */- /'
+          } >> bericht.md
+          if [ -s bericht.md ] && grep -qE "^## " bericht.md; then
+            echo "funde=ja" >> "$GITHUB_OUTPUT"
+          else
+            echo "funde=nein" >> "$GITHUB_OUTPUT"
+          fi
+          cat bericht.md
+
+      - name: Issue pflegen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITEL: "Bestandspflege: Katalog gegen die Wirklichkeit"
+        run: |
+          nr=$(gh issue list --state open --search "\"$TITEL\" in:title" \
+                 --json number,title -q ".[] | select(.title==\"$TITEL\") | .number" | head -1)
+          if [ "${{ steps.bericht.outputs.funde }}" = "ja" ]; then
+            if [ -n "$nr" ]; then
+              gh issue edit "$nr" --body-file bericht.md
+              echo "Issue #$nr auf den neuesten Stand gebracht."
+            else
+              gh issue create --title "$TITEL" --label bug --body-file bericht.md
+            fi
+          elif [ -n "$nr" ]; then
+            gh issue comment "$nr" --body "Nichts mehr offen: Abbilder und Titelbilder sind vollstaendig, die Quellen bringen nichts Neues."
+            gh issue close "$nr"
+            echo "Issue #$nr geschlossen."
+          else
+            echo "Nichts zu melden."
+          fi
