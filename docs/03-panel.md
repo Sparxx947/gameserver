@@ -1901,6 +1901,39 @@ verwaltet; die Modulverwaltung hier bleibt bei `admin`.
 
 ---
 
+## Beitritte im Kanal des Servers (#282)
+
+Unter den Discord-Einstellungen: **Beitritte und „wieder leer" in den Kanal des
+Servers melden**. `platzwart-ereignisse` vergleicht jede Minute die Spielerzahl
+mit der vorigen und schreibt bei einem Wechsel eine Zeile in den Textkanal
+**dieses** Servers — nie in den Störungskanal, denn wer „wieder leer" lesen will,
+ist nicht, wer einen Absturz sehen will.
+
+Gemeldet wird **nur der Wechsel zwischen leer und belegt**, nicht jede Zahl: Wer
+jeden einzelnen Beitritt meldet, wird stummgeschaltet und nimmt die echten
+Meldungen mit. Dazu drei Bremsen: nur frische Messwerte (unter drei Minuten) —
+eine Abfrage, die gerade nicht antwortet, ist kein leerer Server; nichts beim
+ersten Blick auf einen Server — das wäre eine Meldung über kein Ereignis; und
+verpasste Läufe werden nicht nachgeholt, denn „jemand spielt" von vor drei
+Stunden ist keine Meldung, sondern eine Irritation.
+
+Die Grenze ist ehrlich zu nennen: **Es funktioniert nur für Server, die eine
+Spielerzahl liefern.** Auf dieser Maschine sind das zwei von sieben (Valheim und
+Enshrouded über A2S); die übrigen antworten auf keine Abfrage, und für sie bleibt
+der Kanal still. Eine Chat-Brücke wäre die naheliegende Alternative gewesen — vier
+der sieben Server schreiben keinen lesbaren Chat, Valheim keinen Text.
+
+> *Under the Discord settings: report joins and "empty again" into the server's
+> own channel, never the fault channel. Only the transition between empty and
+> occupied is reported, never every number — reporting each join gets the channel
+> muted and takes the real messages with it. Three brakes: fresh readings only,
+> nothing on first sight of a server, and missed runs are not caught up. The limit
+> stated plainly: it works only for servers that report a player count — two of
+> seven here; a chat bridge would carry less, since four of them write no readable
+> chat.*
+
+---
+
 ## Modpaket für Mitspieler (#280)
 
 Auf der Mod-Seite eines Servers, unter dem Hochladen: **für Mitspieler

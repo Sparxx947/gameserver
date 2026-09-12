@@ -1,0 +1,9 @@
+[Unit]
+Description=Platzwart: Beitritte und leere Server in den Kanal des Servers melden
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/platzwart-ereignisse
+ProtectHome=yes
+PrivateTmp=yes

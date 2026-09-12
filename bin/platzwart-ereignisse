@@ -1,0 +1,193 @@
+#!/usr/bin/env python3
+"""platzwart-ereignisse — meldet Beitritte und leere Server in den Kanal des Servers.
+
+Der Wunsch war eine Bruecke zwischen Spiel und Discord. Gemessen an den Servern,
+die hier laufen, traegt eine Chat-Bruecke fast nichts: Enshrouded, Foundry,
+Satisfactory und Windrose schreiben keinen lesbaren Chat, Valheim keinen Text.
+Was bei FAST ALLEN geht, ist das, was der Platzwart ohnehin misst - die
+Spielerzahl. Aus ihrem Wechsel entstehen die Meldungen, die man wirklich haben
+will: "jemand spielt" und "wieder leer".
+
+*A chat bridge would carry almost nothing here - four of the seven servers write
+ no readable chat. What works for nearly all of them is the number the Platzwart
+ already measures: players. Its changes give the messages one actually wants.*
+
+  platzwart-ereignisse [--einmal] [--selbsttest]
+
+Gemeldet wird in den TEXTKANAL DES SERVERS (#137), nicht in den Stoerungskanal:
+Wer "Valheim ist wieder leer" lesen will, ist nicht, wer einen Absturz sehen
+will. Ohne Kanal fuer den Server passiert nichts.
+
+Zwei Regeln gegen Laerm:
+  * Nur Wechsel zwischen "leer" und "jemand da" - nicht jede Zahl. Wer jeden
+    Beitritt einzeln meldet, wird stummgeschaltet und nimmt die echten
+    Meldungen mit.
+  * Nur frische Messwerte (unter drei Minuten). Eine Abfrage, die gerade nicht
+    antwortet, ist kein leerer Server - sonst meldet ein Aussetzer "alle weg"
+    und eine Minute spaeter "jemand da".
+"""
+import json
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+SPIELER = Path(os.environ.get("EREIGNIS_SPIELER", "/var/lib/platzwart-spieler.json"))
+STAND = Path(os.environ.get("EREIGNIS_STAND", "/var/lib/platzwart-ereignisse.json"))
+KANAELE = Path(os.environ.get("EREIGNIS_KANAELE", "/opt/panel/daten/kanaele.json"))
+KANAL_WERKZEUG = os.environ.get("EREIGNIS_WERKZEUG", "/usr/local/bin/kanal-verwalten")
+FRISCH_S = int(os.environ.get("EREIGNIS_FRISCH", "180"))
+
+
+def an() -> bool:
+    """Der Schalter steht bei den Discord-Kanaelen: Wer keine Kanaele je Server
+    will, will auch keine Meldungen darin."""
+    try:
+        d = json.loads(KANAELE.read_text()).get("discord") or {}
+        return bool(d.get("an")) and bool(d.get("ereignisse"))
+    except Exception:
+        return False
+
+
+def spieler() -> dict:
+    """{stack: zahl} - nur frische Messwerte. Ein veralteter Wert ist kein
+    Messwert, sondern eine Erinnerung."""
+    try:
+        d = json.loads(SPIELER.read_text())
+    except Exception:
+        return {}
+    raus = {}
+    for stack, w in d.items():
+        if not isinstance(w, dict) or not isinstance(w.get("spieler"), int):
+            continue
+        # "zeit" ist ein ZEITSTEMPEL, kein Alter. Zuerst stand hier ein
+        # Vergleich gegen die Sekundenzahl - und weil ein Zeitstempel immer
+        # groesser ist als 180, fiel JEDER Server heraus und der Melder sah
+        # nichts. Der Selbsttest fing es nicht, weil er dieselbe falsche Annahme
+        # traf: Ein Test, der die Annahme des Programms teilt, prueft sie nicht.
+        # *"zeit" is a timestamp, not an age: comparing it against the age limit
+        #  dropped every server, and the self-test shared the wrong assumption.*
+        alter = time.time() - int(w.get("zeit", 0))
+        if not w.get("zeit") or alter > FRISCH_S or alter < -60:
+            continue
+        raus[stack] = {"spieler": w["spieler"], "max": w.get("max"),
+                       "name": w.get("spiel") or stack}
+    return raus
+
+
+def alter_stand() -> dict:
+    try:
+        return json.loads(STAND.read_text())
+    except Exception:
+        return {}
+
+
+def stand_schreiben(d: dict):
+    STAND.write_text(json.dumps(d, indent=1))
+    STAND.chmod(0o600)
+
+
+def melden(stack: str, text: str) -> bool:
+    p = subprocess.run([KANAL_WERKZEUG, "ereignis", stack, text],
+                       capture_output=True, text=True, timeout=60)
+    return p.returncode == 0
+
+
+def ereignisse(vorher: dict, jetzt: dict) -> list:
+    """[(stack, text)] - nur Wechsel zwischen leer und nicht leer.
+
+    Ein Server, der neu auftaucht, meldet NICHT: Beim ersten Lauf und nach einer
+    Neuinstallation waere das eine Meldung ohne Ereignis - es hat sich nichts
+    geaendert, wir haben nur vorher nicht hingesehen.
+    *A server appearing for the first time reports nothing: that would be a
+     message about no event - nothing changed, we simply had not looked before.*
+    """
+    raus = []
+    for stack, w in sorted(jetzt.items()):
+        alt = vorher.get(stack)
+        if alt is None:
+            continue
+        war_leer, ist_leer = alt.get("spieler", 0) == 0, w["spieler"] == 0
+        if war_leer and not ist_leer:
+            von = f" ({w['spieler']}/{w['max']})" if w.get("max") else f" ({w['spieler']})"
+            raus.append((stack, f"Jemand spielt auf **{w['name']}**{von}."))
+        elif not war_leer and ist_leer:
+            raus.append((stack, f"**{w['name']}** ist wieder leer."))
+    return raus
+
+
+def lauf() -> int:
+    jetzt = spieler()
+    vorher = alter_stand()
+    if not an():
+        # Stand trotzdem fortschreiben: Sonst meldet das Einschalten alles, was
+        # sich seither geaendert hat, auf einen Schlag.
+        stand_schreiben(jetzt)
+        return 0
+    for stack, text in ereignisse(vorher, jetzt):
+        melden(stack, text)
+    stand_schreiben(jetzt)
+    return 0
+
+
+def selbsttest() -> int:
+    schlecht = 0
+
+    def pruefe(b, was):
+        nonlocal schlecht
+        print(f"  {'ok    ' if b else 'FEHLER'} {was}")
+        if not b:
+            schlecht += 1
+
+    leer = {"spieler": 0, "max": 10, "name": "Valheim"}
+    voll = {"spieler": 2, "max": 10, "name": "Valheim"}
+    pruefe(ereignisse({"valheim": leer}, {"valheim": voll})[0][1].startswith("Jemand spielt"),
+           "leer -> jemand da meldet")
+    pruefe(ereignisse({"valheim": voll}, {"valheim": leer})[0][1].endswith("ist wieder leer."),
+           "jemand da -> leer meldet")
+    pruefe(ereignisse({"valheim": voll}, {"valheim": {**voll, "spieler": 5}}) == [],
+           "2 -> 5 Spieler meldet NICHT")
+    pruefe(ereignisse({}, {"valheim": voll}) == [],
+           "erster Blick auf einen Server meldet nicht")
+    pruefe(ereignisse({"valheim": voll}, {}) == [],
+           "verschwundener Messwert meldet nicht (Aussetzer ist kein leerer Server)")
+    pruefe("2/10" in ereignisse({"valheim": leer}, {"valheim": voll})[0][1],
+           "Meldung nennt Spielerzahl und Plaetze")
+    # Frische
+    import tempfile
+    tmp = Path(tempfile.mkdtemp())
+    globals()["SPIELER"] = tmp / "spieler.json"
+    jetzt_s = int(time.time())
+    SPIELER.write_text(json.dumps({
+        "frisch": {"spieler": 1, "max": 4, "zeit": jetzt_s - 20, "spiel": "Frisch"},
+        "alt": {"spieler": 1, "max": 4, "zeit": jetzt_s - 9999, "spiel": "Alt"},
+        "ohne": {"spieler": 1, "max": 4, "spiel": "Ohne Zeit"}}))
+    s = spieler()
+    pruefe("frisch" in s, "frischer Messwert kommt durch")
+    pruefe("alt" not in s, "veralteter Messwert faellt heraus")
+    # Der Fall, der es in Wirklichkeit zerlegt hat: "zeit" ist ein Zeitstempel.
+    pruefe(s.get("frisch", {}).get("spieler") == 1,
+           "Zeitstempel wird als Zeitstempel gelesen, nicht als Alter")
+    pruefe("ohne" not in s, "Messwert ohne Zeit faellt heraus")
+    globals()["KANAELE"] = tmp / "kanaele.json"
+    KANAELE.write_text(json.dumps({"discord": {"an": True, "ereignisse": False}}))
+    pruefe(an() is False, "Schalter aus -> nichts zu melden")
+    KANAELE.write_text(json.dumps({"discord": {"an": True, "ereignisse": True}}))
+    pruefe(an() is True, "Schalter an")
+    KANAELE.write_text(json.dumps({"discord": {"an": False, "ereignisse": True}}))
+    pruefe(an() is False, "ohne Kanaele keine Meldungen darin")
+    import shutil
+    shutil.rmtree(tmp)
+    print()
+    if schlecht:
+        print(f"{schlecht} FEHLER")
+        return 1
+    print("alles gruen.")
+    return 0
+
+
+if __name__ == "__main__":
+    if "--selbsttest" in sys.argv:
+        sys.exit(selbsttest())
+    sys.exit(lauf())

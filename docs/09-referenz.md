@@ -560,6 +560,30 @@ Umgebungsvariablen für Tests: `MODUL_KATALOG`, `MODUL_VORLAGEN`, `MODUL_STACKS`
 > a rollback if Caddy refuses — the brace count is not redundant, since validation
 > catches an unknown directive but not an unclosed brace at the end (measured).*
 
+### `platzwart-ereignisse`
+
+```
+platzwart-ereignisse [--selbsttest]
+```
+
+Vergleicht jede Minute die Spielerzahlen mit dem letzten Lauf
+(`/var/lib/platzwart-ereignisse.json`) und meldet den Wechsel zwischen leer und
+belegt über `kanal-verwalten ereignis` in den **Textkanal des Servers**. Aus,
+solange der Schalter bei den Discord-Kanälen nicht steht; der Stand wird
+trotzdem fortgeschrieben, damit das Einschalten nicht alles Aufgestaute auf
+einmal meldet.
+
+Nur frische Messwerte (`EREIGNIS_FRISCH`, 180 s). **`zeit` in
+`platzwart-spieler.json` ist ein Zeitstempel, kein Alter** — der erste Entwurf
+verglich ihn gegen die Sekundenzahl, jeder Server fiel heraus, und der
+Selbsttest merkte nichts, weil er dieselbe Annahme traf.
+
+> *Compares player counts to the previous run and reports the transition between
+> empty and occupied into the server's own channel; off until the switch is set,
+> but the state is carried forward so switching on does not report everything at
+> once. Fresh readings only — and `zeit` is a timestamp, not an age, which the
+> first draft got wrong while its self-test shared the assumption.*
+
 ### `platzwart-status`
 
 ```
@@ -1673,6 +1697,7 @@ Rechte `0600`, ein fehlender Wert bricht ab).
 | `panel.service` | dauerhaft | Weboberfläche, `User=panel`, uvicorn auf `127.0.0.1:8099` |
 | `ttyd.service` | dauerhaft | Webterminal, `User=<admin>`, `127.0.0.1:7681` |
 | `spiele-sicherung.timer` | `*:0/15`, ±60 s | Sicherung laufender Spiele (aus bei `BORG_REPO=aus`) |
+| `platzwart-ereignisse.timer` | jede Minute, versetzt zum Spielerzähler | meldet Beitritte in den Kanal des Servers; tut ohne Schalter nichts |
 | `platzwart-metriken.timer` | `*:0/5`, abschaltbar | Zahlen für Prometheus; **aus**, solange kein Modul installiert ist. Der Messabstand kommt aus einer Ergänzungsdatei (`30s`, `1min`, `5min`) |
 | `spiele-sicherung-voll.timer` | täglich 04:00, ±300 s | Vollsicherung samt `config-*`, `etc-*`, `panel-*` (aus bei `BORG_REPO=aus`) |
 | `spiel-einrichtung.timer` | alle 2 min, ab 3 min nach dem Start | Passwörter frischer Server setzen, Ports veröffentlichen |

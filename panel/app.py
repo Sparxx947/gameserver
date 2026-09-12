@@ -1755,6 +1755,10 @@ def discord_abschnitt(s: dict, zu: dict) -> str:
         + '<form method=post action=/integrationen/teamspeak style="margin-top:12px">' + csrf
           + '<input type=hidden name=was value=discord-einstellungen>'
           f'<label><input type=checkbox name=an value=1{" checked" if e["an"] else ""}> Kanäle automatisch anlegen und entfernen</label><br>'
+          f'<label><input type=checkbox name=ereignisse value=1{" checked" if e.get("ereignisse") else ""}> '
+          'Beitritte und „wieder leer“ in den Kanal des Servers melden</label> '
+          '<span class=z>Nur der Wechsel zwischen leer und belegt, nicht jede Zahl — '
+          'und nur bei frischen Messwerten, damit ein Aussetzer nicht „alle weg“ meldet.</span><br>'
           f'<label>Kategorie <input name=oberkanal value="{esc(e["kategorie"])}" maxlength=100></label> '
           f'<label>Name <input name=muster value="{esc(e["muster"])}" maxlength=40></label> '
           '<span class=z><code>{name}</code> steht für den Namen des Servers; Discord schreibt Kanalnamen klein.</span><br>'
@@ -1799,7 +1803,8 @@ def integrationen(request: Request, meldung: str = ""):
 @app.post("/integrationen/teamspeak")
 def integrationen_teamspeak(request: Request, csrf: str = Form(""), was: str = Form(""),
                             benutzer: str = Form(""), passwort: str = Form(""), an: str = Form(""),
-                            oberkanal: str = Form(""), muster: str = Form("")):
+                            oberkanal: str = Form(""), muster: str = Form(""),
+                            ereignisse: str = Form("")):
     s = pruefe(request, csrf)
     if not ist_admin(s):
         return RedirectResponse("/", 303)
@@ -1857,7 +1862,8 @@ def integrationen_teamspeak(request: Request, csrf: str = Form(""), was: str = F
         if "{name}" not in m or len(m) > 40 or any(ord(c) < 32 for c in m):
             return zurueck("Das Namensmuster muss {name} enthalten (höchstens 40 Zeichen).")
         vorher = kanaele_einstellung("discord")
-        neu = {"an": an == "1", "kategorie": o, "muster": m}
+        neu = {"an": an == "1", "kategorie": o, "muster": m,
+               "ereignisse": ereignisse == "1"}
         try:
             alles = json.loads(KANAELE_KONF.read_text())
         except (OSError, ValueError):

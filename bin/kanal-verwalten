@@ -421,6 +421,34 @@ def abgleich_ts() -> int:
 
 # --- Discord -----------------------------------------------------------------------
 
+def ereignis_melden(stack: str, text: str) -> int:
+    """Eine Nachricht in den Textkanal DIESES Servers (#282).
+
+    Nicht in den Stoerungskanal: Wer "wieder leer" lesen will, ist nicht, wer
+    einen Absturz sehen will. Gibt es fuer den Server keinen Kanal, passiert
+    nichts - ein Ausweichen in einen allgemeinen Kanal waere genau das
+    Dauerfeuer, das die Kanaele je Server vermeiden sollen.
+    *Into this server's own text channel, never the fault channel: whoever wants
+     "empty again" is not whoever wants to see a crash. Without a channel for the
+     server, nothing happens.*
+    """
+    zu = (lies_json(ZUORDNUNG, {}).get("discord") or {}).get(stack) or {}
+    kanal = (zu.get("text") or {}).get("id")
+    if not kanal:
+        print(f"kein Discord-Kanal fuer {stack}", file=sys.stderr)
+        return 1
+    z = discord_zugang()
+    if not z.get("DISCORD_TOKEN"):
+        print("kein Discord-Bot hinterlegt", file=sys.stderr)
+        return 1
+    try:
+        discord(z, "POST", f"/channels/{kanal}/messages", {"content": text[:1800]})
+    except Exception as e:
+        print(f"Discord: {e}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def discord_zugang() -> dict:
     d = {}
     try:
@@ -914,6 +942,8 @@ def main(a: list) -> int:
         return pruefen()
     if a[:1] == ["pruefen-discord"]:
         return pruefen_discord()
+    if a[:1] == ["ereignis"] and len(a) == 3:
+        return ereignis_melden(a[1], a[2])
     if a[:1] == ["abgleich"]:
         with open(SPERRE, "a") as sperre:
             fcntl.flock(sperre, fcntl.LOCK_EX)

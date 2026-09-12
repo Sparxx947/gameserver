@@ -1,0 +1,19 @@
+[Unit]
+Description=Platzwart: jede Minute nach Beitritten sehen
+
+[Timer]
+# Eine Minute, versetzt zum Spielerzaehler: Der schreibt zur vollen Minute, hier
+# wird gelesen. Gleichzeitig gelesen und geschrieben hiesse, mal den alten und
+# mal den neuen Stand zu sehen - und ein Ereignis eine Minute zu spaet zu melden
+# oder gar nicht.
+# *Offset from the player counter: reading while it writes would mean seeing the
+#  old state sometimes and reporting an event late or not at all.*
+OnBootSec=3min
+OnUnitActiveSec=1min
+AccuracySec=10s
+# Verpasste Laeufe NICHT nachholen: Eine Meldung "jemand spielt" von vor drei
+# Stunden ist keine Meldung, sondern eine Irritation.
+Persistent=false
+
+[Install]
+WantedBy=timers.target
