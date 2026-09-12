@@ -590,6 +590,24 @@ sagen Verschiedenes. Der Fall „fehlt" ist der gefährliche: Das Abbild legt da
 `DefaultPalWorldSettings.ini` an — ohne Passwort, bei offenem Spielport, also
 genau das, was E26 verbietet.
 
+Seit #289 gilt die Prüfung nicht nur für Palworld: Die Tabelle `SCHUTZ` in
+`platzwart-wache` trägt für **jeden** Server ein, woran sein Schutz hängt —
+`umgebung` (das Abbild wendet die compose-Umgebung an), `konfig` (eine eigene
+Konfigurationsdatei gilt) oder `unbestimmt` mit Grund. Ein Bauplan unter
+`stacks/` ohne Eintrag lässt `vollstaendigkeit.sh` scheitern, damit ein neuer
+handgebauter Server eine Entscheidung erzwingt statt lautlos durchzurutschen.
+Unbestimmt sind heute zwei: Satisfactory (Passwort wird im Spiel vergeben und
+liegt binär in `saved/ServerSettings.<port>.sav`; der Port geht nur nach
+Freigabe von Hand auf) und TeamSpeak (kein Beitrittspasswort, das Serverpasswort
+liegt in der TS3-Datenbank).
+
+> *Since #289 the check covers every server: the `SCHUTZ` table records what each
+> server's protection hangs on — `umgebung`, `konfig`, or `unbestimmt` with a
+> reason — and a blueprint under `stacks/` without an entry fails
+> `vollstaendigkeit.sh`, so a new hand-built server forces a decision.
+> Two are undeterminable today: Satisfactory (password assigned in-game, stored
+> binary, port opened only by manual release) and TeamSpeak (no join password).*
+
 `RCON_ENABLED`/`RCON_PORT` standen bis #286 ebenfalls im Stack und versprachen
 einen Dienst, den es nie gab (`RCONEnabled=False` in der ini, nichts lauschte
 auf 25575). Sie sind entfernt; RCON ist im Abbild ohnehin abgekündigt. Wer

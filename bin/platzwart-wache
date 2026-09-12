@@ -69,13 +69,44 @@ HARMLOS = {0, 143}
 #  ini agree today because someone aligned them by hand, and nothing keeps them
 #  that way. A missing ini is replaced by the password-less default while the
 #  game port is open - exactly what E26 forbids.*
-KONFIG_GILT = {
+# Je Server: woran haengt sein Schutz, und wie laesst er sich messen? Der
+# Eintrag ist Pflicht (vollstaendigkeit.sh prueft es), damit ein neuer
+# handgebauter Stack eine Entscheidung erzwingt statt lautlos durchzurutschen -
+# die Einrichtungspruefung unten sah nur Server mit panel.json an, also einen
+# von sieben (#289).
+#   "umgebung"    - das Abbild wendet die compose-Umgebung an; dort muss das
+#                   Feld gesetzt und nicht leer sein.
+#   "konfig"      - es gilt eine eigene Konfigurationsdatei (siehe oben).
+#   "unbestimmt"  - von aussen nicht messbar. Meldet NIE, braucht aber einen
+#                   Grund: Ein unbeantwortbarer Fall soll benannt sein, nicht
+#                   vergessen. Eine Dauermeldung waere Laerm und keine Pruefung.
+# *Per server: what its protection hangs on and how to measure it. The entry is
+#  mandatory (checked by vollstaendigkeit.sh) so a new hand-built stack forces a
+#  decision instead of slipping through - the setup check below only looked at
+#  servers with a panel.json, one of seven (#289). "unbestimmt" never reports
+#  but must carry a reason: an unanswerable case should be named, not forgotten.*
+SCHUTZ = {
+    "enshrouded": {"art": "umgebung", "feld": "SERVER_ROLE_1_PASSWORD",
+                   "was": "Beitrittspasswort der Rolle \"Freunde\""},
+    "foundry": {"art": "umgebung", "feld": "SERVER_PWD", "was": "Beitrittspasswort"},
     "palworld": {
+        "art": "konfig",
         "datei": "/srv/games/palworld/Pal/Saved/Config/LinuxServer/PalWorldSettings.ini",
         "grund": "DISABLE_GENERATE_SETTINGS=true - das Abbild wendet keine Env-Werte an",
         "paare": [("Beitrittspasswort", "ServerPassword", "SERVER_PASSWORD"),
                   ("Adminpasswort", "AdminPassword", "ADMIN_PASSWORD")],
     },
+    "satisfactory": {"art": "unbestimmt",
+                     "grund": "Das Passwort wird im Spiel vergeben und liegt in "
+                              "saved/ServerSettings.<port>.sav - eine Binaerdatei. "
+                              "Der Spielport geht hier nur nach einer Freigabe von "
+                              "Hand auf (#183)."},
+    "teamspeak": {"art": "unbestimmt",
+                  "grund": "Sprachserver ohne Beitrittspasswort (Katalog: art keins). "
+                           "Ein Serverpasswort setzt man im Client; es liegt in der "
+                           "TS3-Datenbank, nicht in einer lesbaren Konfiguration."},
+    "valheim": {"art": "umgebung", "feld": "SRV_PWD", "was": "Beitrittspasswort"},
+    "windrose": {"art": "umgebung", "feld": "SERVER_PASSWORD", "was": "Beitrittspasswort"},
 }
 
 
@@ -85,8 +116,31 @@ def wert_ini(text: str, schluessel: str) -> str:
 
 
 def wert_compose(text: str, schluessel: str) -> str:
-    m = re.search(rf'^\s*{schluessel}:\s*"?([^"\n]*)', text, re.M)
-    return m.group(1).strip() if m else ""
+    """Wert aus einer compose-Datei - BEIDE Schreibweisen der Umgebung.
+
+    compose kennt `KEY: wert` (Abbildung) und `- KEY=wert` (Liste). Ein Muster
+    fuer nur eine davon findet nichts und meldet damit "Passwort fehlt", wo
+    eines steht: Enshrouded benutzt die Listenform. Genau daran ist am
+    2026-09-12 schon eine Maske gescheitert, die ein Passwort durchliess.
+    *compose has both a mapping and a list form; a pattern for one of them finds
+     nothing and would report a missing password where one exists.*
+    """
+    m = re.search(rf'^\s*{schluessel}:\s*"?([^"\n]*)', text, re.M) or \
+        re.search(rf'^\s*-\s*{schluessel}=\s*"?([^"\n]*)', text, re.M)
+    return m.group(1).strip().rstrip('"') if m else ""
+
+
+def umgebung_befund(stack: str, regel: dict, compose: str) -> str:
+    """Steht das Passwort, von dem der Schutz dieses Servers abhaengt, wirklich da?
+
+    Nennt nie den Wert, nur ob er fehlt. *Never names the value.*
+    """
+    if not wert_compose(compose, regel["feld"]):
+        return (f"**{stack}**: {regel['was']} fehlt in der compose-Datei "
+                f"({regel['feld']} ist leer oder gar nicht gesetzt).\n\n"
+                "Dieses Abbild nimmt das Passwort aus der Umgebung - ohne den Wert "
+                "steht der Server ohne Passwort am offenen Port (E26).")
+    return ""
 
 
 def konfig_befund(stack: str, regel: dict, compose: str, ini) -> str:
@@ -388,7 +442,9 @@ def lage() -> dict:
     # einer von sieben. Handgebaute Stacks pruefte niemand (#286).
     # *The watchdog only looked at catalogue servers with a panel.json - one of
     #  seven. Hand-built stacks were checked by nobody.*
-    for stack, regel in KONFIG_GILT.items():
+    for stack, regel in SCHUTZ.items():
+        if regel["art"] == "unbestimmt":
+            continue
         cdatei = STACKS / stack / "compose.yaml"
         if not cdatei.exists():
             continue
@@ -396,12 +452,15 @@ def lage() -> dict:
             compose = cdatei.read_text()
         except OSError:
             continue
-        idatei = Path(regel["datei"])
-        try:
-            ini = idatei.read_text() if idatei.exists() else None
-        except OSError:
-            continue
-        text = konfig_befund(stack, regel, compose, ini)
+        if regel["art"] == "umgebung":
+            text = umgebung_befund(stack, regel, compose)
+        else:
+            idatei = Path(regel["datei"])
+            try:
+                ini = idatei.read_text() if idatei.exists() else None
+            except OSError:
+                continue
+            text = konfig_befund(stack, regel, compose, ini)
         if text:
             funde[f"konfig:{stack}"] = text
 
@@ -485,6 +544,32 @@ def main() -> int:
                   f"{'meldet' if text else 'still '}   "
                   f"(erwartet: {'meldet' if soll else 'still'})")
             schlecht += 0 if ok else 1
+        # Die zweite Regelart: Passwort in der Umgebung.
+        ureg = {"art": "umgebung", "feld": "SERVER_PWD", "was": "Beitrittspasswort"}
+        umgebungsproben = [
+            ('      SERVER_PWD: "Xq7geheimXq7"\n', False, "gesetzt"),
+            ('      SERVER_PWD: ""\n', True, "leer"),
+            ('      SERVER_PWD:\n', True, "ohne Wert"),
+            ('      PORT: 3724\n', True, "gar nicht da"),
+            ('      - SERVER_PWD=Xq7geheimXq7\n', False, "Listenschreibweise"),
+        ]
+        for compose, soll, was in umgebungsproben:
+            text = umgebung_befund("probe", ureg, compose)
+            ok = bool(text) == soll
+            print(f"  {'ok ' if ok else 'FEHLER'}  {was:<20} -> "
+                  f"{'meldet' if text else 'still '}   "
+                  f"(erwartet: {'meldet' if soll else 'still'})")
+            schlecht += 0 if ok else 1
+        # Jeder Stack aus stacks/ braucht eine Regel - sonst sieht die Wache ihn
+        # nicht an, und das faellt niemandem auf (#289). Geprueft wird das im
+        # Repositorium (vollstaendigkeit.sh); hier nur, dass jede Regel vollstaendig ist.
+        for stack, rg in SCHUTZ.items():
+            fehlt = ("grund" not in rg if rg["art"] == "unbestimmt"
+                     else "feld" not in rg if rg["art"] == "umgebung"
+                     else "paare" not in rg or "datei" not in rg)
+            print(f"  {'FEHLER' if fehlt else 'ok '}  Regel {stack:<14} ({rg['art']})")
+            schlecht += 1 if fehlt else 0
+
         # Und: in keiner Meldung darf ein Passwort stehen.
         laut = konfig_befund("probe", regel, cja, 'ServerPassword="Zr9fremdZr9"')
         ok = "Xq7geheimXq7" not in laut and "Zr9fremdZr9" not in laut

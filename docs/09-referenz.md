@@ -625,7 +625,7 @@ Alle fünf Minuten: Was stimmt gerade nicht? Verglichen mit dem letzten Lauf
 | Arbeitsspeicher knapp | ≥ 85 % belegt (`WACHE_SPEICHER_WARN`), Summe der Grenzen im Text |
 | Einrichtung nicht abgeschlossen | Katalogserver mit offener Einrichtung — der Port ist zu |
 | eigener Dienst fehlgeschlagen | `spiele-*`, `platzwart-*`, `spiel-*`, `sicherung-*`, Panel, Caddy, ttyd, Palworld-Neustart — mit den letzten Journalzeilen |
-| compose-Datei gilt nicht | Server aus `KONFIG_GILT` (heute Palworld): Spielkonfiguration fehlt, Passwort dort leer, oder compose und Konfiguration sagen Verschiedenes — die Meldung nennt nie einen Wert |
+| Server ohne Passwortschutz | **jeder** Stack aus der Tabelle `SCHUTZ`: bei `umgebung` fehlt oder leert das Passwortfeld der compose-Datei, bei `konfig` (Palworld) fehlt die Spielkonfiguration, ist das Passwort dort leer oder sagen beide Seiten Verschiedenes. `unbestimmt` meldet nie, braucht aber einen Grund. Keine Meldung nennt je einen Wert |
 
 `--trocken` zeigt die Lage, ohne zu melden; `--selbsttest` spielt Vergleich,
 Speicher- und Schleifenprüfung mit erfundenen Zahlen durch, je Fall still und
@@ -637,10 +637,11 @@ laut. Exit 1 nur, wenn das Melden selbst scheiterte.
 > crashed containers (any exit except 0 and 143), restart loops (at least three
 > restarts and restarting or up for under ten minutes), failing health checks,
 > disk and memory at 85 %, unfinished setup (port closed), failed units of
-> this project with their last journal lines, and servers whose compose file
-> does not govern (Palworld: the image applies no env vars, so a missing,
-> password-less or diverging game configuration is reported — never with a
-> value in the message). `--trocken` shows without
+> this project with their last journal lines, and servers without password
+> protection — every stack in the `SCHUTZ` table, either by its compose
+> environment field or, for Palworld, by the game configuration that actually
+> governs; `unbestimmt` entries never report but must carry a reason, and no
+> message ever names a value. `--trocken` shows without
 > reporting; `--selbsttest` runs the decisions on made-up numbers, one silent
 > and one loud case each. Exit 1 only if reporting itself failed.*
 
@@ -1962,6 +1963,7 @@ einen Lauf oder in einer Unit zu ändern, ohne das Werkzeug anzufassen.
 | `PLATZWART_PORTPRUEFUNG=aus` | an | `katalog-ports.py` | Portprüfung abschalten — nur, wenn man weiß, warum |
 | `PLATZWART_DOKU_ENGLISCH=aus` | an | `doku-englisch.py` | Prüfung auf englische Absätze abschalten |
 | `PLATZWART_KEIN_AUSSCHLUSS_GATE=1` | aus | `vollstaendigkeit.sh` | Prüfung der Katalog-Sicherungsausschlüsse überspringen |
+| `PLATZWART_KEIN_SCHUTZ_GATE=1` | aus | `vollstaendigkeit.sh` | Prüfung überspringen, ob die Wache jeden Stack aus `stacks/` kennt |
 | `PLATZWART_KEIN_SYSTEMCTL_GATE=1` | aus | `vollstaendigkeit.sh` | Prüfung, ob Selbsttests das System anfassen, überspringen |
 | `GAMESERVER_KEIN_GATE=1` | aus | `pre-commit` | Commit trotz roter Vollständigkeitsprüfung |
 | `PLATZWART_MIT_SUDO=1` | aus | `ziel.sh` | sudo-Weg erzwingen |
