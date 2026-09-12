@@ -37,6 +37,7 @@ from pathlib import Path
 
 ZIEL = Path(os.environ.get("STATUS_ZIEL", "/var/lib/platzwart-status"))
 ADRESSEN = Path("/etc/spiele-adressen.json")
+PAKETE = Path(os.environ.get("STATUS_PAKETE", "/var/lib/platzwart-modpakete"))
 SPIELER = Path("/var/lib/platzwart-spieler.json")
 STACKS = Path("/opt/stacks")
 SPIELER_FRISCH_S = 180
@@ -108,7 +109,11 @@ def sammeln() -> list:
             continue
         raus.append({"name": name, "an": name in an, "host": host,
                      "port": port, "hinweis": hinweis,
-                     "spieler": sp.get(name)})
+                     "spieler": sp.get(name),
+                     # Nur was ausdruecklich freigegeben ist (#280). Die Seite
+                     # kuendigt nichts an, was nicht jemand freigegeben hat -
+                     # dieselbe Regel wie beim Port ohne Passwort.
+                     "modpaket": (PAKETE / f"{name}.zip").exists()})
     return raus
 
 
@@ -245,6 +250,13 @@ def bauen() -> str:
             zeilen.append(f'<div class=h><code>{e(ziel)}</code></div>')
             if s["hinweis"]:
                 zeilen.append(f'<div class=h>{e(s["hinweis"])}</div>')
+            if s.get("modpaket"):
+                # Genau die Dateien, die dieser Server faehrt - bei Valheim ist
+                # das der Unterschied zwischen "kommt herein" und "kommt nicht
+                # herein", weil Mods dieselbe Fassung brauchen.
+                zeilen.append('<div class=h><a href="/modpaket/'
+                              f'{e(s["name"])}.zip">Modpaket herunterladen</a>'
+                              ' <span class=z>(die Mods dieses Servers)</span></div>')
         zeilen.append("</div>")
     # Die Uhrzeit gehoert dazu: Eine Statusseite ohne Alter ist eine Behauptung.
     # Steht der Zeitgeber, sieht man es an der Uhrzeit - sonst liest man einen

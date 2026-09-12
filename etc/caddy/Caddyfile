@@ -134,6 +134,32 @@
 		file_server
 	}
 
+	# --- Modpakete fuer Mitspieler (#280) --------------------------------
+	# Oeffentlich und ohne Anmeldung: Mitspieler sollen die Dateien holen
+	# koennen, ohne ein Konto zu bekommen - dieselbe Ueberlegung wie bei der
+	# Statusseite. Hier liegt NUR, was der Betreiber ausdruecklich freigegeben
+	# hat; ohne Freigabe ist das Verzeichnis leer und die Route liefert 404.
+	#
+	# Kein "browse": Ein Verzeichnislisting waere eine Einladung, sich
+	# umzusehen. Wer den Namen des Servers kennt, bekommt sein Paket.
+	#
+	# *Public on purpose: players should not need an account, as with the status
+	#  page. Only what the operator explicitly released lies here, and without a
+	#  release the route returns 404. No browse: a listing would be an invitation
+	#  to look around.*
+	handle /modpaket/* {
+		header {
+			Strict-Transport-Security "max-age=31536000; includeSubDomains"
+			X-Content-Type-Options "nosniff"
+			Referrer-Policy "no-referrer"
+			Content-Security-Policy "default-src 'none'; sandbox"
+			-Server
+		}
+		root * /var/lib/platzwart-modpakete
+		uri strip_prefix /modpaket
+		file_server
+	}
+
 	# --- Zusatzmodule (#261) ---------------------------------------------
 	# Erzeugt von modul-verwalten: je installiertem Modul ein handle-Block mit
 	# forward_auth gegen das Panel. Ohne Modul ist die Datei leer.

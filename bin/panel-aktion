@@ -27,6 +27,7 @@
 #   panel-aktion konfig-datei-schreiben <stack> <relpfad>     (Inhalt ueber stdin)
 #   panel-aktion whitelist <stack> <liste|hinzu|weg> [spieler]
 # Mods:
+#   panel-aktion modpaket <bauen|weg> <stack> | modpaket stand
 #   panel-aktion mod-annehmen <stack> <dateiname>             (Datei ueber stdin)
 #   panel-aktion mod-entfernen <stack> <name>
 #   panel-aktion workshop <kann|liste|pruefen|suche|hinzu|weg> <stack> [...]
@@ -525,6 +526,20 @@ except Exception:
     sort -u "$tmp" > "$liste"; rm -f "$tmp"
     chmod 600 "$liste"
     echo "ok	auto-update fuer $s: $wert"
+    ;;
+  modpaket)
+    # Das Modpaket fuer Mitspieler (#280). "bauen" ist eine FREIGABE: Die Datei
+    # ist danach oeffentlich abrufbar, ohne Anmeldung - deshalb eine eigene
+    # Aktion mit eigener Bestaetigungsseite und nicht ein Nebeneffekt des
+    # Hochladens.
+    # *Building is a release: the file is then public, so it gets its own action
+    #  and its own confirmation page rather than being a side effect of upload.*
+    case "${2:-}" in
+      bauen)    s="${3:-}"; pruefe_stack "$s"; exec /usr/local/bin/mod-verwalten paket "$s" ;;
+      weg)      s="${3:-}"; pruefe_stack "$s"; exec /usr/local/bin/mod-verwalten paket-weg "$s" ;;
+      stand)    exec /usr/local/bin/mod-verwalten paket-stand ;;
+      *) fehler "unbekannte Paketaktion" ;;
+    esac
     ;;
   mod-ziel|mod-liste)
     # Lesend, deshalb wie die anderen Auskuenfte ohne weitere Schranke.

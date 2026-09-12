@@ -678,6 +678,24 @@ Verzeichnis unter einen Sicherungsausschluss fällt (Borgs Musterregel).
 > taken from the target directory. `ziel` tells whether the directory falls under
 > a backup exclusion.*
 
+#### Modpaket (#280)
+
+```
+mod-verwalten paket <stack>        packen und freigeben
+mod-verwalten paket-weg <stack>    Freigabe zuruecknehmen
+mod-verwalten paket-stand [stack]  was freigegeben ist
+```
+
+Packt das Modverzeichnis nach `/var/lib/platzwart-modpakete/<stack>.zip`
+(`0644`), Stand daneben als `.json`. **Verknüpfungen werden ausgelassen** und im
+Stand benannt; ein leeres Verzeichnis wird abgewiesen statt ein leeres Paket zu
+erzeugen. Nach `annehmen` und `entfernen` packt das Werkzeug selbst neu, sofern
+freigegeben. Caddy liefert das Verzeichnis unter `/modpaket/` ohne Listing.
+
+> *Packs the mod directory into a zip with its state beside it; symlinks are left
+> out and named, an empty directory is refused rather than producing an empty
+> package, and uploads or removals repack automatically while released.*
+
 ### `workshop`
 
 ```

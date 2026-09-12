@@ -13,6 +13,9 @@ KEINER Steam-Workshop-Unterstuetzung, die uns nuetzt.
   mod-verwalten ziel  <stack>            wohin ginge es, und ist es gesichert?
   mod-verwalten annehmen <stack> <name>  liest die Datei von stdin
   mod-verwalten entfernen <stack> <name>
+  mod-verwalten paket <stack>            Modpaket fuer Mitspieler bauen
+  mod-verwalten paket-weg <stack>        Freigabe zuruecknehmen
+  mod-verwalten paket-stand [<stack>]    was freigegeben ist
   mod-verwalten --selbsttest
 
 == Wogegen hier gebaut wird ==
@@ -37,6 +40,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import zipfile
 from pathlib import Path
 
@@ -238,6 +242,93 @@ def annehmen(stack: str, name: str) -> int:
     return 0
 
 
+PAKETE = Path(os.environ.get("MOD_PAKETE", "/var/lib/platzwart-modpakete"))
+
+
+def paket_stand(stack: str) -> dict:
+    try:
+        return json.loads((PAKETE / f"{stack}.json").read_text())
+    except Exception:
+        return {}
+
+
+def paket_bauen(stack: str, ruhig=False) -> int:
+    """Packt das Modverzeichnis des Servers fuer Mitspieler.
+
+    Eine Freigabe, kein Automatismus: Das Paket verlaesst die Maschine und ist
+    fuer jeden abrufbar, der den Link hat - dieselbe Entscheidung wie bei einem
+    Server ohne Beitrittspasswort (E26). Deshalb baut diese Funktion nur, wenn
+    freigegeben wurde, und der Aufruf ohne Freigabe legt sie an.
+
+    Gepackt wird NUR das Modverzeichnis aus etc/spiele-mods.json, nie ein
+    geratener Pfad - und keine Symlinks: Ein Link im Archiv zeigt beim Auspacken
+    irgendwohin, und was hier hineingeraet, liegt oeffentlich.
+
+    *A release, not an automatism: the package leaves the machine and is fetchable
+     by anyone with the link - the same decision as a server without a join
+     password. Only the mod directory from the catalogue is packed, never a
+     guessed path, and never symlinks: a link in an archive points anywhere on
+     extraction, and what lands here lies in the open.*
+    """
+    pfad, grund = ziel_von(stack)
+    if not pfad:
+        fehler(grund)
+    if not pfad.is_dir():
+        fehler(f"{stack}: das Modverzeichnis {pfad} gibt es nicht - erst einen Mod hochladen")
+    PAKETE.mkdir(parents=True, exist_ok=True)
+    PAKETE.chmod(0o755)
+    ziel = PAKETE / f"{stack}.zip"
+    tmp = PAKETE / f"{stack}.zip.neu"
+    dateien, bytes_gesamt, uebersprungen = 0, 0, []
+    with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as z:
+        for d in sorted(pfad.rglob("*")):
+            if d.is_symlink():
+                uebersprungen.append(str(d.relative_to(pfad)))
+                continue
+            if not d.is_file():
+                continue
+            z.write(d, d.relative_to(pfad))
+            dateien += 1
+            bytes_gesamt += d.stat().st_size
+    if dateien == 0:
+        tmp.unlink(missing_ok=True)
+        fehler(f"{stack}: im Modverzeichnis liegt keine Datei - nichts zu verteilen")
+    tmp.chmod(0o644)
+    tmp.rename(ziel)
+    stand = {"stack": stack, "freigegeben": True, "zeit": int(time.time()),
+             "dateien": dateien, "bytes": bytes_gesamt, "quelle": str(pfad),
+             "uebersprungen": uebersprungen}
+    (PAKETE / f"{stack}.json").write_text(json.dumps(stand, indent=2))
+    (PAKETE / f"{stack}.json").chmod(0o644)
+    if not ruhig:
+        hinweis = f"\t{len(uebersprungen)} Verknuepfung(en) ausgelassen" if uebersprungen else ""
+        print(f"ok\t{stack}\t{dateien} Dateien\t{ziel.stat().st_size} Bytes{hinweis}")
+    return 0
+
+
+def paket_weg(stack: str) -> int:
+    """Freigabe zuruecknehmen - Datei UND Stand weg. Bliebe die Datei liegen,
+    waere sie weiter abrufbar, waehrend die Oberflaeche 'nicht freigegeben' sagt."""
+    weg = False
+    for name in (f"{stack}.zip", f"{stack}.json"):
+        p = PAKETE / name
+        if p.exists():
+            p.unlink()
+            weg = True
+    print(f"ok\t{stack}\t" + ("Freigabe zurueckgenommen" if weg else "war nicht freigegeben"))
+    return 0
+
+
+def paket_zeigen(stack: str = "") -> int:
+    PAKETE.mkdir(parents=True, exist_ok=True)
+    for p in sorted(PAKETE.glob("*.json")):
+        d = json.loads(p.read_text())
+        if stack and d.get("stack") != stack:
+            continue
+        print(f"{d['stack']}\t{d.get('dateien', 0)}\t{d.get('bytes', 0)}\t{d.get('zeit', 0)}")
+    return 0
+
+
 def liste(stack: str) -> int:
     ziel, grund = ziel_von(stack)
     if ziel is None:
@@ -296,6 +387,42 @@ def main() -> int:
             else:
                 print(f"  FEHLER  {titel:32} {name!r} -> {ist} ({grund})")
                 schlecht += 1
+        # Paket: packt Dateien, laesst Verknuepfungen aus, leert sich wieder.
+        # Die Namen werden ueber globals() gesetzt und NICHT bloss benutzt: Der
+        # Selbsttest weiter unten deklariert dieselben Namen als global, und
+        # Python verbietet eine Benutzung vor der Deklaration im selben Rumpf.
+        import tempfile as _tp
+        _tmp = Path(_tp.mkdtemp())
+        _pakete, _spiele, _konf = _tmp / "pakete", _tmp / "games", _tmp / "mods.json"
+        globals()["PAKETE"], globals()["GAMES"], globals()["KONF"] = _pakete, _spiele, _konf
+        (_spiele / "probe" / "mods").mkdir(parents=True)
+        (_spiele / "probe" / "mods" / "a.dll").write_text("eins")
+        (_spiele / "probe" / "mods" / "b.dll").write_text("zwei")
+        (_spiele / "probe" / "mods" / "link.dll").symlink_to("/etc/passwd")
+        _konf.write_text(json.dumps({"mods": {"probe": {"pfad": "mods"}}}))
+        paket_bauen("probe", ruhig=True)
+        import zipfile as _zf
+        with _zf.ZipFile(_pakete / "probe.zip") as z:
+            namen = sorted(z.namelist())
+        if namen == ["a.dll", "b.dll"]:
+            print("  ok      Paket enthaelt die Dateien und KEINE Verknuepfung")
+        else:
+            print(f"  FEHLER  Paket enthaelt {namen}")
+            schlecht += 1
+        if paket_stand("probe").get("uebersprungen") == ["link.dll"]:
+            print("  ok      ausgelassene Verknuepfung wird benannt")
+        else:
+            print("  FEHLER  ausgelassene Verknuepfung fehlt im Stand")
+            schlecht += 1
+        paket_weg("probe")
+        if not (_pakete / "probe.zip").exists() and not paket_stand("probe"):
+            print("  ok      Freigabe zuruecknehmen entfernt Datei und Stand")
+        else:
+            print("  FEHLER  nach der Ruecknahme liegt noch etwas da")
+            schlecht += 1
+        import shutil as _sh
+        _sh.rmtree(_tmp)
+
         # Gegenprobe: Eine Pruefung, die ALLES abweist, prueft nichts.
         erlaubt = sum(1 for n, s, _ in faelle if eintrag_erlaubt(n)[0])
         if erlaubt == 3:
@@ -347,9 +474,26 @@ def main() -> int:
             print(f"  Hinweis:   {hinweis}")
         return 0
     if befehl == "annehmen" and len(a) >= 3:
-        return annehmen(stack, a[2])
+        rc = annehmen(stack, a[2])
+        if rc == 0 and paket_stand(stack).get("freigegeben"):
+            paket_bauen(stack, ruhig=True)
+        return rc
     if befehl == "entfernen" and len(a) >= 3:
-        return entfernen(stack, a[2])
+        # Ein entfernter Mod gehoert nicht mehr ins Paket - sonst laedt ein
+        # Mitspieler weiter eine Datei, die der Server nicht mehr hat, und
+        # kommt genau deswegen nicht mehr herein.
+        # *A removed mod must leave the package, or players keep installing a
+        #  file the server no longer has and cannot join because of it.*
+        rc = entfernen(stack, a[2])
+        if rc == 0 and paket_stand(stack).get("freigegeben"):
+            paket_bauen(stack, ruhig=True)
+        return rc
+    if befehl == "paket" and stack:
+        return paket_bauen(stack)
+    if befehl == "paket-weg" and stack:
+        return paket_weg(stack)
+    if befehl == "paket-stand":
+        return paket_zeigen(stack)
     return 2
 
 
