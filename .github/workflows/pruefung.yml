@@ -66,7 +66,13 @@ jobs:
               0) printf 'ok             %s\n' "$w" ;;
               2) printf 'uebersprungen  %s (hier nicht pruefbar)\n' "$w" ;;
               *) printf 'FEHLGESCHLAGEN %s (Exit %s)\n' "$w" "$rc"
-                 sed 's/^/    /' /tmp/st.log | tail -20
+                 # Die GANZE Ausgabe, nicht nur ihr Ende: Selbsttests melden den
+                 # Fehlschlag dort, wo er auftritt, und danach laufen sie weiter.
+                 # Ein "tail" zeigte deshalb zwanzig Zeilen "ok" und verschwieg
+                 # die eine, auf die es ankam.
+                 # *The whole output: a self-test reports the failure where it
+                 #  happens and keeps going, so a tail showed only "ok" lines.*
+                 sed 's/^/    /' /tmp/st.log
                  schlecht=$((schlecht + 1)) ;;
             esac
           done
