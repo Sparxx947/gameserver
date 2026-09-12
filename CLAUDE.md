@@ -204,11 +204,18 @@ von `abgleich.sh`, typische Fehler in `app.py` — und ob jeder Abschnitt der
 Dokumentation seinen englischen Absatz hat. Die vollständige Liste steht in
 `docs/09-referenz.md`.
 
-Als automatische Bremse:
+Als automatische Bremse — **beide Haken**:
 
 ```bash
 ln -sf ../../werkzeuge/git-hooks/pre-commit .git/hooks/pre-commit
+ln -sf ../../werkzeuge/git-hooks/pre-push   .git/hooks/pre-push
 ```
+
+Der zweite hält einen Push auf `main` auf. Die Regel stand seit Monaten hier und
+wurde von nichts durchgesetzt; am 2026-09-12 ist genau das passiert, was sie
+verhindern soll: Nach einem Merge stand der Arbeitszweig wieder auf `main`, die
+nächste Arbeit landete dort und ging durch (#283). Vorbei, wenn es sein muss —
+das Wiki kennt keine Pull Requests: `GIT_PUSH_MAIN_OK=1 git push`.
 
 Bewusst als Symlink und **nicht** über `git config core.hooksPath` — das ersetzt
 das gesamte Hook-Verzeichnis und schaltet vorhandene Haken ab.
@@ -217,8 +224,12 @@ das gesamte Hook-Verzeichnis und schaltet vorhandene Haken ab.
 > secrets and placeholders, and also catalogue ports, categories and artwork,
 > docs against catalogue and routes, the comparison list, typical `app.py`
 > mistakes and whether every documentation section has its English paragraph.
-> Wire it in as a symlinked pre-commit hook, never via `core.hooksPath`, which
-> would replace the entire hooks directory.*
+> Wire both in as symlinked hooks, never via `core.hooksPath`, which would
+> replace the entire hooks directory. The second one refuses a push to `main`:
+> the rule lived here for months with nothing enforcing it, and on 2026-09-12
+> exactly what it forbids happened — after a merge the working branch was `main`
+> again and the next piece of work went straight there (#283). Bypass with
+> `GIT_PUSH_MAIN_OK=1` where there is no pull request, as in the wiki.*
 
 ---
 

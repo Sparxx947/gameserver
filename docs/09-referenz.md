@@ -1629,6 +1629,24 @@ Präfix und werden am Ende entfernt; der Token kommt aus einer Datei oder
 > file, prefixes every test record randomly and removes it afterwards; the token
 > comes from a file or an environment variable, never from argv.*
 
+### `git-hooks/pre-push`
+
+```bash
+ln -sf ../../werkzeuge/git-hooks/pre-push .git/hooks/pre-push
+```
+
+Lehnt einen Push auf `main` oder `master` ab und nennt den Weg: Issue, Zweig,
+Pull Request. Vorbei mit `GIT_PUSH_MAIN_OK=1` — das Wiki hat keine Pull Requests
+und braucht ihn.
+
+Warum es ihn gibt: Die Regel stand in CLAUDE.md und wurde von nichts geprüft.
+Der Ausrutscher ist immer derselbe — nach einem Merge steht der Arbeitszweig
+wieder auf `main`, und die nächste Arbeit landet dort (#283).
+
+> *Refuses a push to main or master and names the way round it. It exists because
+> the rule was written down and never checked, and the slip is always the same:
+> after a merge the working branch is main again.*
+
 ### `git-hooks/pre-commit`
 
 ```bash
