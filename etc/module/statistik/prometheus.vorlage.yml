@@ -14,16 +14,17 @@ global:
 scrape_configs:
   - job_name: maschine
     static_configs:
-      - targets: ["node-exporter:9100"]
+      # Alles laeuft im Netz der Maschine und lauscht auf 127.0.0.1 (#275).
+      - targets: ["127.0.0.1:19100"]
 
   - job_name: prometheus
     static_configs:
-      - targets: ["localhost:9090"]
+      - targets: ["127.0.0.1:19090"]
 
 # >>> schalter:cadvisor
   - job_name: container
     static_configs:
-      - targets: ["cadvisor:8080"]
+      - targets: ["127.0.0.1:19080"]
 # <<< schalter:cadvisor
 
 # >>> schalter:probe
@@ -39,5 +40,27 @@ scrape_configs:
       - source_labels: [__param_target]
         target_label: instance
       - target_label: __address__
-        replacement: blackbox:9115
+        replacement: 127.0.0.1:19115
+
+  # Die Statusseite ueber HTTPS - nicht wegen der Seite, sondern wegen des
+  # Zertifikats: Der Abruf liefert dessen Ablaufdatum. Geprueft wird /status,
+  # weil die Seite oeffentlich ist; jede andere Adresse antwortete mit 401 und
+  # der Abruf gaelte als Fehlschlag.
+  # *The status page over HTTPS - for the certificate's expiry date, not the
+  #  page. /status because it is public; anything else answers 401 and the probe
+  #  would count as failed.*
+  - job_name: zertifikat
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets: ["https://@@PANEL_DOMAIN@@/status"]
+        labels: {ziel: Panel}
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: 127.0.0.1:19115
 # <<< schalter:probe

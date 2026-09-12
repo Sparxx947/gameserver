@@ -1,7 +1,7 @@
 {
   "uid": "platzwart-server",
   "title": "Spielserver",
-  "description": "Spieler, Speicher, Platte und Sicherungen je Server. Quelle: platzwart-metriken.",
+  "description": "Spieler, Verbrauch, Platte und Erreichbarkeit je Server. Quellen: platzwart-metriken, blackbox.",
   "tags": [
     "platzwart"
   ],
@@ -11,7 +11,7 @@
   "refresh": "1m",
   "editable": true,
   "time": {
-    "from": "now-24h",
+    "from": "now-6h",
     "to": "now"
   },
   "timepicker": {},
@@ -19,11 +19,55 @@
     "list": []
   },
   "templating": {
-    "list": []
+    "list": [
+      {
+        "name": "stack",
+        "label": "Server",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "platzwart-prometheus"
+        },
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "query": {
+          "query": "label_values(platzwart_server_laeuft, stack)",
+          "refId": "A"
+        },
+        "definition": "label_values(platzwart_server_laeuft, stack)",
+        "sort": 1,
+        "options": [],
+        "hide": 0
+      }
+    ]
   },
   "panels": [
     {
       "id": 1,
+      "type": "row",
+      "title": "Auf einen Blick",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": 2,
       "title": "Spieler jetzt",
       "type": "stat",
       "datasource": {
@@ -42,9 +86,9 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 6,
+        "w": 4,
         "x": 0,
-        "y": 0
+        "y": 1
       },
       "targets": [
         {
@@ -53,62 +97,11 @@
             "uid": "platzwart-prometheus"
           },
           "editorMode": "code",
-          "expr": "sum(platzwart_spieler)",
+          "expr": "sum(platzwart_spieler{stack=~\"$stack\"})",
           "legendFormat": "Spieler",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "auto"
-      }
-    },
-    {
-      "id": 2,
-      "title": "Server laufen",
-      "type": "stat",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "platzwart-prometheus"
-      },
-      "description": "",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": []
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 6,
-        "y": 0
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "platzwart-prometheus"
-          },
-          "editorMode": "code",
-          "expr": "sum(platzwart_server_laeuft)",
-          "legendFormat": "laufen",
-          "range": true,
-          "refId": "A"
+          "refId": "A",
+          "instant": true,
+          "range": false
         }
       ],
       "options": {
@@ -128,28 +121,27 @@
     },
     {
       "id": 3,
-      "title": "Juengste Sicherung",
+      "title": "Server laufen",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
         "uid": "platzwart-prometheus"
       },
-      "description": "Alter des neuesten Archivs ueber alle Server.",
+      "description": "",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
-          "mappings": [],
-          "unit": "s"
+          "mappings": []
         },
         "overrides": []
       },
       "gridPos": {
         "h": 4,
-        "w": 6,
-        "x": 12,
-        "y": 0
+        "w": 4,
+        "x": 4,
+        "y": 1
       },
       "targets": [
         {
@@ -158,10 +150,11 @@
             "uid": "platzwart-prometheus"
           },
           "editorMode": "code",
-          "expr": "time() - max(platzwart_sicherung_zeit_sekunden)",
-          "legendFormat": "Alter",
-          "range": true,
-          "refId": "A"
+          "expr": "sum(platzwart_server_laeuft{stack=~\"$stack\"})",
+          "legendFormat": "laufen",
+          "refId": "A",
+          "instant": true,
+          "range": false
         }
       ],
       "options": {
@@ -181,28 +174,27 @@
     },
     {
       "id": 4,
-      "title": "Platte aller Spieldaten",
+      "title": "davon schlafend",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
         "uid": "platzwart-prometheus"
       },
-      "description": "",
+      "description": "Leere Server schlafen und geben ihren Speicher frei; der Weckposten holt sie zurueck.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
-          "mappings": [],
-          "unit": "bytes"
+          "mappings": []
         },
         "overrides": []
       },
       "gridPos": {
         "h": 4,
-        "w": 6,
-        "x": 18,
-        "y": 0
+        "w": 4,
+        "x": 8,
+        "y": 1
       },
       "targets": [
         {
@@ -211,10 +203,11 @@
             "uid": "platzwart-prometheus"
           },
           "editorMode": "code",
-          "expr": "sum(platzwart_platte_bytes)",
-          "legendFormat": "belegt",
-          "range": true,
-          "refId": "A"
+          "expr": "sum(platzwart_schlaeft{stack=~\"$stack\"})",
+          "legendFormat": "schlafen",
+          "refId": "A",
+          "instant": true,
+          "range": false
         }
       ],
       "options": {
@@ -234,6 +227,193 @@
     },
     {
       "id": 5,
+      "title": "Spieldaten gesamt",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "platzwart-prometheus"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "platzwart-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum(platzwart_platte_bytes{stack=~\"$stack\"})",
+          "legendFormat": "belegt",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 6,
+      "title": "Aelteste Sicherung",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "platzwart-prometheus"
+      },
+      "description": "Das aelteste Archiv ueber alle Server. Rot ab 24 Stunden.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 86400
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "platzwart-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "time() - min(platzwart_sicherung_zeit_sekunden)",
+          "legendFormat": "Alter",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 7,
+      "title": "Erreichbar",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "platzwart-prometheus"
+      },
+      "description": "Von DIESER Maschine aus gemessen - ueber Firewall und Anbieter sagt das nichts.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "platzwart-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum(probe_success{stack=~\"$stack\"})",
+          "legendFormat": "Ports offen",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 8,
+      "type": "row",
+      "title": "Spieler",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      }
+    },
+    {
+      "id": 9,
       "title": "Spieler je Server",
       "type": "timeseries",
       "datasource": {
@@ -246,6 +426,7 @@
           "color": {
             "mode": "palette-classic"
           },
+          "mappings": [],
           "custom": {
             "drawStyle": "line",
             "fillOpacity": 18,
@@ -255,8 +436,7 @@
               "mode": "normal"
             },
             "spanNulls": false
-          },
-          "mappings": []
+          }
         },
         "overrides": []
       },
@@ -264,7 +444,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 4
+        "y": 6
       },
       "targets": [
         {
@@ -273,254 +453,11 @@
             "uid": "platzwart-prometheus"
           },
           "editorMode": "code",
-          "expr": "platzwart_spieler",
+          "expr": "platzwart_spieler{stack=~\"$stack\"}",
           "legendFormat": "{{stack}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": []
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 6,
-      "title": "Arbeitsspeicher je Server",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "platzwart-prometheus"
-      },
-      "description": "",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 18,
-            "lineWidth": 1,
-            "showPoints": "never",
-            "stacking": {
-              "mode": "none"
-            },
-            "spanNulls": false
-          },
-          "mappings": [],
-          "unit": "bytes"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 4
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "platzwart-prometheus"
-          },
-          "editorMode": "code",
-          "expr": "platzwart_server_speicher_bytes",
-          "legendFormat": "{{stack}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": []
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 7,
-      "title": "Prozessorzeit je Server",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "platzwart-prometheus"
-      },
-      "description": "",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 18,
-            "lineWidth": 1,
-            "showPoints": "never",
-            "stacking": {
-              "mode": "none"
-            },
-            "spanNulls": false
-          },
-          "mappings": [],
-          "unit": "percent"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 12
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "platzwart-prometheus"
-          },
-          "editorMode": "code",
-          "expr": "platzwart_server_cpu_prozent",
-          "legendFormat": "{{stack}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": []
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 8,
-      "title": "Platte je Server",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "platzwart-prometheus"
-      },
-      "description": "Waechst hier eine Linie, weiss man, welches Spiel den Platz frisst.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 18,
-            "lineWidth": 1,
-            "showPoints": "never",
-            "stacking": {
-              "mode": "normal"
-            },
-            "spanNulls": false
-          },
-          "mappings": [],
-          "unit": "bytes"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 12
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "platzwart-prometheus"
-          },
-          "editorMode": "code",
-          "expr": "platzwart_platte_bytes",
-          "legendFormat": "{{stack}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": []
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 9,
-      "title": "Groesse der letzten Sicherung je Server",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "platzwart-prometheus"
-      },
-      "description": "Dedupliziert, also was das Archiv wirklich neu belegt.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 18,
-            "lineWidth": 1,
-            "showPoints": "never",
-            "stacking": {
-              "mode": "none"
-            },
-            "spanNulls": false
-          },
-          "mappings": [],
-          "unit": "bytes"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 20
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "platzwart-prometheus"
-          },
-          "editorMode": "code",
-          "expr": "platzwart_sicherung_groesse_bytes",
-          "legendFormat": "{{archiv}}",
-          "range": true,
-          "refId": "A"
+          "refId": "A",
+          "instant": false,
+          "range": true
         }
       ],
       "options": {
@@ -538,30 +475,22 @@
     },
     {
       "id": 10,
-      "title": "Alter der Sicherung je Server",
-      "type": "timeseries",
+      "title": "Belegung der Plaetze",
+      "type": "bargauge",
       "datasource": {
         "type": "prometheus",
         "uid": "platzwart-prometheus"
       },
-      "description": "Springt eine Linie nach oben und bleibt oben, sichert dieser Server nicht mehr.",
+      "description": "Spieler geteilt durch Plaetze. Dauerhaft voll heisst: mehr Plaetze oder mehr Server.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 18,
-            "lineWidth": 1,
-            "showPoints": "never",
-            "stacking": {
-              "mode": "none"
-            },
-            "spanNulls": false
-          },
           "mappings": [],
-          "unit": "s"
+          "unit": "percentunit",
+          "max": 1,
+          "min": 0
         },
         "overrides": []
       },
@@ -569,7 +498,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 20
+        "y": 6
       },
       "targets": [
         {
@@ -578,39 +507,41 @@
             "uid": "platzwart-prometheus"
           },
           "editorMode": "code",
-          "expr": "time() - platzwart_sicherung_zeit_sekunden",
-          "legendFormat": "{{archiv}}",
-          "range": true,
-          "refId": "A"
+          "expr": "platzwart_spieler{stack=~\"$stack\"} / platzwart_spieler_max{stack=~\"$stack\"}",
+          "legendFormat": "{{stack}}",
+          "refId": "A",
+          "instant": true,
+          "range": false
         }
       ],
       "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": []
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
         },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
+        "showUnfilled": true
       }
     },
     {
       "id": 11,
-      "title": "Netz je Server",
+      "title": "Spielerstunden je Tag",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
         "uid": "platzwart-prometheus"
       },
-      "description": "",
+      "description": "Summe der Messwerte eines Tages, geteilt durch die Messungen je Stunde (12 bei fuenf Minuten Abstand) - also grob die gespielten Stunden.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
+          "mappings": [],
           "custom": {
             "drawStyle": "line",
             "fillOpacity": 18,
@@ -621,16 +552,15 @@
             },
             "spanNulls": false
           },
-          "mappings": [],
-          "unit": "bps"
+          "unit": "h"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
+        "h": 7,
+        "w": 24,
         "x": 0,
-        "y": 28
+        "y": 14
       },
       "targets": [
         {
@@ -639,21 +569,11 @@
             "uid": "platzwart-prometheus"
           },
           "editorMode": "code",
-          "expr": "rate(platzwart_server_netz_bytes_total{richtung=\"herein\"}[10m])*8",
-          "legendFormat": "herein {{stack}}",
-          "range": true,
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "platzwart-prometheus"
-          },
-          "editorMode": "code",
-          "expr": "rate(platzwart_server_netz_bytes_total{richtung=\"hinaus\"}[10m])*8",
-          "legendFormat": "hinaus {{stack}}",
-          "range": true,
-          "refId": "B"
+          "expr": "sum by (stack) (sum_over_time(platzwart_spieler{stack=~\"$stack\"}[1d])) / 12",
+          "legendFormat": "{{stack}}",
+          "refId": "A",
+          "instant": false,
+          "range": true
         }
       ],
       "options": {
@@ -671,18 +591,32 @@
     },
     {
       "id": 12,
-      "title": "Schlafende Server",
+      "type": "row",
+      "title": "Verbrauch je Server",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 21
+      }
+    },
+    {
+      "id": 13,
+      "title": "Arbeitsspeicher",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
         "uid": "platzwart-prometheus"
       },
-      "description": "1 = der Server schlaeft und belegt keinen Speicher.",
+      "description": "",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
+          "mappings": [],
           "custom": {
             "drawStyle": "line",
             "fillOpacity": 18,
@@ -693,16 +627,15 @@
             },
             "spanNulls": false
           },
-          "mappings": [],
-          "max": 1
+          "unit": "bytes"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
-        "y": 28
+        "x": 0,
+        "y": 22
       },
       "targets": [
         {
@@ -711,10 +644,11 @@
             "uid": "platzwart-prometheus"
           },
           "editorMode": "code",
-          "expr": "platzwart_schlaeft",
+          "expr": "platzwart_server_speicher_bytes{stack=~\"$stack\"}",
           "legendFormat": "{{stack}}",
-          "range": true,
-          "refId": "A"
+          "refId": "A",
+          "instant": false,
+          "range": true
         }
       ],
       "options": {
@@ -729,6 +663,465 @@
           "sort": "desc"
         }
       }
+    },
+    {
+      "id": 14,
+      "title": "Prozessorzeit",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "platzwart-prometheus"
+      },
+      "description": "Prozent eines Kerns, wie 'docker stats' es zaehlt - ueber 100 % heisst mehrere Kerne.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 18,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            },
+            "spanNulls": false
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 22
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "platzwart-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "platzwart_server_cpu_prozent{stack=~\"$stack\"}",
+          "legendFormat": "{{stack}}",
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 15,
+      "title": "Netz",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "platzwart-prometheus"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 18,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            },
+            "spanNulls": false
+          },
+          "unit": "bps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 30
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "platzwart-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "rate(platzwart_server_netz_bytes_total{stack=~\"$stack\",richtung=\"herein\"}[10m])*8",
+          "legendFormat": "herein {{stack}}",
+          "refId": "A",
+          "instant": false,
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "platzwart-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "rate(platzwart_server_netz_bytes_total{stack=~\"$stack\",richtung=\"hinaus\"}[10m])*8",
+          "legendFormat": "hinaus {{stack}}",
+          "refId": "B",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 16,
+      "title": "Platte je Server",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "platzwart-prometheus"
+      },
+      "description": "Waechst hier eine Linie, weiss man, welches Spiel den Platz frisst. Gemessen wird hoechstens stuendlich.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 18,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal"
+            },
+            "spanNulls": false
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 30
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "platzwart-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "platzwart_platte_bytes{stack=~\"$stack\"}",
+          "legendFormat": "{{stack}}",
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 17,
+      "title": "Wachstum je Tag",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "platzwart-prometheus"
+      },
+      "description": "Hochgerechnet aus den letzten sechs Stunden: So viel kaeme pro Tag dazu.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 18,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            },
+            "spanNulls": false
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 38
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "platzwart-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "deriv(platzwart_platte_bytes{stack=~\"$stack\"}[6h]) * 86400",
+          "legendFormat": "{{stack}}",
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 18,
+      "type": "row",
+      "title": "Zustand",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 45
+      }
+    },
+    {
+      "id": 19,
+      "title": "Laeuft, schlaeft, Auto-Update",
+      "type": "table",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "platzwart-prometheus"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 46
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "platzwart-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "platzwart_server_laeuft{stack=~\"$stack\"}",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "platzwart-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "platzwart_schlaeft{stack=~\"$stack\"}",
+          "legendFormat": "",
+          "refId": "B",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "platzwart-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "platzwart_autoupdate{stack=~\"$stack\"}",
+          "legendFormat": "",
+          "refId": "C",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "platzwart-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "platzwart_spieler{stack=~\"$stack\"}",
+          "legendFormat": "",
+          "refId": "D",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": []
+      },
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true,
+              "instance": true,
+              "id": true
+            },
+            "renameByName": {
+              "Value #A": "laeuft",
+              "Value #B": "schlaeft",
+              "Value #C": "Auto-Update",
+              "Value #D": "Spieler"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "title": "Erreichbarkeit je Port",
+      "type": "table",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "platzwart-prometheus"
+      },
+      "description": "Gemessen von dieser Maschine aus.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 46
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "platzwart-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "probe_success{stack=~\"$stack\"}",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "platzwart-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "probe_duration_seconds{stack=~\"$stack\"}",
+          "legendFormat": "",
+          "refId": "B",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": []
+      },
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true,
+              "instance": true,
+              "id": true
+            },
+            "renameByName": {
+              "Value #A": "erreichbar",
+              "Value #B": "Antwortzeit (s)"
+            }
+          }
+        }
+      ]
     }
   ]
 }

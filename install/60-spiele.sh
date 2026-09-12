@@ -71,6 +71,15 @@ for s in "${STACKS[@]}"; do
   log "$s eingerichtet — Beitritt: $PW / Admin: $ADMIN"
 done
 
+# Dashboards des Statistik-Moduls nachziehen, falls es installiert ist (#276).
+# Ohne diese Zeile bekaeme ein von Hand eingerichteter Server seine Seite erst,
+# wenn jemand im Panel etwas am Modul aendert.
+# *Refresh the statistics module's per-server dashboards if it is installed;
+#  otherwise a hand-built server has no page until someone touches the module.*
+if [ -f /opt/module/statistik/compose.yaml ] && command -v modul-verwalten >/dev/null; then
+  modul-verwalten dashboards statistik >/dev/null 2>&1 || true
+fi
+
 echo
 echo "  Starten mit / start with:"
 for s in "${STACKS[@]}"; do echo "    docker compose -f /opt/stacks/$s/compose.yaml up -d"; done

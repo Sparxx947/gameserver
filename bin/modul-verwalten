@@ -19,6 +19,7 @@ Positivliste (CLAUDE.md, Grenze 2).
   modul-verwalten schalter <modul> <name> <an|aus>
   modul-verwalten einstellung <modul> <name> <wert>
   modul-verwalten anwenden <modul>
+  modul-verwalten dashboards <modul>      je Spielserver ein Dashboard erzeugen
   modul-verwalten --selbsttest
 
 Was die Oberflaeche schickt, ist IMMER nur ein Name aus dem Katalog und ein
@@ -242,8 +243,55 @@ def probe_ziele() -> dict:
     for zeile in aus.splitlines():
         name, _, ports = zeile.partition("\t")
         for m in re.finditer(r"0\.0\.0\.0:(\d+)->", ports):
-            ziele[f"172.17.0.1:{m.group(1)}"] = name
+            # 127.0.0.1, weil die Probe im Netz der Maschine laeuft: Sie prueft
+            # denselben Sockel, den auch ein Spieler traefe, nur ohne den Weg
+            # von aussen - und genau das steht in der Warnung zum Schalter.
+            ziele[f"127.0.0.1:{m.group(1)}"] = name
     return ziele
+
+
+def server_dashboards(sch: str, ruhig=True) -> int:
+    """Je installiertem Spielserver ein Dashboard aus der Vorlage.
+
+    Der Bauplan steht im Repositorium (werkzeuge/statistik-dashboards.py), welche
+    Server es gibt, weiss nur die Maschine - also wird hier eingesetzt und nicht
+    gestaltet. Verschwindet ein Server, verschwindet sein Dashboard: Ein
+    Dashboard fuer einen Server, den es nicht mehr gibt, zeigt eine flache Linie
+    und sieht aus wie ein stiller Server.
+
+    *One dashboard per installed game server, filled in from the template: the
+     layout lives in the repository, the list of servers only on the machine. A
+     dashboard for a server that no longer exists shows a flat line and looks
+     like a quiet server.*
+    """
+    vorlage = VORLAGEN / sch / "grafana" / "server-vorlage.json"
+    ziel = verzeichnis(sch) / "server-dashboards"
+    if not vorlage.exists():
+        return 0
+    ziel.mkdir(exist_ok=True)
+    ziel.chmod(0o755)
+    text = vorlage.read_text()
+    namen = sorted(p.name for p in STACKS.glob("*") if (p / "compose.yaml").exists())
+    for name in namen:
+        (ziel / f"{name}.json").write_text(text.replace("__STACK__", name))
+        (ziel / f"{name}.json").chmod(0o644)
+    for da in ziel.glob("*.json"):
+        if da.stem not in namen:
+            da.unlink()
+    if not ruhig:
+        print(f"ok\t{len(namen)} Server-Dashboards\t{' '.join(namen)}")
+    return len(namen)
+
+
+def abdruck(ordner: Path) -> str:
+    """Fingerabdruck eines Verzeichnisbaums - Name, Groesse, Inhalt."""
+    import hashlib
+    h = hashlib.sha256()
+    for d in sorted(ordner.rglob("*")) if ordner.exists() else []:
+        h.update(str(d.relative_to(ordner)).encode())
+        if d.is_file():
+            h.update(d.read_bytes())
+    return h.hexdigest()
 
 
 def grafana_schreiben(sch: str, m: dict, s: dict):
@@ -338,7 +386,7 @@ groups:
             datasourceUid: platzwart-prometheus
             model:
               editorMode: code
-              expr: predict_linear(node_filesystem_avail_bytes{mountpoint="/"}[6h], 14*24*3600)
+              expr: predict_linear(node_filesystem_avail_bytes{mountpoint="/",fstype!~"overlay|tmpfs|squashfs"}[6h], 14*24*3600)
               instant: true
               intervalMs: 60000
               maxDataPoints: 43200
@@ -450,6 +498,15 @@ def timer_abstand(wert: str):
     """Messabstand des Sammlers. Unter einer Minute kann OnCalendar nicht, also
     fuer 30s ueber OnUnitActiveSec - beides in einer Ergaenzungsdatei, damit die
     Einheit aus dem Repositorium unveraendert bleibt."""
+    # NUR als root. Der Selbsttest laeuft auf einem Arbeitsplatzrechner als
+    # normaler Benutzer, und "systemctl daemon-reload" ist dort eine Anfrage an
+    # den System-Manager: Polkit stellt sie als Passwortdialog auf den Schirm.
+    # Bei Jens sind so ab 10:05 fortlaufend Dialoge aufgegangen, gemeldet von
+    # einer anderen Sitzung - ein Selbsttest darf am System nichts anfassen.
+    # *Only as root: on a workstation this is a request to the system manager and
+    #  Polkit turns it into a password prompt. A self-test must touch nothing.*
+    if os.geteuid() != 0:
+        return
     TIMER_ABLAGE.mkdir(parents=True, exist_ok=True)
     if wert == "30s":
         inhalt = "[Timer]\nOnCalendar=\nOnBootSec=1min\nOnUnitActiveSec=30s\n"
@@ -458,7 +515,12 @@ def timer_abstand(wert: str):
     else:
         inhalt = "[Timer]\nOnCalendar=\nOnCalendar=*:0/5\n"
     (TIMER_ABLAGE / "abstand.conf").write_text(inhalt)
-    lauf(["systemctl", "daemon-reload"])
+    # Rueckgabewert ansehen: Ein stilles Scheitern hiesse, der Messabstand steht
+    # in der Datei und wirkt nicht.
+    p = lauf(["systemctl", "daemon-reload"])
+    if p.returncode != 0:
+        warnung = (p.stderr or p.stdout).strip()[:200]
+        print(f"WARNUNG: systemctl daemon-reload: {warnung}", file=sys.stderr)
 
 
 # --- Caddy -------------------------------------------------------------------
@@ -565,8 +627,21 @@ def anwenden(sch: str, ruhig=False, s=None):
     s = s or stand(sch)
     if not installiert(sch):
         fehler(f"{sch} ist nicht installiert")
+    # Die compose-Datei aus der Vorlage auffrischen. Ohne das behielte eine
+    # Maschine ihre erste Fassung fuer immer: Ein Ausrollen aendert /etc/module,
+    # und /opt/module fasst danach niemand mehr an - die Aenderung waere
+    # unsichtbar da und unwirksam.
+    # *Refresh the compose file from the template: otherwise a machine keeps its
+    #  first copy forever, since a rollout only touches /etc/module.*
+    quelle = VORLAGEN / sch / "compose.yaml"
+    if quelle.exists():
+        shutil.copy2(quelle, verzeichnis(sch) / "compose.yaml")
+        (verzeichnis(sch) / "compose.yaml").chmod(0o644)
     prometheus_schreiben(sch, m, s)
+    vorher = abdruck(verzeichnis(sch) / "grafana-provisioning")
     grafana_schreiben(sch, m, s)
+    provisioning_neu = abdruck(verzeichnis(sch) / "grafana-provisioning") != vorher
+    server_dashboards(sch)
     env_schreiben(sch, m, s)
     if "messabstand" in s["einstellungen"]:
         timer_abstand(s["einstellungen"]["messabstand"])
@@ -593,6 +668,16 @@ def anwenden(sch: str, ruhig=False, s=None):
             compose(sch, "rm", "-s", "-f", x["name"], profile_liste=[x["name"]])
     # Prometheus die neue Konfiguration sagen, ohne ihn neu zu starten.
     compose(sch, "kill", "-s", "SIGHUP", "prometheus", profile_liste=an)
+    # Grafana liest die LISTE der Bereitstellungsanbieter nur beim Start. Ein
+    # neues Dashboard in einem bekannten Ordner findet es von selbst (alle 60 s),
+    # ein neuer Anbieter nicht: Die Ordner lagen richtig, die Dateien auch, und
+    # in der Oberflaeche fehlten sie trotzdem. Deshalb neu starten, wenn sich an
+    # der Bereitstellung etwas geaendert hat - und nur dann.
+    # *Grafana reads the list of provisioning providers only at startup: a new
+    #  dashboard in a known folder is picked up, a new provider is not. Restart
+    #  when the provisioning changed, and only then.*
+    if provisioning_neu:
+        compose(sch, "restart", "grafana", profile_liste=an)
     if not ruhig:
         print(f"ok\t{sch} angewandt\tProfile: {' '.join(an) or 'keine'}")
 
@@ -829,11 +914,12 @@ def selbsttest():
     verzeichnis("statistik").mkdir(parents=True, exist_ok=True)
     prometheus_schreiben("statistik", m, {"schalter": {"cadvisor": False, "probe": False}})
     text = (verzeichnis("statistik") / "prometheus.yml").read_text()
-    pruefe("node-exporter:9100" in text, "Grundziel bleibt")
-    pruefe("cadvisor:8080" not in text, "Schalter aus -> Block fehlt")
+    pruefe('targets: ["127.0.0.1:19100"]' in text,
+           "Grundziel ist 127.0.0.1 (#275)")
+    pruefe("19080" not in text, "Schalter aus -> Block fehlt")
     prometheus_schreiben("statistik", m, {"schalter": {"cadvisor": True, "probe": False}})
     text = (verzeichnis("statistik") / "prometheus.yml").read_text()
-    pruefe("cadvisor:8080" in text, "Schalter an -> Block da")
+    pruefe("127.0.0.1:19080" in text, "Schalter an -> Block da")
     pruefe("schalter:cadvisor" not in text, "Marken selbst stehen nicht in der Ausgabe")
     try:
         import yaml
@@ -849,7 +935,7 @@ def selbsttest():
                          lambda b, **k: subprocess.CompletedProcess(
                              b, 0, "valheim\t0.0.0.0:2456->2456/udp\npalworld\t0.0.0.0:8211->8211/udp\n", "")):
         z = probe_ziele()
-    pruefe(z.get("172.17.0.1:8211") == "palworld", "Probe-Ziel traegt den Servernamen")
+    pruefe(z.get("127.0.0.1:8211") == "palworld", "Probe-Ziel traegt den Servernamen")
     with um.patch.object(sys.modules[__name__], "probe_ziele",
                          lambda: {"172.17.0.1:8211": "palworld"}):
         prometheus_schreiben("statistik", m, {"schalter": {"cadvisor": False, "probe": True}})
@@ -984,6 +1070,13 @@ def main():
         einstellung_setzen(a[1], a[2], a[3])
     elif a[0] == "anwenden" and len(a) == 2:
         anwenden(a[1])
+    elif a[0] == "dashboards" and len(a) == 2:
+        # Eigene Aktion, damit jeder Weg, der einen Server anlegt oder entfernt,
+        # sie billig nachziehen kann - ohne die Container anzufassen.
+        modul(a[1])
+        if not installiert(a[1]):
+            fehler(f"{a[1]} ist nicht installiert")
+        server_dashboards(a[1], ruhig=False)
     else:
         fehler("unbekannte Aktion - ohne Argumente zeigt das Programm seine Hilfe")
     return 0

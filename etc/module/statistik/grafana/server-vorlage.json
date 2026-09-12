@@ -1,7 +1,7 @@
 {
-  "uid": "platzwart-maschine",
-  "title": "Maschine",
-  "description": "Prozessor, Speicher, Platte und Netz der Maschine. Quelle: node_exporter.",
+  "uid": "platzwart-server-__STACK__",
+  "title": "Server: __STACK__",
+  "description": "Alles zu einem einzelnen Spielserver. Erzeugt je Server von modul-verwalten.",
   "tags": [
     "platzwart"
   ],
@@ -25,7 +25,7 @@
     {
       "id": 1,
       "type": "row",
-      "title": "Auf einen Blick",
+      "title": "__STACK__ auf einen Blick",
       "collapsed": false,
       "panels": [],
       "gridPos": {
@@ -37,33 +37,19 @@
     },
     {
       "id": 2,
-      "title": "Last je Kern",
+      "title": "Spieler",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
         "uid": "platzwart-prometheus"
       },
-      "description": "Last geteilt durch die Kernzahl. Ueber 1 warten Prozesse auf Rechenzeit.",
+      "description": "",
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "thresholds"
+            "mode": "palette-classic"
           },
-          "mappings": [],
-          "unit": "percentunit",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 1
-              }
-            ]
-          }
+          "mappings": []
         },
         "overrides": []
       },
@@ -80,8 +66,8 @@
             "uid": "platzwart-prometheus"
           },
           "editorMode": "code",
-          "expr": "node_load1 / scalar(count(count(node_cpu_seconds_total) by (cpu)))",
-          "legendFormat": "Last",
+          "expr": "platzwart_spieler{stack=\"__STACK__\"}",
+          "legendFormat": "jetzt",
           "refId": "A",
           "instant": true,
           "range": false
@@ -104,7 +90,7 @@
     },
     {
       "id": 3,
-      "title": "Prozessor belegt",
+      "title": "Plaetze",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -114,23 +100,9 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "thresholds"
+            "mode": "palette-classic"
           },
-          "mappings": [],
-          "unit": "percent",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 85
-              }
-            ]
-          }
+          "mappings": []
         },
         "overrides": []
       },
@@ -147,8 +119,8 @@
             "uid": "platzwart-prometheus"
           },
           "editorMode": "code",
-          "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
-          "legendFormat": "belegt",
+          "expr": "platzwart_spieler_max{stack=\"__STACK__\"}",
+          "legendFormat": "Plaetze",
           "refId": "A",
           "instant": true,
           "range": false
@@ -171,7 +143,7 @@
     },
     {
       "id": 4,
-      "title": "Speicher frei",
+      "title": "Laeuft",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -181,10 +153,22 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
+            "mode": "thresholds"
           },
           "mappings": [],
-          "unit": "bytes"
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
         },
         "overrides": []
       },
@@ -201,8 +185,8 @@
             "uid": "platzwart-prometheus"
           },
           "editorMode": "code",
-          "expr": "node_memory_MemAvailable_bytes",
-          "legendFormat": "frei",
+          "expr": "platzwart_server_laeuft{stack=\"__STACK__\"}",
+          "legendFormat": "Zustand",
           "refId": "A",
           "instant": true,
           "range": false
@@ -225,20 +209,19 @@
     },
     {
       "id": 5,
-      "title": "Platte frei",
+      "title": "Schlaeft",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
         "uid": "platzwart-prometheus"
       },
-      "description": "",
+      "description": "1 = im Leerlauf schlafen gelegt; der Weckposten holt ihn beim Beitritt zurueck.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
-          "mappings": [],
-          "unit": "bytes"
+          "mappings": []
         },
         "overrides": []
       },
@@ -255,8 +238,8 @@
             "uid": "platzwart-prometheus"
           },
           "editorMode": "code",
-          "expr": "node_filesystem_avail_bytes{mountpoint=\"/\"}",
-          "legendFormat": "frei",
+          "expr": "platzwart_schlaeft{stack=\"__STACK__\"}",
+          "legendFormat": "Zustand",
           "refId": "A",
           "instant": true,
           "range": false
@@ -279,13 +262,13 @@
     },
     {
       "id": 6,
-      "title": "Auslagerung belegt",
+      "title": "Speicher",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
         "uid": "platzwart-prometheus"
       },
-      "description": "Dauerhaft belegte Auslagerung heisst: der Speicher ist zu knapp.",
+      "description": "",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -309,7 +292,7 @@
             "uid": "platzwart-prometheus"
           },
           "editorMode": "code",
-          "expr": "node_memory_SwapTotal_bytes - node_memory_SwapFree_bytes",
+          "expr": "platzwart_server_speicher_bytes{stack=\"__STACK__\"}",
           "legendFormat": "belegt",
           "refId": "A",
           "instant": true,
@@ -333,7 +316,7 @@
     },
     {
       "id": 7,
-      "title": "Laufzeit",
+      "title": "Sicherung her",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -343,10 +326,23 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
+            "mode": "thresholds"
           },
           "mappings": [],
-          "unit": "s"
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 86400
+              }
+            ]
+          }
         },
         "overrides": []
       },
@@ -363,8 +359,8 @@
             "uid": "platzwart-prometheus"
           },
           "editorMode": "code",
-          "expr": "time() - node_boot_time_seconds",
-          "legendFormat": "Laufzeit",
+          "expr": "time() - platzwart_sicherung_zeit_sekunden{archiv=\"__STACK__\"}",
+          "legendFormat": "Alter",
           "refId": "A",
           "instant": true,
           "range": false
@@ -372,7 +368,7 @@
       ],
       "options": {
         "colorMode": "value",
-        "graphMode": "none",
+        "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
@@ -388,7 +384,7 @@
     {
       "id": 8,
       "type": "row",
-      "title": "Prozessor",
+      "title": "Spieler und Verbrauch",
       "collapsed": false,
       "panels": [],
       "gridPos": {
@@ -400,139 +396,13 @@
     },
     {
       "id": 9,
-      "title": "Auslastung nach Art",
+      "title": "Spieler",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
         "uid": "platzwart-prometheus"
       },
-      "description": "system = Kern, user = Programme, iowait = Warten auf die Platte, steal = der Wirt hat den Kern jemand anderem gegeben.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": [],
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 18,
-            "lineWidth": 1,
-            "showPoints": "never",
-            "stacking": {
-              "mode": "normal"
-            },
-            "spanNulls": false
-          },
-          "unit": "percent",
-          "max": 100
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 6
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "platzwart-prometheus"
-          },
-          "editorMode": "code",
-          "expr": "sum by (mode) (rate(node_cpu_seconds_total{mode!=\"idle\"}[5m])) / scalar(count(count(node_cpu_seconds_total) by (cpu))) * 100",
-          "legendFormat": "{{mode}}",
-          "refId": "A",
-          "instant": false,
-          "range": true
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": []
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 10,
-      "title": "Je Kern",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "platzwart-prometheus"
-      },
-      "description": "Ein einzelner Kern am Anschlag bremst ein Spiel, auch wenn der Schnitt harmlos aussieht.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": [],
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 18,
-            "lineWidth": 1,
-            "showPoints": "never",
-            "stacking": {
-              "mode": "none"
-            },
-            "spanNulls": false
-          },
-          "unit": "percent",
-          "max": 100
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 6
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "platzwart-prometheus"
-          },
-          "editorMode": "code",
-          "expr": "100 - (rate(node_cpu_seconds_total{mode=\"idle\"}[5m]) * 100)",
-          "legendFormat": "Kern {{cpu}}",
-          "refId": "A",
-          "instant": false,
-          "range": true
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": []
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 11,
-      "title": "Last 1/5/15 Minuten",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "platzwart-prometheus"
-      },
-      "description": "",
+      "description": "Beruehrt die untere Linie die obere, war der Server voll.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -556,7 +426,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 14
+        "y": 6
       },
       "targets": [
         {
@@ -565,8 +435,8 @@
             "uid": "platzwart-prometheus"
           },
           "editorMode": "code",
-          "expr": "node_load1",
-          "legendFormat": "1 min",
+          "expr": "platzwart_spieler{stack=\"__STACK__\"}",
+          "legendFormat": "Spieler",
           "refId": "A",
           "instant": false,
           "range": true
@@ -577,33 +447,9 @@
             "uid": "platzwart-prometheus"
           },
           "editorMode": "code",
-          "expr": "node_load5",
-          "legendFormat": "5 min",
+          "expr": "platzwart_spieler_max{stack=\"__STACK__\"}",
+          "legendFormat": "Plaetze",
           "refId": "B",
-          "instant": false,
-          "range": true
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "platzwart-prometheus"
-          },
-          "editorMode": "code",
-          "expr": "node_load15",
-          "legendFormat": "15 min",
-          "refId": "C",
-          "instant": false,
-          "range": true
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "platzwart-prometheus"
-          },
-          "editorMode": "code",
-          "expr": "count(count(node_cpu_seconds_total) by (cpu))",
-          "legendFormat": "Kerne",
-          "refId": "D",
           "instant": false,
           "range": true
         }
@@ -622,14 +468,88 @@
       }
     },
     {
-      "id": 12,
-      "title": "Wartedruck (PSI)",
+      "id": 10,
+      "title": "Arbeitsspeicher",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
         "uid": "platzwart-prometheus"
       },
-      "description": "Anteil der Zeit, in der mindestens eine Aufgabe auf die Betriebsmittel wartet. Zeigt Engpaesse frueher als die Auslastung selbst.",
+      "description": "Die Grenze kommt von cAdvisor; ohne diesen Schalter fehlt die zweite Linie.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 18,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            },
+            "spanNulls": false
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 6
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "platzwart-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "platzwart_server_speicher_bytes{stack=\"__STACK__\"}",
+          "legendFormat": "belegt",
+          "refId": "A",
+          "instant": false,
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "platzwart-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "container_spec_memory_limit_bytes{name=\"__STACK__\"} > 0",
+          "legendFormat": "Grenze",
+          "refId": "B",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "title": "Prozessorzeit",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "platzwart-prometheus"
+      },
+      "description": "",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -653,6 +573,68 @@
       "gridPos": {
         "h": 8,
         "w": 12,
+        "x": 0,
+        "y": 14
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "platzwart-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "platzwart_server_cpu_prozent{stack=\"__STACK__\"}",
+          "legendFormat": "Prozent eines Kerns",
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "title": "Netz",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "platzwart-prometheus"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 18,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            },
+            "spanNulls": false
+          },
+          "unit": "bps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
         "x": 12,
         "y": 14
       },
@@ -663,8 +645,8 @@
             "uid": "platzwart-prometheus"
           },
           "editorMode": "code",
-          "expr": "rate(node_pressure_cpu_waiting_seconds_total[5m]) * 100",
-          "legendFormat": "Prozessor",
+          "expr": "rate(platzwart_server_netz_bytes_total{stack=\"__STACK__\",richtung=\"herein\"}[10m])*8",
+          "legendFormat": "herein",
           "refId": "A",
           "instant": false,
           "range": true
@@ -675,21 +657,9 @@
             "uid": "platzwart-prometheus"
           },
           "editorMode": "code",
-          "expr": "rate(node_pressure_io_waiting_seconds_total[5m]) * 100",
-          "legendFormat": "Ein-/Ausgabe",
+          "expr": "rate(platzwart_server_netz_bytes_total{stack=\"__STACK__\",richtung=\"hinaus\"}[10m])*8",
+          "legendFormat": "hinaus",
           "refId": "B",
-          "instant": false,
-          "range": true
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "platzwart-prometheus"
-          },
-          "editorMode": "code",
-          "expr": "rate(node_pressure_memory_waiting_seconds_total[5m]) * 100",
-          "legendFormat": "Speicher",
-          "refId": "C",
           "instant": false,
           "range": true
         }
@@ -710,7 +680,7 @@
     {
       "id": 13,
       "type": "row",
-      "title": "Speicher",
+      "title": "Platte und Sicherung",
       "collapsed": false,
       "panels": [],
       "gridPos": {
@@ -722,13 +692,13 @@
     },
     {
       "id": 14,
-      "title": "Verteilung",
+      "title": "Spieldaten",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
         "uid": "platzwart-prometheus"
       },
-      "description": "Dateicache ist kein Verbrauch - er wird abgegeben, wenn ein Programm den Platz braucht.",
+      "description": "",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -741,7 +711,7 @@
             "lineWidth": 1,
             "showPoints": "never",
             "stacking": {
-              "mode": "normal"
+              "mode": "none"
             },
             "spanNulls": false
           },
@@ -762,45 +732,9 @@
             "uid": "platzwart-prometheus"
           },
           "editorMode": "code",
-          "expr": "node_memory_MemTotal_bytes - node_memory_MemFree_bytes - node_memory_Buffers_bytes - node_memory_Cached_bytes",
-          "legendFormat": "Programme",
+          "expr": "platzwart_platte_bytes{stack=\"__STACK__\"}",
+          "legendFormat": "belegt",
           "refId": "A",
-          "instant": false,
-          "range": true
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "platzwart-prometheus"
-          },
-          "editorMode": "code",
-          "expr": "node_memory_Cached_bytes",
-          "legendFormat": "Dateicache",
-          "refId": "B",
-          "instant": false,
-          "range": true
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "platzwart-prometheus"
-          },
-          "editorMode": "code",
-          "expr": "node_memory_Buffers_bytes",
-          "legendFormat": "Puffer",
-          "refId": "C",
-          "instant": false,
-          "range": true
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "platzwart-prometheus"
-          },
-          "editorMode": "code",
-          "expr": "node_memory_MemFree_bytes",
-          "legendFormat": "frei",
-          "refId": "D",
           "instant": false,
           "range": true
         }
@@ -820,7 +754,7 @@
     },
     {
       "id": 15,
-      "title": "Auslagerung und Aufraeumdruck",
+      "title": "Wachstum je Tag",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -860,21 +794,9 @@
             "uid": "platzwart-prometheus"
           },
           "editorMode": "code",
-          "expr": "node_memory_SwapTotal_bytes - node_memory_SwapFree_bytes",
-          "legendFormat": "ausgelagert",
+          "expr": "deriv(platzwart_platte_bytes{stack=\"__STACK__\"}[6h]) * 86400",
+          "legendFormat": "hochgerechnet",
           "refId": "A",
-          "instant": false,
-          "range": true
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "platzwart-prometheus"
-          },
-          "editorMode": "code",
-          "expr": "rate(node_vmstat_pgmajfault[5m])",
-          "legendFormat": "Seitenfehler/s (rechte Skala)",
-          "refId": "B",
           "instant": false,
           "range": true
         }
@@ -894,26 +816,13 @@
     },
     {
       "id": 16,
-      "type": "row",
-      "title": "Platte",
-      "collapsed": false,
-      "panels": [],
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 31
-      }
-    },
-    {
-      "id": 17,
-      "title": "Belegung je Einhaengepunkt",
+      "title": "Groesse des letzten Archivs",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
         "uid": "platzwart-prometheus"
       },
-      "description": "",
+      "description": "Faellt die Linie ploetzlich auf fast null, ist das Archiv hohl.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -938,7 +847,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 32
+        "y": 31
       },
       "targets": [
         {
@@ -947,8 +856,70 @@
             "uid": "platzwart-prometheus"
           },
           "editorMode": "code",
-          "expr": "node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs\"} - node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs\"}",
-          "legendFormat": "{{mountpoint}} belegt",
+          "expr": "platzwart_sicherung_groesse_bytes{archiv=\"__STACK__\"}",
+          "legendFormat": "dedupliziert",
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 17,
+      "title": "Alter der Sicherung",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "platzwart-prometheus"
+      },
+      "description": "Die Saegezaehne sind der Viertelstundenlauf. Eine Treppe nach oben ist ein Ausfall.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 18,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            },
+            "spanNulls": false
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 31
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "platzwart-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "time() - platzwart_sicherung_zeit_sekunden{archiv=\"__STACK__\"}",
+          "legendFormat": "Alter",
           "refId": "A",
           "instant": false,
           "range": true
@@ -969,13 +940,26 @@
     },
     {
       "id": 18,
-      "title": "Frei, mit Hochrechnung auf 14 Tage",
+      "type": "row",
+      "title": "Erreichbarkeit und Container",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 39
+      }
+    },
+    {
+      "id": 19,
+      "title": "Ports erreichbar",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
         "uid": "platzwart-prometheus"
       },
-      "description": "Die zweite Linie rechnet die letzten sechs Stunden 14 Tage weiter. Geht sie unter null, ist das Datum absehbar.",
+      "description": "Von dieser Maschine aus gemessen (Schalter 'Erreichbarkeitsprobe').",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -992,15 +976,16 @@
             },
             "spanNulls": false
           },
-          "unit": "bytes"
+          "max": 1,
+          "min": 0
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
-        "y": 32
+        "x": 0,
+        "y": 40
       },
       "targets": [
         {
@@ -1009,21 +994,9 @@
             "uid": "platzwart-prometheus"
           },
           "editorMode": "code",
-          "expr": "node_filesystem_avail_bytes{mountpoint=\"/\"}",
-          "legendFormat": "frei",
+          "expr": "probe_success{stack=\"__STACK__\"}",
+          "legendFormat": "{{port}}",
           "refId": "A",
-          "instant": false,
-          "range": true
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "platzwart-prometheus"
-          },
-          "editorMode": "code",
-          "expr": "predict_linear(node_filesystem_avail_bytes{mountpoint=\"/\"}[6h], 14*24*3600)",
-          "legendFormat": "frei in 14 Tagen (Hochrechnung)",
-          "refId": "B",
           "instant": false,
           "range": true
         }
@@ -1042,8 +1015,70 @@
       }
     },
     {
-      "id": 19,
-      "title": "Durchsatz je Geraet",
+      "id": 20,
+      "title": "Laufzeit des Containers",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "platzwart-prometheus"
+      },
+      "description": "Faellt sie auf null, ist der Container neu gestartet (Schalter 'cAdvisor').",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 18,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            },
+            "spanNulls": false
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 40
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "platzwart-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "time() - container_start_time_seconds{name=\"__STACK__\"}",
+          "legendFormat": "Laufzeit",
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 21,
+      "title": "Platten-Zugriffe des Containers",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -1074,153 +1109,6 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 40
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "platzwart-prometheus"
-          },
-          "editorMode": "code",
-          "expr": "rate(node_disk_read_bytes_total{device!~\"loop.*\"}[5m])",
-          "legendFormat": "lesen {{device}}",
-          "refId": "A",
-          "instant": false,
-          "range": true
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "platzwart-prometheus"
-          },
-          "editorMode": "code",
-          "expr": "rate(node_disk_written_bytes_total{device!~\"loop.*\"}[5m])",
-          "legendFormat": "schreiben {{device}}",
-          "refId": "B",
-          "instant": false,
-          "range": true
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": []
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 20,
-      "title": "Wartezeit und Auslastung der Platte",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "platzwart-prometheus"
-      },
-      "description": "Hohe Werte heissen: die Platte bremst, nicht der Prozessor.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": [],
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 18,
-            "lineWidth": 1,
-            "showPoints": "never",
-            "stacking": {
-              "mode": "none"
-            },
-            "spanNulls": false
-          },
-          "unit": "percent"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 40
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "platzwart-prometheus"
-          },
-          "editorMode": "code",
-          "expr": "rate(node_disk_io_time_seconds_total{device!~\"loop.*\"}[5m]) * 100",
-          "legendFormat": "belegt {{device}}",
-          "refId": "A",
-          "instant": false,
-          "range": true
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "platzwart-prometheus"
-          },
-          "editorMode": "code",
-          "expr": "avg(rate(node_cpu_seconds_total{mode=\"iowait\"}[5m])) * 100",
-          "legendFormat": "iowait",
-          "refId": "B",
-          "instant": false,
-          "range": true
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": []
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 21,
-      "title": "Inodes frei",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "platzwart-prometheus"
-      },
-      "description": "Viele kleine Dateien koennen die Platte belegen, ohne dass Bytes fehlen.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": [],
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 18,
-            "lineWidth": 1,
-            "showPoints": "never",
-            "stacking": {
-              "mode": "none"
-            },
-            "spanNulls": false
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 8,
-        "x": 0,
         "y": 48
       },
       "targets": [
@@ -1230,9 +1118,21 @@
             "uid": "platzwart-prometheus"
           },
           "editorMode": "code",
-          "expr": "node_filesystem_files_free{fstype!~\"tmpfs|overlay|squashfs\"}",
-          "legendFormat": "{{mountpoint}}",
+          "expr": "rate(container_fs_reads_bytes_total{name=\"__STACK__\"}[5m])",
+          "legendFormat": "lesen",
           "refId": "A",
+          "instant": false,
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "platzwart-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "rate(container_fs_writes_bytes_total{name=\"__STACK__\"}[5m])",
+          "legendFormat": "schreiben",
+          "refId": "B",
           "instant": false,
           "range": true
         }
@@ -1252,270 +1152,27 @@
     },
     {
       "id": 22,
-      "title": "Offene Dateien",
-      "type": "timeseries",
+      "title": "Auto-Update",
+      "type": "stat",
       "datasource": {
         "type": "prometheus",
         "uid": "platzwart-prometheus"
       },
-      "description": "",
+      "description": "1 = das Spiel wird automatisch aktualisiert.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
-          "mappings": [],
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 18,
-            "lineWidth": 1,
-            "showPoints": "never",
-            "stacking": {
-              "mode": "none"
-            },
-            "spanNulls": false
-          }
+          "mappings": []
         },
         "overrides": []
       },
       "gridPos": {
         "h": 6,
-        "w": 8,
-        "x": 8,
-        "y": 48
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "platzwart-prometheus"
-          },
-          "editorMode": "code",
-          "expr": "node_filefd_allocated",
-          "legendFormat": "offen",
-          "refId": "A",
-          "instant": false,
-          "range": true
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "platzwart-prometheus"
-          },
-          "editorMode": "code",
-          "expr": "node_filefd_maximum",
-          "legendFormat": "Grenze",
-          "refId": "B",
-          "instant": false,
-          "range": true
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": []
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 23,
-      "title": "Kontextwechsel und neue Prozesse",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "platzwart-prometheus"
-      },
-      "description": "",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": [],
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 18,
-            "lineWidth": 1,
-            "showPoints": "never",
-            "stacking": {
-              "mode": "none"
-            },
-            "spanNulls": false
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 8,
-        "x": 16,
-        "y": 48
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "platzwart-prometheus"
-          },
-          "editorMode": "code",
-          "expr": "rate(node_context_switches_total[5m])",
-          "legendFormat": "Kontextwechsel/s",
-          "refId": "A",
-          "instant": false,
-          "range": true
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "platzwart-prometheus"
-          },
-          "editorMode": "code",
-          "expr": "rate(node_forks_total[5m])",
-          "legendFormat": "neue Prozesse/s",
-          "refId": "B",
-          "instant": false,
-          "range": true
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": []
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 24,
-      "type": "row",
-      "title": "Netz",
-      "collapsed": false,
-      "panels": [],
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 54
-      }
-    },
-    {
-      "id": 25,
-      "title": "Durchsatz je Schnittstelle",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "platzwart-prometheus"
-      },
-      "description": "",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": [],
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 18,
-            "lineWidth": 1,
-            "showPoints": "never",
-            "stacking": {
-              "mode": "none"
-            },
-            "spanNulls": false
-          },
-          "unit": "bps"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 55
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "platzwart-prometheus"
-          },
-          "editorMode": "code",
-          "expr": "rate(node_network_receive_bytes_total{device!~\"lo|docker.*|veth.*|br-.*\"}[5m])*8",
-          "legendFormat": "herein {{device}}",
-          "refId": "A",
-          "instant": false,
-          "range": true
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "platzwart-prometheus"
-          },
-          "editorMode": "code",
-          "expr": "rate(node_network_transmit_bytes_total{device!~\"lo|docker.*|veth.*|br-.*\"}[5m])*8",
-          "legendFormat": "hinaus {{device}}",
-          "refId": "B",
-          "instant": false,
-          "range": true
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": []
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 26,
-      "title": "Pakete, Fehler, Verworfene",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "platzwart-prometheus"
-      },
-      "description": "Fehler und Verworfene sollten flach auf null liegen.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": [],
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 18,
-            "lineWidth": 1,
-            "showPoints": "never",
-            "stacking": {
-              "mode": "none"
-            },
-            "spanNulls": false
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
+        "w": 6,
         "x": 12,
-        "y": 55
+        "y": 48
       },
       "targets": [
         {
@@ -1524,157 +1181,26 @@
             "uid": "platzwart-prometheus"
           },
           "editorMode": "code",
-          "expr": "rate(node_network_receive_packets_total{device!~\"lo|veth.*\"}[5m])",
-          "legendFormat": "Pakete herein {{device}}",
+          "expr": "platzwart_autoupdate{stack=\"__STACK__\"}",
+          "legendFormat": "Zustand",
           "refId": "A",
-          "instant": false,
-          "range": true
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "platzwart-prometheus"
-          },
-          "editorMode": "code",
-          "expr": "rate(node_network_transmit_packets_total{device!~\"lo|veth.*\"}[5m])",
-          "legendFormat": "Pakete hinaus {{device}}",
-          "refId": "B",
-          "instant": false,
-          "range": true
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "platzwart-prometheus"
-          },
-          "editorMode": "code",
-          "expr": "rate(node_network_receive_errs_total{device!~\"lo|veth.*\"}[5m])",
-          "legendFormat": "Fehler {{device}}",
-          "refId": "C",
-          "instant": false,
-          "range": true
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "platzwart-prometheus"
-          },
-          "editorMode": "code",
-          "expr": "rate(node_network_receive_drop_total{device!~\"lo|veth.*\"}[5m])",
-          "legendFormat": "verworfen {{device}}",
-          "refId": "D",
-          "instant": false,
-          "range": true
+          "instant": true,
+          "range": false
         }
       ],
       "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": []
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
         },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 27,
-      "title": "TCP-Verbindungen",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "platzwart-prometheus"
-      },
-      "description": "Viele Wiederholungen heissen Paketverlust auf dem Weg.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": [],
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 18,
-            "lineWidth": 1,
-            "showPoints": "never",
-            "stacking": {
-              "mode": "none"
-            },
-            "spanNulls": false
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 63
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "platzwart-prometheus"
-          },
-          "editorMode": "code",
-          "expr": "node_netstat_Tcp_CurrEstab",
-          "legendFormat": "bestehend",
-          "refId": "A",
-          "instant": false,
-          "range": true
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "platzwart-prometheus"
-          },
-          "editorMode": "code",
-          "expr": "rate(node_netstat_Tcp_ActiveOpens[5m])",
-          "legendFormat": "neu/s ausgehend",
-          "refId": "B",
-          "instant": false,
-          "range": true
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "platzwart-prometheus"
-          },
-          "editorMode": "code",
-          "expr": "rate(node_netstat_Tcp_PassiveOpens[5m])",
-          "legendFormat": "neu/s eingehend",
-          "refId": "C",
-          "instant": false,
-          "range": true
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "platzwart-prometheus"
-          },
-          "editorMode": "code",
-          "expr": "rate(node_netstat_Tcp_RetransSegs[5m])",
-          "legendFormat": "Wiederholungen/s",
-          "refId": "D",
-          "instant": false,
-          "range": true
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": []
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
+        "textMode": "auto"
       }
     }
   ]

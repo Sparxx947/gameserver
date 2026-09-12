@@ -512,7 +512,7 @@ modul-verwalten katalog | status <modul>
 modul-verwalten installieren <modul> | entfernen <modul> [--auch-daten]
 modul-verwalten schalter <modul> <name> <an|aus>
 modul-verwalten einstellung <modul> <name> <wert>
-modul-verwalten anwenden <modul> | --selbsttest
+modul-verwalten anwenden <modul> | dashboards <modul> | --selbsttest
 ```
 
 Der Modulweg neben dem Spielweg (#261, E35): eigener Katalog
@@ -535,8 +535,19 @@ einer Ablehnung die alte Datei zurück. Die Klammernzählung ist nicht überflü
 `caddy validate` erkennt eine unbekannte Direktive, eine offene Klammer am
 Dateiende aber nicht (gemessen).
 
+`dashboards <modul>` setzt aus der Vorlage je installiertem Spielserver ein
+Dashboard zusammen und entfernt die, deren Server es nicht mehr gibt. Aufgerufen
+von `anwenden`, von `panel-aktion` nach jeder Installation und Entfernung und von
+Stufe 60 — jeder Weg, der einen Server anlegt oder entfernt, zieht die
+Dashboards nach.
+
+Eine Änderung zur Zeit: Jede verändernde Aktion nimmt eine Sperre (`flock`,
+`/run/modul-verwalten.sperre`) und wartet höchstens zehn Minuten darauf.
+Gespeichert wird der neue Zustand **erst nach** erfolgreichem Anwenden.
+
 Umgebungsvariablen für Tests: `MODUL_KATALOG`, `MODUL_VORLAGEN`, `MODUL_STACKS`,
-`MODUL_CADDY`, `MODUL_CADDYFILE`, `MODUL_MELDEN`, `MODUL_TIMER`.
+`MODUL_CADDY`, `MODUL_CADDYFILE`, `MODUL_MELDEN`, `MODUL_TIMER`, `MODUL_VERZ`,
+`MODUL_SPERRE`, `MODUL_SPERRFRIST`.
 
 > *The module path beside the game path: its own catalogue, its own allow-list,
 > none of the game machinery. Installs to `/opt/module/<module>` with data in
@@ -1036,19 +1047,34 @@ ein falsches.
 ### `statistik-dashboards.py`
 
 ```
-werkzeuge/statistik-dashboards.py             Dashboards schreiben
-werkzeuge/statistik-dashboards.py --pruefen   nur berichten (Exit 1 = veraltet)
+werkzeuge/statistik-dashboards.py               Dashboards schreiben
+werkzeuge/statistik-dashboards.py --pruefen     nur berichten (Exit 1 = veraltet)
+werkzeuge/statistik-dashboards.py --daten ZIEL  jede Tafel gegen die laufende
+                                                Instanz abfragen (Exit 1 = leer)
 ```
 
-Erzeugt die beiden Grafana-Dashboards des Statistik-Moduls (`Maschine`,
-`Spielserver`) nach `etc/module/statistik/grafana/dashboards/`. Von Hand sind
+Erzeugt die sieben Grafana-Dashboards des Statistik-Moduls nach
+`etc/module/statistik/grafana/dashboards/` und die **Vorlage** für die
+Dashboards je Spielserver nach `etc/module/statistik/grafana/server-vorlage.json`
+(dort `__STACK__`, eingesetzt von `modul-verwalten dashboards`). Von Hand sind
 das mehrere hundert Zeilen JSON, in denen Datenquelle, Einheit und Rasterlage
-zwanzigmal wiederholt werden; hier steht je Tafel eine Zeile. Wird von
-`vollstaendigkeit.sh` mitgeprüft.
+zwanzigmal wiederholt werden; hier steht je Tafel eine Zeile. `--pruefen` wird
+von `vollstaendigkeit.sh` mitgeprüft.
 
-> *Generates the module's two Grafana dashboards; by hand they are hundreds of
-> lines of JSON repeating the same fields, here one line per panel. Checked by
-> the completeness check.*
+`--daten <ssh-ziel>` führt **jede Abfrage jeder Tafel** gegen die laufende
+Instanz aus, und zwar **durch Grafana hindurch** (dessen Datenquellen-Weiterleitung),
+nicht direkt gegen Prometheus: Genau dieser Unterschied verdeckte einmal eine
+Datenquelle, die auf einen Containernamen zeigte, den es nicht mehr gab — die
+Tafeln waren leer und die Prüfung meldete „alles da". Die Vorlage je Server wird
+mitgeprüft; `__STACK__` und die Auswahlvariablen werden dafür durch „irgendetwas"
+ersetzt.
+
+> *Generates the module's seven dashboards and the template for the per-server
+> ones (`__STACK__`, filled in on the machine). `--pruefen` is part of the
+> completeness check. `--daten <target>` runs every panel's query against the
+> live instance through Grafana's datasource proxy rather than straight at
+> Prometheus — that difference once hid a datasource pointing at a container name
+> that no longer existed, with empty panels and a check reporting all good.*
 
 ### `katalog-doku.py`
 

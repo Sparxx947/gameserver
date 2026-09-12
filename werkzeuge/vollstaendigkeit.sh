@@ -432,6 +432,55 @@ PRUEF
 echo "== Ports des Spielekatalogs (Grenze 4, Beitrittsport, Kollisionen) =="
 python3 werkzeuge/katalog-ports.py || fehler=1
 
+# --- Selbsttests duerfen das System nicht anfassen --------------------------
+#
+# bin/modul-verwalten setzte in seinem Selbsttest ein echtes
+# "systemctl daemon-reload" ab. Auf dem Server als root harmlos, auf einem
+# Arbeitsplatzrechner eine Anfrage an den System-Manager: Polkit stellte sie als
+# Passwortdialog auf den Schirm, immer wieder, bis eine andere Sitzung den Weg
+# nachvollzogen hat (2026-09-12).
+#
+# Eine blosse Messung "heute ruft keiner systemctl" haelt das nicht zu: Genau
+# dieser Aufruf war jahrelang unerreichbar und wurde es erst, als ein Testfall
+# erweitert wurde. Deshalb wird hier gemessen, nicht gelesen: ein Schein-
+# systemctl im PATH, jeder Aufruf ist ein Fehler.
+#
+# *A self-test must touch nothing: modul-verwalten's issued a real
+#  daemon-reload, harmless as root on the server and a Polkit password prompt on
+#  a workstation. Measuring "nobody calls it today" does not close the case -
+#  that call became reachable only when a test case grew. Hence a fake systemctl
+#  in PATH, and any call is a failure.*
+echo "== Fassen die Selbsttests das System an? =="
+if [ -n "${PLATZWART_KEIN_SYSTEMCTL_GATE:-}" ]; then
+  echo "  uebersprungen (PLATZWART_KEIN_SYSTEMCTL_GATE gesetzt)"
+else
+  schein=$(mktemp -d)
+  export SCHEIN_LOG="$schein/aufrufe"
+  : > "$SCHEIN_LOG"
+  cat > "$schein/systemctl" <<'SCHEINENDE'
+#!/bin/sh
+printf '%s %s\n' "$(basename "$0")" "$*" >> "$SCHEIN_LOG"
+exit 0
+SCHEINENDE
+  chmod +x "$schein/systemctl"
+  for w in $(grep -l -- "--selbsttest" bin/* 2>/dev/null); do
+    PATH="$schein:$PATH" timeout 300 "$w" --selbsttest >/dev/null 2>&1
+  done
+  anzahl=$(wc -l < "$SCHEIN_LOG")
+  if [ "$anzahl" -gt 0 ]; then
+    echo "  $anzahl Aufruf(e) an das System aus einem Selbsttest:"
+    sort -u "$SCHEIN_LOG" | sed "s/^/    /"
+    echo "    Regel: Ein Selbsttest laeuft auch auf einem Arbeitsplatzrechner und"
+    echo "    darf dort nichts anfassen - als nicht-root ueberspringen oder die"
+    echo "    Ausfuehrung im Test umbiegen. Vorbei: PLATZWART_KEIN_SYSTEMCTL_GATE=1"
+    fehler=1
+  else
+    echo "  kein Selbsttest ruft systemctl."
+  fi
+  unset SCHEIN_LOG
+  rm -rf "$schein"
+fi
+
 # --- Module: Ports und Dashboards -------------------------------------------
 #
 # Dieselbe Regel wie fuer den Spielekatalog, an einer zweiten Stelle: Ein Modul

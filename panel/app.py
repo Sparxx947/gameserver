@@ -907,7 +907,10 @@ def kopfleiste(s: dict, hier: str = "") -> str:
     # stehen bei den Spielen, nicht bei der Maschine: Wer sie sehen darf,
     # entscheidet der Katalog, nicht die Kopfleiste.
     for sch, mod in modul_sichtbar(s):
-        punkte.append((mod["route"] + "/", mod["name"], f"modul-{sch}"))
+        # Die Startseite aus dem Katalog, nicht die Wurzel des Moduls: Grafana
+        # zeigt auf seiner Wurzel die eigene Startseite mit Neuigkeiten und
+        # zuletzt Besuchtem - gewollt ist die Liste der Dashboards (#276).
+        punkte.append((mod.get("startseite") or mod["route"] + "/", mod["name"], f"modul-{sch}"))
     if ist_admin(s):
         punkte += [("/module", "Module", "modul"),
                    ("/nutzer", "Benutzer", "nutzer"),
@@ -3420,8 +3423,8 @@ def module_seite(request: Request, meldung: str = ""):
                           '<button class=b>setzen</button></form></td></tr>')
         laeuft = esc(st["laeuft"] or "nichts")
         teile.append(kopf
-            + f'<p>Läuft: <b>{laeuft}</b> — <a class=b href="{esc(mod.get("route", "/"))}/">'
-              'öffnen</a></p>'
+            + f'<p>Läuft: <b>{laeuft}</b> — <a class=b href='
+              f'"{esc(mod.get("startseite") or mod.get("route", "/") + "/")}">öffnen</a></p>'
             + '<table><tr><th>Schalter</th><th>Stand</th><th></th></tr>'
             + "".join(zeilen) + '</table>'
             + f'<p style="margin-top:12px"><a class="b x" '
