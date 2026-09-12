@@ -60,7 +60,7 @@ gelesen; install/lib.sh uebernimmt sie einmalig beim naechsten Lauf der Stufen
                                  fehlen - und aendert nie einen vorhandenen Eintrag
   dns-pflegen anbieter           zeigt, welcher Anbieter eingestellt ist
 """
-import contextlib, ipaddress, json, re, socket, sys, urllib.request, urllib.error
+import contextlib, ipaddress, json, re, socket, sys, urllib.parse, urllib.request, urllib.error
 from pathlib import Path
 
 KONF = Path("/etc/dns-gameserver.conf")
@@ -303,40 +303,48 @@ class Cloudflare(Anbieter):
 
 
 class Hetzner(Anbieter):
-    """Hetzner DNS. Token: DNS-Console -> API tokens.
+    """Hetzner DNS ueber die Cloud-API. Token: Konsole -> Projekt -> Security.
 
-    ACHTUNG: Diese Umsetzung ist nach der Dokumentation geschrieben und gegen
-    eine nachgebildete API geprueft, NICHT gegen eine echte Zone. Bevor sich
-    jemand darauf verlaesst, gehoert die Liste aus Issue #60 einmal durchlaufen:
-    anbieter, grundgeruest zweimal, setzen zweimal, liste, entfernen, und ein
-    fremder Eintrag darf sich nicht loeschen lassen.
+    Diese Klasse sprach bis 2026-09-12 mit `dns.hetzner.com/api/v1`. Diesen
+    Dienst gibt es nicht mehr: Der Host leitet alles mit 301 auf die Konsole um
+    (gemessen), DNS ist in die Cloud-API gewandert. Wer den alten Weg benutzte,
+    bekam also eine HTML-Seite statt JSON - und das faellt erst auf, wenn es
+    jemand ausprobiert. Genau davor warnt Issue #60.
 
-    *Written from the documentation and tested against a mock, NOT against a
-     real zone. Run the checklist in issue #60 before relying on it.*
+    *Until 2026-09-12 this talked to dns.hetzner.com/api/v1, which no longer
+     exists - that host 301-redirects everything to the console, DNS having moved
+     into the Cloud API. The old path returned an HTML page instead of JSON.*
 
-    Drei Unterschiede zu Cloudflare, und alle drei stecken in dieser Klasse:
+    Vier Unterschiede zu Cloudflare, und alle vier stecken in dieser Klasse:
 
-    1. Namen sind RELATIV zur Zone, die Zone selbst heisst "@". Nach aussen
-       gibt diese Klasse immer vollstaendige Namen - die Regeln oben rechnen
-       nirgends mit Zonen.
+    1. Namen sind RELATIV zur Zone, die Zone selbst heisst "@". Nach aussen gibt
+       diese Klasse immer vollstaendige Namen - die Regeln oben rechnen nirgends
+       mit Zonen.
     2. Werte koennen mit einem Punkt enden ("ziel.beispiel.de."). Geschrieben
-       wird mit Punkt, damit ein CNAME nicht als relativer Name gelesen wird;
-       gelesen wird ohne, weil die Regeln oben auf Gleichheit vergleichen.
-    3. Es gibt kein "success"-Feld. Ein Fehler kommt als HTTP-Status mit einem
-       "error"-Objekt - und was NICHT passieren darf, ist ihn als leere
-       Ergebnisliste durchzureichen: grundgeruest legt dann alles noch einmal an.
+       wird mit Punkt, damit ein CNAME nicht als relativer Name gilt; gelesen
+       wird ohne, weil die Regeln auf Gleichheit vergleichen.
+    3. **Ein RRSet ist kein Eintrag.** Hetzner fasst alle Werte eines Paares aus
+       Name und Typ zu EINEM Satz zusammen ("@/NS" mit drei Nameservern),
+       Cloudflare gibt jeden Wert einzeln. Die Regeln oben kennen nur einzelne
+       Eintraege, also faltet diese Klasse auseinander und wieder zusammen. Die
+       Kennung traegt deshalb beides: "<name>/<typ>|<wert>".
+    4. Es gibt kein "success"-Feld. Ein Fehler kommt als HTTP-Status mit einem
+       "error"-Objekt - und was NICHT passieren darf, ist ihn als leere Liste
+       durchzureichen: grundgeruest legt dann alles noch einmal an.
 
-    *Three differences from Cloudflare, all contained in this class: relative
-     names with "@" for the apex; values that may carry a trailing dot; and no
-     "success" field - an error must never pass as an empty result list, or
-     grundgeruest would create everything a second time.*
+    *Four differences from Cloudflare, all contained here: relative names with
+     "@" for the apex; values that may carry a trailing dot; an RRSet is not a
+     record - Hetzner groups every value of one name-and-type pair into a single
+     set, so this class unfolds and refolds them and the identifier carries both
+     halves; and no "success" field, where an error must never pass as an empty
+     result list.*
     """
     name = "hetzner"
     kennt_proxy = False
-    API = "https://dns.hetzner.com/api/v1"
+    API = "https://api.hetzner.cloud/v1"
 
-    def ruf(self, weg, methode="GET", daten=None):
-        k = {"Auth-API-Token": self.token, "Content-Type": "application/json"}
+    def ruf(self, weg, methode="GET", daten=None, still_404=False):
+        k = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
         leib = json.dumps(daten).encode() if daten is not None else None
         a = urllib.request.Request(self.API + weg, data=leib, headers=k, method=methode)
         with nur_ipv4():
@@ -344,11 +352,15 @@ class Hetzner(Anbieter):
                 with urllib.request.urlopen(a, timeout=30) as r:
                     roh = r.read()
             except urllib.error.HTTPError as e:
+                # 404 ist beim Nachsehen eine Antwort, kein Fehler: "diesen Satz
+                # gibt es noch nicht" entscheidet, ob angelegt oder ergaenzt wird.
+                # *A 404 while looking is an answer, not a failure.*
+                if still_404 and e.code == 404:
+                    return None
                 d = lies_json(e.read())
                 fehler(f"HTTP {e.code}:",
                        (d.get("error") or {}).get("message") or d.get("message")
                        or "kein Grund genannt")
-        # DELETE antwortet mit leerem Leib - das ist Erfolg, kein Fehler.
         if not roh.strip():
             return {}
         d = lies_json(roh)
@@ -370,55 +382,100 @@ class Hetzner(Anbieter):
             return fqdn[: -(len(self.zone) + 1)]
         fehler(f"{fqdn} liegt nicht in der Zone {self.zone}")
 
-    def _satz(self, r: dict) -> dict:
-        return {"kennung": r["id"], "typ": r["type"], "name": self._voll(r["name"]),
-                "wert": (r.get("value") or "").rstrip("."),
-                "ttl": r.get("ttl") or SPIEL_TTL, "proxy": False}
+    @staticmethod
+    def _kennung(rname: str, typ: str, wert: str) -> str:
+        return f"{rname}/{typ}|{wert}"
 
-    def _nutzlast(self, zid, satz: dict) -> dict:
+    @staticmethod
+    def _teile(kennung: str) -> tuple:
+        kopf, _, wert = kennung.partition("|")
+        rname, _, typ = kopf.rpartition("/")
+        return rname, typ, wert
+
+    def _schreibwert(self, satz: dict) -> str:
         wert = satz["wert"]
         # Ein CNAME ohne Punkt am Ende wuerde als relativer Name gelesen und
         # bekaeme die Zone noch einmal angehaengt.
-        # *A CNAME without the trailing dot would be read as a relative name and
-        #  get the zone appended a second time.*
+        # *A CNAME without the trailing dot would get the zone appended twice.*
         if satz["typ"] == "CNAME" and not wert.endswith("."):
             wert += "."
-        return {"zone_id": zid, "type": satz["typ"], "name": self._relativ(satz["name"]),
-                "value": wert, "ttl": satz.get("ttl", SPIEL_TTL)}
+        return wert
+
+    def _rrset(self, zid, rname, typ):
+        d = self.ruf(f"/zones/{zid}/rrsets/{urllib.parse.quote(rname)}/{typ}", still_404=True)
+        return (d or {}).get("rrset")
 
     def zone_id(self) -> str:
-        d = self.ruf(f"/zones?name={self.zone}")
+        d = self.ruf(f"/zones?name={urllib.parse.quote(self.zone)}")
         for z in d.get("zones", []):
             if z.get("name") == self.zone:
-                return z["id"]
+                return str(z["id"])
         fehler("Zone nicht gefunden oder Token ohne Recht auf", self.zone)
 
     def saetze(self, zid, name=None) -> list[dict]:
-        # Hetzner kann Saetze nicht nach Namen filtern - also alle holen und
-        # hier auswaehlen. Geblaettert wird, bis die letzte Seite erreicht ist:
-        # eine Zone mit mehr Eintraegen als einer Seite duerfte sonst still
-        # unvollstaendig gelesen werden, und "nicht gefunden" hiesse dann
-        # "wird noch einmal angelegt".
-        # *No server-side name filter, so fetch everything and select here.
-        #  Paged to the end: reading a zone short would turn "not found" into
-        #  "created a second time".*
-        alle, seite, letzte = [], 1, 1
-        while seite <= letzte:
-            d = self.ruf(f"/records?zone_id={zid}&per_page=100&page={seite}")
-            alle += d.get("records") or []
-            letzte = ((d.get("meta") or {}).get("pagination") or {}).get("last_page", 1)
-            seite += 1
-        saetze = [self._satz(r) for r in alle if r.get("type") in ("A", "CNAME")]
+        # Geblaettert wird bis zur letzten Seite: Eine Zone, die kuerzer gelesen
+        # wird als sie ist, macht aus "nicht gefunden" ein zweites Anlegen.
+        # *Paged to the end: reading a zone short turns "not found" into a
+        #  second creation.*
+        alle, seite = [], 1
+        while True:
+            d = self.ruf(f"/zones/{zid}/rrsets?per_page=50&page={seite}")
+            alle += d.get("rrsets") or []
+            weiter = ((d.get("meta") or {}).get("pagination") or {}).get("next_page")
+            if not weiter:
+                break
+            seite = weiter
+        saetze = []
+        for r in alle:
+            if r.get("type") not in ("A", "CNAME"):
+                continue
+            for eintrag in r.get("records") or []:
+                wert = (eintrag.get("value") or "").rstrip(".")
+                saetze.append({"kennung": self._kennung(r["name"], r["type"], eintrag.get("value") or ""),
+                               "typ": r["type"], "name": self._voll(r["name"]), "wert": wert,
+                               "ttl": r.get("ttl") or SPIEL_TTL, "proxy": False})
         return [s for s in saetze if name is None or s["name"] == name]
 
     def anlegen(self, zid, satz):
-        self.ruf("/records", "POST", self._nutzlast(zid, satz))
+        rname, typ, wert = self._relativ(satz["name"]), satz["typ"], self._schreibwert(satz)
+        ttl = satz.get("ttl", SPIEL_TTL)
+        if self._rrset(zid, rname, typ) is None:
+            self.ruf(f"/zones/{zid}/rrsets", "POST",
+                     {"name": rname, "type": typ, "ttl": ttl, "records": [{"value": wert}]})
+        else:
+            # Den Satz gibt es schon (anderer Wert desselben Namens und Typs) -
+            # ergaenzen statt ueberschreiben, sonst faellt der andere Wert weg.
+            # *The set exists with another value: add, never overwrite.*
+            self.ruf(f"/zones/{zid}/rrsets/{urllib.parse.quote(rname)}/{typ}/actions/add_records",
+                     "POST", {"records": [{"value": wert}]})
 
     def aendern(self, zid, kennung, satz):
-        self.ruf(f"/records/{kennung}", "PUT", self._nutzlast(zid, satz))
+        rname, typ, alt = self._teile(kennung)
+        neu = self._schreibwert(satz)
+        vorhanden = self._rrset(zid, rname, typ)
+        werte = [e.get("value") for e in (vorhanden or {}).get("records") or []]
+        # Nur den EINEN Wert tauschen und die uebrigen stehen lassen: Ein PUT mit
+        # der halben Liste loeschte den Rest des Satzes stillschweigend.
+        # *Swap only this value and keep the rest: a PUT with half the list would
+        #  silently drop the remainder of the set.*
+        werte = [neu if w == alt else w for w in werte] or [neu]
+        self.ruf(f"/zones/{zid}/rrsets/{urllib.parse.quote(rname)}/{typ}", "PUT",
+                 {"ttl": satz.get("ttl", SPIEL_TTL),
+                  "records": [{"value": w} for w in werte]})
 
     def loeschen(self, zid, kennung):
-        self.ruf(f"/records/{kennung}", "DELETE")
+        rname, typ, wert = self._teile(kennung)
+        vorhanden = self._rrset(zid, rname, typ)
+        if vorhanden is None:
+            return
+        werte = [e.get("value") for e in vorhanden.get("records") or []]
+        if len(werte) <= 1:
+            self.ruf(f"/zones/{zid}/rrsets/{urllib.parse.quote(rname)}/{typ}", "DELETE")
+        else:
+            # Andere Werte desselben Satzes gehoeren jemand anderem.
+            # *Other values in the same set belong to somebody else.*
+            self.ruf(f"/zones/{zid}/rrsets/{urllib.parse.quote(rname)}/{typ}/actions/remove_records",
+                     "POST", {"records": [{"value": wert}]})
 
 
 # Ein neuer Anbieter kommt hier hinein - und sonst nirgends.
