@@ -991,8 +991,20 @@ def uebersicht(request: Request, meldung: str = ""):
         # Frage, die eine Momentaufnahme nicht kann: steigt das, oder ist es
         # seit jeher so?
         verkehr += sparkline(verl.get(name)) if an else ""
-        bild_html = (f'<img src="/bild/{name}" alt="">' if (BILDER / f"{name}.jpg").is_file()
-                     else f'<div class=ph>{name[:2].upper()}</div>')
+        # Zwei Quellen, in dieser Reihenfolge: das Kartenbild, das die
+        # Installation abgelegt hat, und sonst das Katalogbild. Ohne den zweiten
+        # Weg blieb die Kachel blass, sobald der Abruf bei der Installation
+        # einmal scheiterte - bei Icarus und Soulmask am 2026-09-12 genau so
+        # passiert, waehrend das Bild im Katalog die ganze Zeit dalag.
+        # *Two sources in order: the card image the install placed, else the
+        #  catalogue image. Without the second the tile stayed blank whenever the
+        #  fetch failed once at install time, though the catalogue had it.*
+        if (BILDER / f"{name}.jpg").is_file():
+            bild_html = f'<img src="/bild/{name}" alt="">'
+        elif (KATALOGBILDER / f"{name}.jpg").is_file():
+            bild_html = f'<img src="/katalogbild/{name}" alt="">'
+        else:
+            bild_html = f'<div class=ph>{name[:2].upper()}</div>'
         knoepfe = []
         if an:
             knoepfe.append(f'<button class=y name=was value=restart>neu starten</button>')
