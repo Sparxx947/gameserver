@@ -506,9 +506,6 @@ Ehrlichkeitshalber mitschreiben, damit niemand mehr Deckung annimmt als da ist:
   Sicherungsrotation über Wochen
 * **Last** — mehrere Spielserver gleichzeitig, Plattendruck, RAM-Grenzen
 * **Wiederherstellung aus Borg** über einen echten Datenverlust hinaus
-* **Der Anbieter `hetzner`** — er ist nach Dokumentation geschrieben und nie
-  gegen eine echte Zone gelaufen (Issue #60). Wer eine Hetzner-Zone hat: die
-  Prüfliste in `docs/06-netz-dns-firewall.md` gilt genau dafür.
 * **Alles mit fremden Zugängen** — Meldungen nach Discord (`platzwart-melden
   --test` braucht zwei Webhooks), Kanäle auf TeamSpeak und Discord, die
   Workshop-Suche mit einem Steam-Schlüssel. Wer die Zugänge hat, prüft sie
@@ -520,8 +517,8 @@ Ehrlichkeitshalber mitschreiben, damit niemand mehr Deckung annimmt als da ist:
 > *What this acceptance run does not test, stated so nobody assumes more
 > coverage than there is: long-term operation (reboots, certificate renewal
 > after 60 days, backup rotation over weeks), load (several servers at once, disk
-> pressure, memory limits), restores beyond a real data loss, the `hetzner`
-> provider (never run against a real zone, #60), anything needing outside
+> pressure, memory limits), restores beyond a real data loss, anything needing
+> outside
 > credentials (Discord notifications, TeamSpeak and Discord channels, the
 > Workshop search), and passkeys and idle sleep, which need a real browser and a
 > real game client from outside.*

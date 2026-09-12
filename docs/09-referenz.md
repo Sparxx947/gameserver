@@ -863,8 +863,9 @@ dns-pflegen anbieter             zeigt den eingestellten Anbieter
 ```
 
 Der Anbieter steht in `/etc/dns-gameserver.conf` (`ANBIETER=`), die API-Kenntnis
-in genau einer Klasse. Umgesetzt sind **cloudflare** und **hetzner** (letzterer noch nicht gegen eine
-echte Zone gelaufen); ein weiterer ist fünf Methoden und ein Eintrag in
+in genau einer Klasse. Umgesetzt sind **cloudflare** und **hetzner**, beide gegen
+die echte API abgenommen (2026-09-11 und 2026-09-12, je 13 Schritte mit
+`werkzeuge/dns-abnahme.sh`); ein weiterer ist fünf Methoden und ein Eintrag in
 `ANBIETER` — die Regeln darüber, welcher Eintrag angelegt, geändert oder in Ruhe
 gelassen wird, stehen einmal für alle. Anleitung:
 [06-netz-dns-firewall.md](06-netz-dns-firewall.md), „Einen weiteren Anbieter
