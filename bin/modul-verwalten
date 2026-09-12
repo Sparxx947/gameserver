@@ -955,7 +955,19 @@ def selbsttest():
         shutil.copy2(kat, tmp / "katalog.json")
         shutil.copytree(quelle / "etc/module", tmp / "module")
     else:
-        print("  (Repositorium nicht daneben - nur Formpruefungen)")
+        # Ohne das Repositorium daneben fehlt der Modulkatalog, und alles
+        # Folgende braucht ihn. Hier stand nur dieser Hinweis, danach lief der
+        # Test weiter und starb an der fehlenden Datei - auf der Maschine war
+        # dieser Selbsttest deshalb seit jeher rot, und niemandem fiel es auf,
+        # weil sein Ausgang nirgends ausgewertet wurde (#307).
+        # Exit 2 heisst "hier nicht pruefbar", nicht "fehlgeschlagen".
+        # *Without the repository alongside the module catalogue is missing and
+        #  everything below needs it. The note was printed and the test then died
+        #  on the missing file; nobody noticed because no caller looked at the
+        #  exit code. Exit 2 means "cannot be verified here".*
+        print("  (Repositorium nicht daneben - der Selbsttest braucht es)")
+        shutil.rmtree(tmp, ignore_errors=True)
+        return 2
     pruefe("statistik" in katalog(), "Katalog gelesen")
     s = stand("statistik")
     pruefe(s["schalter"]["zahlen"] is True, "Vorgabe: Platzwart-Zahlen an")
