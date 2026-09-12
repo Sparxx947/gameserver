@@ -1074,7 +1074,24 @@ def selbsttest():
     pruefe("bekommen" in r.stdout, "nach dem Loslassen bekommt der naechste sie")
 
     # Scheitert das Anwenden, bleibt der gespeicherte Zustand unberuehrt (#270).
-    # Hier scheitert es zuverlaessig, weil im Testbau kein docker antwortet.
+    #
+    # Das Scheitern wird HERGESTELLT, nicht vorausgesetzt: Hier stand
+    # "scheitert zuverlaessig, weil im Testbau kein docker antwortet" - eine
+    # Annahme ueber die Maschine, auf der der Test zufaellig lief. Auf einem
+    # GitHub-Laeufer ist Docker da, und der Fall fiel um (#307). Schlimmer als
+    # der rote Test waere der gruene gewesen: Mit erreichbarem Docker haette
+    # dieser Selbsttest echte Container angefasst.
+    # *The failure is produced, not assumed. "Fails reliably because no docker
+    #  answers in the test build" was an assumption about whichever machine ran
+    #  it; on a runner docker exists. Worse than the red test would have been the
+    #  green one - with a reachable docker this self-test would touch real
+    #  containers.*
+    schein_bin = tmp / "schein-bin"
+    schein_bin.mkdir(exist_ok=True)
+    (schein_bin / "docker").write_text("#!/bin/sh\nexit 1\n")
+    (schein_bin / "docker").chmod(0o755)
+    pfad_vorher = os.environ.get("PATH", "")
+    os.environ["PATH"] = f"{schein_bin}:{pfad_vorher}"
     stand_schreiben("statistik", {"schalter": {"cadvisor": False, "zahlen": True},
                                   "einstellungen": {"aufbewahrung": "90d", "platte_gb": "2",
                                                     "messabstand": "5min"}})
@@ -1090,6 +1107,8 @@ def selbsttest():
     except SystemExit:
         pruefe((verzeichnis("statistik") / "modul.json").read_text() == vorher,
                "gescheitertes Anwenden laesst den gespeicherten Zustand unberuehrt")
+    finally:
+        os.environ["PATH"] = pfad_vorher
 
     print()
     shutil.rmtree(tmp)
