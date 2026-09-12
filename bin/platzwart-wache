@@ -54,6 +54,75 @@ FRISCH_MIN = int(os.environ.get("WACHE_FRISCH_MIN", "10"))    # Minuten
 #  else crashed; 137 is SIGKILL, i.e. the OOM killer.*
 HARMLOS = {0, 143}
 
+# --- Spiele, deren Passwort NICHT aus der compose-Datei kommt ----------------
+# Gemessen am 2026-09-12 (#286): Palworlds Abbild bekommt
+# DISABLE_GENERATE_SETTINGS=true, damit es die von Nitrado uebernommenen
+# Einstellungen nicht neu schreibt. Damit wendet es AUCH keine Env-Werte mehr
+# an - start.sh sagt es selbst: "Env vars will not be applied". Wirksam sind
+# nur PORT, QUERY_PORT und COMMUNITY (Startargumente); Name, Spielerzahl und
+# beide Passwoerter stehen allein in der ini. Heute stimmen compose und ini
+# ueberein, weil jemand sie von Hand gleichzog - nichts haelt sie so. Und fehlt
+# die ini, legt das Abbild DefaultPalWorldSettings.ini an: ohne Passwort, bei
+# offenem Spielport. Genau das verbietet E26.
+# *Measured: with DISABLE_GENERATE_SETTINGS the image applies no env vars at
+#  all, so name, player cap and both passwords live only in the ini. compose and
+#  ini agree today because someone aligned them by hand, and nothing keeps them
+#  that way. A missing ini is replaced by the password-less default while the
+#  game port is open - exactly what E26 forbids.*
+KONFIG_GILT = {
+    "palworld": {
+        "datei": "/srv/games/palworld/Pal/Saved/Config/LinuxServer/PalWorldSettings.ini",
+        "grund": "DISABLE_GENERATE_SETTINGS=true - das Abbild wendet keine Env-Werte an",
+        "paare": [("Beitrittspasswort", "ServerPassword", "SERVER_PASSWORD"),
+                  ("Adminpasswort", "AdminPassword", "ADMIN_PASSWORD")],
+    },
+}
+
+
+def wert_ini(text: str, schluessel: str) -> str:
+    m = re.search(rf'{schluessel}="([^"]*)"', text)
+    return m.group(1) if m else ""
+
+
+def wert_compose(text: str, schluessel: str) -> str:
+    m = re.search(rf'^\s*{schluessel}:\s*"?([^"\n]*)', text, re.M)
+    return m.group(1).strip() if m else ""
+
+
+def konfig_befund(stack: str, regel: dict, compose: str, ini) -> str:
+    """Gilt fuer diesen Server wirklich, was in der compose-Datei steht?
+
+    `ini` ist der Text der Spielkonfiguration oder None, wenn es sie nicht gibt.
+    Gibt den Meldetext zurueck oder "" - und nennt **nie** einen Passwortwert,
+    auch nicht gekuerzt: Diese Meldung geht nach Discord.
+
+    *Does what the compose file says actually apply? Never names a password
+     value - this text goes to Discord.*
+    """
+    if ini is None:
+        return (f"**{stack}**: die Spielkonfiguration fehlt.\n\n"
+                f"{regel['datei']}\n\n"
+                "Beim naechsten Start legt das Abbild die Standardkonfiguration "
+                "an - **ohne Passwort**, waehrend der Spielport offen ist (E26). "
+                "Die Werte in der compose-Datei greifen hier nicht: "
+                f"{regel['grund']}.")
+    fehlend = [name for name, ik, _ in regel["paare"] if not wert_ini(ini, ik)]
+    if fehlend:
+        return (f"**{stack}**: {', '.join(fehlend)} ist in der "
+                f"Spielkonfiguration leer.\n\n{regel['datei']}\n\n"
+                "Die compose-Datei zaehlt hier nicht mit "
+                f"({regel['grund']}) - der Server steht also ohne Passwort "
+                "am offenen Port (E26).")
+    ungleich = [name for name, ik, ck in regel["paare"]
+                if wert_compose(compose, ck) and wert_ini(ini, ik) != wert_compose(compose, ck)]
+    if ungleich:
+        return (f"**{stack}**: {', '.join(ungleich)} steht in der compose-Datei "
+                "anders als in der Spielkonfiguration.\n\n"
+                f"Es gilt {regel['datei']} ({regel['grund']}); das Panel zeigt "
+                "aber die compose-Datei an. Wer das angezeigte Passwort "
+                "eingibt, kommt nicht herein.")
+    return ""
+
 
 def sh(*a) -> str:
     try:
@@ -314,6 +383,28 @@ def lage() -> dict:
                 "Solange das so steht, bleibt der Spielport zu - der Server ist "
                 "fuer niemanden erreichbar (E26).")
 
+    # --- Gilt, was in der compose-Datei steht? -------------------------------
+    # Die Wache sah bisher nur Katalogserver mit panel.json an - das ist genau
+    # einer von sieben. Handgebaute Stacks pruefte niemand (#286).
+    # *The watchdog only looked at catalogue servers with a panel.json - one of
+    #  seven. Hand-built stacks were checked by nobody.*
+    for stack, regel in KONFIG_GILT.items():
+        cdatei = STACKS / stack / "compose.yaml"
+        if not cdatei.exists():
+            continue
+        try:
+            compose = cdatei.read_text()
+        except OSError:
+            continue
+        idatei = Path(regel["datei"])
+        try:
+            ini = idatei.read_text() if idatei.exists() else None
+        except OSError:
+            continue
+        text = konfig_befund(stack, regel, compose, ini)
+        if text:
+            funde[f"konfig:{stack}"] = text
+
     # --- Fehlgeschlagene eigene Dienste ---------------------------------------
     # Am 2026-09-11 scheiterte die taegliche Vollsicherung an der Borg-Sperre,
     # und niemand erfuhr es: spiele-sicherung gibt nur "MIT FEHLERN" aus, und
@@ -370,6 +461,35 @@ def main() -> int:
         # Und die Gegenprobe: eine Pruefung, die IMMER etwas meldet, prueft nichts.
         print("  ok  unveraendert meldet nichts" if not [
             k for k in {"a"} if k not in {"a"}] else "  FEHLER")
+
+        # Und die Konfigurationspruefung (#286): Zu jedem stillen Fall der
+        # laute daneben - eine Pruefung, die immer schweigt, prueft nichts.
+        print("== Selbsttest: merkt die Wache, wenn die compose-Datei luegt? ==")
+        regel = {"datei": "/erfunden/PalWorldSettings.ini", "grund": "Probe",
+                 "paare": [("Beitrittspasswort", "ServerPassword", "SERVER_PASSWORD")]}
+        # Werte, die in keinem Meldungstext als Wort vorkommen koennen - sonst
+        # schlaegt die Leckprobe unten auf die eigene Prosa an.
+        cja = '      SERVER_PASSWORD: "Xq7geheimXq7"\n'
+        konfigproben = [
+            (cja, 'ServerPassword="Xq7geheimXq7"', False, "gleich"),
+            (cja, 'ServerPassword="Zr9fremdZr9"', True, "verschieden"),
+            (cja, 'ServerPassword=""', True, "ini leer"),
+            (cja, None, True, "ini fehlt"),
+            ('      PORT: 8211\n', 'ServerPassword="Xq7geheimXq7"', False, "compose sagt nichts"),
+            ('      PORT: 8211\n', 'ServerPassword=""', True, "beide ohne Passwort"),
+        ]
+        for compose, ini, soll, was in konfigproben:
+            text = konfig_befund("probe", regel, compose, ini)
+            ok = bool(text) == soll
+            print(f"  {'ok ' if ok else 'FEHLER'}  {was:<20} -> "
+                  f"{'meldet' if text else 'still '}   "
+                  f"(erwartet: {'meldet' if soll else 'still'})")
+            schlecht += 0 if ok else 1
+        # Und: in keiner Meldung darf ein Passwort stehen.
+        laut = konfig_befund("probe", regel, cja, 'ServerPassword="Zr9fremdZr9"')
+        ok = "Xq7geheimXq7" not in laut and "Zr9fremdZr9" not in laut
+        print(f"  {'ok ' if ok else 'FEHLER'}  {'Meldung nennt kein Passwort':<20}")
+        schlecht += 0 if ok else 1
 
         # Dasselbe fuer die Speicherpruefung. Der OK-Fall beweist nichts,
         # deshalb steht neben jedem stillen Fall einer, der melden MUSS - und

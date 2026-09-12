@@ -625,6 +625,7 @@ Alle fünf Minuten: Was stimmt gerade nicht? Verglichen mit dem letzten Lauf
 | Arbeitsspeicher knapp | ≥ 85 % belegt (`WACHE_SPEICHER_WARN`), Summe der Grenzen im Text |
 | Einrichtung nicht abgeschlossen | Katalogserver mit offener Einrichtung — der Port ist zu |
 | eigener Dienst fehlgeschlagen | `spiele-*`, `platzwart-*`, `spiel-*`, `sicherung-*`, Panel, Caddy, ttyd, Palworld-Neustart — mit den letzten Journalzeilen |
+| compose-Datei gilt nicht | Server aus `KONFIG_GILT` (heute Palworld): Spielkonfiguration fehlt, Passwort dort leer, oder compose und Konfiguration sagen Verschiedenes — die Meldung nennt nie einen Wert |
 
 `--trocken` zeigt die Lage, ohne zu melden; `--selbsttest` spielt Vergleich,
 Speicher- und Schleifenprüfung mit erfundenen Zahlen durch, je Fall still und
@@ -635,8 +636,11 @@ laut. Exit 1 nur, wenn das Melden selbst scheiterte.
 > unchanged stays silent. The table lists every finding and its threshold:
 > crashed containers (any exit except 0 and 143), restart loops (at least three
 > restarts and restarting or up for under ten minutes), failing health checks,
-> disk and memory at 85 %, unfinished setup (port closed) and failed units of
-> this project with their last journal lines. `--trocken` shows without
+> disk and memory at 85 %, unfinished setup (port closed), failed units of
+> this project with their last journal lines, and servers whose compose file
+> does not govern (Palworld: the image applies no env vars, so a missing,
+> password-less or diverging game configuration is reported — never with a
+> value in the message). `--trocken` shows without
 > reporting; `--selbsttest` runs the decisions on made-up numbers, one silent
 > and one loud case each. Exit 1 only if reporting itself failed.*
 

@@ -31,13 +31,35 @@ services:
       # Konfiguration uebernommen, falls dort welche gesetzt sind.
       SERVER_PASSWORD: "@@PASSWORT@@"
       ADMIN_PASSWORD: "@@ADMIN_PASSWORT@@"
-      RCON_ENABLED: "true"
-      RCON_PORT: 25575
       BACKUP_ENABLED: "true"
       BACKUP_CRON_EXPRESSION: "0 */6 * * *"
       DELETE_OLD_BACKUPS: "true"
       OLD_BACKUP_DAYS: 14
       AUTO_UPDATE_ENABLED: "false"
       COMMUNITY: "true"
-      # Einstellungen kommen 1:1 von Nitrado, der Container darf sie nicht neu bauen
+      # Einstellungen kommen 1:1 von Nitrado, der Container darf sie nicht neu bauen.
+      #
+      # Der Preis dafuer steht in start.sh des Abbilds: "Env vars will not be
+      # applied due to DISABLE_GENERATE_SETTINGS being set to TRUE". Gemessen am
+      # 2026-09-12 (#286) wirken hier nur PORT, QUERY_PORT und COMMUNITY (sie
+      # werden Startargumente) sowie das, was das Abbild selbst tut - TZ,
+      # PUID/PGID, Sicherung, Auto-Update. SERVER_NAME, PLAYERS und **beide
+      # Passwoerter** stehen wirkungslos hier: es gilt allein
+      # /srv/games/palworld/Pal/Saved/Config/LinuxServer/PalWorldSettings.ini.
+      # Sie sind trotzdem gesetzt, weil das Panel die Zugangsdaten aus dieser
+      # Datei liest; dass beide Seiten dasselbe sagen, prueft platzwart-wache.
+      #
+      # RCON_ENABLED/RCON_PORT standen hier ebenfalls und versprachen einen
+      # Dienst, den es nie gab: in der ini steht RCONEnabled=False, und auf
+      # 25575 lauschte nichts. Im Abbild ist RCON ohnehin abgekuendigt; der
+      # Verwaltungsweg dieses Servers ist die REST-API (in der ini an, Port
+      # container-intern, nicht veroeffentlicht).
+      #
+      # *The image applies no env vars with this switch: only PORT, QUERY_PORT
+      #  and COMMUNITY (start arguments) and the image's own doings take effect.
+      #  Name, player cap and both passwords live in the ini alone; they stay
+      #  here because the panel reads credentials from this file, and
+      #  platzwart-wache checks that both sides agree. RCON_ENABLED/RCON_PORT
+      #  promised a service that never existed (ini says RCONEnabled=False,
+      #  nothing listened on 25575) and RCON is deprecated in the image anyway.*
       DISABLE_GENERATE_SETTINGS: "true"
