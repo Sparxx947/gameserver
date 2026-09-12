@@ -432,6 +432,28 @@ PRUEF
 echo "== Ports des Spielekatalogs (Grenze 4, Beitrittsport, Kollisionen) =="
 python3 werkzeuge/katalog-ports.py || fehler=1
 
+# --- 9b. Sicherungsausschluesse des Spielekatalogs --------------------------
+# Bis 2026-09-12 sicherten alle 167 Katalogeintraege der Bauarten ich777 und
+# linuxgsm ihre Spielinstallation mit: Valheims 2,65 GB bestehen zu 85 % aus
+# Unity-Daten und Bibliotheken, die jede Neuinstallation zurueckbringt (#221).
+# Die Muster stehen im Werkzeug, samt Begruendung, warum keins davon ein
+# Spielstand sein kann. Es laesst ausserdem jedes Muster fallen, das ein
+# Modverzeichnis aus etc/spiele-mods.json verdecken wuerde - ein selbst
+# hochgeladener Mod kommt aus keiner Neuinstallation zurueck.
+# *All 167 ich777/linuxgsm catalogue entries backed up their game install. The
+#  patterns and the reasoning live in the tool, which also drops any pattern
+#  that would cover a mod directory - an uploaded mod returns from no reinstall.*
+echo "== Sicherungsausschluesse des Spielekatalogs =="
+if [ -n "${PLATZWART_KEIN_AUSSCHLUSS_GATE:-}" ]; then
+  echo "  uebersprungen (PLATZWART_KEIN_AUSSCHLUSS_GATE gesetzt)"
+else
+  python3 werkzeuge/katalog-ausschluesse.py --selbsttest || fehler=1
+  if ! python3 werkzeuge/katalog-ausschluesse.py --pruefen; then
+    echo "    Vorbei: PLATZWART_KEIN_AUSSCHLUSS_GATE=1"
+    fehler=1
+  fi
+fi
+
 # --- Selbsttests duerfen das System nicht anfassen --------------------------
 #
 # bin/modul-verwalten setzte in seinem Selbsttest ein echtes
@@ -463,7 +485,11 @@ printf '%s %s\n' "$(basename "$0")" "$*" >> "$SCHEIN_LOG"
 exit 0
 SCHEINENDE
   chmod +x "$schein/systemctl"
-  for w in $(grep -l -- "--selbsttest" bin/* 2>/dev/null); do
+  # Auch werkzeuge/ - dort stehen ebenfalls Selbsttests, und die Schleife sah
+  # sie bis 2026-09-12 nicht an. Nur nicht diese Datei selbst: sie riefe sich
+  # sonst selbst wieder auf.
+  for w in $(grep -l -- "--selbsttest" bin/* werkzeuge/* 2>/dev/null); do
+    case "$w" in */vollstaendigkeit.sh) continue ;; esac
     PATH="$schein:$PATH" timeout 300 "$w" --selbsttest >/dev/null 2>&1
   done
   anzahl=$(wc -l < "$SCHEIN_LOG")

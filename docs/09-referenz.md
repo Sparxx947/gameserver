@@ -1595,6 +1595,38 @@ Hintergrund: [04-spielekatalog.md](04-spielekatalog.md#portregeln-im-katalog).
 
 ---
 
+### `katalog-ausschluesse.py`
+
+```
+werkzeuge/katalog-ausschluesse.py               Muster im Katalog ergaenzen
+werkzeuge/katalog-ausschluesse.py --pruefen     Abweichungen melden (Exit 1)
+werkzeuge/katalog-ausschluesse.py --selbsttest  die Regeln selbst pruefen
+PLATZWART_KEIN_AUSSCHLUSS_GATE=1                Haken in vollstaendigkeit.sh aus
+```
+
+Hält das Feld `ausschluss` der 167 Katalogeinträge mit den Bauarten `ich777`
+und `linuxgsm` vollständig (#221). Aufgenommen wird **nur**, wovon sich belegen
+lässt, dass es kein Spielstand sein kann: geteilte Bibliotheken, Steams
+Laufzeit und Manifeste, Unitys `*_Data`, Unreals `Engine`, `Binaries`,
+`Content`, `Plugins`. Einträge mit eigenem Abbild bleiben unberührt — wo ein
+fremdes Bild speichert, weiß nur die Messung. Jedes Muster, das ein
+Modverzeichnis aus `etc/spiele-mods.json` verdecken würde, fällt für dieses
+Spiel weg; verglichen wird großzügiger als borg selbst (ohne Rücksicht auf
+Groß-/Kleinschreibung, `*` auch über `/`), denn ein zu Unrecht gestrichenes
+Muster kostet Platz, ein zu Unrecht gesetztes einen Mod. Hintergrund und
+Messwerte: [05-sicherung.md](05-sicherung.md).
+
+> *Keeps the `ausschluss` field of the 167 `ich777`/`linuxgsm` catalogue entries
+> complete (#221), admitting only what can be shown not to be a save — shared
+> libraries, the Steam runtime and manifests, Unity's `*_Data`, Unreal's
+> `Engine`, `Binaries`, `Content`, `Plugins`. Own-image entries are untouched,
+> since only a measurement knows where a foreign image saves. Any pattern that
+> would cover a mod directory from `etc/spiele-mods.json` is dropped for that
+> game, compared more generously than borg itself (case-insensitive, `*` across
+> `/`): a wrongly dropped pattern costs space, a wrongly kept one costs a mod.*
+
+---
+
 ### `ziel.sh`
 
 Kein eigenes Werkzeug, sondern der gemeinsame Teil von `ausrollen.sh`,
@@ -1925,6 +1957,8 @@ einen Lauf oder in einer Unit zu ändern, ohne das Werkzeug anzufassen.
 | `KANAL_PAUSE` | 0,6 s | `kanal-verwalten` | Abstand zwischen ServerQuery-Befehlen |
 | `PLATZWART_PORTPRUEFUNG=aus` | an | `katalog-ports.py` | Portprüfung abschalten — nur, wenn man weiß, warum |
 | `PLATZWART_DOKU_ENGLISCH=aus` | an | `doku-englisch.py` | Prüfung auf englische Absätze abschalten |
+| `PLATZWART_KEIN_AUSSCHLUSS_GATE=1` | aus | `vollstaendigkeit.sh` | Prüfung der Katalog-Sicherungsausschlüsse überspringen |
+| `PLATZWART_KEIN_SYSTEMCTL_GATE=1` | aus | `vollstaendigkeit.sh` | Prüfung, ob Selbsttests das System anfassen, überspringen |
 | `GAMESERVER_KEIN_GATE=1` | aus | `pre-commit` | Commit trotz roter Vollständigkeitsprüfung |
 | `PLATZWART_MIT_SUDO=1` | aus | `ziel.sh` | sudo-Weg erzwingen |
 | `DNS_ABNAHME_TOKEN` | — | `dns-abnahme.sh` | Token statt Datei |

@@ -66,7 +66,7 @@ im Katalog nach, und den Katalog kann die Oberfläche nur lesen.
 | `adresse_port` | der Port, der in der Beitrittsadresse steht |
 | `spieler` | Sollwert für die Spielerzahl |
 | `hinweis` | wird in der Oberfläche angezeigt; hier stehen Fallstricke |
-| `ausschluss` | Pfade unterhalb des Datenverzeichnisses, die **nicht** gesichert werden (Borgs `sh:`-Stil, `*` innerhalb eines Pfadteils). Nur gemessene Installationspfade eintragen — ohne Messung bleibt alles drin (#221). `spiel-verwalten ausschluesse` bringt Änderungen auf schon installierte Server |
+| `ausschluss` | Pfade unterhalb des Datenverzeichnisses, die **nicht** gesichert werden (Borgs `sh:`-Stil, `*` innerhalb eines Pfadteils). Nur gemessene Installationspfade eintragen — ohne Messung bleibt alles drin (#221). Für `ich777` und `linuxgsm` pflegt `werkzeuge/katalog-ausschluesse.py` das Feld, `vollstaendigkeit.sh` prüft es; von Hand ergänzte Muster bleiben erhalten. `spiel-verwalten ausschluesse` bringt Änderungen auf schon installierte Server |
 
 > *Field reference above. Note `mem_gb` sets both memory and swap limits, a
 > three-part port entry binds locally only, `{PASSWORT}`/`{ADMIN}` are replaced

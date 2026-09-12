@@ -93,7 +93,27 @@ Bis #221 stand dort für alle ich777-Spiele nur `steamcmd` und
 (Valheim: 16 KB); die Installation selbst war in jedem Archiv. Wo die
 Spielstände liegen, ist je Spiel verschieden und muss gemessen werden. Deshalb
 gilt: **Ohne Messung bleibt alles drin** — lieber zu viel sichern als einen
-Spielstand verfehlen. Gemessen und eingetragen ist bisher Valheim.
+Spielstand verfehlen.
+
+Seit #221 füllt `werkzeuge/katalog-ausschluesse.py` alle 167 Einträge der
+Bauarten `ich777` und `linuxgsm` mit den Mustern, von denen sich **belegen**
+lässt, dass sie kein Spielstand sein können — geteilte Bibliotheken, Steams
+Laufzeit, Unitys `*_Data` und Unreals `Engine`, `Binaries`, `Content`,
+`Plugins`. Maßstab ist die gemessene Valheim-Installation: von 2,65 GB sind
+1,93 GB `valheim_server_Data` und 0,31 GB `*.so` — 85 %, und keins davon kann
+ein Spielstand sein, weil Unity unter `.config` speichert. Ein Probelauf von
+`borg create --dry-run` auf der Maschine hat das bestätigt: Welten enthalten,
+Bibliotheken draußen, Archivgröße unverändert 312,8 MB (Valheims Block deckte
+den Brocken schon ab — der Gewinn liegt bei den übrigen 166 Einträgen). Die
+zwölf Einträge mit eigenem Abbild rührt das Werkzeug **nicht** an: Wo ein
+fremdes Bild seine Ordner anlegt, weiß nur die Messung.
+
+Ein Muster, das ein Modverzeichnis aus `etc/spiele-mods.json` verdecken würde,
+lässt das Werkzeug von selbst fallen — ein selbst hochgeladener Mod kommt aus
+keiner Neuinstallation zurück. Geprüft wird dabei ohne Rücksicht auf Groß- und
+Kleinschreibung: Valheims `serverfiles/BepInEx/plugins` entginge dem Muster
+`serverfiles/*/Plugins` sonst nur durch das kleine p. `vollstaendigkeit.sh`
+prüft beides bei jedem Lauf (vorbei: `PLATZWART_KEIN_AUSSCHLUSS_GATE=1`).
 
 Der Block entsteht bei der Installation. Damit eine spätere Katalogänderung
 auch bestehende Server erreicht, gleicht `spiel-verwalten ausschluesse` alle
@@ -112,7 +132,19 @@ Wiederherstellung überleben, sichert seit #231 `panel-aktion` zu.
 > ich777 images install straight into `serverfiles/`, so their catalogue
 > exclusions (`steamcmd`, `serverfiles/steamapps`) left the install in every
 > archive (#221). Save paths must be measured per game; without a measurement
-> everything stays in. Valheim is measured. `spiel-verwalten ausschluesse`
+> everything stays in. Since #221 `werkzeuge/katalog-ausschluesse.py` fills all
+> 167 `ich777`/`linuxgsm` entries with patterns that can be *shown* not to be a
+> save — shared libraries, the Steam runtime, Unity's `*_Data`, Unreal's
+> `Engine`, `Binaries`, `Content`, `Plugins`. The yardstick is the measured
+> Valheim install: 1.93 GB of its 2.65 GB is `valheim_server_Data` and 0.31 GB
+> is `*.so` — 85 %, none of which can be a save because Unity stores under
+> `.config`; a `borg create --dry-run` on the machine confirmed worlds in,
+> libraries out, archive size unchanged at 312.8 MB. The twelve own-image
+> entries are left alone. Any pattern that would cover a mod directory from
+> `etc/spiele-mods.json` is dropped automatically, compared case-insensitively
+> so that Valheim's `serverfiles/BepInEx/plugins` does not survive by its lower
+> case p alone; `vollstaendigkeit.sh` checks both on every run.
+> `spiel-verwalten ausschluesse`
 > brings catalogue changes to installed servers (stage 30 and `ausrollen.sh`
 > call it) and forgets the remembered archive size of a changed stack, so an
 > intended shrink is not reported as a collapse.*
