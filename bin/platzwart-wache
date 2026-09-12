@@ -31,6 +31,7 @@ wird zum Dauerzustand - man weiss nie, ob das Problem noch besteht.
 Exit: 0 = nichts Neues oder gemeldet, 1 = Fehler beim Melden.
 """
 import datetime
+import glob
 import json
 import os
 import re
@@ -128,6 +129,51 @@ def wert_compose(text: str, schluessel: str) -> str:
     m = re.search(rf'^\s*{schluessel}:\s*"?([^"\n]*)', text, re.M) or \
         re.search(rf'^\s*-\s*{schluessel}=\s*"?([^"\n]*)', text, re.M)
     return m.group(1).strip().rstrip('"') if m else ""
+
+
+# Dateien, in denen Geheimnisse stehen KOENNEN - Passwoerter, Tokens, Schluessel.
+# Die Liste ist bewusst nach Muster und nicht nach Einzeldatei: Was hier
+# gefaehrlich wird, sind die Kopien, die nebenher entstehen
+# (compose.yaml.bak-…, zugangsdaten.json.vor-…). Am 2026-09-12 lag genau eine
+# solche Kopie auf 644 - inhaltlich harmlos, aber niemand haette es gemerkt.
+# *Files that can hold secrets. Deliberately by pattern, not by name: the danger
+#  is the copies that appear alongside. One such copy sat at 644, harmless by
+#  content, and nobody would have noticed.*
+GEHEIMNISTRAEGER = [
+    "/opt/stacks/*/compose.yaml*",          # Spielpasswoerter im Klartext
+    "/opt/stacks/*/panel.json*",            # dieselben, plus Einrichtungsstand
+    "/opt/panel/daten/zugangsdaten.json*",  # von Hand gepflegte Zugangsdaten
+    "/opt/panel/daten/nutzer.json*",        # Kontohashes und TOTP-Geheimnisse
+    "/opt/panel/daten/*.conf*",             # Discord-, Steam- und TeamSpeak-Zugaenge
+    "/opt/module/*/.env*",                  # u.a. das Grafana-Passwort
+    "/etc/platzwart-melden.conf*",          # Webhooks
+]
+# Ausdruecklich NICHT dabei und mit Absicht 0644: audit.jsonl, netzstand.json
+# und konfigzahlen.json. Die erste Fassung dieser Liste nahm alle *.json unter
+# /opt/panel/daten und meldete deshalb sofort drei harmlose Dateien - ein
+# Fehlalarm am ersten Tag ist der sicherste Weg, eine Pruefung wertlos zu machen.
+# *Deliberately excluded, and deliberately 0644: the audit log, the network
+#  state and the config counters. The first version of this list took every
+#  *.json here and cried wolf on day one.*
+
+
+def offen_befund(dateien: list) -> str:
+    """Welche dieser Dateien darf jeder auf der Maschine lesen?
+
+    `dateien` ist eine Liste (Pfad, Rechte-Bits), damit der Selbsttest sie
+    erfinden kann. Gemeldet wird der Pfad, nie ein Inhalt.
+    *A list of (path, mode) so the self-test can invent it; the path is
+     reported, never any content.*
+    """
+    offen = sorted(pfad for pfad, modus in dateien if modus & 0o004)
+    if not offen:
+        return ""
+    return ("Diese Dateien koennen Passwoerter enthalten und sind fuer **jeden** "
+            "Benutzer der Maschine lesbar:\n\n"
+            + "\n".join(f"- `{pfad}`" for pfad in offen[:12])
+            + (f"\n- … und {len(offen) - 12} weitere" if len(offen) > 12 else "")
+            + "\n\nMeist eine Kopie, die von Hand entstanden ist. Richtig sind 0600 "
+              "(oder 0640 mit Gruppe panel):  chmod 600 <datei>")
 
 
 def umgebung_befund(stack: str, regel: dict, compose: str) -> str:
@@ -464,6 +510,20 @@ def lage() -> dict:
         if text:
             funde[f"konfig:{stack}"] = text
 
+    # --- Weltlesbare Geheimnistraeger ----------------------------------------
+    gefunden = []
+    for muster in GEHEIMNISTRAEGER:
+        for name in glob.glob(muster):
+            pfad = Path(name)
+            try:
+                if pfad.is_file() and not pfad.is_symlink():
+                    gefunden.append((name, pfad.stat().st_mode & 0o777))
+            except OSError:
+                continue
+    text = offen_befund(gefunden)
+    if text:
+        funde["weltlesbar"] = text
+
     # --- Fehlgeschlagene eigene Dienste ---------------------------------------
     # Am 2026-09-11 scheiterte die taegliche Vollsicherung an der Borg-Sperre,
     # und niemand erfuhr es: spiele-sicherung gibt nur "MIT FEHLERN" aus, und
@@ -569,6 +629,24 @@ def main() -> int:
                      else "paare" not in rg or "datei" not in rg)
             print(f"  {'FEHLER' if fehlt else 'ok '}  Regel {stack:<14} ({rg['art']})")
             schlecht += 1 if fehlt else 0
+
+        # Weltlesbare Geheimnistraeger - auch hier beide Seiten.
+        print("== Selbsttest: faellt eine weltlesbare Passwortdatei auf? ==")
+        offenproben = [
+            ([("/opt/stacks/a/compose.yaml", 0o600)], False, "0600"),
+            ([("/opt/stacks/a/compose.yaml", 0o640)], False, "0640 (Gruppe panel)"),
+            ([("/opt/stacks/a/compose.yaml.bak", 0o644)], True, "0644 Kopie"),
+            ([("/opt/panel/daten/zugangsdaten.json", 0o666)], True, "0666"),
+            ([], False, "keine Datei"),
+            ([("/x", 0o600), ("/y", 0o604)], True, "eine von zwei offen"),
+        ]
+        for dateien, soll, was in offenproben:
+            text = offen_befund(dateien)
+            ok = bool(text) == soll
+            print(f"  {'ok ' if ok else 'FEHLER'}  {was:<20} -> "
+                  f"{'meldet' if text else 'still '}   "
+                  f"(erwartet: {'meldet' if soll else 'still'})")
+            schlecht += 0 if ok else 1
 
         # Und: in keiner Meldung darf ein Passwort stehen.
         laut = konfig_befund("probe", regel, cja, 'ServerPassword="Zr9fremdZr9"')
