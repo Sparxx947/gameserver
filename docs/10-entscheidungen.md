@@ -1309,3 +1309,59 @@ eintauscht.
 > measures what is needed anyway and adds what cAdvisor cannot know: players,
 > backup size and age, disk per game, sleep and update state. Not forbidden, just
 > off: cAdvisor is a switch behind a confirmation page naming the price.*
+
+---
+
+## E37 — Jeder Server kommt aus dem Katalog, auch der, der schon läuft
+
+**Naheliegend wäre:** Server, die es schon gibt, so zu lassen, wie sie entstanden
+sind. Sie laufen ja. Sieben Stacks, einer aus dem Katalog, sechs von Hand — und
+für die sechs eben jedes Werkzeug einzeln nachrüsten.
+
+**Stattdessen** gilt: **Ein Spiel, das hier läuft, hat einen Katalogeintrag.**
+Was von Hand gebaut wurde, wird nachträglich übernommen
+(`spiel-verwalten uebernehmen`), statt einen zweiten Weg dauerhaft zu pflegen.
+
+**Warum:** Die sechs handgebauten Stacks waren nicht „ein bisschen anders" —
+sie fielen aus jeder Prüfung heraus, die an der Katalogherkunft hing, und das
+fiel niemandem auf. Die Wache sah einen von sieben Servern an (#289); die
+Sicherungsausschlüsse standen für vier Spiele von Hand in
+`/etc/borg-ausschluss.txt` und für eines gar nicht; Zugangsdaten, Entfernen und
+Einrichtungsstand kannten diese Server nicht. Jede einzelne Lücke war klein,
+jede war unsichtbar, und alle hatten dieselbe Ursache: eine zweite Art, wie ein
+Server entstehen kann.
+
+**Warum übernehmen und nicht neu bauen:** Ein Neuaufbau aus dem Katalog wäre die
+sauberere Erzählung und der schlechtere Weg. Palworlds laufender Stack setzt
+`DISABLE_GENERATE_SETTINGS`, damit die von Nitrado übernommenen Einstellungen
+bleiben — gemessen **15 von 115 Werten**, darunter Todesstrafe, Fundstücke und
+Basislager. Ein Neuaufbau schriebe die Konfiguration aus der Umgebung neu und
+verlöre sie, dazu käme Ausfallzeit und ein Rückspielen je Server. Die Übernahme
+kostet nichts davon: Sie schreibt die fehlende `panel.json` aus dem
+Katalogeintrag und den Werten, die im laufenden Server stehen. Nachgemessen:
+Die Sicherungen fallen danach byte-genau gleich aus (enshrouded 74,19 MB,
+palworld 201,90 MB, valheim 312,78 MB, foundry 22,24 MB — dieselben Zahlen wie
+die zuletzt echt gemessenen Archive).
+
+**Der Preis, offen genannt:** Übernommene Server sind im Panel **löschbar** wie
+jeder Katalogserver. Der Schutz „von Hand gebaut, also unantastbar" fällt weg;
+es bleibt die Bestätigungsseite und die letzte Sicherung davor. Das ist der
+Sinn der Sache — sie sollen sich verhalten wie alle anderen.
+
+> *E37 — every server comes from the catalogue, including the ones already
+> running. The obvious choice would be to leave existing servers as they were
+> built; instead, a game that runs here has a catalogue entry, and hand-built
+> stacks are adopted afterwards (`spiel-verwalten uebernehmen`) rather than
+> maintaining a second path forever. The six hand-built stacks were not slightly
+> different: they fell out of every check that hung on catalogue origin, and
+> nobody noticed — the watchdog inspected one server of seven (#289), four games'
+> backup exclusions sat hand-written in the exclusion file and one game's nowhere,
+> and credentials, removal and setup state did not exist for them. Adoption
+> rather than rebuild, because Palworld's running stack sets
+> `DISABLE_GENERATE_SETTINGS` to keep its inherited settings — 15 of 115 measured
+> values — which a rebuild would overwrite, on top of downtime and a restore per
+> server. Measured afterwards: the backups come out byte-identical. The price,
+> stated openly: adopted servers are deletable in the panel like any catalogue
+> server; the "hand-built, therefore untouchable" protection is gone, leaving the
+> confirmation page and the final backup. That is the point — they should behave
+> like everyone else.*

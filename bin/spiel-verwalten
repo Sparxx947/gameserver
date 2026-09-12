@@ -14,6 +14,23 @@ sind ueber die Oberflaeche deshalb gar nicht loeschbar.
   spiel-verwalten katalog
   spiel-verwalten installieren <schluessel>
   spiel-verwalten deinstallieren <stack>
+  spiel-verwalten uebernehmen <stack> [--probe]
+
+"uebernehmen" holt einen von Hand gebauten Stack in die Katalogwelt, ohne ihn
+neu aufzubauen: Es schreibt die fehlende panel.json aus dem Katalogeintrag und
+den Werten, die im laufenden Server stehen. Danach verhaelt er sich wie jeder
+andere - Zugangsdaten, Ausschlussabgleich, Entfernen, Wache.
+
+Neu aufbauen waere der teurere Weg und bei Palworld der schlechtere: Sein
+laufender Stack setzt DISABLE_GENERATE_SETTINGS, damit die von Nitrado
+uebernommenen Einstellungen bleiben - gemessen 15 von 115 Werten. Ein
+Neuaufbau aus dem Katalog schriebe die Konfiguration aus der Umgebung neu und
+verloere sie.
+
+*"uebernehmen" brings a hand-built stack into the catalogue world without
+ rebuilding it: it writes the missing panel.json from the catalogue entry and
+ the values the running server carries. A rebuild would cost Palworld 15 of its
+ 115 measured settings.*
 """
 import json, os, re, secrets, shutil, string, subprocess, sys, urllib.request
 from pathlib import Path
@@ -185,6 +202,93 @@ def ports_aufteilen(g: dict) -> tuple:
     sofort = [p for p in alle if str(p).startswith("127.")]
     ausstehend = [p for p in alle if not str(p).startswith("127.")]
     return sofort, ausstehend
+
+
+def compose_wert(text: str, schluessel: str) -> str:
+    """Wert aus einer compose-Datei - beide Schreibweisen (`KEY: wert`, `- KEY=wert`).
+
+    Ein Muster fuer nur eine davon findet nichts und meldet "fehlt", wo etwas
+    steht: Enshrouded benutzt die Listenform (#289).
+    """
+    m = re.search(rf'^\s*{schluessel}:\s*"?([^"\n]*)', text, re.M) or \
+        re.search(rf'^\s*-\s*{schluessel}=\s*"?([^"\n]*)', text, re.M)
+    return m.group(1).strip().rstrip('"') if m else ""
+
+
+def platzhalter_felder(g: dict) -> tuple:
+    """Welche Umgebungsvariablen traegt der Katalog fuer Beitritts- und Adminpasswort?
+
+    Nicht geraten, sondern am Platzhalter abgelesen: Wo im Katalogeintrag
+    "{PASSWORT}" steht, steht im laufenden Server das Beitrittspasswort, und wo
+    "{ADMIN}" steht, das Adminpasswort.
+    *Read off the placeholder rather than guessed.*
+    """
+    pw_feld = admin_feld = ""
+    for k, v in (g.get("env") or {}).items():
+        if v == "{PASSWORT}":
+            pw_feld = k
+        elif v == "{ADMIN}":
+            admin_feld = k
+    return pw_feld, admin_feld
+
+
+def uebernehmen(sch: str, probe: bool = False):
+    """Einen von Hand gebauten Stack zum Katalogserver machen - ohne Neuaufbau."""
+    verz = STACKS / sch
+    if not (verz / "compose.yaml").exists():
+        fehler(f"{sch} ist hier nicht installiert")
+    if (verz / "panel.json").exists():
+        fehler(f"{sch} hat bereits eine panel.json - nichts zu tun")
+    g = katalog().get(sch) or fehler(f"'{sch}' steht nicht im Katalog")
+
+    compose = (verz / "compose.yaml").read_text()
+    bild = compose_wert(compose, "image")
+    if bild and bild != g["image"]:
+        fehler(f"{sch} laeuft auf {bild}, der Katalog nennt {g['image']} - "
+               f"der Eintrag beschreibt diesen Server nicht")
+
+    art = g["passwort"]["art"]
+    pw_feld, admin_feld = platzhalter_felder(g)
+    pw = compose_wert(compose, pw_feld) if pw_feld else ""
+    admin = compose_wert(compose, admin_feld) if admin_feld else ""
+    if art != "keins" and not pw:
+        fehler(f"{sch}: der Katalog erwartet das Beitrittspasswort in {pw_feld or '?'}, "
+               f"dort steht nichts - lieber nichts schreiben als ein falsches Passwort "
+               f"in die Zugangsdaten")
+
+    stand = {
+        "katalog": True, "schluessel": sch, "name": g["name"],
+        "adresse_port": g["adresse_port"], "hinweis": g["hinweis"],
+        "passwort_art": art, "passwort": pw, "admin_passwort": admin,
+        "spieler": g.get("spieler", 4), "mem_gb": g["mem_gb"],
+        "angelegt": int((verz / "compose.yaml").stat().st_mtime),
+        # Der Server laeuft und ist erreichbar - die Einrichtung ist gelaufen,
+        # nur eben von Hand. "offen" hiesse: der Port ist noch zu, und das waere
+        # falsch. Bei "keins" (Satisfactory) ist die Freigabe damit bezeugt.
+        # *The server runs and is reachable; the setup happened, by hand.*
+        "einrichtung_offen": False,
+        "einrichtung_stand": "von Hand gebaut, in den Katalog uebernommen",
+        "port_regel": g.get("port_regel"),
+        "ports_ausstehend": [],
+        **({"freigabe_von_hand": True} if art == "keins" else {}),
+    }
+    if probe:
+        print(f"probe\t{sch}\tpanel.json waere: "
+              + json.dumps({k: ("<gesetzt>" if k in ("passwort", "admin_passwort") and v else v)
+                            for k, v in stand.items() if k != "hinweis"}, ensure_ascii=False))
+        print(f"probe\t{sch}\tAusschlussblock: {', '.join(g.get('ausschluss') or []) or 'keiner'}")
+        return
+
+    (verz / "panel.json").write_text(json.dumps(stand, indent=1) + "\n")
+    try:
+        shutil.chown(verz / "panel.json", "root", "panel")
+    except Exception:
+        pass
+    (verz / "panel.json").chmod(0o640)
+    zugang_eintragen(sch, g["name"], pw, admin, art)
+    ausschluss_setzen(sch, g.get("ausschluss", []))
+    bild_holen(g)
+    print(f"ok\t{sch}\tuebernommen - Zugangsdaten, Ausschlussblock und Wache greifen jetzt")
 
 
 def compose_bauen(g: dict, pw: str, admin: str) -> str:
@@ -701,6 +805,8 @@ if __name__ == "__main__":
         fremd_entfernen(sys.argv[2])
     elif a == "groesse" and len(sys.argv) == 3:
         print(stackgroesse(sys.argv[2]))
+    elif a == "uebernehmen" and len(sys.argv) in (3, 4):
+        uebernehmen(sys.argv[2], probe="--probe" in sys.argv[3:])
     elif a == "deinstallieren" and len(sys.argv) == 3:
         deinstallieren(sys.argv[2])
     elif a == "ausschluesse" and len(sys.argv) == 2:
