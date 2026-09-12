@@ -303,7 +303,10 @@ Was beim Installieren geschieht: Platz und Speicher prüfen, Ports gegen die
 `/etc/module/statistik/` kopieren, die erzeugten Dateien schreiben
 (`prometheus.yml`, `grafana-provisioning/`, `.env`, `modul.json`), Datenordner
 mit den Kennungen anlegen, die die Images erwarten (Prometheus 65534, Grafana
-472), Container starten, die Caddy-Route schreiben und den Zeitgeber des
+472) — **und jede Ebene darüber durchlässig machen**: `panel-aktion` setzt
+`umask 077`, und ohne ein `chmod` nach dem `mkdir` entstehen `0700 root`-Ordner,
+durch die kein Container zu seinen eigenen Daten kommt (#266) —, Container
+starten, die Caddy-Route schreiben und den Zeitgeber des
 Sammlers einschalten.
 
 Die compose-Datei wird dabei **nie umgeschrieben** — die Schalter setzen
@@ -320,8 +323,10 @@ schaltet sich der Sammler ab und räumt seine Dateien weg.
 > *Installing checks disk and memory, checks ports against the really bound ones
 > (local bindings included), creates the stack directory, copies the compose file
 > unchanged, writes the generated files, creates data directories with the uids
-> the images expect, starts the containers, writes the Caddy route and enables
-> the collector's timer. The compose file is
+> the images expect and makes every level above them traversable (panel-aktion
+> sets umask 077, so without a chmod after mkdir the parents are 0700 root and no
+> container reaches its own data, #266), starts the containers, writes the Caddy
+> route and enables the collector's timer. The compose file is
 > never rewritten — switches set compose profiles and settings go into the .env
 > beside it, so it stays byte-identical to the template and the comparison tool
 > can tell drift from tampering. Removal takes containers, route and settings; collected metrics stay unless explicitly deleted, and saves and
@@ -381,7 +386,8 @@ Spieldaten darf den Spielern nicht die Platte wegnehmen.
 | Bild | Ursache | Weg |
 |---|---|---|
 | `/statistik` antwortet 401 | keine gültige Sitzung oder Rolle unter `verwalten` | im Panel anmelden; Rolle prüfen |
-| Grafana zeigt „Datasource not found" | Bereitstellung nicht gelesen | `docker compose logs grafana` im Stack-Verzeichnis; `modul-verwalten anwenden statistik` |
+| Grafana zeigt „Datasource not found" | Bereitstellung nicht gelesen | `docker compose logs grafana` im Modulverzeichnis; `modul-verwalten anwenden statistik` |
+| Grafana startet immer wieder neu, `GF_PATHS_DATA is not writable` | ein Elternordner der Daten ist `0700 root` | `chmod 755 /srv/module /srv/module/<modul>` — behoben seit #266 |
 | Tafeln bleiben leer | Prometheus erreicht node_exporter nicht | `docker compose exec prometheus wget -qO- localhost:9090/api/v1/targets` |
 | Platzwart-Zahlen fehlen | Sammler läuft nicht | `systemctl status platzwart-metriken.timer`, `platzwart-metriken --zeigen` |
 | Spalten im Dashboard hören auf | Sammlerlauf ausgefallen | Lücke ist Absicht — `platzwart_metriken_lauf_zeit_sekunden` zeigt den letzten Lauf |

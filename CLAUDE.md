@@ -330,7 +330,7 @@ Jeder Punkt ist ein realer Vorfall, nicht eine Vermutung.
 
 | Falle | Was passiert |
 |---|---|
-| `mkdir(mode=…)` | Der `mode` wird von der `umask` beschnitten. `chmod` muss **nach** `mkdir` kommen. |
+| `mkdir(mode=…)` | Der `mode` wird von der `umask` beschnitten. `chmod` muss **nach** `mkdir` kommen. Gilt auch für **Elternverzeichnisse**: `panel-aktion` setzt `umask 077`, und `mkdir(parents=True)` erzeugte darunter `0700 root` — der Container kam nicht mehr durch den Elternordner zu seinen eigenen Daten, Grafana lief in eine Neustartschleife, und die Installation meldete Erfolg (#266). |
 | systemd-Härtung | `LockPersonality`, `ProtectKernelTunables`, `ProtectControlGroups` setzen `NoNewPrivileges` **implizit** — dann kann `sudo` nicht mehr nach root, und die Oberfläche zeigt einfach leere Listen. |
 | `ProtectSystem=strict` | Borg kann seinen Cache nicht anlegen, die Archivliste bleibt leer. |
 | Funktionen in Bash | Werden beim **Aufruf** aufgelöst, nicht beim Einlesen. Steht die Definition hinter der Schleife, die sie benutzt, ist sie zur Laufzeit `command not found` (127) auf stderr — die Prüfung rechnet richtig und meldet an niemanden, während der Lauf Erfolg meldet. Am 2026-09-10 zweimal an einem Tag passiert. Helfer **vor** ihre erste Benutzung, und vor dem Entfernen einer scheinbaren Doppelung prüfen, **wann** jede Fassung läuft. |

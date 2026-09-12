@@ -588,6 +588,21 @@ def installieren(sch: str):
     shutil.copy2(quelle / "compose.yaml", verz / "compose.yaml")
     (verz / "compose.yaml").chmod(0o644)
     daten = Path(m["daten"])
+    # chmod NACH mkdir, und zwar fuer JEDE Ebene: panel-aktion setzt umask 077
+    # und ruft dieses Werkzeug damit auf - "mkdir(parents=True)" erzeugt daraus
+    # 0700 root. Die Unterordner gehoeren dann zwar den richtigen Kennungen,
+    # aber kein Container kommt durch die Elternordner hindurch. Grafana lief
+    # dadurch in eine Neustartschleife ("GF_PATHS_DATA is not writable"),
+    # waehrend die Installation Erfolg meldete (#266). Dieselbe Falle wie bei
+    # panel.json, nur eine Ebene hoeher.
+    # *chmod after mkdir, for every level: panel-aktion sets umask 077, so
+    #  mkdir(parents=True) yields 0700 root and no container can traverse into
+    #  its own data directory. Grafana restart-looped while the install reported
+    #  success; the same trap as with panel.json, one level up.*
+    daten.parent.mkdir(parents=True, exist_ok=True)
+    daten.parent.chmod(0o755)
+    daten.mkdir(parents=True, exist_ok=True)
+    daten.chmod(0o755)
     for unter in m.get("unterordner", []):
         (daten / unter).mkdir(parents=True, exist_ok=True)
     # Eigentuemer wie die Images sie erwarten: Prometheus laeuft als 65534,
@@ -768,6 +783,18 @@ def selbsttest():
     pruefe(not list(CADDY_ROUTE.parent.glob("*.conf.neu")), "keine halbe Routendatei uebrig")
     pruefe(str(verzeichnis("statistik")).endswith("opt-module/statistik"),
            "Modul liegt nicht unter /opt/stacks")
+    # Die umask-Falle nachstellen: mit 077 muessen die Datenordner trotzdem
+    # durchlaessig sein, sonst kommt der Container nicht an seine Daten (#266).
+    alt_umask = os.umask(0o077)
+    try:
+        dtest = tmp / "srv-module" / "statistik"
+        dtest.parent.mkdir(parents=True, exist_ok=True); dtest.parent.chmod(0o755)
+        dtest.mkdir(parents=True, exist_ok=True); dtest.chmod(0o755)
+        (dtest / "grafana").mkdir(exist_ok=True)
+        pruefe(oct(dtest.parent.stat().st_mode)[-3:] == "755", "Datenordner sind durchlaessig (umask 077)")
+        pruefe(oct(dtest.stat().st_mode)[-3:] == "755", "Modulordner ist durchlaessig (umask 077)")
+    finally:
+        os.umask(alt_umask)
     # Ausschlussblock: setzen, zweimal setzen (nicht doppeln), wieder entfernen.
     import unittest.mock
     datei = tmp / "borg-ausschluss.txt"
