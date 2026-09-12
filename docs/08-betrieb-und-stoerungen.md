@@ -546,6 +546,35 @@ aus.
 
 ## Bekannte offene Punkte
 
+### Zeiten stehen in Ortszeit — und die Maschine muss sie kennen
+
+Alle Zeitangaben der Timer (`05:30`, `04:00`, `montags 10:00`) rechnet systemd in
+**Ortszeit** um. Steht die Maschine auf `Etc/UTC` — bei vielen Anbietern die
+Voreinstellung —, feuert jeder Timer verschoben, und jeder Protokollzeitstempel
+liegt daneben. Am 2026-09-12 fiel genau das auf: zwei Stunden Versatz, die
+Vollsicherung lief um 06:00 statt um 04:00.
+
+Die Uhr selbst war dabei **richtig** (NTP synchron); falsch war nur die Zone.
+Gesetzt wird sie in Stufe 10 aus `ZEITZONE` (Vorgabe `Europe/Berlin`), und zwar
+als **Zonenname**: Der schaltet Sommer- und Winterzeit selbst um, ein fester
+Versatz wie `UTC+2` wäre ab Ende Oktober wieder falsch.
+
+```
+timedatectl                      zeigt Zone, Uhr und NTP-Zustand
+timedatectl set-timezone <zone>  stellt um, sofort wirksam
+```
+
+Nach einer Umstellung **springen die Timer einmalig**: Der Palworld-Neustart
+stand vorher auf 17:30 UTC und danach auf 17:30 Ortszeit, kam an diesem Tag also
+zwei Stunden früher. Vorher nachsehen, ob jemand spielt.
+
+> *systemd computes every `OnCalendar` in local time, so a host left at `Etc/UTC`
+> fires every timer off by the offset and stamps every log wrongly — the clock
+> itself is fine via NTP, only the zone is wrong. Stage 10 sets it from
+> `ZEITZONE` (default `Europe/Berlin`) as a zone name, never a fixed offset,
+> because a zone switches DST by itself. After a change the timers jump once, so
+> check whether anyone is playing first.*
+
 ### Palworld hat ein Speicherleck
 
 Bekanntes Problem des Spiels, nicht des Aufbaus. Umgangen durch einen Timer, der

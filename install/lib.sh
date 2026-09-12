@@ -26,6 +26,23 @@ for v in "${VARIABLEN[@]}"; do
   [ -n "${!v}" ] || fehler "konfiguration.env: \$$v ist leer"
 done
 
+# ZEITZONE ist bewusst NICHT in VARIABLEN: Eine bestehende konfiguration.env
+# ohne diese Zeile soll weiterlaufen. Ohne Angabe gilt Europe/Berlin.
+#
+# Warum das ueberhaupt zaehlt: systemd rechnet OnCalendar in ORTSZEIT. Auf einer
+# Maschine, die beim Anbieter auf UTC steht, feuert "05:30" um 07:30 Ortszeit,
+# die Vollsicherung um "04:00" um 06:00 - und jeder Protokollzeitstempel liegt
+# zwei Stunden daneben. Gemessen am 2026-09-12: Die Maschine stand auf Etc/UTC.
+# Einzutragen ist ein Zonenname, nie ein fester Versatz: "Europe/Berlin"
+# schaltet Sommer- und Winterzeit selbst um, "UTC+2" waere ab Ende Oktober falsch.
+# *systemd computes OnCalendar in LOCAL time, so on a UTC host "05:30" fires at
+#  07:30 local and every log timestamp is two hours off. Use a zone name, never
+#  a fixed offset: Europe/Berlin switches DST by itself.*
+: "${ZEITZONE:=Europe/Berlin}"
+[ -f "/usr/share/zoneinfo/$ZEITZONE" ] \
+  || fehler "konfiguration.env: ZEITZONE=\"$ZEITZONE\" kennt das System nicht." \
+            "Namen zeigt: timedatectl list-timezones"
+
 # SERVER_IPV4 traegt zwei zulaessige Bedeutungen: eine feste oeffentliche
 # Adresse, oder das Wort "dynamic" fuer eine wechselnde. Alles andere ist ein
 # Tippfehler oder ein Missverstaendnis - insbesondere ein DDNS-Name. Der wurde
