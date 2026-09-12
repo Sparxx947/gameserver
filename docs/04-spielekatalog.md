@@ -1,9 +1,9 @@
 # 04 — Der Spielekatalog
 
-`/etc/spiele-katalog.json` — 184 Spiele, die sich über die Oberfläche mit einem
+`/etc/spiele-katalog.json` — 185 Spiele, die sich über die Oberfläche mit einem
 Klick installieren und wieder entfernen lassen.
 
-> *184 games installable and removable from the panel with a single click.*
+> *185 games installable and removable from the panel with a single click.*
 
 ---
 
@@ -687,6 +687,7 @@ wenn Liste und Katalog auseinandergehen.
 | `sbots` | StickyBots | shooter | linuxgsm | `889400` |
 | `scpsecretlaboratory` | SCP SecretLaboratory | shooter | ich777 | `996560` |
 | `scpslsm` | SCP: Secret Laboratory ServerMod | shooter | linuxgsm | — |
+| `scum` | SCUM | survival | eigenes-image | `513710` |
 | `sfc` | SourceForts Classic | shooter | linuxgsm | — |
 | `sof2` | Soldier Of Fortune 2: Gold Edition | shooter | linuxgsm | — |
 | `sol` | Soldat | arena | linuxgsm | `638490` |
