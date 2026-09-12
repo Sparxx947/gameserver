@@ -129,6 +129,7 @@ for datei in "$@"; do
       fehler=1; continue
     fi
     am_ziel_mit_eingabe "
+      mkdir -p '$(dirname "$pfad")'
       [ -f '$pfad' ] && cp -a '$pfad' '$pfad.vor-$(date +%Y%m%d-%H%M%S)'
       cat > '$pfad.neu' && chmod $modus '$pfad.neu' && chown $eigner '$pfad.neu' \
         && mv '$pfad.neu' '$pfad'" < "$quelle" \
@@ -150,7 +151,17 @@ for datei in "$@"; do
   # Pruefbefehl gibt, den Dienst fragen; lehnt er ab, die Sicherung zurueck.
   pruef=$(pruefbefehl "$pfad")
   sicherung="$pfad.vor-$(date +%Y%m%d-%H%M%S)"
+  # Zielverzeichnis anlegen, falls es fehlt. Bisher gab es jedes Ziel schon,
+  # weil alles nach /usr/local/bin, /etc oder /etc/systemd/system ging - die
+  # Vorlagen der Module liegen dagegen in eigenen Unterverzeichnissen, und das
+  # Ausrollen scheiterte dort mit "No such file or directory", waehrend Stufe 30
+  # (die mkdir -p macht) einwandfrei lief. Ein Werkzeug, das nur im Neuaufbau
+  # funktioniert, faellt genau dann aus, wenn man es einzeln braucht.
+  # *Create the target directory: every target used to exist already, but module
+  #  templates live in their own subdirectories, and a single rollout failed
+  #  there while stage 30, which does mkdir -p, worked fine.*
   printf '%s\n' "$text" | am_ziel_mit_eingabe "
+    mkdir -p '$(dirname "$pfad")'
     [ -f '$pfad' ] && cp -a '$pfad' '$sicherung'
     cat > '$pfad.neu' && chmod $modus '$pfad.neu' && chown $eigner '$pfad.neu' \
       && mv '$pfad.neu' '$pfad' || exit 1

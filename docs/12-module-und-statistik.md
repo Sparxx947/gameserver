@@ -15,6 +15,22 @@ gewürfeltes Beitrittspasswort, einen DNS-Namen, einen Kanal auf TeamSpeak und
 Discord, Spielerzählung, eine Endsicherung vor dem Entfernen — und die Regel,
 dass der Port erst nach dem bestätigten Passwort aufgeht.
 
+**Und sie liegen woanders.** Module stehen unter `/opt/module`, ihre Daten unter
+`/srv/module` — nicht unter `/opt/stacks`, `/srv/games` oder `/srv/dienste`. Der
+Grund ist gemessen: Bei der ersten echten Installation lag das Modul in
+`/opt/stacks`, und damit erschien es überall, wo Spielserver gezählt werden — in
+der Übersicht des Panels als Karte „gestoppt" (seine Container heißen
+`statistik-prometheus`, nie wie der Stack), in den eigenen Metriken als Server,
+der immer aus ist, und im Blickfeld von Verlauf, Wache, Leerlauf und
+Auto-Update. Die Sicherung wiederum geht `/srv/games` und `/srv/dienste` durch;
+ein Stack, dessen Inhalt ausgeschlossen ist, erzeugt ein fast leeres Archiv —
+also genau das, was die Plausibilitätsprüfung melden soll (#263).
+
+**Gesichert wird ein Modul deshalb nicht**, und das ist kein Verlust: Die
+Dashboards und die Datenquelle kommen aus dem Repositorium, die Benutzer aus dem
+Panel, und die Messwerte sind Messwerte. Eine Zeitreihendatenbank in jeder
+Vollsicherung wäre das größte Archiv im Depot und das am wenigsten wertvolle.
+
 Ein Statistikdienst braucht **nichts davon**. Ihn durch den Spielweg zu
 schicken hieße, dort Ausnahmen einzubauen: „wenn kein Spiel, dann kein
 Passwort, dann kein Port, dann kein Kanal". Genau das schließt
@@ -27,7 +43,8 @@ zweiter, kleiner Weg mit eigener Liste:
 | Liste | `/etc/spiele-katalog.json` (179) | `/etc/module-katalog.json` (1) |
 | Werkzeug | `spiel-verwalten` | `modul-verwalten` |
 | Brücke | `panel-aktion installieren …` | `panel-aktion modul …` |
-| Daten | `/srv/games/<name>` | `/srv/dienste/<name>` (E16) |
+| Verzeichnis | `/opt/stacks/<name>` | `/opt/module/<name>` |
+| Daten | `/srv/games/<name>` | `/srv/module/<name>` |
 | Beitrittspasswort, DNS-Name, Kanal, Spielerzählung | ja | **nein** |
 | Ports nach außen | ja, nach bestätigtem Passwort (E23, E26) | **keine** — alles auf `127.0.0.1` |
 | Zugang | Spieler über den Spielport | Menschen über das Panel und seine Anmeldung |
@@ -51,10 +68,9 @@ und **was sich daran schalten lässt**:
 |---|---|
 | `schluessel`, `name`, `kurz` | Name im Panel |
 | `mem_gb`, `platte_gb` | Bedarf; die Installation bricht ab, wenn danach weniger als 2 GB Speicher bzw. 10 GB Platte frei blieben |
-| `daten`, `unterordner` | wohin die Daten gehören (`/srv/dienste/…`) |
+| `daten`, `unterordner` | wohin die Daten gehören (`/srv/module/…`) |
 | `ports` | veröffentlichte Ports — beim Statistik-Modul genau einer, auf `127.0.0.1` |
 | `route`, `ziel`, `csp`, `rolle` | Pfad im Panel, Ziel dahinter, Kopfzeilensatz, wer ihn sehen darf |
-| `ausschluss` | was **nicht** gesichert wird |
 | `schalter` | Name, Titel, Beschreibung, Vorgabe, Art (`profil`, `sammler`, `grafana`) und — wo nötig — eine **Warnung** |
 | `einstellungen` | Name, Titel, erlaubte Werte, Vorgabe |
 
@@ -283,12 +299,12 @@ modul-verwalten entfernen statistik [--auch-daten]
 
 Was beim Installieren geschieht: Platz und Speicher prüfen, Ports gegen die
 **tatsächlich belegten** prüfen (lokale Bindungen zählen mit, #163),
-`/opt/stacks/statistik` anlegen, die compose-Datei **unverändert** aus
+`/opt/module/statistik` anlegen, die compose-Datei **unverändert** aus
 `/etc/module/statistik/` kopieren, die erzeugten Dateien schreiben
 (`prometheus.yml`, `grafana-provisioning/`, `.env`, `modul.json`), Datenordner
 mit den Kennungen anlegen, die die Images erwarten (Prometheus 65534, Grafana
-472), Container starten, den Ausschlussblock in `/etc/borg-ausschluss.txt`
-setzen, die Caddy-Route schreiben und den Zeitgeber des Sammlers einschalten.
+472), Container starten, die Caddy-Route schreiben und den Zeitgeber des
+Sammlers einschalten.
 
 Die compose-Datei wird dabei **nie umgeschrieben** — die Schalter setzen
 compose-**Profile**, die Einstellungen landen in der `.env` daneben. So bleibt
@@ -304,12 +320,11 @@ schaltet sich der Sammler ab und räumt seine Dateien weg.
 > *Installing checks disk and memory, checks ports against the really bound ones
 > (local bindings included), creates the stack directory, copies the compose file
 > unchanged, writes the generated files, creates data directories with the uids
-> the images expect, starts the containers, sets the backup exclusion block,
-> writes the Caddy route and enables the collector's timer. The compose file is
+> the images expect, starts the containers, writes the Caddy route and enables
+> the collector's timer. The compose file is
 > never rewritten — switches set compose profiles and settings go into the .env
 > beside it, so it stays byte-identical to the template and the comparison tool
-> can tell drift from tampering. Removal takes containers, route, exclusion and
-> settings; collected metrics stay unless explicitly deleted, and saves and
+> can tell drift from tampering. Removal takes containers, route and settings; collected metrics stay unless explicitly deleted, and saves and
 > backups are untouched. With the last module the collector switches itself off.*
 
 ---

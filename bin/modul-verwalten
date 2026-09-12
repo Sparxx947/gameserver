@@ -35,6 +35,18 @@ from pathlib import Path
 
 KATALOG = Path(os.environ.get("MODUL_KATALOG", "/etc/module-katalog.json"))
 VORLAGEN = Path(os.environ.get("MODUL_VORLAGEN", "/etc/module"))
+# Module liegen NICHT in /opt/stacks. Dort schaut alles nach, was Spielserver
+# betrifft: die Uebersicht des Panels, der Verlauf, die Wache, der Leerlauf, das
+# Auto-Update - ein Modul dort erscheint als Spielserver, der immer gestoppt ist
+# (gefunden bei der ersten echten Installation, #263). Ebenso die Daten: /srv/games
+# und /srv/dienste geht die Sicherung durch, und ein Stack, dessen Inhalt
+# ausgeschlossen ist, erzeugt ein fast leeres Archiv - genau das, was die
+# Plausibilitaetspruefung melden soll.
+# *Modules do not live in /opt/stacks: everything concerning game servers walks
+#  that directory, and a module there shows up as a permanently stopped server.
+#  The same for data - the backup walks /srv/games and /srv/dienste, and a stack
+#  whose content is excluded yields a near-empty archive.*
+MODULE = Path(os.environ.get("MODUL_VERZ", "/opt/module"))
 STACKS = Path(os.environ.get("MODUL_STACKS", "/opt/stacks"))
 CADDY_ROUTE = Path(os.environ.get("MODUL_CADDY", "/etc/caddy/module.conf"))
 CADDYFILE = Path(os.environ.get("MODUL_CADDYFILE", "/etc/caddy/Caddyfile"))
@@ -72,7 +84,7 @@ def modul(sch: str) -> dict:
 
 
 def verzeichnis(sch: str) -> Path:
-    return STACKS / sch
+    return MODULE / sch
 
 
 def installiert(sch: str) -> bool:
@@ -132,7 +144,7 @@ def belegte_ports() -> set:
     127.0.0.1:N und 0.0.0.0:N schliessen sich gegenseitig aus (gemessen, #163).
     *From compose files and from the system alike; local bindings count.*"""
     p = set()
-    for f in STACKS.glob("*/compose.yaml"):
+    for f in list(STACKS.glob("*/compose.yaml")) + list(MODULE.glob("*/compose.yaml")):
         for m in re.finditer(r'^\s*-\s*"(?:[\d.]+:)?(\d+):\d+(?:/(\w+))?"',
                              f.read_text(errors="replace"), re.M):
             p.add((int(m.group(1)), (m.group(2) or "tcp").lower()))
@@ -565,6 +577,8 @@ def installieren(sch: str):
         fehler(f"Vorlage fehlt: {quelle}/compose.yaml")
 
     verz = verzeichnis(sch)
+    MODULE.mkdir(parents=True, exist_ok=True)
+    MODULE.chmod(0o755)
     verz.mkdir(parents=True)
     verz.chmod(0o750)
     try:
@@ -698,11 +712,13 @@ def selbsttest():
 
     tmp = Path(tempfile.mkdtemp())
     globals()["STACKS"] = tmp / "stacks"
+    globals()["MODULE"] = tmp / "opt-module"
     globals()["VORLAGEN"] = tmp / "module"
     globals()["CADDY_ROUTE"] = tmp / "module.conf"
     globals()["CADDYFILE"] = tmp / "fehlt-absichtlich"
     globals()["KATALOG"] = tmp / "katalog.json"
     (tmp / "stacks").mkdir()
+    (tmp / "opt-module").mkdir()
     quelle = Path(__file__).resolve().parent.parent
     kat = quelle / "etc/module-katalog.json"
     if kat.exists():
@@ -750,6 +766,8 @@ def selbsttest():
     pruefe("reverse_proxy 127.0.0.1:19030" in r, "Route zeigt auf Grafana")
     pruefe(r.count("{") == r.count("}"), "erzeugte Route hat ausgewogene Klammern")
     pruefe(not list(CADDY_ROUTE.parent.glob("*.conf.neu")), "keine halbe Routendatei uebrig")
+    pruefe(str(verzeichnis("statistik")).endswith("opt-module/statistik"),
+           "Modul liegt nicht unter /opt/stacks")
     # Ausschlussblock: setzen, zweimal setzen (nicht doppeln), wieder entfernen.
     import unittest.mock
     datei = tmp / "borg-ausschluss.txt"

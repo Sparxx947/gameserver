@@ -3277,8 +3277,13 @@ def modul_katalog() -> dict:
         return {}
 
 
+MODULVERZ = Path("/opt/module")
+
+
 def modul_installiert(sch: str) -> bool:
-    return (Path("/opt/stacks") / sch / "compose.yaml").exists()
+    # /opt/module, nicht /opt/stacks: Dort stehen die Spielserver, und ein Modul
+    # dazwischen erschien in der Uebersicht als Server, der immer gestoppt ist (#263).
+    return (MODULVERZ / sch / "compose.yaml").exists()
 
 
 def modul_stand(sch: str) -> dict:

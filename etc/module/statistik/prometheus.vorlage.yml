@@ -1,4 +1,4 @@
-# Vorlage. modul-verwalten schreibt daraus /opt/stacks/statistik/prometheus.yml
+# Vorlage. modul-verwalten schreibt daraus /opt/module/statistik/prometheus.yml
 # und laesst die Bloecke weg, deren Schalter aus ist - dasselbe Muster wie die
 # Katalogbloecke in /etc/borg-ausschluss.txt.
 #
