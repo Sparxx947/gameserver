@@ -14,6 +14,19 @@ apt-get install -y -qq \
   python3-venv qemu-guest-agent screen socat sudo tcpdump traceroute ufw \
   unattended-upgrades vim
 
+# --- Zeitzone ---------------------------------------------------------
+# Vor allem anderen, weil die Zeitstempel aller folgenden Schritte daran haengen.
+# Die Uhr selbst kommt per NTP und stimmt auch ohne das hier - falsch ist nur
+# die ANZEIGE und, schlimmer, der Zeitpunkt jedes Timers: systemd rechnet
+# OnCalendar in Ortszeit.
+# *First of all, because every following timestamp depends on it. The clock
+#  itself is right via NTP; what is wrong without this is the display and, worse,
+#  every timer - systemd computes OnCalendar in local time.*
+if [ "$(timedatectl show -p Timezone --value 2>/dev/null)" != "$ZEITZONE" ]; then
+  log "Zeitzone auf $ZEITZONE stellen (war: $(timedatectl show -p Timezone --value 2>/dev/null))"
+  timedatectl set-timezone "$ZEITZONE"
+fi
+
 # --- Benutzer ---------------------------------------------------------
 # ADMIN_USER: Mensch am Webterminal, mit sudo.
 # panel:      Systemnutzer der Weboberflaeche, ohne Shell.

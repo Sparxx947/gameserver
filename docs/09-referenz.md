@@ -1948,6 +1948,7 @@ Alle in `konfiguration.env`, alle Pflicht:
 | `PANEL_DOMAIN` | `panel.beispiel.de` | `Caddyfile`, `dns-pflegen` |
 | `SERVER_IPV4` | `203.0.113.10` **oder** `dynamic` | schaltet `dns-ziel.timer` ein oder aus |
 | `WELT_NAME` | `meinserver` | Server- und Weltnamen in den Spielen |
+| `ZEITZONE` | `Europe/Berlin` (Vorgabe) | Stufe 10: `timedatectl set-timezone`. **Zonenname, kein fester Versatz** — Sommer- und Winterzeit schaltet die Zone selbst um. systemd rechnet `OnCalendar` in Ortszeit: Auf einer Maschine, die beim Anbieter auf `Etc/UTC` steht, feuerte „05:30" um 07:30 und die Vollsicherung um 06:00 (gemessen am 2026-09-12) |
 | `ADMIN_USER` | `admin` | `ttyd.service`, Benutzeranlage |
 | `ADMIN_NETZ` | `203.0.113.0/30` | nur `fail2ban` (`ignoreip`: nie gesperrt) — **nicht** der SSH-Zugang; ohne feste Adresse eng halten, nie `0.0.0.0/0` (#259) |
 | `ADMIN_IP` | `203.0.113.1` | `ufw`-Regel auf Port 22 — Adresse oder Netz; ohne feste Adresse `0.0.0.0/0` |
