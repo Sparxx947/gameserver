@@ -373,6 +373,27 @@ except Exception:
       fi
       chown 4711:4711 "$p"
       grep -c "\\\"" "$p" | grep -qx 0 || fehler "Backslashes in der Datei - zurueckgesetzt"
+      # Auch hier gilt: Die Anzeige liest panel.json mit. Palworlds wirksame
+      # Werte stehen in der ini, also muss panel.json ihnen folgen - sonst
+      # zeigt "Zugangsdaten" zwei Passwoerter, von denen eines nicht oeffnet.
+      # *The display reads panel.json too, so it must follow the ini.*
+      case "$feld" in
+        ServerPassword|AdminPassword)
+          python3 - "$s" "$feld" "$p" <<'PALENDE'
+import json, os, pathlib, re, sys
+stack, feld, ini = sys.argv[1], sys.argv[2], sys.argv[3]
+pj = pathlib.Path(os.environ.get("PANEL_STACKS", "/opt/stacks")) / stack / "panel.json"
+if not pj.exists():
+    raise SystemExit(0)
+m = re.search(rf'{feld}="([^"]*)"', pathlib.Path(ini).read_text())
+if not m:
+    raise SystemExit(0)
+stand = json.loads(pj.read_text())
+stand["passwort" if feld == "ServerPassword" else "admin_passwort"] = m.group(1)
+pj.write_text(json.dumps(stand, indent=1) + "\n")
+PALENDE
+          ;;
+      esac
       echo "ok"; exit 0
     fi
     grep -qx "$k" <<<"$(printf "%s\n" $ERLAUBTE_FELDER mem_limit)" || fehler "Feld nicht erlaubt"
@@ -388,6 +409,67 @@ except Exception:
         sed -i -E "s|^([[:space:]]*)$k: ?\"?[^\"]*\"?$|\1$k: \"$w\"|" "$f"
       fi
     fi
+    # Passwoerter stehen an ZWEI Stellen: in der compose-Datei und in
+    # panel.json, und die Anzeige unter "Zugangsdaten" liest beide. Wer hier nur
+    # die compose-Datei aenderte, bekam daneben weiter das alte Passwort zu
+    # sehen - eines davon falsch, und man sieht der Zeile nicht an, welches.
+    # Betraf bis 2026-09-12 nur Katalogserver; seit alle sieben uebernommen sind
+    # (E37), jeden. Welches Feld das Beitritts- und welches das Adminpasswort
+    # ist, steht nicht hier, sondern am Platzhalter im Katalog ({PASSWORT} bzw.
+    # {ADMIN}) - geraten wird nichts.
+    # *Passwords live in the compose file AND in panel.json, and the credentials
+    #  page reads both, so changing only compose left a stale value on display.
+    #  Which field is which is read off the catalogue placeholders, not guessed.*
+    python3 - "$s" "$k" <<'PYENDE'
+import json, os, pathlib, re, sys
+stack, feld = sys.argv[1], sys.argv[2]
+# Pfade umlenkbar, damit der Selbsttest diesen Weg mit erfundenen Daten fahren
+# kann, statt an echten Zugangsdaten geprobt zu werden.
+# *Redirectable paths so the self-test can drive this with made-up data.*
+VERZ = pathlib.Path(os.environ.get("PANEL_STACKS", "/opt/stacks"))
+KAT = pathlib.Path(os.environ.get("PANEL_KATALOG", "/etc/spiele-katalog.json"))
+ZD = pathlib.Path(os.environ.get("PANEL_ZUGAENGE", "/opt/panel/daten/zugangsdaten.json"))
+pj = VERZ / stack / "panel.json"
+if not pj.exists():
+    raise SystemExit(0)
+stand = json.loads(pj.read_text())
+kat = {e["schluessel"]: e for e in json.loads(KAT.read_text())["spiele"]}
+g = kat.get(stand.get("schluessel", stack))
+if not g:
+    raise SystemExit(0)
+welches = {k: ("passwort" if v == "{PASSWORT}" else "admin_passwort")
+           for k, v in (g.get("env") or {}).items() if v in ("{PASSWORT}", "{ADMIN}")}
+schl = welches.get(feld)
+if not schl:
+    raise SystemExit(0)
+# Den neuen Wert aus der gerade geschriebenen Datei lesen, nicht aus argv:
+# so steht am Ende bezeugt dort, was wirklich in der compose-Datei steht.
+t = (VERZ / stack / "compose.yaml").read_text()
+m = (re.search(rf'^\s*{feld}:\s*"?([^"\n]*)', t, re.M)
+     or re.search(rf'^\s*-\s*{feld}=\s*"?([^"\n]*)', t, re.M))
+if not m:
+    raise SystemExit(0)
+wert = m.group(1).strip().rstrip('"')
+stand[schl] = wert
+pj.write_text(json.dumps(stand, indent=1) + "\n")
+zd = ZD
+if zd.exists():
+    name = "Beitrittspasswort" if schl == "passwort" else "Adminpasswort"
+    try:
+        liste = json.loads(zd.read_text())
+    except ValueError:
+        raise SystemExit(0)
+    geaendert = False
+    for e in liste:
+        if e.get("server") == stack and e.get("feld") == name:
+            e["wert"] = wert
+            geaendert = True
+    if geaendert:
+        tmp = zd.with_suffix(".tmp")
+        tmp.write_text(json.dumps(liste, indent=2))
+        tmp.chmod(0o600)
+        tmp.replace(zd)
+PYENDE
     echo "ok"
     ;;
   neustart)
