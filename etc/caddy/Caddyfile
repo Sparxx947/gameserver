@@ -8,6 +8,15 @@
 {
 	servers {
 		protocols h1
+		# Ohne diese Zeile zaehlt Caddy keine Anfragen: Die
+		# Verwaltungsschnittstelle liefert dann nur den Zustand des letzten
+		# Neuladens und die Gesundheit der Upstreams - gemessen vier
+		# Metrikfamilien, keine davon ueber Anfragen (#272). Der Preis sind
+		# ein paar Zaehler je Handler; bei zwei Benutzern ist das nichts.
+		# *Without this Caddy counts no requests: the admin endpoint then only
+		#  reports the last reload and upstream health - measured four metric
+		#  families, none about requests.*
+		metrics
 	}
 
 	# Wie das Zertifikat geholt wird, steht NICHT hier, sondern in einer Datei,
