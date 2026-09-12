@@ -32,7 +32,7 @@ services:
       - --web.enable-lifecycle
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - /srv/dienste/statistik/prometheus:/prometheus
+      - /srv/module/statistik/prometheus:/prometheus
     mem_limit: 1g
 
   grafana:
@@ -82,7 +82,7 @@ services:
     ports:
       - "127.0.0.1:19030:3000"
     volumes:
-      - /srv/dienste/statistik/grafana:/var/lib/grafana
+      - /srv/module/statistik/grafana:/var/lib/grafana
       # Erzeugt: Datenquelle, Dashboard-Anbieter und - nur wenn eingeschaltet -
       # die Alarmregeln. Deshalb aus dem Stack-Verzeichnis und nicht aus /etc.
       - ./grafana-provisioning:/etc/grafana/provisioning:ro
