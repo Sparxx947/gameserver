@@ -57,6 +57,18 @@ ERLAUBTE_FELDER="SERVER_NAME SERVER_PASSWORD ADMIN_PASSWORD SERVER_PWD SERVER_SL
 
 fehler() { echo "FEHLER: $*" >&2; exit 1; }
 
+# Die Dashboards des Statistik-Moduls je Spielserver. Tut nichts, wenn das Modul
+# nicht installiert ist; Fehler hier duerfen eine Installation nie scheitern
+# lassen - eine fehlende Statistikseite ist kein Grund, einen Server nicht
+# anzulegen.
+# *Refreshes the statistics module's per-server dashboards; does nothing without
+#  the module, and never fails an installation - a missing statistics page is no
+#  reason to refuse a server.*
+statistik_dashboards() {
+    [ -f /opt/module/statistik/compose.yaml ] || return 0
+    /usr/local/bin/modul-verwalten dashboards statistik >/dev/null 2>&1 || true
+}
+
 # --- Positivliste: welche Stacks gibt es? ------------------------------------
 stacks() { for d in /opt/stacks/*/; do basename "$d"; done; }
 pruefe_stack() {
@@ -606,6 +618,7 @@ except Exception:
     s="${2:-}"; pruefe_stack "$s"
     [ -f "/opt/stacks/$s/panel.json" ] && fehler "Dieser Server kam aus dem Katalog - dafuer ist 'deinstallieren' zustaendig."
     /usr/local/bin/spiel-verwalten fremd-entfernen "$s" || exit 1
+    statistik_dashboards
     # DNS-Namen auch hier (#253), wie bei "deinstallieren" erst NACH dem
     # Entfernen. Stufe 70 legt fuer JEDEN Stack einen an; bis #253 blieb er
     # stehen - starrupture.<zone> zeigte Tage spaeter noch auf die Maschine.
@@ -697,6 +710,12 @@ PY
     # die Form, damit gar nichts Unerwartetes weitergereicht wird.
     [[ "$s" =~ ^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$ ]] || fehler "unzulaessiger Name"
     /usr/local/bin/spiel-verwalten installieren "$s" || exit 1
+    # Dashboards je Server nachziehen (#276). Billig (nur Dateien) und still,
+    # wenn das Statistik-Modul gar nicht installiert ist - aber ohne diese Zeile
+    # fehlte dem neuen Server seine Seite, bis jemand von Hand anwendet.
+    # *Refresh the per-server dashboards: cheap, quiet without the module, and
+    #  without it a new server has no page until someone applies by hand.*
+    statistik_dashboards
     # Kanal anlegen (#137) - im Hintergrund; ist der Schalter aus, tut das nichts.
     systemctl start --no-block kanal-abgleich.service >/dev/null 2>&1 || true
     # DNS-Namen anlegen, wenn der Cloudflare-Zugang eingerichtet ist. Ein
@@ -730,6 +749,9 @@ PY
     # *DNS only after the removal succeeded: otherwise an aborted removal leaves
     #  a server that still exists but has lost its name.*
     /usr/local/bin/spiel-verwalten deinstallieren "$s" || exit 1
+    # Sonst bleibt ein Dashboard fuer einen Server stehen, den es nicht mehr
+    # gibt - eine flache Linie, die aussieht wie ein stiller Server (#276).
+    statistik_dashboards
     if [ -f /etc/dns-gameserver.conf ]; then
       /usr/local/bin/dns-pflegen entfernen "$s" >/dev/null 2>&1 || true
     fi

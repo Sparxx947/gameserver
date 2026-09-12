@@ -17,6 +17,7 @@
         "127.0.0.1:19030:3000/tcp"
       ],
       "route": "/statistik",
+      "startseite": "/statistik/dashboards",
       "rolle": "verwalten",
       "ziel": "127.0.0.1:19030",
       "csp": "grafana",

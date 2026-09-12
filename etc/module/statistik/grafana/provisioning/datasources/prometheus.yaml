@@ -9,6 +9,15 @@ datasources:
     uid: platzwart-prometheus
     type: prometheus
     access: proxy
-    url: http://prometheus:9090
+    # 127.0.0.1, weil alle Teile des Moduls im Netz der Maschine laufen (#275).
+    # Stand hier der Containername, erreichte Grafana Prometheus nicht mehr -
+    # und zwar lautlos: Die Dashboards blieben leer, und die Alarmregeln gingen
+    # in "pending", weil ein Fehler bei der Abfrage wie eine erfuellte Bedingung
+    # behandelt wird. Ein Alarm, der wegen der Messung selbst ausloest, ist der
+    # schlechteste von allen.
+    # *Localhost, since every part runs on the host network: the container name
+    #  silently broke every query - dashboards empty and alert rules pending,
+    #  because a query error counts as a met condition.*
+    url: http://127.0.0.1:19090
     isDefault: true
     editable: false

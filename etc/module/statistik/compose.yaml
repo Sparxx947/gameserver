@@ -19,7 +19,18 @@ services:
     container_name: statistik-prometheus
     restart: unless-stopped
     user: "65534:65534"
+    # Wie alle Teile dieses Moduls im Netz der MASCHINE und nur auf 127.0.0.1.
+    # Der Umweg ueber ein eigenes compose-Netz kostete zuerst die Netzzahlen
+    # (#275) und dann die Erreichbarkeit: Aus einem benutzerdefinierten Netz
+    # fuehrt kein Weg zur Docker-Bruecke, Prometheus lief in "context deadline
+    # exceeded". Auf 127.0.0.1 gilt dieselbe Regel wie fuer jeden anderen
+    # Verwaltungsport des Projekts (Grenze 4), und alle finden einander.
+    # *Everything on the host network and bound to 127.0.0.1: a separate compose
+    #  network first cost the machine's network figures and then reachability -
+    #  from a user-defined network there is no route to the docker bridge.*
+    network_mode: host
     command:
+      - --web.listen-address=127.0.0.1:19090
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
       # Zwei Grenzen, und die Platte greift zuerst: Eine reine Zeitgrenze
@@ -64,7 +75,7 @@ services:
       # anmeldet, braucht beide Schloesser.
       # *Only from the docker bridge: the port is bound to localhost anyway, but
       #  a header that logs anyone in deserves both locks.*
-      GF_AUTH_PROXY_WHITELIST: 172.16.0.0/12
+      GF_AUTH_PROXY_WHITELIST: 127.0.0.1
       GF_AUTH_DISABLE_LOGIN_FORM: "true"
       GF_AUTH_BASIC_ENABLED: "false"
       GF_AUTH_ANONYMOUS_ENABLED: "false"
@@ -75,18 +86,26 @@ services:
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
       GF_NEWS_NEWS_FEED_ENABLED: "false"
       GF_LOG_MODE: console
+      # Wer auf "Statistik" klickt, will die Liste der Dashboards sehen und
+      # nicht Grafanas Startseite mit Neuigkeiten und zuletzt Besuchtem.
+      # *Whoever clicks "Statistik" wants the list of dashboards, not Grafana's
+      #  own start page.*
+      GF_USERS_HOME_PAGE: /dashboards
+      GF_SERVER_HTTP_ADDR: 127.0.0.1
+      GF_SERVER_HTTP_PORT: "19030"
       # Gewuerfelt von modul-verwalten und in der .env abgelegt. Das eingebaute
       # Konto ist ohne Anmeldeformular und ohne Basic Auth nicht benutzbar -
       # aber "admin/admin" soll auch dann nicht dastehen.
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PW}
-    ports:
-      - "127.0.0.1:19030:3000"
+    network_mode: host
     volumes:
       - /srv/module/statistik/grafana:/var/lib/grafana
       # Erzeugt: Datenquelle, Dashboard-Anbieter und - nur wenn eingeschaltet -
       # die Alarmregeln. Deshalb aus dem Stack-Verzeichnis und nicht aus /etc.
       - ./grafana-provisioning:/etc/grafana/provisioning:ro
       - /etc/module/statistik/grafana/dashboards:/var/lib/grafana/dashboards-platzwart:ro
+      # Je Spielserver eines - erzeugt, deshalb aus dem Modulverzeichnis.
+      - ./server-dashboards:/var/lib/grafana/dashboards-server:ro
     mem_limit: 512m
 
   node-exporter:
@@ -94,7 +113,18 @@ services:
     container_name: statistik-node
     restart: unless-stopped
     pid: host
+    # Das Netz der MASCHINE, nicht das eigene. Ohne diese Zeile misst der
+    # Exporter seine eigene Container-Schnittstelle: Gemessen meldete er 0,000 GB
+    # empfangen, waehrend die Maschine bei 64,9 GB stand, und eine offene
+    # TCP-Verbindung statt 31 (#275). Zahlen waren da, nur die falschen - und
+    # nichts sah kaputt aus. Prozessor, Speicher und Platte kommen aus dem
+    # /host-Mount und stimmten auch vorher; alles aus dem Netznamensraum nicht.
+    # *The machine's network namespace, not its own: measured 0.000 GB received
+    #  while the machine was at 64.9 GB, and one TCP connection instead of 31.
+    #  The numbers were there, just the wrong ones, and nothing looked broken.*
+    network_mode: host
     command:
+      - --web.listen-address=127.0.0.1:19100
       - --path.rootfs=/host
       # Der Textdatei-Sammler ist der Grund, warum hier kein cAdvisor stehen
       # muss: platzwart-metriken schreibt auf der Maschine .prom-Dateien, und
@@ -114,6 +144,10 @@ services:
     container_name: statistik-cadvisor
     restart: unless-stopped
     profiles: ["cadvisor"]
+    network_mode: host
+    command:
+      - --listen_ip=127.0.0.1
+      - --port=19080
     # ACHTUNG: Dieser Container liest den Docker-Socket. Wer den Socket hat,
     # kann jeden Container starten, auch einen mit "/" darin - er ist damit
     # faktisch root. Deshalb steht er hinter einem Profil, ist ab Werk aus und
@@ -135,6 +169,15 @@ services:
     container_name: statistik-probe
     restart: unless-stopped
     profiles: ["probe"]
+    network_mode: host
+    command:
+      # Die Konfigurationsdatei MUSS mit: Ein eigenes "command" ersetzt die
+      # Vorgabe des Images vollstaendig, und ohne sie startet der Exporter nicht
+      # ("error reading YAML file: open blackbox.yml").
+      # *The config file must be listed: a custom command replaces the image's
+      #  default entirely, and without it the exporter refuses to start.*
+      - --config.file=/etc/blackbox_exporter/config.yml
+      - --web.listen-address=127.0.0.1:19115
     # Diese Probe laeuft AUF der Maschine. Sie beweist, dass hier etwas lauscht
     # - nicht, dass es durch Firewall und Anbieter hindurchkommt. Der
     # Unterschied hat hier schon einmal Zeit gekostet.

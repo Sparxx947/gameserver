@@ -356,6 +356,7 @@ Jeder Punkt ist ein realer Vorfall, nicht eine Vermutung.
 | Borg-Sperre | Der Viertelstundenlauf hält das Repository rund vier Minuten gesperrt; Borg gibt ohne `--lock-wait` nach **einer Sekunde** auf. Vollsicherung, Endsicherung vor dem Entfernen, Archivliste und Wiederherstellung scheiterten daran (#171, #234). Jeder Borg-Aufruf braucht `--lock-wait`, und die Meldung muss „Sicherung läuft" sagen, nicht „nicht erreichbar". |
 | Borgs `sh:`-Muster | `*` überspringt kein `/`. Wer Ausschlüsse mit `startswith` vergleicht oder Zeilen wörtlich verschiebt, trifft Platzhalterzeilen nie — ein Restore hätte Enshrouded 32 Spieldateien gekostet (#231). Muster wie Borg auflösen, an denselben **relativen** Ort zurücklegen. |
 | TeamSpeak-ServerQuery | Verbindungen über das Docker-Gateway stehen nicht auf der Allowlist: drei schnelle Anmeldungen, und der Flutschutz sperrt rund zehn Minuten — jeder weitere Versuch verlängert. Befehle takten, eine Verbindung je Lauf, bei einer Sperre **warten**. |
+| Selbsttest fasst das System an | `modul-verwalten --selbsttest` setzte ein echtes `systemctl daemon-reload` ab — auf dem Server als root harmlos, auf dem Arbeitsplatzrechner eine Polkit-Abfrage, die als **Passwortdialog** aufging, immer wieder. Der Aufruf war jahrelang unerreichbar und wurde es erst, als ein Testfall wuchs. `vollstaendigkeit.sh` misst das seitdem mit einem Schein-`systemctl` im PATH. |
 | `pkill -f` / `pgrep -f` mit Muster | Trifft die eigene Befehlszeile mit: Ein Muster, das im SSH-Befehl selbst steht, beendete die eigene Shell, und eine Warteschleife fand sich selbst und wartete ewig. Nach PID beenden (`ss -ltnpH "sport = :PORT"`). |
 | `echo "…\t…"` | Gibt `\t` wörtlich aus; das Panel zeigte beim ersten echten Restore „ok\tIst-Stand …". `printf` benutzen. |
 | `docker compose stop` | Ist ein **ausdrückliches** Anhalten und schaltet `restart: unless-stopped` über den Neustart hinweg ab. Und `restart: on-failure` startet nach einem `docker stop` (Exit 143) doch wieder. |
@@ -383,6 +384,9 @@ Jeder Punkt ist ein realer Vorfall, nicht eine Vermutung.
 > ones: the borg lock needs `--lock-wait` everywhere and an honest message;
 > borg's `sh:` patterns do not cross `/`; TeamSpeak's ServerQuery flood ban
 > after three quick logins; `pkill -f`/`pgrep -f` match their own command line;
+> a self-test must touch nothing — one issued a real `systemctl daemon-reload`,
+> harmless as root on the server and a repeating password prompt on a
+> workstation, now measured with a fake `systemctl` in PATH;
 > `echo` prints `\t` literally; `docker compose stop` disables unless-stopped
 > and `on-failure` restarts after a stop; A2S needs the challenge step; some
 > `caddy validate` catches an unknown directive but not an unclosed brace at the

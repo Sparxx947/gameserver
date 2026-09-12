@@ -15,3 +15,18 @@ providers:
     options:
       path: /var/lib/grafana/dashboards-platzwart
       foldersFromFilesStructure: false
+  # Je Spielserver eines, erzeugt von modul-verwalten aus der Vorlage. Eigener
+  # Ordner, damit die Liste uebersichtlich bleibt: sieben Server sind sieben
+  # Dashboards, und die sollen die sieben allgemeinen nicht zudecken.
+  # *One per game server, generated from the template; its own folder so seven
+  #  servers do not bury the seven general dashboards.*
+  - name: platzwart-server
+    orgId: 1
+    folder: Spielserver
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 60
+    options:
+      path: /var/lib/grafana/dashboards-server
+      foldersFromFilesStructure: false

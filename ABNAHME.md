@@ -301,6 +301,8 @@ systemctl is-active platzwart-metriken.timer
 | 3.6.3 Mit Anmeldung | im Browser: Grafana öffnet sich **ohne zweite Anmeldung**, Ordner „Platzwart" mit zwei Dashboards |
 | 3.6.4 Rolle `verwalten` | sieht die Dashboards, hat in Grafana die Rolle `Viewer`; `admin` hat `Admin` |
 | 3.6.5 Zahlen | `platzwart_spieler`, `platzwart_sicherung_groesse_bytes` und `node_load1` liefern Werte |
+| 3.6.5b Tafeln | `werkzeuge/statistik-dashboards.py --daten <ziel>` meldet **keine** leere Tafel |
+| 3.6.5c Dashboards | im Browser: Ordner *Platzwart* mit sieben Seiten, Ordner *Spielserver* mit einer je Server |
 | 3.6.6 Schalter mit Warnung | „cAdvisor einschalten" führt auf eine Bestätigungsseite, die den Docker-Socket nennt |
 | 3.6.7 Ports | `ss -tulnH \| grep 19030` zeigt **nur** `127.0.0.1` |
 | 3.6.8 Keine Spielsicht | das Modul steht **nicht** in `panel-aktion status`, nicht in der Übersicht und nicht in `platzwart_server_laeuft` |
