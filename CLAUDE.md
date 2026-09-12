@@ -38,6 +38,25 @@ umgekehrt; `install/assistent.sh --selbsttest` muss danach grün sein.
 > configuration value in `lib.sh` changes it there too, and vice versa; the
 > assistant's self-test must pass afterwards.*
 
+**Jeder Server kommt aus dem Katalog** (E37). Was beim Umzug von Hand gebaut
+wurde, ist seit 2026-09-12 nachträglich übernommen — `spiel-verwalten
+uebernehmen <stack>` schreibt einem vorhandenen Server die fehlende `panel.json`
+aus dem Katalogeintrag und den Werten seiner laufenden compose-Datei. Ein
+zweiter Weg, wie ein Server entstehen kann, kostet mehr, als er aussieht: Die
+sechs handgebauten Stacks fielen aus jeder Prüfung heraus, die an der
+Katalogherkunft hing, und niemandem fiel es auf. Neu aufbauen statt übernehmen
+wäre die sauberere Erzählung und der schlechtere Weg — Palworld verlöre dabei
+15 von 115 gemessenen Einstellungen.
+
+> *Every server comes from the catalogue (E37). What was hand-built during the
+> migration was adopted afterwards with `spiel-verwalten uebernehmen`, which
+> writes the missing `panel.json` from the catalogue entry and the running
+> compose file. A second way for a server to come into being costs more than it
+> looks: the six hand-built stacks fell out of every check that hung on
+> catalogue origin and nobody noticed. Rebuilding instead of adopting would be
+> the cleaner story and the worse move — Palworld would lose 15 of its 115
+> measured settings.*
+
 Der Einstieg zum Verständnis ist `docs/01-architektur.md`, danach
 `docs/10-entscheidungen.md` — dort steht zu jedem ungewöhnlichen Detail, welche
 naheliegende Lösung verworfen wurde und warum.
@@ -204,6 +223,25 @@ von `abgleich.sh`, typische Fehler in `app.py` — und ob jeder Abschnitt der
 Dokumentation seinen englischen Absatz hat. Die vollständige Liste steht in
 `docs/09-referenz.md`.
 
+**Und bei GitHub läuft dasselbe noch einmal.** Seit #307 prüft der Ablauf
+`Pruefung` jeden Push auf `main` und jeden Pull Request: die ganze Gate-Reihe und
+zusätzlich jeden `--selbsttest` **mit ausgewertetem Ausgang**. Wer den lokalen
+Haken nicht installiert hat, merkt es also spätestens dort — und muss nicht
+raten, warum es rot ist:
+
+* `konfiguration.env` wird in der Prüfung **absichtlich nicht angelegt**. Ohne
+  sie entfällt Gate 4c korrekt (es sucht die Standortwerte dieser einen
+  Maschine); mit der Vorlage schlüge es an deren Beispielwerten an, weil die in
+  der Doku stehen.
+* Gate 1 verlangt `konfiguration.env` deshalb **nicht** — in einem frischen Klon
+  fehlt sie zu Recht.
+* **Exit 2** aus einem Selbsttest heißt „hier nicht prüfbar" und gilt als
+  übersprungen, nicht als Fehlschlag.
+
+Wöchentlich läuft dazu `Bestandspflege`: neue Spiele bei ich777 und LinuxGSM,
+tote Container-Abbilder, fehlende Steam-Titelbilder. Sie pflegt **ein** Issue und
+schließt es wieder, wenn nichts mehr offen ist.
+
 Als automatische Bremse — **beide Haken**:
 
 ```bash
@@ -224,6 +262,14 @@ das gesamte Hook-Verzeichnis und schaltet vorhandene Haken ab.
 > secrets and placeholders, and also catalogue ports, categories and artwork,
 > docs against catalogue and routes, the comparison list, typical `app.py`
 > mistakes and whether every documentation section has its English paragraph.
+> The same suite runs on GitHub for every push to `main` and every pull request
+> (plus every self-test with its exit code asserted), so anyone without the local
+> hook finds out there. Two peculiarities: the workflow deliberately does not
+> create `konfiguration.env` — without it gate 4c correctly stands down, with the
+> template it would fire on its example values — and exit 2 from a self-test
+> means "cannot be verified here". A weekly `Bestandspflege` workflow checks the
+> upstream sources, the container images and the Steam artwork, keeping one issue
+> current.
 > Wire both in as symlinked hooks, never via `core.hooksPath`, which would
 > replace the entire hooks directory. The second one refuses a push to `main`:
 > the rule lived here for months with nothing enforcing it, and on 2026-09-12
@@ -376,6 +422,15 @@ Jeder Punkt ist ein realer Vorfall, nicht eine Vermutung.
 | Server über Steams Relay | Unturned ist per „Server Code" erreichbar, **ohne** dass ein Port veröffentlicht ist — dort ist das Passwort die einzige Sperre und muss vor dem ersten Start stehen (E31). |
 | Steams Workshop-API | Die Detailabfrage heißt das Feld `consumer_app_id`, die Suche `consumer_appid`; und ohne Schlüssel meldet sie bei manchen Spielen `file_size: 0`. Beides führte zu falschen Urteilen. |
 | Discord prüfen | Ein Bot ohne Message-Content-Intent sieht bei fremden Nachrichten leeren Inhalt — das sieht aus wie ein Zustellfehler. Webhooks mit `?wait=true` aufrufen und die Antwort prüfen. |
+| Selbsttest, der die Umgebung voraussetzt | `modul-verwalten` prüfte „Anwenden ohne Docker muss scheitern" — und verließ sich darauf, dass auf dem Testrechner zufällig kein Docker liegt. Auf einem GitHub-Läufer liegt eins, der Fall fiel um (#307). Schlimmer als der rote Test wäre der grüne gewesen: Mit erreichbarem Docker hätte dieser Selbsttest **echte Container angefasst**. Die Bedingung **herstellen**, nicht voraussetzen — Schein-Programm in den PATH, wie beim Schein-`systemctl`. |
+| Exit 2 heißt „hier nicht prüfbar" | Ein Selbsttest, der ohne laufenden Server keine Gegenprobe hat (`spieler-zaehlen`) oder ohne Repositorium daneben seinen Katalog nicht findet (`modul-verwalten`), gibt **2** zurück, nicht 0 und nicht 1. 0 wäre gelogen, 1 macht die GitHub-Prüfung dauerhaft rot. Auf der Maschine war `modul-verwalten --selbsttest` deshalb jahrelang rot, und niemand sah es — sein Ausgang wurde nirgends ausgewertet. |
+| Zeitzone der Maschine | systemd rechnet **jedes `OnCalendar` in Ortszeit**. Der Anbieter liefert `Etc/UTC`, der Bauplan setzte nichts: Die Vollsicherung „04:00" lief um 06:00, der Palworld-Neustart „05:30" um 07:30, und jeder Protokollzeitstempel lag zwei Stunden daneben (#303). Jetzt `ZEITZONE` in `konfiguration.env`, gesetzt in Stufe 10 — **Zonenname, nie ein fester Versatz**, sonst ist es ab Ende Oktober wieder falsch. Nach einer Umstellung springen die Timer **einmalig**; vorher nachsehen, ob jemand spielt. |
+| Die compose-Datei sagt nicht, was gilt | Palworlds Abbild bekommt `DISABLE_GENERATE_SETTINGS=true`, damit seine übernommenen Einstellungen bleiben — damit wendet es **keine einzige** Umgebungsvariable mehr an, auch die Passwörter nicht (#286). Wer dort etwas ändert, ändert nichts. Es gilt `PalWorldSettings.ini`. `platzwart-wache` vergleicht beide Seiten seither, und die Tabelle `SCHUTZ` sagt für **jeden** Stack, woran sein Schutz hängt — ein neuer handgebauter Stack ohne Eintrag lässt `vollstaendigkeit.sh` scheitern (#289). |
+| Ganze compose- oder ini-Dateien ausgeben | Nie, auch nicht „mit Maske". Eine Maske kennt genau die Schreibweise, an die man gerade dachte: Ein `sed` für `KEY: wert` ließ Enshroudeds `- KEY=wert` durch, und zwei Passwörter standen im Klartext im Protokoll. Schlüssel auflisten, Vorhandensein als `gesetzt`/`leer` melden, Gleichheit über `sha256[:12]` vergleichen — den Wert gar nicht erst holen. |
+| Kartenbilder | Zwei Verzeichnisse: die Kachel nimmt `/opt/panel/bilder/<stack>.jpg`, die Katalogseite `katalog/<schlüssel>.jpg`. Ein gezeichnetes Ersatzbild darf nur eine **Lücke füllen**, niemals etwas überschreiben — eine Übernahme hat so ein vorhandenes Bild zerstört, und die Bilder lagen in **keiner Sicherung** (#305, seitdem im Panel-Archiv). Und: Steam liefert für neuere Spiele **kein `header.jpg`** mehr; wer nur diesen Namen fragt, hält ein modernes Spiel für „nicht bei Steam". |
+| Prüfungen, die nur den Anfang lesen | Ein Helfer las von jeder Antwort 4096 Bytes — genug für ein Bild, zu wenig für ein Docker-Hub-Token. Das abgeschnittene JSON scheiterte, der Fehler galt als „vermutlich vorhanden", und die Prüfung meldete **„178 Abbilder geprüft, 0 weg"**, ohne ein einziges Docker-Hub-Abbild angesehen zu haben. Jede neue Prüfung in **beide** Richtungen belegen: ein erfundener Fall muss anschlagen. |
+| Sicherungsausschlüsse und Mods | `werkzeuge/katalog-ausschluesse.py` pflegt das Feld `ausschluss` für ich777 und LinuxGSM und lässt jedes Muster fallen, das ein Modverzeichnis aus `etc/spiele-mods.json` verdeckte — ein selbst hochgeladener Mod kommt aus keiner Neuinstallation zurück. Verglichen wird ohne Rücksicht auf Groß-/Kleinschreibung: Valheims `serverfiles/BepInEx/plugins` entginge `serverfiles/*/Plugins` sonst nur durch das kleine p (#221). |
+| Schritte in GitHub-Abläufen | Der Läufer fährt sie mit `bash -e`: Ein nackter Aufruf mit Exit ≠ 0 beendet den Schritt **sofort**, vor jeder Auswertung — der erste Fehlschlag verschwand damit wortlos. `… || rc=$?` schreiben. Und bei einem fehlgeschlagenen Selbsttest die **ganze** Ausgabe zeigen: `tail -20` zeigte zwanzig Zeilen „ok" und verschwieg die eine, auf die es ankam. |
 | Generatoren und Handwerkzeuge | Was ein Generator anlegt, bekommt nicht von selbst, was ein Handwerkzeug später setzt: 17 Katalogspiele standen ohne Kategorie da (#251). Solche Felder gehören in `vollstaendigkeit.sh`. |
 
 > *Traps that have already cost time, each a real incident: mkdir's mode is
