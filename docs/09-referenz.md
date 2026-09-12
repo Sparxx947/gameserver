@@ -1697,6 +1697,55 @@ Präfix und werden am Ende entfernt; der Token kommt aus einer Datei oder
 > file, prefixes every test record randomly and removes it afterwards; the token
 > comes from a file or an environment variable, never from argv.*
 
+### `doku-links.py`
+
+```
+werkzeuge/doku-links.py            tote Verweise melden (Exit 1)
+werkzeuge/doku-links.py --liste    alle gefundenen Verweise zeigen
+```
+
+Prüft jeden Verweis zwischen den Kapiteln — **Zieldatei und Anker**. Ein toter
+Verweis stirbt lautlos: Datei umbenannt, Überschrift umformuliert, und auffallen
+würde es erst beim Klicken. Die Ankerregeln von GitHub sind nachgebildet
+(Kleinschrift, Satzzeichen weg, Leerzeichen zu Bindestrichen). Code wird vor der
+Suche entfernt — sonst sieht jeder reguläre Ausdruck mit Zeichenklasse vor einer
+Klammer aus wie ein Link, und genau zwei davon meldete die erste Fassung als
+tot. Läuft als Gate 7d in `vollstaendigkeit.sh`.
+
+> *Checks every cross-reference between chapters, file and anchor, with GitHub's
+> anchor rules reproduced. Code is stripped first, or every character class
+> before a parenthesis looks like a link.*
+
+---
+
+### `katalog-bestand.py`
+
+```
+werkzeuge/katalog-bestand.py             Abbilder und Titelbilder pruefen
+werkzeuge/katalog-bestand.py --abbilder  nur die Container-Abbilder
+werkzeuge/katalog-bestand.py --bilder    nur die Steam-Titelbilder
+werkzeuge/katalog-bestand.py --markdown  Bericht fuer ein Issue
+```
+
+Ein Katalogeintrag ist eine Zusage, und sie hängt an Dingen, die anderen
+gehören. Geprüft wird deshalb von außen: Antwortet die Registry für jedes
+`image` noch mit einem Manifest (anonymes Token, sonst wäre „401" nicht von
+„weg" zu unterscheiden), und liefert Steam für jede `appid` noch ein Titelbild
+unter einem der drei Namen aus #305.
+
+Gemeldet wird beim Titelbild **nur, was die Kachel wirklich leer ließe** — kein
+Steam-Bild *und* kein gezeichnetes Ersatzbild. Sonst meldete die Prüfung
+wöchentlich zehn tadellose Kacheln, darunter die GoldSrc-Sammel-ID 90, ein
+Serverwerkzeug ohne Ladenseite, das nie ein Titelbild hatte.
+
+> *A catalogue entry is a promise resting on things owned by others, so this
+> checks from outside: does each image's registry still answer with a manifest
+> (anonymous token, since 401 would otherwise be indistinguishable from gone),
+> and does Steam still serve artwork. Only what would leave a tile blank is
+> reported — no Steam image and no drawn stand-in.*
+
+---
+
 ### `git-hooks/pre-push`
 
 ```bash
@@ -1714,6 +1763,30 @@ wieder auf `main`, und die nächste Arbeit landet dort (#283).
 > *Refuses a push to main or master and names the way round it. It exists because
 > the rule was written down and never checked, and the slip is always the same:
 > after a merge the working branch is main again.*
+
+### GitHub-Arbeitsabläufe
+
+| Ablauf | wann | was |
+|---|---|---|
+| `Pruefung` | jeder Push auf `main`, jeder Pull Request | die ganze Gate-Reihe **und** jeder `--selbsttest` mit ausgewertetem Ausgang |
+| `Bestandspflege` | montags 05:17 UTC, zusätzlich von Hand auslösbar | neue Spiele bei ich777 und LinuxGSM, tote Abbilder, fehlende Titelbilder — gepflegt wird **ein** Issue, das bei Fundfreiheit geschlossen wird |
+
+Die Gates liefen vorher nur im lokalen Haken: Wer ihn nicht installiert hat,
+schob ungeprüft, und ein Beitrag aus einem Fork sah sie nie. Zwei Eigenheiten
+sind dafür nötig und stehen in den Abläufen begründet — `konfiguration.env` wird
+in der Prüfung **nicht** angelegt (ohne sie entfällt Gate 4c korrekt; mit der
+Vorlage schlüge es an ihren Beispielwerten an), und **Exit 2** heißt bei einem
+Selbsttest „hier nicht prüfbar" statt „fehlgeschlagen" (`spieler-zaehlen`
+braucht einen antwortenden Server als Gegenprobe, `modul-verwalten` das
+Repositorium daneben).
+
+> *The gates previously ran only in the local hook, so anyone without it pushed
+> unchecked. Two peculiarities are needed: the checks deliberately do not create
+> `konfiguration.env` (without it gate 4c correctly stands down; with the
+> template it would fire on its example values), and exit 2 from a self-test
+> means "cannot be verified here" rather than "failed".*
+
+---
 
 ### `git-hooks/pre-commit`
 
