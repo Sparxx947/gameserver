@@ -247,9 +247,18 @@ def main() -> int:
             if gefunden:
                 break
         if not gefunden:
+            # Exit 2, nicht 1: Das ist kein Fehlschlag, sondern "hier nicht
+            # pruefbar". Auf der Maschine antwortet mindestens ein Server und
+            # der Test hat seine Gegenprobe; in einem Klon ohne Spielserver
+            # (etwa in der GitHub-Pruefung) gibt es keine, und ein Bestanden
+            # waere dort eine Luege. Der Aufrufer unterscheidet beides.
+            # *Exit 2 rather than 1: not a failure but "cannot be verified
+            #  here". On the machine a server answers and the control exists; in
+            #  a clone without game servers a pass would be a lie.*
             print("  WARNUNG: kein einziger Server antwortet - Gegenprobe fehlt,")
             print("           der Test koennte fuer alles 'keine Antwort' melden")
-            return 1
+            print("           (Exit 2 = hier nicht pruefbar, kein Fehlschlag)")
+            return 2
         return 0
     return einmal(zeigen="--zeigen" in sys.argv or "--einmal" in sys.argv)
 

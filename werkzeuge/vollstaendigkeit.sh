@@ -29,6 +29,15 @@ while read -r pfad; do
     compgen -G "$pfad" >/dev/null || { echo "  FEHLT (Muster ohne Treffer): $pfad"; fehler=1; }
     continue
   fi
+  # konfiguration.env ist Absicht: Sie gehoert NICHT ins Repositorium und
+  # entsteht erst beim Einrichten aus der Vorlage - lib.sh sagt das auch so.
+  # In einem frischen Klon (und damit in jeder Pruefung ausserhalb dieser
+  # Maschine) fehlt sie zu Recht; sie hier zu verlangen machte den Lauf dort
+  # unbrauchbar. Dass die VORLAGE vollstaendig ist, prueft Abschnitt 5.
+  # *konfiguration.env is deliberately absent from the repository and is created
+  #  from the template at setup time, so requiring it here made the check
+  #  unusable in a fresh clone. Section 5 checks the template instead.*
+  [ "${pfad##*/}" = "konfiguration.env" ] && continue
   [ -e "$pfad" ] || { echo "  FEHLT: ${pfad#$REPO/}"; fehler=1; }
 # Das "@" gehoert in die Zeichenklasse: systemd-Vorlagen heissen
 # "platzwart-wecken@.service". Ohne es schnitt das Muster am @ ab und meldete
