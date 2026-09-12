@@ -71,8 +71,14 @@ def spieler() -> dict:
         alter = time.time() - int(w.get("zeit", 0))
         if not w.get("zeit") or alter > FRISCH_S or alter < -60:
             continue
+        # Nicht jeder Server liefert einen Anzeigenamen: Valheim meldet ein
+        # leeres Feld, und die erste Meldung stand als "**valheim** ist wieder
+        # leer" im Kanal. Derselbe Rueckfall wie bei den Kanalnamen - Stackname
+        # mit grossem Anfangsbuchstaben.
+        # *Not every server reports a display name; the first message read
+        #  "**valheim**" in lowercase. Same fallback as the channel names.*
         raus[stack] = {"spieler": w["spieler"], "max": w.get("max"),
-                       "name": w.get("spiel") or stack}
+                       "name": w.get("spiel") or stack.capitalize()}
     return raus
 
 
@@ -154,6 +160,16 @@ def selbsttest() -> int:
            "verschwundener Messwert meldet nicht (Aussetzer ist kein leerer Server)")
     pruefe("2/10" in ereignisse({"valheim": leer}, {"valheim": voll})[0][1],
            "Meldung nennt Spielerzahl und Plaetze")
+    # Rueckfall auf den Stacknamen, wenn das Spiel keinen Namen meldet (#282).
+    SPIELER_ROH = {"valheim": {"spieler": 0, "max": 10, "spiel": "", "zeit": int(time.time())}}
+    import tempfile as _t
+    _d = Path(_t.mkdtemp())
+    globals()["SPIELER"] = _d / "s.json"
+    SPIELER.write_text(json.dumps(SPIELER_ROH))
+    pruefe(spieler()["valheim"]["name"] == "Valheim",
+           "ohne Anzeigenamen: Stackname gross geschrieben")
+    import shutil as _s2
+    _s2.rmtree(_d)
     # Frische
     import tempfile
     tmp = Path(tempfile.mkdtemp())
