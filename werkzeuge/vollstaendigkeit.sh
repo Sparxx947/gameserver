@@ -454,6 +454,46 @@ else
   fi
 fi
 
+# --- Kennt die Wache jeden Stack? -------------------------------------------
+# Die Einrichtungspruefung der Wache lief ueber /opt/stacks/*/panel.json - die
+# hat nur, was ueber den Katalog installiert wurde, also einer von sieben
+# Servern. Die sechs handgebauten sah niemand an, und das faellt nicht auf: Eine
+# Pruefung, die einen Bereich nicht ansieht, meldet ihn als in Ordnung (#289).
+# Deshalb braucht jeder Bauplan unter stacks/ eine Regel in SCHUTZ - auch
+# "unbestimmt", aber dann mit Grund. Ein neuer Stack erzwingt so eine
+# Entscheidung, statt lautlos durchzurutschen.
+# *The watchdog's setup check ran over panel.json, which only catalogue installs
+#  have - one server of seven. Every blueprint under stacks/ therefore needs a
+#  rule in SCHUTZ, "unbestimmt" included but then with a reason, so a new stack
+#  forces a decision instead of slipping through.*
+echo "== Kennt die Wache jeden Stack? =="
+if [ -n "${PLATZWART_KEIN_SCHUTZ_GATE:-}" ]; then
+  echo "  uebersprungen (PLATZWART_KEIN_SCHUTZ_GATE gesetzt)"
+else
+  python3 - <<'PRUEF' || fehler=1
+import pathlib, sys
+quelle = pathlib.Path("bin/platzwart-wache").read_text()
+raum = {}
+exec(compile(quelle.split("def sh(")[0], "wache", "exec"), raum)
+schutz = raum.get("SCHUTZ")
+if not schutz:
+    print("  SCHUTZ steht nicht mehr in bin/platzwart-wache"); sys.exit(1)
+staecke = sorted(p.stem for p in pathlib.Path("stacks").glob("*.yaml"))
+fehlt = [s for s in staecke if s not in schutz]
+ohne_grund = [s for s, r in schutz.items()
+              if r.get("art") == "unbestimmt" and not r.get("grund")]
+if fehlt:
+    print(f"  {len(fehlt)} Stack(s) ohne Regel in SCHUTZ: {', '.join(fehlt)}")
+    print("    Eintrag in bin/platzwart-wache ergaenzen - 'umgebung', 'konfig'")
+    print("    oder 'unbestimmt' mit Grund. Vorbei: PLATZWART_KEIN_SCHUTZ_GATE=1")
+if ohne_grund:
+    print(f"  'unbestimmt' ohne Grund: {', '.join(ohne_grund)}")
+if fehlt or ohne_grund:
+    sys.exit(1)
+print(f"  {len(staecke)} Bauplaene, {len(schutz)} Regeln - jeder Stack hat eine.")
+PRUEF
+fi
+
 # --- Selbsttests duerfen das System nicht anfassen --------------------------
 #
 # bin/modul-verwalten setzte in seinem Selbsttest ein echtes
