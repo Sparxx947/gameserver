@@ -1202,6 +1202,68 @@
         },
         "textMode": "auto"
       }
+    },
+    {
+      "id": 23,
+      "type": "row",
+      "title": "Protokoll",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 56
+      }
+    },
+    {
+      "id": 24,
+      "title": "Was dieser Server schreibt",
+      "type": "logs",
+      "datasource": {
+        "type": "loki",
+        "uid": "platzwart-loki"
+      },
+      "description": "Derselbe Zeitraum wie die Kurven darueber - damit man zu einem Ausschlag die Zeilen von genau diesem Moment sieht. Braucht den Schalter 'Protokolle sammeln'.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 57
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "platzwart-loki"
+          },
+          "editorMode": "code",
+          "expr": "{job=\"platzwart\", stack=\"__STACK__\"}",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": false,
+          "queryType": "range",
+          "range": true
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "prettifyLogMessage": false
+      }
     }
   ]
 }

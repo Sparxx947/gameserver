@@ -1,0 +1,250 @@
+#!/usr/bin/env python3
+"""platzwart-protokolle — schickt die Protokolle der Container an Loki.
+
+Der uebliche Weg ist Promtail mit Docker-Erkennung, und der braucht den
+Docker-Socket im Container - wer den hat, ist root auf der Maschine (Grenze 1).
+Deshalb laeuft der Versender HIER, als Dienst auf der Maschine: Er folgt
+"docker logs", haengt die Etiketten an und schiebt die Zeilen ueber die
+HTTP-Schnittstelle nach Loki.
+
+Der zweite Grund fuer einen eigenen Versender ist wichtiger: **Schwaerzen.**
+Spielserver schreiben Beitrittspasswoerter in ihr Protokoll (#239). Was einmal
+in einem Protokollspeicher liegt, steht dort dreissig Tage - also wird hier
+geschwaerzt, bevor eine Zeile die Maschine verlaesst, und nicht erst beim
+Ansehen.
+
+*The usual route needs the Docker socket in a container, which makes it root.
+ This ships from the host instead - and, more importantly, redacts: game servers
+ write join passwords into their logs, and what lands in a log store stays there
+ for thirty days.*
+
+  platzwart-protokolle [--selbsttest] [--einmal]
+
+Je Container ein "docker logs --follow"; neue Container werden binnen einer
+Minute aufgenommen, verschwundene fallen weg. Beim Start wird NICHT die alte
+Historie nachgeschoben (--since 0s): Sonst stuende nach jedem Neustart des
+Dienstes alles doppelt im Speicher, und doppelte Zeilen sind schlimmer als
+fehlende - man sucht den Fehler zweimal.
+"""
+import json
+import os
+import re
+import subprocess
+import sys
+import threading
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+LOKI = os.environ.get("PROTOKOLLE_LOKI", "http://127.0.0.1:19310/loki/api/v1/push")
+STACKS = Path(os.environ.get("PROTOKOLLE_STACKS", "/opt/stacks"))
+MODUL = Path(os.environ.get("PROTOKOLLE_MODUL", "/opt/module/statistik/modul.json"))
+NEUE_SUCHEN_S = int(os.environ.get("PROTOKOLLE_SUCHE", "60"))
+BUENDEL_S = float(os.environ.get("PROTOKOLLE_BUENDEL", "2"))
+BUENDEL_MAX = int(os.environ.get("PROTOKOLLE_MAX", "500"))
+
+# Was geschwaerzt wird, bevor eine Zeile die Maschine verlaesst. Lieber ein
+# Treffer zu viel als ein Passwort im Speicher: Die Muster greifen auf
+# Schluesselwort + Trennzeichen + Wert, nicht auf den Wert allein - ein Muster
+# fuer "sieht aus wie ein Passwort" wuerde jede Kennung schwaerzen und das
+# Protokoll unlesbar machen.
+# *Redacted before a line leaves the machine. Keyword plus separator plus value,
+#  never "looks like a password" - that would redact every identifier.*
+SCHWAERZEN = [
+    # Der Wortanfang darf NICHT mit \b gesucht werden: "SERVER_PASSWORD" traegt
+    # den Unterstrich davor, und der ist ein Wortzeichen - das Muster griff
+    # genau bei der haeufigsten Schreibweise nicht (im Selbsttest aufgefallen).
+    # *No \b before the keyword: "SERVER_PASSWORD" has a word character in front,
+    #  so the pattern missed the most common spelling.*
+    re.compile(r"(?i)([\w-]*(?:pass(?:word|wort)?|passwd|pwd|token|secret|api[_-]?key))"
+               r"(\s*[:=]\s*|\s+is\s+|\s+ist\s+)(\"?)([^\s\"',]{3,})"),
+    # Ein Passwort als Startparameter: -password Wert, --server-password=Wert
+    re.compile(r"(?i)(--?[a-z-]*pass(?:word|wort)?[a-z-]*[= ])(\S+)"),
+]
+
+
+def schwaerzen(zeile: str) -> str:
+    zeile = SCHWAERZEN[0].sub(lambda m: f"{m.group(1)}{m.group(2)}{m.group(3)}<geschwaerzt>", zeile)
+    return SCHWAERZEN[1].sub(lambda m: f"{m.group(1)}<geschwaerzt>", zeile)
+
+
+def an() -> bool:
+    """Laeuft der Schalter 'protokolle' im Statistik-Modul?"""
+    try:
+        return bool(json.loads(MODUL.read_text())["schalter"].get("protokolle"))
+    except Exception:
+        return False
+
+
+def stacks() -> set:
+    return {p.name for p in STACKS.glob("*") if (p / "compose.yaml").exists()} if STACKS.exists() else set()
+
+
+def laufende() -> dict:
+    """{containername: stackname} - nur Container, die zu einem Stack gehoeren."""
+    try:
+        aus = subprocess.run(["docker", "ps", "--format", "{{.Names}}"],
+                             capture_output=True, text=True, timeout=30).stdout
+    except Exception:
+        return {}
+    bekannt, treffer = stacks(), {}
+    for name in aus.split():
+        if name in bekannt:
+            treffer[name] = name
+        else:
+            # Container eines Moduls heissen "<modul>-<dienst>"; sie kommen mit,
+            # damit man auch sieht, warum Grafana nicht startet.
+            vorn = name.split("-")[0]
+            if (Path("/opt/module") / vorn / "compose.yaml").exists():
+                treffer[name] = vorn
+    return treffer
+
+
+class Versand:
+    """Sammelt Zeilen und schickt sie gebuendelt - eine HTTP-Anfrage je Zeile
+    waere bei einem gespraechigen Server ein Dauerfeuer."""
+
+    def __init__(self):
+        self.puffer = []
+        self.schloss = threading.Lock()
+        self.gesendet = 0
+        self.fehler = 0
+
+    def zeile(self, etiketten: dict, text: str):
+        with self.schloss:
+            self.puffer.append((etiketten, str(time.time_ns()), schwaerzen(text)))
+            voll = len(self.puffer) >= BUENDEL_MAX
+        if voll:
+            self.leeren()
+
+    def leeren(self):
+        with self.schloss:
+            if not self.puffer:
+                return
+            posten, self.puffer = self.puffer, []
+        stroeme = {}
+        for etiketten, zeit, text in posten:
+            schluessel = tuple(sorted(etiketten.items()))
+            stroeme.setdefault(schluessel, []).append([zeit, text])
+        koerper = json.dumps({"streams": [
+            {"stream": dict(k), "values": v} for k, v in stroeme.items()]}).encode()
+        anfrage = urllib.request.Request(LOKI, data=koerper,
+                                         headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(anfrage, timeout=15) as a:
+                a.read()
+            self.gesendet += len(posten)
+        except Exception:
+            # Nicht wiederholen: Loki ist aus oder ueberlastet, und ein Puffer,
+            # der waechst, bis der Speicher voll ist, nimmt die Maschine mit.
+            # Protokolle sind wichtig, aber nicht wichtiger als der Spielserver.
+            # *No retry: a buffer that grows until memory runs out takes the
+            #  machine down with it, and logs matter less than the game server.*
+            self.fehler += len(posten)
+
+
+def folgen(container: str, stack: str, versand: Versand, ende: threading.Event):
+    """Ein "docker logs --follow" je Container, bis er verschwindet."""
+    p = subprocess.Popen(["docker", "logs", "--follow", "--since", "0s", "--timestamps", container],
+                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                         errors="replace", bufsize=1)
+    etiketten = {"job": "platzwart", "stack": stack, "container": container}
+    try:
+        for zeile in p.stdout:
+            if ende.is_set():
+                break
+            versand.zeile(etiketten, zeile.rstrip("\n"))
+    except Exception:
+        pass
+    finally:
+        p.terminate()
+
+
+def lauf():
+    versand = Versand()
+    laeuft = {}
+    ende = threading.Event()
+    naechste_suche = 0.0
+    try:
+        while not ende.is_set():
+            if time.time() >= naechste_suche:
+                naechste_suche = time.time() + NEUE_SUCHEN_S
+                jetzt = laufende()
+                for name, stack in jetzt.items():
+                    if name not in laeuft or not laeuft[name].is_alive():
+                        t = threading.Thread(target=folgen, args=(name, stack, versand, ende),
+                                             daemon=True)
+                        laeuft[name] = t
+                        t.start()
+                for name in [n for n in laeuft if n not in jetzt]:
+                    del laeuft[name]
+            versand.leeren()
+            time.sleep(BUENDEL_S)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        ende.set()
+        versand.leeren()
+    return 0
+
+
+def selbsttest():
+    schlecht = 0
+
+    def pruefe(bedingung, was):
+        nonlocal schlecht
+        print(f"  {'ok    ' if bedingung else 'FEHLER'} {was}")
+        if not bedingung:
+            schlecht += 1
+
+    # Schwaerzen - die eigentliche Aufgabe dieses Programms neben dem Versand.
+    faelle = [
+        ("Server password: geheim123", "geheim123"),
+        ("SERVER_PASSWORD=abc123XYZ", "abc123XYZ"),
+        ("rcon_password = Tr0ub4dor", "Tr0ub4dor"),
+        ('admin token: "ey.JhbGciOi"', "ey.JhbGciOi"),
+        ("gestartet mit --server-password=hallo123", "hallo123"),
+        ("api_key: sk-abcdefghij", "sk-abcdefghij"),
+    ]
+    for zeile, geheim in faelle:
+        raus = schwaerzen(zeile)
+        pruefe(geheim not in raus, f"geschwaerzt: {zeile[:34]}")
+        pruefe("<geschwaerzt>" in raus, f"Marke gesetzt: {zeile[:34]}")
+    # Und was NICHT geschwaerzt werden darf - eine Zeile, die alles schwaerzt,
+    # ist so unbrauchbar wie eine, die nichts schwaerzt.
+    harmlos = ["Spieler Anna ist beigetreten", "Welt gespeichert in 1.2s",
+               "listening on 0.0.0.0:2456", "player count: 3/10"]
+    for zeile in harmlos:
+        pruefe(schwaerzen(zeile) == zeile, f"unberuehrt: {zeile[:34]}")
+    # Buendelung: gleiche Etiketten -> ein Strom
+    v = Versand()
+    v.zeile({"stack": "valheim"}, "eins")
+    v.zeile({"stack": "valheim"}, "zwei")
+    v.zeile({"stack": "palworld"}, "drei")
+    pruefe(len(v.puffer) == 3, "Puffer sammelt")
+    stroeme = {}
+    for etiketten, _, _ in v.puffer:
+        stroeme.setdefault(tuple(sorted(etiketten.items())), 0)
+    pruefe(len(stroeme) == 2, "zwei Server -> zwei Stroeme")
+    # Ein nicht erreichbares Loki darf nicht haengen und nicht wachsen
+    global LOKI
+    LOKI = "http://127.0.0.1:1/loki/api/v1/push"
+    v.leeren()
+    pruefe(v.puffer == [], "Puffer wird auch bei Fehlschlag geleert")
+    pruefe(v.fehler == 3, "Fehlschlag wird gezaehlt, nicht wiederholt")
+    print()
+    if schlecht:
+        print(f"{schlecht} FEHLER")
+        return 1
+    print("alles gruen.")
+    return 0
+
+
+if __name__ == "__main__":
+    if "--selbsttest" in sys.argv:
+        sys.exit(selbsttest())
+    if not an():
+        print("Schalter 'protokolle' ist aus - nichts zu tun.")
+        sys.exit(0)
+    sys.exit(lauf())

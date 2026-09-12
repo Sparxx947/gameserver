@@ -34,6 +34,10 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 ZIEL = REPO / "etc/module/statistik/grafana/dashboards"
 QUELLE = {"type": "prometheus", "uid": "platzwart-prometheus"}
+# Die Protokolle liegen in einer zweiten Datenquelle. Tafeln, die daraus lesen,
+# sprechen LogQL und nicht PromQL - die Datenpruefung laesst sie deshalb aus.
+# *Logs live in a second datasource and speak LogQL; the data check skips them.*
+LOKI = {"type": "loki", "uid": "platzwart-loki"}
 # Nur Metriken, die es auf DIESER Maschine gibt. Kein hwmon (virtuelle
 # Maschine), kein systemd-Sammler, keine Drosselungs- und OOM-Werte von cAdvisor
 # (/dev/kmsg ist im Container nicht erlaubt) - Tafeln dafuer waeren dauerhaft
@@ -78,14 +82,17 @@ class Bau:
     def tafel(self, titel, art, ziele, breite=12, hoehe=8, einheit=None,
               beschreibung="", legende="{{stack}}", stapel=False, max_wert=None,
               min_wert=None, schwellen=None, spalten=None, sortierung=None,
-              modus=None):
+              modus=None, quelle=None):
+        quelle = quelle or QUELLE
         self.nr += 1
         ausdruecke = []
         for i, z in enumerate(ziele):
             expr, leg = z if isinstance(z, tuple) else (z, legende)
-            a = {"datasource": QUELLE, "editorMode": "code", "expr": expr,
+            a = {"datasource": quelle, "editorMode": "code", "expr": expr,
                  "legendFormat": leg, "refId": chr(65 + i)}
-            a["instant"] = art in ("stat", "gauge", "bargauge", "table")
+            a["instant"] = art in ("stat", "gauge", "bargauge", "table") and quelle is QUELLE
+            if quelle is LOKI:
+                a["queryType"] = "range"
             a["range"] = not a["instant"]
             if art == "table":
                 a["format"] = "table"
@@ -110,7 +117,7 @@ class Bau:
         if schwellen:
             feld["defaults"]["thresholds"] = {"mode": "absolute", "steps": schwellen}
             feld["defaults"]["color"] = {"mode": "thresholds"}
-        t = {"id": self.nr, "title": titel, "type": art, "datasource": QUELLE,
+        t = {"id": self.nr, "title": titel, "type": art, "datasource": quelle,
              "description": beschreibung, "fieldConfig": feld,
              "gridPos": self.platz(breite, hoehe), "targets": ausdruecke}
         if art == "timeseries":
@@ -128,6 +135,10 @@ class Bau:
                             "reduceOptions": {"calcs": ["lastNotNull"], "fields": "",
                                               "values": False},
                             "showUnfilled": True}
+        elif art == "logs":
+            t["options"] = {"showTime": True, "showLabels": False, "wrapLogMessage": True,
+                            "sortOrder": "Descending", "enableLogDetails": True,
+                            "dedupStrategy": "none", "prettifyLogMessage": False}
         elif art == "table":
             t["options"] = {"showHeader": True,
                             "sortBy": [{"desc": True, "displayName": sortierung}] if sortierung else []}
@@ -157,11 +168,11 @@ def dashboard(uid, titel, beschreibung, bau, zeitraum="now-6h", variablen=None):
             "panels": bau.tafeln}
 
 
-def auswahl(name, metrik, etikett="stack", titel=None):
+def auswahl(name, metrik, etikett="stack", titel=None, quelle=None):
     """Eine Mehrfachauswahl oben im Dashboard - ohne sie ist jede Tafel mit
     sieben Servern eine Tapete."""
     return {"name": name, "label": titel or name, "type": "query",
-            "datasource": QUELLE, "refresh": 1, "multi": True, "includeAll": True,
+            "datasource": quelle or QUELLE, "refresh": 1, "multi": True, "includeAll": True,
             "allValue": ".*", "current": {"selected": True, "text": ["All"], "value": ["$__all"]},
             "query": {"query": f"label_values({metrik}, {etikett})", "refId": "A"},
             "definition": f"label_values({metrik}, {etikett})", "sort": 1,
@@ -766,15 +777,59 @@ def server_vorlage():
              (f"rate(container_fs_writes_bytes_total{C}[5m])", "schreiben")], einheit="Bps")
     b.tafel("Auto-Update", "stat", [(f"platzwart_autoupdate{S}", "Zustand")], breite=6, hoehe=6,
             beschreibung="1 = das Spiel wird automatisch aktualisiert.")
+    b.reihe("Protokoll")
+    b.tafel("Was dieser Server schreibt", "logs",
+            [('{job="platzwart", stack="__STACK__"}', "")],
+            breite=24, hoehe=12, quelle=LOKI,
+            beschreibung="Derselbe Zeitraum wie die Kurven darueber - damit man zu einem Ausschlag "
+                         "die Zeilen von genau diesem Moment sieht. Braucht den Schalter "
+                         "'Protokolle sammeln'.")
     return dashboard("platzwart-server-__STACK__", "Server: __STACK__",
                      "Alles zu einem einzelnen Spielserver. Erzeugt je Server von modul-verwalten.",
                      b)
 
 
+def protokolle():
+    b = Bau()
+    b.text("Woher die Zeilen kommen",
+           "Diese Seite braucht den Schalter **Protokolle sammeln** unter *Module*. "
+           "`platzwart-protokolle` folgt auf der Maschine den Ausgaben aller Container, "
+           "**schwärzt bekannte Passwortmuster** und schiebt die Zeilen nach Loki — ohne "
+           "Docker-Socket in einem Container.\n\n"
+           "*Needs the log switch; the shipper follows every container's output on the "
+           "host, redacts known password patterns and pushes to Loki — no Docker socket "
+           "in a container.*", hoehe=3)
+    b.reihe("Menge und Auffaelliges")
+    b.tafel("Zeilen je Sekunde", "timeseries",
+            [('sum by (stack) (rate({job="platzwart"}[5m]))', "{{stack}}")],
+            breite=16, hoehe=7, quelle=LOKI, stapel=True,
+            beschreibung="Ein Server, der ploetzlich zehnmal so viel schreibt, hat ein Problem - "
+                         "oft bevor er ausfaellt.")
+    b.tafel("Auffaellige Zeilen (1 h)", "stat",
+            [('sum(count_over_time({job="platzwart"} |~ `(?i)error|exception|fatal|panic` [1h]))',
+              "Treffer")],
+            breite=8, hoehe=7, quelle=LOKI, schwellen=ROT_AB(50),
+            beschreibung="Fehler, Ausnahmen, Abstuerze - ein grober Filter, bewusst ohne Anspruch "
+                         "auf Vollstaendigkeit.")
+    b.reihe("Alles, was geschrieben wurde")
+    b.tafel("Protokoll", "logs", [('{job="platzwart", stack=~"$stack"}', "")],
+            breite=24, hoehe=14, quelle=LOKI,
+            beschreibung="Oben die Auswahl, oben rechts der Zeitraum. Suchen mit einem Filter, "
+                         "zum Beispiel: {job=\"platzwart\"} |= \"Verbindung\"")
+    b.reihe("Nur das Auffaellige")
+    b.tafel("Fehler und Ausnahmen", "logs",
+            [('{job="platzwart", stack=~"$stack"} |~ `(?i)error|exception|fatal|panic`', "")],
+            breite=24, hoehe=12, quelle=LOKI)
+    return dashboard("platzwart-protokolle", "Protokolle",
+                     "Die Ausgaben aller Container, durchsuchbar. Quelle: Loki "
+                     "(Schalter 'Protokolle sammeln').", b,
+                     variablen=[auswahl("stack", '{job="platzwart"}', titel="Server", quelle=LOKI)])
+
+
 DASHBOARDS = [("maschine.json", maschine), ("spielserver.json", spielserver),
               ("container.json", container), ("web.json", web),
               ("netz.json", netz), ("sicherung.json", sicherung),
-              ("selbst.json", selbst)]
+              ("selbst.json", selbst), ("protokolle.json", protokolle)]
 # Die Vorlage liegt NICHT im Dashboard-Ordner: Grafana wuerde sie sonst mit
 # __STACK__ im Titel laden - ein Dashboard fuer einen Server, den es nicht gibt.
 # *The template lives outside the dashboards directory, or Grafana would load it
@@ -789,6 +844,8 @@ def ausdruecke_sammeln():
     for name, bau in DASHBOARDS + [("server-vorlage.json", server_vorlage)]:
         d = bau()
         for t in d["panels"]:
+            if (t.get("datasource") or {}).get("type") == "loki":
+                continue  # LogQL, nicht PromQL - gehoert nicht in diese Pruefung
             for z in t.get("targets", []):
                 # Auswahlvariablen durch "alles" ersetzen - so laesst sich die
                 # Abfrage ausserhalb von Grafana ausfuehren.

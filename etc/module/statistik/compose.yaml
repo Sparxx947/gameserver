@@ -164,6 +164,22 @@ services:
       - /dev/kmsg
     mem_limit: 512m
 
+  loki:
+    image: grafana/loki:latest
+    container_name: statistik-loki
+    restart: unless-stopped
+    profiles: ["protokolle"]
+    network_mode: host
+    user: "10001:10001"
+    command:
+      - --config.file=/etc/loki/loki.yml
+    volumes:
+      - ./loki.yml:/etc/loki/loki.yml:ro
+      - /srv/module/statistik/loki:/loki
+    # Loki haelt seine Schreibpuffer im Speicher; ohne Grenze waechst es mit der
+    # Menge der Zeilen, und die bestimmt ein Spielserver, nicht wir.
+    mem_limit: 512m
+
   blackbox:
     image: prom/blackbox-exporter:latest
     container_name: statistik-probe
