@@ -444,18 +444,34 @@ selbst anzulegen und der Token zu hinterlegen.
 
 ### Einen weiteren Anbieter schreiben
 
-Umgesetzt sind `cloudflare` (im Betrieb) und `hetzner` (nach Dokumentation,
-gegen eine nachgebildete API geprüft, **noch nicht gegen eine echte Zone**).
-Beide sitzen in `bin/dns-pflegen`, und sie sind absichtlich gegensätzlich —
-Cloudflare mit vollständigen Namen und einem Proxy, Hetzner mit relativen Namen
-und ohne. Wer einen dritten schreibt, findet in einem der beiden schon den
-passenden Fall.
+Umgesetzt sind `cloudflare` und `hetzner`, **beide gegen die echte API
+abgenommen** — Cloudflare am 2026-09-11, Hetzner am 2026-09-12, jeweils mit
+`werkzeuge/dns-abnahme.sh`, 13 Schritte einschließlich der beiden, die scheitern
+müssen. Beide sitzen in `bin/dns-pflegen` und sind absichtlich gegensätzlich:
+Cloudflare mit vollständigen Namen, einem Proxy und „ein Eintrag = ein Objekt";
+Hetzner mit relativen Namen, ohne Proxy und mit **RRSets** — alle Werte eines
+Paares aus Name und Typ in einem Satz. Wer einen dritten schreibt, findet in
+einem der beiden schon den passenden Fall.
 
-> *Implemented are `cloudflare` (in production) and `hetzner` (written from the
-> documentation and tested against a mocked API, not yet against a real zone).
-> Both live in `bin/dns-pflegen` and are deliberately opposite — Cloudflare with
-> full names and a proxy, Hetzner with relative names and none — so whoever
-> writes a third finds the matching case in one of them. A provider does five
+Hetzner hat dabei einen Weg vorgeführt, den ein Anbieter nehmen kann: Die API
+unter `dns.hetzner.com/api/v1`, gegen die diese Klasse ursprünglich geschrieben
+war, **gibt es nicht mehr** — der Host leitet seit irgendwann alles auf die
+Konsole um, DNS ist in die Cloud-API gewandert (`api.hetzner.cloud/v1`,
+`Authorization: Bearer`). Gemerkt hat das niemand, weil nie jemand gegen die
+echte API lief. Das ist die zweite Schneide der Regel, die hier ohnehin gilt:
+Anbietercode, der nie an einer echten Zone war, sieht nicht nur aus als liefe er
+— er merkt auch nicht, wenn er aufhört zu laufen.
+
+> *Implemented are `cloudflare` and `hetzner`, both accepted against the real
+> API (2026-09-11 and 2026-09-12) with `werkzeuge/dns-abnahme.sh`: thirteen
+> steps including the two that must fail. They are deliberately opposite —
+> Cloudflare with full names, a proxy and one record per object; Hetzner with
+> relative names, no proxy and RRSets grouping every value of a name-and-type
+> pair. Hetzner also demonstrated how a provider can vanish: the API this class
+> was originally written against no longer exists, the host redirects everything
+> to the console, and nobody noticed because nobody had ever run it against the
+> real thing. Provider code that never met a real zone does not only look as if
+> it ran — it also fails to notice when it stops running.* A provider does five
 > things and decides nothing: whether a record is created, changed or left alone
 > is written once above, for all of them (E24).*
 
