@@ -85,7 +85,7 @@ Seitenaufruf.
 | `/opt/panel/bilder/` | Symbole und Spieltitelbilder | `panel:panel` |
 | `/srv/games/<name>/` | Spielstände und Installation | `4711:4711`, `0770` |
 | `/srv/dienste/<name>/` | Dienste, die keine Spiele sind (TeamSpeak) | `4711:4711`, `0770` |
-| `/etc/spiele-katalog.json` | die 179 installierbaren Spiele | `root:root`, `0644` |
+| `/etc/spiele-katalog.json` | die 184 installierbaren Spiele | `root:root`, `0644` |
 | `/etc/spiele-adressen.json` · `spiele-mods.json` · `spiele-workshop.json` | Beitrittsadressen der Handbauten · wohin Mods gehören · Workshop je Spiel | `root:root`, `0644` |
 | `/etc/borg-ausschluss.txt` | was **nicht** gesichert wird | `root:root` |
 | `/root/.borg-passphrase` | Schlüssel zur Sicherung | `root:root`, `0600` |
