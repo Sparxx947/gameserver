@@ -214,21 +214,36 @@ def prometheus_schreiben(sch: str, m: dict, s: dict):
             zeilen.append(z)
     text = "\n".join(zeilen).rstrip() + "\n"
     if s["schalter"].get("probe"):
-        text = text.replace("targets: []", f"targets: {sorted(probe_ziele())}")
+        # Je Ziel ein eigener Block mit Beschriftung - so steht in der Tafel der
+        # Name des Servers und nicht seine Portnummer.
+        ziele = probe_ziele()
+        bloecke = "\n".join(
+            f"      - targets: ['{z}']\n        labels: {{stack: {n}, port: '{z.rsplit(':', 1)[1]}'}}"
+            for z, n in sorted(ziele.items(), key=lambda x: (x[1], x[0])))
+        text = text.replace("      - targets: []", bloecke or "      - targets: []")
     ziel = verzeichnis(sch) / "prometheus.yml"
     ziel.write_text(text)
     ziel.chmod(0o644)
 
 
-def probe_ziele() -> list:
-    """Was die Erreichbarkeitsprobe anfaesst: die veroeffentlichten Ports der
-    laufenden Container - von DIESER Maschine aus gesehen. Mehr kann sie nicht,
-    und mehr behauptet sie auch nicht."""
-    ziele = set()
-    aus = lauf(["docker", "ps", "--format", "{{.Ports}}"]).stdout
-    for m in re.finditer(r"0\.0\.0\.0:(\d+)->", aus):
-        ziele.add(f"172.17.0.1:{m.group(1)}")
-    return list(ziele)
+def probe_ziele() -> dict:
+    """{ziel: name} - was die Erreichbarkeitsprobe anfaesst: die veroeffentlichten
+    Ports der laufenden Container, von DIESER Maschine aus gesehen. Mehr kann sie
+    nicht, und mehr behauptet sie auch nicht.
+
+    MIT dem Namen des Servers: Ohne ihn stand in der Tafel "172.17.0.1:8211",
+    und niemand weiss, welcher Server das ist (#272). Eine Beschriftung, die man
+    erst nachschlagen muss, ist keine.
+    *With the server's name: without it a panel shows a bare host-gateway
+     address, and a label one has to look up is not a label.*
+    """
+    ziele = {}
+    aus = lauf(["docker", "ps", "--format", "{{.Names}}\t{{.Ports}}"]).stdout
+    for zeile in aus.splitlines():
+        name, _, ports = zeile.partition("\t")
+        for m in re.finditer(r"0\.0\.0\.0:(\d+)->", ports):
+            ziele[f"172.17.0.1:{m.group(1)}"] = name
+    return ziele
 
 
 def grafana_schreiben(sch: str, m: dict, s: dict):
@@ -828,6 +843,27 @@ def selbsttest():
         pass
     except Exception as e:
         pruefe(False, f"erzeugte prometheus.yml ist gueltiges YAML ({e})")
+    # Probe-Ziele bekommen den Namen des Servers, nicht nur den Port (#272).
+    import unittest.mock as um
+    with um.patch.object(sys.modules[__name__], "lauf",
+                         lambda b, **k: subprocess.CompletedProcess(
+                             b, 0, "valheim\t0.0.0.0:2456->2456/udp\npalworld\t0.0.0.0:8211->8211/udp\n", "")):
+        z = probe_ziele()
+    pruefe(z.get("172.17.0.1:8211") == "palworld", "Probe-Ziel traegt den Servernamen")
+    with um.patch.object(sys.modules[__name__], "probe_ziele",
+                         lambda: {"172.17.0.1:8211": "palworld"}):
+        prometheus_schreiben("statistik", m, {"schalter": {"cadvisor": False, "probe": True}})
+    text = (verzeichnis("statistik") / "prometheus.yml").read_text()
+    pruefe("stack: palworld" in text, "Beschriftung steht in der Konfiguration")
+    try:
+        import yaml
+        yaml.safe_load(text)
+        pruefe(True, "Probe-Konfiguration ist gueltiges YAML")
+    except ImportError:
+        pass
+    except Exception as e:
+        pruefe(False, f"Probe-Konfiguration ist gueltiges YAML ({e})")
+
     # Caddy-Route: ohne Modul leer, mit Modul ein Block.
     caddy_route_schreiben()
     pruefe("handle /statistik" not in CADDY_ROUTE.read_text(), "nicht installiert -> keine Route")
