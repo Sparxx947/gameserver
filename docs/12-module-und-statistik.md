@@ -286,6 +286,13 @@ nach dem Ausschalten weiterlebt, erwartet niemand.
 
 ## Installieren, schalten, entfernen
 
+Es läuft **eine** Veränderung zur Zeit: Jede Aktion, die etwas anfasst, nimmt
+eine Sperre (`flock`) und wartet notfalls darauf. Drei Schalter kurz
+hintereinander lösten sonst drei gleichzeitige `docker compose up` auf dasselbe
+Projekt aus, alle drei scheiterten — und weil der Zustand vor dem Anwenden
+gespeichert wurde, zeigte das Panel danach Schalter als „an", deren Container nie
+gestartet waren (#270). Seitdem gilt: erst anwenden, dann speichern.
+
 Im Panel unter **Module** (nur `admin`), oder auf der Maschine:
 
 ```bash
@@ -319,6 +326,13 @@ Beim Entfernen gehen Container, Route, Ausschluss und Einstellungen; die
 gesammelten Messwerte bleiben liegen, wenn man sie nicht ausdrücklich
 mitlöscht. Spielstände und Sicherungen berührt das nicht. Geht das letzte Modul,
 schaltet sich der Sammler ab und räumt seine Dateien weg.
+
+> *One change at a time: every action that touches something takes a lock and
+> waits for it. Three switches in quick succession otherwise triggered three
+> concurrent `docker compose up` runs on the same project, all of which failed —
+> and because the state was saved before applying, the panel then showed switches
+> as on whose containers had never started (#270). Since then: apply first, save
+> second.*
 
 > *Installing checks disk and memory, checks ports against the really bound ones
 > (local bindings included), creates the stack directory, copies the compose file
@@ -388,6 +402,7 @@ Spieldaten darf den Spielern nicht die Platte wegnehmen.
 | `/statistik` antwortet 401 | keine gültige Sitzung oder Rolle unter `verwalten` | im Panel anmelden; Rolle prüfen |
 | Grafana zeigt „Datasource not found" | Bereitstellung nicht gelesen | `docker compose logs grafana` im Modulverzeichnis; `modul-verwalten anwenden statistik` |
 | Grafana startet immer wieder neu, `GF_PATHS_DATA is not writable` | ein Elternordner der Daten ist `0700 root` | `chmod 755 /srv/module /srv/module/<modul>` — behoben seit #266 |
+| Ein Schalter meldet „gescheitert" | ein anderer Lauf hält gerade das Modul, oder Docker lehnt ab | der Grund steht seit #270 im Protokoll; noch einmal schalten, danach `modul-verwalten status <modul>` |
 | Tafeln bleiben leer | Prometheus erreicht node_exporter nicht | `docker compose exec prometheus wget -qO- localhost:9090/api/v1/targets` |
 | Platzwart-Zahlen fehlen | Sammler läuft nicht | `systemctl status platzwart-metriken.timer`, `platzwart-metriken --zeigen` |
 | Spalten im Dashboard hören auf | Sammlerlauf ausgefallen | Lücke ist Absicht — `platzwart_metriken_lauf_zeit_sekunden` zeigt den letzten Lauf |

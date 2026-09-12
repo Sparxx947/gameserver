@@ -24,6 +24,7 @@ Positivliste (CLAUDE.md, Grenze 2).
 Was die Oberflaeche schickt, ist IMMER nur ein Name aus dem Katalog und ein
 Wert aus dessen Liste. Freitext erreicht weder eine Datei noch eine Shell.
 """
+import fcntl
 import json
 import os
 import re
@@ -61,8 +62,46 @@ def fehler(*t):
     sys.exit(1)
 
 
+# Eine Sperre fuer alles, was ein Modul veraendert. Drei Schalter in 21 Sekunden
+# (Panel, frisch installiert, Images noch nicht geladen) loesten drei
+# gleichzeitige "docker compose up" auf DASSELBE Projekt aus; alle drei
+# scheiterten, und im Protokoll standen drei Fehlschlaege, waehrend modul.json
+# behauptete, es sei alles an (#270). Dieselbe Antwort wie beim Leerlauf: flock.
+# Nicht blockierend waere falsch - wer schaltet, will sein Ergebnis, nicht ein
+# "gerade beschaeftigt"; deshalb warten, aber mit Frist, damit kein Seitenaufruf
+# ewig haengt.
+# *One lock for everything that changes a module: three switches in 21 seconds
+#  triggered three concurrent `docker compose up` on the same project and all
+#  failed, while the state file claimed success. Wait with a deadline rather than
+#  fail fast - whoever flips a switch wants the result, not "busy".*
+SPERRE = Path(os.environ.get("MODUL_SPERRE", "/run/modul-verwalten.sperre"))
+SPERRFRIST_S = int(os.environ.get("MODUL_SPERRFRIST", "600"))
+
+
+def sperren():
+    SPERRE.parent.mkdir(parents=True, exist_ok=True)
+    f = open(SPERRE, "w")
+    ende = time.time() + SPERRFRIST_S
+    while True:
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return f
+        except BlockingIOError:
+            if time.time() > ende:
+                fehler(f"ein anderer Lauf haelt das Modul seit ueber "
+                       f"{SPERRFRIST_S} s - abgebrochen, nichts geaendert")
+            time.sleep(1)
+
+
 def lauf(befehl, **kw):
-    return subprocess.run(befehl, capture_output=True, text=True, **kw)
+    # Ein fehlendes Programm ist ein Fehlschlag wie jeder andere, keine
+    # Ausnahme mitten im Ablauf: Sonst bricht der Lauf mit einem Rueckverfolg
+    # ab, und der Aufrufer sieht statt "docker fehlt" eine Python-Meldung.
+    # *A missing binary is a failure like any other, not a traceback.*
+    try:
+        return subprocess.run(befehl, capture_output=True, text=True, **kw)
+    except FileNotFoundError as e:
+        return subprocess.CompletedProcess(befehl, 127, "", str(e))
 
 
 # --- Katalog -----------------------------------------------------------------
@@ -506,8 +545,9 @@ def compose(sch: str, *args, profile_liste=()):
     return lauf(befehl + list(args), cwd=str(verzeichnis(sch)))
 
 
-def anwenden(sch: str, ruhig=False):
-    m, s = modul(sch), stand(sch)
+def anwenden(sch: str, ruhig=False, s=None):
+    m = modul(sch)
+    s = s or stand(sch)
     if not installiert(sch):
         fehler(f"{sch} ist nicht installiert")
     prometheus_schreiben(sch, m, s)
@@ -518,6 +558,15 @@ def anwenden(sch: str, ruhig=False):
     an = profile(m, s)
     p = compose(sch, "up", "-d", "--remove-orphans", profile_liste=an)
     if p.returncode != 0:
+        # Die erzeugten Dateien tragen schon den neuen Stand - zurueck auf den
+        # gespeicherten, sonst liest Prometheus beim naechsten Neustart eine
+        # Konfiguration, die niemand angewandt hat.
+        # *The generated files already carry the new state; put them back, or
+        #  Prometheus would read a configuration nobody applied.*
+        alt = stand(sch)
+        prometheus_schreiben(sch, m, alt)
+        grafana_schreiben(sch, m, alt)
+        env_schreiben(sch, m, alt)
         fehler("docker compose: " + (p.stderr or p.stdout)[-400:])
     # Abgeschaltete Profile ausdruecklich abraeumen. "up --remove-orphans"
     # laesst einen Container stehen, dessen Profil nicht mehr aktiv ist - er
@@ -694,8 +743,16 @@ def schalter_setzen(sch: str, name: str, wert: str):
     if wert not in ("an", "aus"):
         fehler("Wert muss 'an' oder 'aus' sein")
     s["schalter"][name] = wert == "an"
+    # ERST anwenden, DANN speichern. Andersherum behauptete die Datei einen
+    # Zustand, den es nirgends gab: Das Panel zeigte den Schalter als "an",
+    # waehrend der Container nie gestartet war (#270). Scheitert das Anwenden,
+    # beendet es den Lauf - modul.json bleibt dann, wie es war, und der naechste
+    # Versuch faengt beim alten Stand an.
+    # *Apply first, save second: the other way round the file claimed a state
+    #  that existed nowhere, and the panel showed a switch as on while nothing
+    #  ran. A failed apply ends the run and leaves the file untouched.*
+    anwenden(sch, ruhig=True, s=s)
     stand_schreiben(sch, s)
-    anwenden(sch, ruhig=True)
     print(f"ok\t{name}\t{wert}")
 
 
@@ -707,8 +764,8 @@ def einstellung_setzen(sch: str, name: str, wert: str):
     if wert not in eintrag["werte"]:
         fehler(f"unzulaessiger Wert: {wert} (erlaubt: {', '.join(eintrag['werte'])})")
     s["einstellungen"][name] = wert
+    anwenden(sch, ruhig=True, s=s)
     stand_schreiben(sch, s)
-    anwenden(sch, ruhig=True)
     print(f"ok\t{name}\t{wert}")
 
 
@@ -732,6 +789,7 @@ def selbsttest():
     globals()["CADDY_ROUTE"] = tmp / "module.conf"
     globals()["CADDYFILE"] = tmp / "fehlt-absichtlich"
     globals()["KATALOG"] = tmp / "katalog.json"
+    globals()["TIMER_ABLAGE"] = tmp / "timer.d"
     (tmp / "stacks").mkdir()
     (tmp / "opt-module").mkdir()
     quelle = Path(__file__).resolve().parent.parent
@@ -812,6 +870,48 @@ def selbsttest():
         inhalt = datei.read_text()
         pruefe("modul:statistik" not in inhalt, "Ausschlussblock wieder weg")
         pruefe("/srv/games/valheim/install/" in inhalt, "fremde Zeilen bleiben auch danach")
+    # Sperre: ein zweiter Lauf wartet und bricht nach der Frist ab (#270).
+    # Im selben Prozess greift flock nicht - deshalb ein Unterprozess.
+    globals()["SPERRE"] = tmp / "sperre"
+    globals()["SPERRFRIST_S"] = 1
+    halten = sperren()
+    import subprocess as sp
+    schnipsel = ("import importlib.machinery as m, importlib.util as u;"
+                 f"l=m.SourceFileLoader('mv', {__file__!r});"
+                 "s=u.spec_from_loader('mv', l); mod=u.module_from_spec(s);"
+                 "l.exec_module(mod); mod.sperren(); print('bekommen')")
+    r = sp.run([sys.executable, "-c", schnipsel], capture_output=True, text=True,
+               env=dict(os.environ, MODUL_SPERRE=str(tmp / "sperre"), MODUL_SPERRFRIST="1",
+                        # Sonst legt der Unterprozess ein __pycache__ neben das
+                        # Werkzeug, und vollstaendigkeit.sh meldet einen Ordner
+                        # in bin/, den keine Stufe ausrollt.
+                        PYTHONDONTWRITEBYTECODE="1"))
+    pruefe(r.returncode != 0 and "haelt das Modul" in r.stderr,
+           "zweiter Lauf bricht an der Sperre ab")
+    halten.close()
+    r = sp.run([sys.executable, "-c", schnipsel], capture_output=True, text=True,
+               env=dict(os.environ, MODUL_SPERRE=str(tmp / "sperre"), MODUL_SPERRFRIST="1",
+                        PYTHONDONTWRITEBYTECODE="1"))
+    pruefe("bekommen" in r.stdout, "nach dem Loslassen bekommt der naechste sie")
+
+    # Scheitert das Anwenden, bleibt der gespeicherte Zustand unberuehrt (#270).
+    # Hier scheitert es zuverlaessig, weil im Testbau kein docker antwortet.
+    stand_schreiben("statistik", {"schalter": {"cadvisor": False, "zahlen": True},
+                                  "einstellungen": {"aufbewahrung": "90d", "platte_gb": "2",
+                                                    "messabstand": "5min"}})
+    vorher = (verzeichnis("statistik") / "modul.json").read_text()
+    import contextlib, io
+    try:
+        # Die Fehlermeldung gehoert hier nicht auf den Schirm - sie ist das
+        # erwartete Ergebnis, und eine rote Zeile in einem gruenen Selbsttest
+        # bringt einem bei, rote Zeilen zu uebersehen.
+        with contextlib.redirect_stderr(io.StringIO()):
+            schalter_setzen("statistik", "cadvisor", "an")
+        pruefe(False, "Anwenden ohne docker haette scheitern muessen")
+    except SystemExit:
+        pruefe((verzeichnis("statistik") / "modul.json").read_text() == vorher,
+               "gescheitertes Anwenden laesst den gespeicherten Zustand unberuehrt")
+
     print()
     shutil.rmtree(tmp)
     if schlecht:
@@ -832,9 +932,13 @@ def main():
         fehler("als root ausfuehren")
     if a[0] == "katalog" and len(a) == 1:
         zeige_katalog()
-    elif a[0] == "status" and len(a) == 2:
+        return 0
+    if a[0] == "status" and len(a) == 2:
         zeige_status(a[1])
-    elif a[0] == "installieren" and len(a) == 2:
+        return 0
+    # Ab hier wird veraendert - und zwar einer nach dem anderen.
+    halten = sperren()  # noqa: F841 - die Sperre gilt, solange die Datei offen ist
+    if a[0] == "installieren" and len(a) == 2:
         installieren(a[1])
     elif a[0] == "entfernen" and len(a) in (2, 3):
         entfernen(a[1], auch_daten=(len(a) == 3 and a[2] == "--auch-daten"))

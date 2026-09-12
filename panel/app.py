@@ -3442,7 +3442,8 @@ def modul_installieren(request: Request, csrf: str = Form(""), modul: str = Form
     if not ist_admin(s):
         return RedirectResponse("/", 303)
     rc, aus = aktion("modul", "installieren", modul, timeout=1800)
-    protokoll(s, "Modul installiert" if rc == 0 else "Modul-Installation gescheitert", modul)
+    protokoll(s, "Modul installiert" if rc == 0 else "Modul-Installation gescheitert",
+              modul, "" if rc == 0 else aus[:160])
     return RedirectResponse(f"/module?meldung={quote(aus[:300])}", 303)
 
 
@@ -3516,8 +3517,12 @@ def modul_schalter(request: Request, csrf: str = Form(""), modul: str = Form("")
     if not ist_admin(s):
         return RedirectResponse("/", 303)
     rc, aus = aktion("modul", "schalter", modul, name, wert, timeout=900)
+    # Bei einem Fehlschlag den Grund mitschreiben: Im Protokoll stand dreimal
+    # "Modulschalter gescheitert" und sonst nichts, waehrend die Ursache
+    # (gleichzeitige Laeufe) in der Ausgabe stand, die nur die Seite zeigte (#270).
+    # *Log the reason: three bare "failed" lines while the cause was only on the page.*
     protokoll(s, "Modulschalter gesetzt" if rc == 0 else "Modulschalter gescheitert",
-              f"{modul}/{name}", wert)
+              f"{modul}/{name}", wert if rc == 0 else f"{wert} — {aus[:160]}")
     return RedirectResponse(f"/module?meldung={quote(aus[:300])}", 303)
 
 
@@ -3529,7 +3534,7 @@ def modul_einstellung(request: Request, csrf: str = Form(""), modul: str = Form(
         return RedirectResponse("/", 303)
     rc, aus = aktion("modul", "einstellung", modul, name, wert, timeout=900)
     protokoll(s, "Moduleinstellung gesetzt" if rc == 0 else "Moduleinstellung gescheitert",
-              f"{modul}/{name}", wert)
+              f"{modul}/{name}", wert if rc == 0 else f"{wert} — {aus[:160]}")
     return RedirectResponse(f"/module?meldung={quote(aus[:300])}", 303)
 
 
