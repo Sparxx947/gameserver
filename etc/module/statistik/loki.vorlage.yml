@@ -1,0 +1,65 @@
+# Vorlage. modul-verwalten schreibt daraus /opt/module/statistik/loki.yml und
+# setzt @TAGE@ aus der Einstellung "protokolle aufbewahren" ein.
+#
+# Ein einzelner Prozess mit Dateiablage - kein Objektspeicher, keine Ringe, kein
+# Mandantenbetrieb. Loki kann verteilt; hier laufen sieben Spielserver auf einer
+# Maschine, und jede zusaetzliche Schicht waere ein Teil mehr, das nachts kaputt
+# gehen kann.
+# *A single process with filesystem storage: Loki can run distributed, but here
+#  every extra layer is one more thing that can break at night.*
+auth_enabled: false
+
+server:
+  # Wie alles in diesem Modul: nur auf 127.0.0.1, davor Caddy mit der Anmeldung.
+  http_listen_address: 127.0.0.1
+  http_listen_port: 19310
+  grpc_listen_address: 127.0.0.1
+  grpc_listen_port: 19311
+  log_level: warn
+
+common:
+  # Loki spricht intern ueber gRPC mit sich selbst und traegt sich dafuer mit der
+  # ERSTEN Nicht-Loopback-Adresse ein, die es findet - auf dieser Maschine die
+  # Tailscale-Adresse. Der Zuhoerer liegt aber auf 127.0.0.1, also rief es sich
+  # selbst unter einer Adresse, unter der es nicht lauscht: jede Sendung endete
+  # mit HTTP 500 und "connection refused" im eigenen Protokoll (gemessen).
+  # *Loki talks to itself over gRPC and advertises the first non-loopback address
+  #  it finds - here the Tailscale one - while the listener sits on 127.0.0.1, so
+  #  it called itself where it was not listening: every push ended in HTTP 500.*
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2024-01-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  retention_period: @TAGE@d
+  # Zeilen mit altem Zeitstempel abweisen: Sonst schiebt ein Container beim
+  # Start seine ganze Historie hinein und die Aufbewahrung faengt von vorn an.
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+  volume_enabled: true
+
+compactor:
+  working_directory: /loki/compactor
+  retention_enabled: true
+  delete_request_store: filesystem
+
+analytics:
+  reporting_enabled: false

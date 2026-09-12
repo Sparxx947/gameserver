@@ -43,7 +43,7 @@ log "Werkzeuge nach /usr/local/bin"
 # spiele-sicherung (Stufe 50) gerufen, muss also vor beiden liegen.
 # *Installed here although it is not part of the panel: both stage 30 and
 #  stage 50 call it, so it has to exist before either.*
-for w in dns-pflegen compose-feld kanal-verwalten katalog-vorpruefung katalogbilder-holen konfig-datei panel-aktion platzwart-melden platzwart-wache mod-verwalten workshop platzwart-schlaf sicherung-probe platzwart-status platzwart-verlauf platzwart-metriken modul-verwalten port-ermitteln spieler-zaehlen spiel-einrichtung spiel-verwalten spiele-wiederanlauf spiele-autoupdate; do
+for w in dns-pflegen compose-feld kanal-verwalten katalog-vorpruefung katalogbilder-holen konfig-datei panel-aktion platzwart-melden platzwart-wache mod-verwalten workshop platzwart-schlaf sicherung-probe platzwart-status platzwart-verlauf platzwart-metriken platzwart-protokolle modul-verwalten port-ermitteln spieler-zaehlen spiel-einrichtung spiel-verwalten spiele-wiederanlauf spiele-autoupdate; do
   einsetzen "$REPO/bin/$w" "/usr/local/bin/$w" 0755 root:root
 done
 einsetzen "$REPO/etc/spiele-katalog.json" /etc/spiele-katalog.json 0644 root:root
@@ -118,6 +118,7 @@ einsetzen "$REPO/systemd/platzwart-verlauf.service" /etc/systemd/system/platzwar
 einsetzen "$REPO/systemd/platzwart-verlauf.timer"   /etc/systemd/system/platzwart-verlauf.timer
 einsetzen "$REPO/systemd/platzwart-metriken.service" /etc/systemd/system/platzwart-metriken.service
 einsetzen "$REPO/systemd/platzwart-metriken.timer"   /etc/systemd/system/platzwart-metriken.timer
+einsetzen "$REPO/systemd/platzwart-protokolle.service" /etc/systemd/system/platzwart-protokolle.service
 einsetzen "$REPO/systemd/platzwart-status.service" /etc/systemd/system/platzwart-status.service
 einsetzen "$REPO/systemd/platzwart-status.timer"   /etc/systemd/system/platzwart-status.timer
 einsetzen "$REPO/systemd/spieler-zaehlen.service"  /etc/systemd/system/spieler-zaehlen.service

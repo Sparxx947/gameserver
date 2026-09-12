@@ -144,6 +144,7 @@ Modul ist die Datei leer.
 | **Tailscale** | aus | Verbindungen und Durchsatz im Tailnet | nichts |
 | **cAdvisor** | aus | Platten-I/O je Container, gedrosselte CPU-Zeit, OOM-Ereignisse | **Docker-Socket im Container** — eigene Bestätigung nötig |
 | **Erreichbarkeitsprobe** | aus | prüft die Ports regelmäßig | ~20 MB — und sie misst **von dieser Maschine aus** |
+| **Protokolle sammeln** | aus | Loki speichert, was alle Container schreiben, und Grafana sucht darin — **neben** den Kurven, im selben Zeitraum | ~300 MB Speicher, Platte nach Aufbewahrung; **Warnung, weil Passwörter darin landen können** |
 | **Alarme nach Discord** | aus | drei Regeln in den Störungskanal | kann melden, was die Wache auch meldet |
 
 Zwei Schalter tragen eine Warnung und führen deshalb über eine eigene
@@ -187,6 +188,65 @@ nicht die Statistik, sondern der Spielserver daneben.
 > is full, and then it is not the statistics that stop but the game server.*
 
 ---
+
+## Protokolle: warum ein eigener Versender
+
+Ohne diesen Schalter beantwortet die Statistik „wie viel Speicher um 03:12" und
+nicht „was stand um 03:12 im Protokoll". Schlimmer: Docker protokolliert mit
+`json-file` **ohne Rotation**, und **jedes `docker compose up` legt den Container
+neu an — die Historie ist dann weg**. Also genau bei jedem Update, jedem
+Neustart, jeder Änderung.
+
+Der übliche Weg wäre Promtail mit Docker-Erkennung. Der braucht den
+**Docker-Socket** im Container, und wer den hat, ist root (Grenze 1). Deshalb
+läuft `platzwart-protokolle` als Dienst **auf der Maschine**: Er folgt je
+Container einem `docker logs`, hängt `stack` und `container` als Etiketten an und
+schiebt die Zeilen gebündelt an Lokis HTTP-Schnittstelle.
+
+**Und er schwärzt**, bevor eine Zeile die Maschine verlässt. Spielserver
+schreiben Beitrittspasswörter in ihr Protokoll — das war #239, und was einmal in
+einem Protokollspeicher liegt, bleibt dort, solange die Aufbewahrung sagt. Die
+Muster greifen auf *Schlüsselwort + Trennzeichen + Wert*
+(`password`, `token`, `secret`, `api_key`, auch als `SERVER_PASSWORD=…` oder
+`--server-password …`), nie auf „sieht aus wie ein Passwort": Ein solches Muster
+schwärzte jede Kennung und machte das Protokoll unlesbar. Der Selbsttest prüft
+beide Richtungen — sechs Zeilen, die geschwärzt werden **müssen**, und vier, die
+unberührt bleiben müssen.
+
+Drei Dinge, die beim Bauen Zeit gekostet haben und deshalb hier stehen:
+
+* **Loki rief sich selbst unter der falschen Adresse.** Es spricht intern über
+  gRPC mit sich selbst und trägt sich mit der ersten Nicht-Loopback-Adresse ein —
+  auf dieser Maschine die Tailscale-Adresse —, während der Zuhörer auf
+  `127.0.0.1` liegt. Jede Sendung endete mit `HTTP 500` und „connection refused"
+  im eigenen Protokoll. `instance_addr: 127.0.0.1` behebt es.
+* **Der Versender startete vor dem gespeicherten Zustand**, las „Schalter ist
+  aus" und beendete sich; erst der Neustart 30 Sekunden später brachte ihn hoch.
+  Seitdem gilt in `anwenden`: erst Container, dann Zustand speichern, dann
+  Dienste.
+* **Keine Wiederholung bei Fehlschlag.** Ist Loki aus, werden die Zeilen
+  verworfen statt gepuffert: Ein Puffer, der wächst, bis der Speicher voll ist,
+  nimmt die Maschine mit — und Protokolle sind nicht wichtiger als der
+  Spielserver.
+
+Beim Start des Dienstes wird **nicht** die alte Historie nachgeschoben. Sonst
+stünde nach jedem Neustart alles doppelt im Speicher, und doppelte Zeilen sind
+schlimmer als fehlende: Man sucht den Fehler zweimal.
+
+> *Logs: without this switch the statistics answer "how much memory at 03:12" but
+> not "what did it say at 03:12" — and Docker's json-file logs are thrown away by
+> every `docker compose up`, which is every update and restart. The usual route
+> (Promtail with Docker service discovery) needs the Docker socket, which makes a
+> container root, so the shipper runs on the host: one `docker logs` per
+> container, labelled by stack, pushed to Loki in batches. It redacts before a
+> line leaves the machine — keyword plus separator plus value, never "looks like a
+> password", with the self-test checking both directions. Three things cost time:
+> Loki advertised itself on the Tailscale address while listening on localhost, so
+> every push failed with 500; the shipper started before the state was saved, read
+> "switch off" and only came up on the next restart; and a failed push drops lines
+> rather than buffering them, because a buffer that grows until memory runs out
+> takes the machine with it. History is not back-filled on start: duplicated lines
+> are worse than missing ones.*
 
 ## Warum kein cAdvisor ab Werk: der Textdatei-Sammler
 
@@ -245,7 +305,8 @@ Neuaufbau sind sie damit wieder da, ohne dass jemand sie nachbaut:
 | **Netz und Erreichbarkeit** | Erreichbarkeit je Spielport mit Servernamen, Antwortzeiten, Ausfälle, Tailnet, Schnittstellen | Probe, Sammler, node_exporter |
 | **Sicherung und Platte** | Alter und Größe je Archiv, Platte je Server, Wachstum je Tag, Hochrechnung auf 30 Tage, Größe der Messwertdatenbank | Sammler |
 | **Die Messung selbst** | Welche Ziele antworten, Dauer der Abrufe, Alter der Textdateien, Aufnahme und Größe der Datenbank | Prometheus |
-| **Server: &lt;name&gt;** | alles zu einem einzelnen Server auf einer Seite: Spieler, Speicher gegen Grenze, Platte, Sicherung, Ports, Containerlaufzeit | alle |
+| **Protokolle** | Zeilen je Sekunde und Server, auffällige Zeilen der letzten Stunde, das volle Protokoll und ein Filter auf Fehler | Loki |
+| **Server: &lt;name&gt;** | alles zu einem einzelnen Server: Spieler, Speicher gegen Grenze, Platte, Sicherung, Ports, Containerlaufzeit — **und sein Protokoll im selben Zeitraum** | alle |
 
 Die Server-Dashboards entstehen **automatisch**: Der Bauplan steht als Vorlage im
 Repositorium, eingesetzt wird auf der Maschine (`modul-verwalten dashboards`) —

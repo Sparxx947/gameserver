@@ -1,0 +1,20 @@
+[Unit]
+Description=Platzwart: Container-Protokolle an Loki schicken
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/platzwart-protokolle
+Restart=always
+RestartSec=30
+# Keine Haertung, die NoNewPrivileges impliziert: Der Versender ruft "docker
+# logs" - und genau dafuer gibt es ihn, damit KEIN Container den Socket braucht.
+ProtectHome=yes
+PrivateTmp=yes
+# Protokolle duerfen dem Spielserver nichts wegnehmen.
+Nice=10
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=multi-user.target

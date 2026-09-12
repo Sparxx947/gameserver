@@ -1,0 +1,338 @@
+{
+  "uid": "platzwart-protokolle",
+  "title": "Protokolle",
+  "description": "Die Ausgaben aller Container, durchsuchbar. Quelle: Loki (Schalter 'Protokolle sammeln').",
+  "tags": [
+    "platzwart"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "editable": true,
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "annotations": {
+    "list": []
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "stack",
+        "label": "Server",
+        "type": "query",
+        "datasource": {
+          "type": "loki",
+          "uid": "platzwart-loki"
+        },
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "query": {
+          "query": "label_values({job=\"platzwart\"}, stack)",
+          "refId": "A"
+        },
+        "definition": "label_values({job=\"platzwart\"}, stack)",
+        "sort": 1,
+        "options": [],
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "Woher die Zeilen kommen",
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Diese Seite braucht den Schalter **Protokolle sammeln** unter *Module*. `platzwart-protokolle` folgt auf der Maschine den Ausgaben aller Container, **schwärzt bekannte Passwortmuster** und schiebt die Zeilen nach Loki — ohne Docker-Socket in einem Container.\n\n*Needs the log switch; the shipper follows every container's output on the host, redacts known password patterns and pushes to Loki — no Docker socket in a container.*"
+      }
+    },
+    {
+      "id": 2,
+      "type": "row",
+      "title": "Menge und Auffaelliges",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 3
+      }
+    },
+    {
+      "id": 3,
+      "title": "Zeilen je Sekunde",
+      "type": "timeseries",
+      "datasource": {
+        "type": "loki",
+        "uid": "platzwart-loki"
+      },
+      "description": "Ein Server, der ploetzlich zehnmal so viel schreibt, hat ein Problem - oft bevor er ausfaellt.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 18,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal"
+            },
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 16,
+        "x": 0,
+        "y": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "platzwart-loki"
+          },
+          "editorMode": "code",
+          "expr": "sum by (stack) (rate({job=\"platzwart\"}[5m]))",
+          "legendFormat": "{{stack}}",
+          "refId": "A",
+          "instant": false,
+          "queryType": "range",
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Auffaellige Zeilen (1 h)",
+      "type": "stat",
+      "datasource": {
+        "type": "loki",
+        "uid": "platzwart-loki"
+      },
+      "description": "Fehler, Ausnahmen, Abstuerze - ein grober Filter, bewusst ohne Anspruch auf Vollstaendigkeit.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 50
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "platzwart-loki"
+          },
+          "editorMode": "code",
+          "expr": "sum(count_over_time({job=\"platzwart\"} |~ `(?i)error|exception|fatal|panic` [1h]))",
+          "legendFormat": "Treffer",
+          "refId": "A",
+          "instant": false,
+          "queryType": "range",
+          "range": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 5,
+      "type": "row",
+      "title": "Alles, was geschrieben wurde",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 11
+      }
+    },
+    {
+      "id": 6,
+      "title": "Protokoll",
+      "type": "logs",
+      "datasource": {
+        "type": "loki",
+        "uid": "platzwart-loki"
+      },
+      "description": "Oben die Auswahl, oben rechts der Zeitraum. Suchen mit einem Filter, zum Beispiel: {job=\"platzwart\"} |= \"Verbindung\"",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 12
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "platzwart-loki"
+          },
+          "editorMode": "code",
+          "expr": "{job=\"platzwart\", stack=~\"$stack\"}",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": false,
+          "queryType": "range",
+          "range": true
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "prettifyLogMessage": false
+      }
+    },
+    {
+      "id": 7,
+      "type": "row",
+      "title": "Nur das Auffaellige",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      }
+    },
+    {
+      "id": 8,
+      "title": "Fehler und Ausnahmen",
+      "type": "logs",
+      "datasource": {
+        "type": "loki",
+        "uid": "platzwart-loki"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 27
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "platzwart-loki"
+          },
+          "editorMode": "code",
+          "expr": "{job=\"platzwart\", stack=~\"$stack\"} |~ `(?i)error|exception|fatal|panic`",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": false,
+          "queryType": "range",
+          "range": true
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "prettifyLogMessage": false
+      }
+    }
+  ]
+}

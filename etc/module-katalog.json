@@ -7,11 +7,12 @@
       "name": "Statistik",
       "kurz": "Langzeitzahlen: Prometheus speichert, Grafana zeigt, node_exporter misst die Maschine.",
       "mem_gb": 1,
-      "platte_gb": 8,
+      "platte_gb": 12,
       "daten": "/srv/module/statistik",
       "unterordner": [
         "prometheus",
-        "grafana"
+        "grafana",
+        "loki"
       ],
       "ports": [
         "127.0.0.1:19030:3000/tcp"
@@ -60,6 +61,14 @@
           "beschreibung": "blackbox_exporter prueft regelmaessig die Spiel- und Panelports."
         },
         {
+          "name": "protokolle",
+          "titel": "Protokolle sammeln",
+          "art": "profil",
+          "vorgabe": false,
+          "beschreibung": "Loki speichert die Protokolle aller Container und macht sie in Grafana durchsuchbar - neben den Kurven, im selben Zeitraum. Ohne das wirft jedes Update die Historie weg (docker compose up legt den Container neu an).",
+          "warnung": "Spielserver schreiben Beitrittspasswoerter in ihr Protokoll (#239). Der Versender schwaerzt bekannte Muster, BEVOR eine Zeile die Maschine verlaesst - aber kein Muster kennt jede Schreibweise. Was hier landet, bleibt so lange liegen, wie die Aufbewahrung sagt, und ist fuer jeden sichtbar, der die Statistik sehen darf."
+        },
+        {
           "name": "alarme",
           "titel": "Alarme nach Discord",
           "art": "grafana",
@@ -102,8 +111,24 @@
           ],
           "vorgabe": "5min",
           "beschreibung": "Wie oft der Sammler die Platzwart-Zahlen schreibt. 'docker stats' kostet je Lauf rund zwei Sekunden; die Maschinenwerte misst node_exporter unabhaengig davon alle 30 Sekunden."
+        },
+        {
+          "name": "protokoll_tage",
+          "titel": "Protokolle aufbewahren",
+          "werte": [
+            "7",
+            "30",
+            "90"
+          ],
+          "vorgabe": "30",
+          "beschreibung": "Wie lange die Protokollzeilen liegen bleiben. Sie brauchen mehr Platz als die Messwerte: ein gespraechiger Server schreibt am Tag mehr als alle Kurven zusammen."
         }
-      ]
+      ],
+      "eigentuemer": {
+        "prometheus": 65534,
+        "grafana": 472,
+        "loki": 10001
+      }
     }
   ]
 }
