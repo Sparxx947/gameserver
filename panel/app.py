@@ -95,6 +95,7 @@ def adressen() -> dict:
 
 
 KATALOG = Path("/etc/spiele-katalog.json")
+MODULKATALOG = Path("/etc/module-katalog.json")
 KATALOGBILDER = Path("/opt/panel/bilder/katalog")
 
 
@@ -902,8 +903,14 @@ def kopfleiste(s: dict, hier: str = "") -> str:
     if darf_verwalten(s):
         punkte += [("/spiele", "Spiele", "spiele"),
                    ("/passwoerter", "Zugangsdaten", "pw")]
+    # Installierte Module mit eigener Seite - Statistik zum Beispiel. Sie
+    # stehen bei den Spielen, nicht bei der Maschine: Wer sie sehen darf,
+    # entscheidet der Katalog, nicht die Kopfleiste.
+    for sch, mod in modul_sichtbar(s):
+        punkte.append((mod["route"] + "/", mod["name"], f"modul-{sch}"))
     if ist_admin(s):
-        punkte += [("/nutzer", "Benutzer", "nutzer"),
+        punkte += [("/module", "Module", "modul"),
+                   ("/nutzer", "Benutzer", "nutzer"),
                    ("/protokoll", "Protokoll", "prot"),
                    ("/integrationen", "Integrationen", "integ"),
                    ("/terminal/", "Terminal", "term"), ("/neustart-fragen", "Neustart", "reboot")]
@@ -3251,6 +3258,274 @@ def neustart(request: Request, csrf: str = Form("")):
 <p style=font-size:14px;color:var(--d)>Die Maschine fährt gerade herunter. Diese Seite
 ist in ein bis zwei Minuten wieder erreichbar — einfach neu laden.</p>
 <a class=b href=/>erneut versuchen</a></div>""" + FUSS)
+
+
+# --- Zusatzmodule (#261) -----------------------------------------------------
+#
+# Module sind optionale Dienste, keine Spiele: Statistik heute, vielleicht mehr
+# spaeter. Die Oberflaeche zeigt sie an und schaltet sie - angelegt, geschaltet
+# und entfernt wird ausschliesslich ueber panel-aktion, wie bei allem anderen
+# auch. Der Katalog wird direkt gelesen (0644, keine Geheimnisse darin), genau
+# wie der Spielekatalog.
+# *Modules are optional services, not games. The panel displays and toggles
+#  them; everything is done through panel-aktion. The catalogue is read
+#  directly, as the game catalogue is - 0644 and free of secrets.*
+def modul_katalog() -> dict:
+    try:
+        return {m["schluessel"]: m for m in json.loads(MODULKATALOG.read_text())["module"]}
+    except Exception:
+        return {}
+
+
+def modul_installiert(sch: str) -> bool:
+    return (Path("/opt/stacks") / sch / "compose.yaml").exists()
+
+
+def modul_stand(sch: str) -> dict:
+    """Schalter, Einstellungen und laufende Dienste - von modul-verwalten."""
+    rc, aus = aktion("modul", "status", sch, timeout=60)
+    d = {"schalter": {}, "einstellungen": {}, "laeuft": "", "installiert": False}
+    if rc != 0:
+        return d
+    for z in aus.splitlines():
+        f = z.split("\t")
+        if f[0] == "installiert" and len(f) > 1:
+            d["installiert"] = f[1] == "ja"
+        elif f[0] == "laeuft" and len(f) > 1:
+            d["laeuft"] = f[1]
+        elif f[0] == "schalter" and len(f) > 2:
+            d["schalter"][f[1]] = f[2] == "an"
+        elif f[0] == "einstellung" and len(f) > 2:
+            d["einstellungen"][f[1]] = f[2]
+    return d
+
+
+def modul_sichtbar(s: dict | None) -> list:
+    """Installierte Module mit Route, die diese Rolle sehen darf.
+
+    Die Liste heisst bewusst nicht "raus": Unter diesem Namen baut das Panel
+    anderswo HTML-Schnipsel zusammen, und die Pruefung in vollstaendigkeit.sh
+    meldete hier deshalb einen ueberschriebenen Schnipsel. Ein Fehlalarm in
+    einer Pruefung ist teurer als ein Variablenname.
+    *Deliberately not called "raus": the completeness check watches that name
+     for overwritten HTML snippets, and a false alarm costs more than a name.*
+    """
+    sichtbar = []
+    for sch, m in sorted(modul_katalog().items()):
+        if not m.get("route") or not modul_installiert(sch):
+            continue
+        noetig = m.get("rolle", "admin")
+        if ist_admin(s) or (noetig == "verwalten" and darf_verwalten(s)):
+            sichtbar.append((sch, m))
+    return sichtbar
+
+
+@app.get("/auth-modul")
+def auth_modul(request: Request, modul: str = ""):
+    """Caddy fragt hier vor JEDEM Aufruf einer Modulseite (forward_auth).
+
+    Eine eigene Pruefung und nicht die von /auth-check: Am Terminal haengt
+    "nur admin", und diese Regel zu lockern, um eine Statistikseite zu oeffnen,
+    waere genau die Rechteausweitung, die CLAUDE.md fuer neue Faehigkeiten
+    ausschliesst. Wer die Seite sehen darf, steht im Modulkatalog.
+
+    Zurueck geht ausser 204 der Benutzername und eine Rolle als Kopfzeile:
+    Grafana meldet den Benutzer damit selbst an (auth proxy), und niemand
+    braucht ein zweites Passwort. Der Name wird gefiltert, bevor er in eine
+    Kopfzeile geht - ein Zeilenumbruch darin waere eine geschmuggelte zweite
+    Kopfzeile.
+    *Its own check rather than /auth-check, which gates the terminal at "admin
+     only". The user name and a role travel back as headers so Grafana can log
+     the user in itself; the name is filtered - a newline in a header value
+     would smuggle in a second header.*
+    """
+    s = angemeldet(request)
+    m = modul_katalog().get(modul)
+    if not m:
+        return Response(status_code=404)
+    noetig = m.get("rolle", "admin")
+    erlaubt = ist_admin(s) if noetig == "admin" else darf_verwalten(s)
+    if not erlaubt:
+        return Response(status_code=401)
+    name = re.sub(r"[^a-z0-9_.-]", "", (s.get("nutzer") or "").lower())[:32] or "platzwart"
+    return Response(status_code=204, headers={
+        "X-Webauth-User": name,
+        # Admin darf in Grafana alles, verwalten darf zusehen. Wer Zahlen liest,
+        # muss nichts anlegen koennen.
+        "X-Webauth-Role": "Admin" if ist_admin(s) else "Viewer"})
+
+
+@app.get("/module", response_class=HTMLResponse)
+def module_seite(request: Request, meldung: str = ""):
+    s = angemeldet(request)
+    if not ist_admin(s):
+        return RedirectResponse("/", 303)
+    kat = modul_katalog()
+    m = f'<div class=m>{esc(meldung)}</div>' if meldung else ""
+    teile = []
+    for sch, mod in sorted(kat.items()):
+        da = modul_installiert(sch)
+        kopf = f'<h2>{esc(mod["name"])}</h2><p class=z>{esc(mod["kurz"])}</p>'
+        if not da:
+            teile.append(kopf + f'<p class=z>Braucht rund {esc(mod["mem_gb"])} GB '
+                f'Arbeitsspeicher und {esc(mod["platte_gb"])} GB Platte. '
+                f'Erreichbar danach unter <code>{esc(mod.get("route", ""))}</code> '
+                f'— mit der Anmeldung dieses Panels, ohne zweites Passwort.</p>'
+                '<form method=post action=/modul-installieren>'
+                f'<input type=hidden name=csrf value="{s["csrf"]}">'
+                f'<input type=hidden name=modul value="{esc(sch)}">'
+                '<button class=p>installieren</button></form>')
+            continue
+        st = modul_stand(sch)
+        zeilen = []
+        for sch_def in mod.get("schalter", []):
+            name = sch_def["name"]
+            an = st["schalter"].get(name, bool(sch_def.get("vorgabe")))
+            ziel = "aus" if an else "an"
+            warnung = (f'<div class=z style="color:var(--y)">{esc(sch_def["warnung"])}</div>'
+                       if sch_def.get("warnung") else "")
+            # Ein Schalter mit Warnung fragt nach, bevor er umlegt - dieselbe
+            # Bewegung wie die Freigabe eines Servers ohne Beitrittspasswort.
+            if sch_def.get("warnung") and ziel == "an":
+                knopf = (f'<a class="b y" href="/modul-schalter-fragen/{esc(sch)}/{esc(name)}">'
+                         'einschalten …</a>')
+            else:
+                knopf = ('<form method=post action=/modul-schalter style=display:inline>'
+                         f'<input type=hidden name=csrf value="{s["csrf"]}">'
+                         f'<input type=hidden name=modul value="{esc(sch)}">'
+                         f'<input type=hidden name=name value="{esc(name)}">'
+                         f'<input type=hidden name=wert value="{ziel}">'
+                         f'<button class="b">{"ausschalten" if an else "einschalten"}</button></form>')
+            zeilen.append(f'<tr><td><b>{esc(sch_def["titel"])}</b><div class=z>'
+                          f'{esc(sch_def["beschreibung"])}</div>{warnung}</td>'
+                          f'<td>{"an" if an else "aus"}</td><td>{knopf}</td></tr>')
+        for e in mod.get("einstellungen", []):
+            jetzt = st["einstellungen"].get(e["name"], e["vorgabe"])
+            optionen = "".join(
+                f'<option value="{esc(w)}"{" selected" if w == jetzt else ""}>{esc(w)}</option>'
+                for w in e["werte"])
+            zeilen.append(f'<tr><td><b>{esc(e["titel"])}</b><div class=z>'
+                          f'{esc(e["beschreibung"])}</div></td><td>{esc(jetzt)}</td>'
+                          '<td><form method=post action=/modul-einstellung '
+                          'style="display:flex;gap:6px">'
+                          f'<input type=hidden name=csrf value="{s["csrf"]}">'
+                          f'<input type=hidden name=modul value="{esc(sch)}">'
+                          f'<input type=hidden name=name value="{esc(e["name"])}">'
+                          f'<select name=wert>{optionen}</select>'
+                          '<button class=b>setzen</button></form></td></tr>')
+        laeuft = esc(st["laeuft"] or "nichts")
+        teile.append(kopf
+            + f'<p>Läuft: <b>{laeuft}</b> — <a class=b href="{esc(mod.get("route", "/"))}/">'
+              'öffnen</a></p>'
+            + '<table><tr><th>Schalter</th><th>Stand</th><th></th></tr>'
+            + "".join(zeilen) + '</table>'
+            + f'<p style="margin-top:12px"><a class="b x" '
+              f'href="/modul-entfernen-fragen/{esc(sch)}">entfernen …</a></p>')
+    if not teile:
+        teile = ['<p class=z>Es gibt keinen Modulkatalog auf dieser Maschine.</p>']
+    return HTMLResponse(KOPF + kopfleiste(s, "modul") + RUMPF + "<h1>Module</h1>" + m
+        + '<p class=z>Module sind optionale Dienste — keine Spiele. Sie tauchen '
+          'weder im Spielekatalog noch in der Übersicht auf, bekommen keinen '
+          'DNS-Namen, keinen Kanal und kein Beitrittspasswort, und ihre Ports '
+          'bleiben auf <code>127.0.0.1</code>.</p>'
+        + "".join(teile) + FUSS)
+
+
+@app.post("/modul-installieren")
+def modul_installieren(request: Request, csrf: str = Form(""), modul: str = Form("")):
+    s = pruefe(request, csrf)
+    if not ist_admin(s):
+        return RedirectResponse("/", 303)
+    rc, aus = aktion("modul", "installieren", modul, timeout=1800)
+    protokoll(s, "Modul installiert" if rc == 0 else "Modul-Installation gescheitert", modul)
+    return RedirectResponse(f"/module?meldung={quote(aus[:300])}", 303)
+
+
+@app.get("/modul-entfernen-fragen/{modul}", response_class=HTMLResponse)
+def modul_entfernen_fragen(request: Request, modul: str):
+    s = angemeldet(request)
+    if not ist_admin(s):
+        return RedirectResponse("/", 303)
+    mod = modul_katalog().get(modul)
+    if not mod or not modul_installiert(modul):
+        return RedirectResponse("/module", 303)
+    return HTMLResponse(KOPF + kopfleiste(s, "modul") + RUMPF
+        + f'<h1>{esc(mod["name"])} entfernen?</h1>'
+        + '<p>Weg sind danach: die Container, der Eintrag unter '
+          f'<code>{esc(mod.get("route", ""))}</code> und die Einstellungen des Moduls.</p>'
+        + f'<p class=z>Die Messwerte unter <code>{esc(mod["daten"])}</code> bleiben '
+          'liegen, wenn du sie nicht ausdrücklich mitlöschst — eine wieder '
+          'installierte Statistik zeigt dann die alte Geschichte weiter. '
+          'Spielstände und Sicherungen berührt das hier nicht.</p>'
+        + '<form method=post action=/modul-entfernen>'
+          f'<input type=hidden name=csrf value="{s["csrf"]}">'
+          f'<input type=hidden name=modul value="{esc(modul)}">'
+          '<p><label><input type=checkbox name=daten value=weg> '
+          'auch die gesammelten Messwerte löschen</label></p>'
+          '<button class="b x">entfernen</button> '
+          '<a class=b href=/module>abbrechen</a></form>' + FUSS)
+
+
+@app.post("/modul-entfernen")
+def modul_entfernen(request: Request, csrf: str = Form(""), modul: str = Form(""),
+                    daten: str = Form("")):
+    s = pruefe(request, csrf)
+    if not ist_admin(s):
+        return RedirectResponse("/", 303)
+    args = ["modul", "entfernen", modul] + (["--auch-daten"] if daten == "weg" else [])
+    rc, aus = aktion(*args, timeout=600)
+    protokoll(s, "Modul entfernt" if rc == 0 else "Modul-Entfernung gescheitert",
+              modul, "mit Messwerten" if daten == "weg" else "")
+    return RedirectResponse(f"/module?meldung={quote(aus[:300])}", 303)
+
+
+@app.get("/modul-schalter-fragen/{modul}/{name}", response_class=HTMLResponse)
+def modul_schalter_fragen(request: Request, modul: str, name: str):
+    """Schalter mit Warnung fragen nach. Die Warnung steht im Katalog, nicht
+    hier: Wer einen Schalter hinzufuegt, schreibt sie einmal - und sie kann
+    nicht vergessen werden, weil die Seite sie von dort holt."""
+    s = angemeldet(request)
+    if not ist_admin(s):
+        return RedirectResponse("/", 303)
+    mod = modul_katalog().get(modul)
+    sch = next((x for x in (mod or {}).get("schalter", []) if x["name"] == name), None)
+    if not sch or not sch.get("warnung"):
+        return RedirectResponse("/module", 303)
+    return HTMLResponse(KOPF + kopfleiste(s, "modul") + RUMPF
+        + f'<h1>{esc(sch["titel"])} einschalten?</h1>'
+        + f'<p>{esc(sch["beschreibung"])}</p>'
+        + f'<p class=warn>{esc(sch["warnung"])}</p>'
+        + '<form method=post action=/modul-schalter>'
+          f'<input type=hidden name=csrf value="{s["csrf"]}">'
+          f'<input type=hidden name=modul value="{esc(modul)}">'
+          f'<input type=hidden name=name value="{esc(name)}">'
+          '<input type=hidden name=wert value=an>'
+          '<button class="b y">trotzdem einschalten</button> '
+          '<a class=b href=/module>abbrechen</a></form>' + FUSS)
+
+
+@app.post("/modul-schalter")
+def modul_schalter(request: Request, csrf: str = Form(""), modul: str = Form(""),
+                   name: str = Form(""), wert: str = Form("")):
+    s = pruefe(request, csrf)
+    if not ist_admin(s):
+        return RedirectResponse("/", 303)
+    rc, aus = aktion("modul", "schalter", modul, name, wert, timeout=900)
+    protokoll(s, "Modulschalter gesetzt" if rc == 0 else "Modulschalter gescheitert",
+              f"{modul}/{name}", wert)
+    return RedirectResponse(f"/module?meldung={quote(aus[:300])}", 303)
+
+
+@app.post("/modul-einstellung")
+def modul_einstellung(request: Request, csrf: str = Form(""), modul: str = Form(""),
+                      name: str = Form(""), wert: str = Form("")):
+    s = pruefe(request, csrf)
+    if not ist_admin(s):
+        return RedirectResponse("/", 303)
+    rc, aus = aktion("modul", "einstellung", modul, name, wert, timeout=900)
+    protokoll(s, "Moduleinstellung gesetzt" if rc == 0 else "Moduleinstellung gescheitert",
+              f"{modul}/{name}", wert)
+    return RedirectResponse(f"/module?meldung={quote(aus[:300])}", 303)
 
 
 @app.get("/auth-check")

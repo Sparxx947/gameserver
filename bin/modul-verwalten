@@ -1,0 +1,808 @@
+#!/usr/bin/env python3
+"""modul-verwalten — installiert, schaltet und entfernt Zusatzmodule.
+
+Module sind KEINE Spiele. Der Spielweg bringt Beitrittspasswort, DNS-Name,
+Kanal, Spielerzaehlung und Endsicherung mit; ein Dienst braucht nichts davon.
+Ihn dafuer aufzuweichen waere eine Rechteausweitung an der Stelle, an der dieses
+Projekt am empfindlichsten ist - deshalb ein eigener Weg mit eigener
+Positivliste (CLAUDE.md, Grenze 2).
+
+*Modules are not games. The game path brings join passwords, DNS names,
+ channels, player counting and a final backup; a service needs none of it, and
+ loosening that path would widen rights exactly where this project is most
+ sensitive. Hence its own path with its own allow-list.*
+
+  modul-verwalten katalog
+  modul-verwalten status <modul>
+  modul-verwalten installieren <modul>
+  modul-verwalten entfernen <modul> [--auch-daten]
+  modul-verwalten schalter <modul> <name> <an|aus>
+  modul-verwalten einstellung <modul> <name> <wert>
+  modul-verwalten anwenden <modul>
+  modul-verwalten --selbsttest
+
+Was die Oberflaeche schickt, ist IMMER nur ein Name aus dem Katalog und ein
+Wert aus dessen Liste. Freitext erreicht weder eine Datei noch eine Shell.
+"""
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+KATALOG = Path(os.environ.get("MODUL_KATALOG", "/etc/module-katalog.json"))
+VORLAGEN = Path(os.environ.get("MODUL_VORLAGEN", "/etc/module"))
+STACKS = Path(os.environ.get("MODUL_STACKS", "/opt/stacks"))
+CADDY_ROUTE = Path(os.environ.get("MODUL_CADDY", "/etc/caddy/module.conf"))
+CADDYFILE = Path(os.environ.get("MODUL_CADDYFILE", "/etc/caddy/Caddyfile"))
+MELDEN = Path(os.environ.get("MODUL_MELDEN", "/etc/platzwart-melden.conf"))
+TIMER_ABLAGE = Path(os.environ.get("MODUL_TIMER", "/etc/systemd/system/platzwart-metriken.timer.d"))
+RESERVE_GB = 10
+NAME_MUSTER = re.compile(r"^[a-z][a-z0-9-]{1,30}$")
+
+
+def fehler(*t):
+    print("FEHLER:", *t, file=sys.stderr)
+    sys.exit(1)
+
+
+def lauf(befehl, **kw):
+    return subprocess.run(befehl, capture_output=True, text=True, **kw)
+
+
+# --- Katalog -----------------------------------------------------------------
+def katalog() -> dict:
+    try:
+        d = json.loads(KATALOG.read_text())
+    except Exception as e:
+        fehler(f"{KATALOG} nicht lesbar: {e}")
+    return {m["schluessel"]: m for m in d.get("module", [])}
+
+
+def modul(sch: str) -> dict:
+    if not NAME_MUSTER.match(sch or ""):
+        fehler("unzulaessiger Modulname")
+    m = katalog().get(sch)
+    if not m:
+        fehler(f"'{sch}' steht nicht im Modulkatalog")
+    return m
+
+
+def verzeichnis(sch: str) -> Path:
+    return STACKS / sch
+
+
+def installiert(sch: str) -> bool:
+    return (verzeichnis(sch) / "compose.yaml").exists()
+
+
+def stand(sch: str) -> dict:
+    """Schalter und Einstellungen - fehlende auf die Vorgabe des Katalogs."""
+    m = katalog().get(sch, {})
+    s = {x["name"]: bool(x.get("vorgabe")) for x in m.get("schalter", [])}
+    e = {x["name"]: x["vorgabe"] for x in m.get("einstellungen", [])}
+    try:
+        d = json.loads((verzeichnis(sch) / "modul.json").read_text())
+        s.update({k: bool(v) for k, v in d.get("schalter", {}).items() if k in s})
+        e.update({k: v for k, v in d.get("einstellungen", {}).items() if k in e})
+    except Exception:
+        pass
+    return {"schalter": s, "einstellungen": e}
+
+
+def stand_schreiben(sch: str, neu: dict):
+    p = verzeichnis(sch) / "modul.json"
+    neu = dict(neu, schluessel=sch, geschrieben=int(time.time()))
+    p.write_text(json.dumps(neu, indent=2))
+    p.chmod(0o640)
+    # 0640 root:panel - die Oberflaeche muss den Zustand LESEN koennen (welcher
+    # Schalter steht wie), aber nichts daran schreiben. Denselben Schnitt hat
+    # panel.json bei den Spielen.
+    try:
+        shutil.chown(p, "root", "panel")
+    except Exception:
+        pass
+
+
+# --- Voraussetzungen ---------------------------------------------------------
+def freier_ram_gb() -> int:
+    for z in Path("/proc/meminfo").read_text().splitlines():
+        if z.startswith("MemAvailable:"):
+            return int(z.split()[1]) // (1024 * 1024)
+    return 0
+
+
+def freie_gb() -> int:
+    s = os.statvfs("/")
+    return (s.f_bavail * s.f_frsize) // (1024**3)
+
+
+def port_und_proto(angabe: str) -> tuple:
+    proto = angabe.rsplit("/", 1)[-1].lower() if "/" in angabe else "tcp"
+    return int(angabe.split("/")[0].split(":")[-2]), proto
+
+
+def belegte_ports() -> set:
+    """Wie bei den Spielen: aus den compose-Dateien UND vom System. Ein
+    gestoppter Stack taucht in "ss" nicht auf, haelt seinen Port aber trotzdem;
+    Systemdienste stehen in keiner compose-Datei. Lokale Bindungen zaehlen mit -
+    127.0.0.1:N und 0.0.0.0:N schliessen sich gegenseitig aus (gemessen, #163).
+    *From compose files and from the system alike; local bindings count.*"""
+    p = set()
+    for f in STACKS.glob("*/compose.yaml"):
+        for m in re.finditer(r'^\s*-\s*"(?:[\d.]+:)?(\d+):\d+(?:/(\w+))?"',
+                             f.read_text(errors="replace"), re.M):
+            p.add((int(m.group(1)), (m.group(2) or "tcp").lower()))
+    for zeile in lauf(["ss", "-tulnH"]).stdout.splitlines():
+        teile = zeile.split()
+        if len(teile) >= 5:
+            m = re.search(r":(\d+)$", teile[4])
+            if m:
+                p.add((int(m.group(1)), teile[0].lower()))
+    return p
+
+
+# --- Erzeugte Dateien --------------------------------------------------------
+def prometheus_schreiben(sch: str, m: dict, s: dict):
+    """Vorlage ohne die Bloecke, deren Schalter aus ist."""
+    vorlage = (VORLAGEN / sch / "prometheus.vorlage.yml").read_text()
+    zeilen, ueberspringen = [], None
+    for z in vorlage.splitlines():
+        auf = re.match(r"^#\s*>>>\s*schalter:([a-z]+)\s*$", z)
+        zu = re.match(r"^#\s*<<<\s*schalter:([a-z]+)\s*$", z)
+        if auf:
+            ueberspringen = not s["schalter"].get(auf.group(1), False)
+            continue
+        if zu:
+            ueberspringen = None
+            continue
+        if not ueberspringen:
+            zeilen.append(z)
+    text = "\n".join(zeilen).rstrip() + "\n"
+    if s["schalter"].get("probe"):
+        text = text.replace("targets: []", f"targets: {sorted(probe_ziele())}")
+    ziel = verzeichnis(sch) / "prometheus.yml"
+    ziel.write_text(text)
+    ziel.chmod(0o644)
+
+
+def probe_ziele() -> list:
+    """Was die Erreichbarkeitsprobe anfaesst: die veroeffentlichten Ports der
+    laufenden Container - von DIESER Maschine aus gesehen. Mehr kann sie nicht,
+    und mehr behauptet sie auch nicht."""
+    ziele = set()
+    aus = lauf(["docker", "ps", "--format", "{{.Ports}}"]).stdout
+    for m in re.finditer(r"0\.0\.0\.0:(\d+)->", aus):
+        ziele.add(f"172.17.0.1:{m.group(1)}")
+    return list(ziele)
+
+
+def grafana_schreiben(sch: str, m: dict, s: dict):
+    """Bereitstellung: Grundgeruest aus /etc/module, dazu die Alarme, wenn der
+    Schalter an ist. Erzeugt und nicht eingesetzt, weil ihr Inhalt von einem
+    Schalter abhaengt - dasselbe Muster wie /etc/caddy/zertifikat.conf."""
+    ziel = verzeichnis(sch) / "grafana-provisioning"
+    if ziel.exists():
+        shutil.rmtree(ziel)
+    shutil.copytree(VORLAGEN / sch / "grafana/provisioning", ziel)
+    # Grafana sucht ALLE Bereitstellungsordner und meldet jeden fehlenden als
+    # Fehler ins Protokoll ("Failed to read plugin provisioning files").
+    # Gemessen beim ersten Start: drei Fehlerzeilen, die nichts bedeuten - und
+    # genau solche Zeilen bringen einem bei, das Protokoll zu ueberblaettern.
+    # *Grafana logs an error for every missing provisioning directory; noise
+    #  like that teaches people to skip the log.*
+    for leer in ("plugins", "notifiers", "access-control", "alerting"):
+        (ziel / leer).mkdir(exist_ok=True)
+    alarme = ziel / "alerting"
+    if not s["schalter"].get("alarme"):
+        # Leer lassen reicht nicht: Grafana behaelt einmal bereitgestellte
+        # Regeln, bis sie ausdruecklich geloescht werden. Die Loeschdatei ist
+        # der einzige Weg, sie wieder loszuwerden.
+        #
+        # Und der Kontaktpunkt muss MIT weg. Beim Abschalten blieb er zuerst
+        # stehen (nachgemessen im Testlauf) - mitsamt der Webhook-Adresse in
+        # Grafanas Datenbank. Ein Geheimnis, das nach dem Ausschalten
+        # weiterlebt, ist genau das, was niemand erwartet.
+        # *An empty directory is not enough; and the contact point must go too -
+        #  in the test it survived, webhook URL and all, after switching off.*
+        (alarme / "regeln.yaml").write_text(
+            "apiVersion: 1\ndeleteRules:\n"
+            "  - orgId: 1\n    uid: platzwart-platte\n"
+            "  - orgId: 1\n    uid: platzwart-speicher\n"
+            "  - orgId: 1\n    uid: platzwart-sicherung\n")
+        (alarme / "kontakt.yaml").write_text(
+            "apiVersion: 1\ndeleteContactPoints:\n"
+            "  - orgId: 1\n    uid: platzwart-discord\n")
+        (alarme / "richtlinie.yaml").write_text(
+            "apiVersion: 1\nresetPolicies:\n  - 1\n")
+        return
+    webhook = ""
+    try:
+        for z in MELDEN.read_text().splitlines():
+            if z.startswith("WEBHOOK_STOERUNG="):
+                webhook = z.split("=", 1)[1].strip()
+    except Exception:
+        pass
+    if not webhook:
+        fehler("Alarme verlangen einen Stoerungs-Webhook in /etc/platzwart-melden.conf")
+    (alarme / "kontakt.yaml").write_text(
+        "apiVersion: 1\ncontactPoints:\n"
+        "  - orgId: 1\n    name: Stoerungskanal\n    receivers:\n"
+        "      - uid: platzwart-discord\n        type: discord\n"
+        "        settings:\n"
+        f"          url: {webhook}\n"
+        "        disableResolveMessage: false\n")
+    (alarme / "richtlinie.yaml").write_text(
+        "apiVersion: 1\npolicies:\n"
+        "  - orgId: 1\n    receiver: Stoerungskanal\n"
+        "    group_by: [alertname]\n"
+        "    group_wait: 1m\n    group_interval: 10m\n    repeat_interval: 12h\n")
+    (alarme / "regeln.yaml").write_text(ALARMREGELN)
+    for p in alarme.glob("*.yaml"):
+        p.chmod(0o640)
+        # Der Webhook ist ein Geheimnis: 0640 und die Gruppe, unter der Grafana
+        # laeuft (472) - nicht 0644 neben den uebrigen Bereitstellungsdateien.
+        try:
+            os.chown(p, 0, 472)
+        except Exception:
+            pass
+
+
+# Drei Regeln, die je eine Frage beantworten, die man wirklich stellt. Mehr
+# nicht: Jeder weitere Alarm, der auch die Wache meldet, macht beide leiser.
+# *Three rules, each answering a real question; more would only duplicate the
+#  watchdog and make both easier to ignore.*
+ALARMREGELN = """apiVersion: 1
+groups:
+  - orgId: 1
+    name: Platzwart
+    folder: Platzwart
+    interval: 5m
+    rules:
+      - uid: platzwart-platte
+        title: Platte laeuft in 14 Tagen voll
+        condition: B
+        for: 30m
+        data:
+          - refId: A
+            relativeTimeRange: {from: 21600, to: 0}
+            datasourceUid: platzwart-prometheus
+            model:
+              editorMode: code
+              expr: predict_linear(node_filesystem_avail_bytes{mountpoint="/"}[6h], 14*24*3600)
+              instant: true
+              intervalMs: 60000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {params: [0], type: lt}
+              refId: B
+        annotations:
+          summary: Die freie Platte reicht hochgerechnet keine 14 Tage mehr.
+        labels: {stufe: stoerung}
+        isPaused: false
+      - uid: platzwart-speicher
+        title: Arbeitsspeicher dauerhaft knapp
+        condition: B
+        for: 1h
+        data:
+          - refId: A
+            relativeTimeRange: {from: 3600, to: 0}
+            datasourceUid: platzwart-prometheus
+            model:
+              editorMode: code
+              expr: node_memory_MemAvailable_bytes
+              instant: true
+              intervalMs: 60000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {params: [1073741824], type: lt}
+              refId: B
+        annotations:
+          summary: Seit einer Stunde ist weniger als 1 GB Arbeitsspeicher frei.
+        labels: {stufe: stoerung}
+        isPaused: false
+      - uid: platzwart-sicherung
+        title: Sicherung zu alt
+        condition: B
+        for: 1h
+        data:
+          - refId: A
+            relativeTimeRange: {from: 3600, to: 0}
+            datasourceUid: platzwart-prometheus
+            model:
+              editorMode: code
+              expr: time() - max(platzwart_sicherung_zeit_sekunden)
+              instant: true
+              intervalMs: 60000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {params: [86400], type: gt}
+              refId: B
+        annotations:
+          summary: Das neueste Borg-Archiv ist aelter als 24 Stunden.
+        labels: {stufe: stoerung}
+        isPaused: false
+"""
+
+
+def env_schreiben(sch: str, m: dict, s: dict):
+    """Werte, die compose einsetzt. In einer .env und NICHT in der compose-Datei:
+    So bleibt die compose.yaml byte-gleich mit der Vorlage im Repositorium, und
+    der Abgleich sieht jede Abweichung - eine umgeschriebene compose-Datei
+    koennte er von einer verbastelten nicht unterscheiden."""
+    e = s["einstellungen"]
+    p = verzeichnis(sch) / ".env"
+    # Grafanas eingebautes Konto "admin" hat ab Werk das Passwort "admin".
+    # Anmeldeformular und Basic Auth sind aus, das Konto ist also nicht
+    # benutzbar (nachgemessen: HTTP 401) - aber ein Vorgabepasswort, das nur
+    # deshalb nicht wirkt, weil zwei Schalter richtig stehen, ist keine Sperre.
+    # Einmal gewuerfelt und danach behalten: Ein Passwort, das sich bei jedem
+    # Schalterwurf aendert, macht jedes Mal einen Neustart noetig.
+    # *Grafana's built-in admin defaults to "admin". The login form and basic
+    #  auth are off, so it cannot be used (measured: 401) - but a default
+    #  password that only fails because two switches are right is no lock.
+    #  Rolled once and kept: a changing one would force a restart each time.*
+    alt = {}
+    if p.exists():
+        for z in p.read_text().splitlines():
+            if "=" in z:
+                k, _, v = z.partition("=")
+                alt[k] = v
+    pw = alt.get("GRAFANA_ADMIN_PW") or "".join(
+        __import__("secrets").choice("abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789")
+        for _ in range(24))
+    p.write_text(f"AUFBEWAHRUNG={e.get('aufbewahrung', '90d')}\n"
+                 f"PLATTE_GB={e.get('platte_gb', '2')}\n"
+                 f"GRAFANA_ADMIN_PW={pw}\n")
+    # 0600: Hier steht jetzt ein Geheimnis, auch wenn es nur ein Riegel vor
+    # einem abgeschalteten Weg ist.
+    p.chmod(0o600)
+
+
+def timer_abstand(wert: str):
+    """Messabstand des Sammlers. Unter einer Minute kann OnCalendar nicht, also
+    fuer 30s ueber OnUnitActiveSec - beides in einer Ergaenzungsdatei, damit die
+    Einheit aus dem Repositorium unveraendert bleibt."""
+    TIMER_ABLAGE.mkdir(parents=True, exist_ok=True)
+    if wert == "30s":
+        inhalt = "[Timer]\nOnCalendar=\nOnBootSec=1min\nOnUnitActiveSec=30s\n"
+    elif wert == "1min":
+        inhalt = "[Timer]\nOnCalendar=\nOnBootSec=1min\nOnUnitActiveSec=1min\n"
+    else:
+        inhalt = "[Timer]\nOnCalendar=\nOnCalendar=*:0/5\n"
+    (TIMER_ABLAGE / "abstand.conf").write_text(inhalt)
+    lauf(["systemctl", "daemon-reload"])
+
+
+# --- Caddy -------------------------------------------------------------------
+KOPFZEILEN = {
+    # Grafana ist eine fremde Oberflaeche mit JavaScript, Web-Workern und
+    # eingebetteten Bildern. Die strenge CSP des Panels ("default-src 'none'")
+    # wuerde sie vollstaendig blockieren - dieselbe Lage wie beim Webterminal,
+    # und dieselbe Antwort: eigene, notwendigerweise lockerere Kopfzeilen fuer
+    # GENAU diesen Pfad, nicht fuer das Panel.
+    # *Grafana is a third-party UI with JavaScript and workers; the panel's
+    #  strict CSP would block it entirely. Same situation as the terminal, same
+    #  answer: its own looser headers for exactly this path.*
+    "grafana": ("default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+                "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
+                "font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; "
+                "base-uri 'none'; frame-ancestors 'none'"),
+}
+
+
+def caddy_route_schreiben():
+    """Erzeugt /etc/caddy/module.conf neu - fuer JEDES installierte Modul einen
+    Block, fuer keins eine leere Datei. Die Datei wird von der Caddyfile
+    eingebunden; sie muss auch leer existieren, sonst bricht "caddy validate"
+    mit "File to import not found" ab."""
+    bloecke = []
+    for sch, m in sorted(katalog().items()):
+        if not installiert(sch) or not m.get("route"):
+            continue
+        csp = KOPFZEILEN.get(m.get("csp", ""), KOPFZEILEN["grafana"])
+        bloecke.append(f"""	# Modul {sch} — Zugang ueber die Anmeldung des Panels.
+	handle {m['route']}* {{
+		forward_auth 127.0.0.1:8099 {{
+			uri /auth-modul?modul={sch}
+			copy_headers X-Webauth-User X-Webauth-Role
+		}}
+		header {{
+			Strict-Transport-Security "max-age=31536000; includeSubDomains"
+			X-Content-Type-Options "nosniff"
+			X-Frame-Options "DENY"
+			Referrer-Policy "no-referrer"
+			Content-Security-Policy "{csp}"
+			Cache-Control "no-store"
+			-Server
+		}}
+		reverse_proxy {m['ziel']}
+	}}
+""")
+    kopf = ("# Erzeugt von modul-verwalten. Nicht von Hand aendern - die Datei\n"
+            "# wird bei jeder Installation und Entfernung neu geschrieben.\n"
+            "# *Generated by modul-verwalten; rewritten on every install and removal.*\n")
+    neu = kopf + ("\n".join(bloecke) if bloecke else "")
+    # Klammern selbst zaehlen, BEVOR die Datei entsteht. "caddy validate" faengt
+    # eine unbekannte Direktive (gemessen: rc=1), eine offene Klammer am Ende
+    # dieses Schnipsels aber NICHT (gemessen: rc=0): Die schliessende Klammer
+    # des Site-Blocks schliesst sie, und es entsteht eine gueltige, aber falsche
+    # Konfiguration - der Auffangblock des Panels laege dann INNERHALB dieses
+    # handle-Blocks und das Panel waere weg. Eine Pruefung, die den Fall nicht
+    # sieht, darf man nicht als Netz behandeln.
+    # *Count braces before writing: validate catches an unknown directive but not
+    #  an unclosed brace at the end of this snippet - the site block's closing
+    #  brace closes it, producing a valid but wrong config in which the panel's
+    #  catch-all sits inside this handle block.*
+    if neu.count("{") != neu.count("}"):
+        fehler("erzeugte Route ist unausgewogen (Klammern) - nichts geschrieben")
+    alt = CADDY_ROUTE.read_text() if CADDY_ROUTE.exists() else None
+    # Atomar: Caddy kann die Datei jederzeit lesen; eine halb geschriebene waere
+    # genau der Fall von oben.
+    tmp = CADDY_ROUTE.with_suffix(".conf.neu")
+    tmp.write_text(neu)
+    tmp.chmod(0o644)
+    tmp.rename(CADDY_ROUTE)
+    if not CADDYFILE.exists():
+        return
+    # Erst pruefen, dann laden - und bei einem Fehler die alte Datei zurueck.
+    # Ein Caddy, der die Konfiguration ablehnt, laeuft mit der alten weiter;
+    # ein Caddy, der neu startet, waere dann tot. Dieselbe Reihenfolge wie bei
+    # der SSH-Haertung in Stufe 10 (sshd -t, sonst zuruecknehmen).
+    p = lauf(["caddy", "validate", "--adapter", "caddyfile", "--config", str(CADDYFILE)])
+    if p.returncode != 0:
+        if alt is None:
+            CADDY_ROUTE.unlink()
+        else:
+            CADDY_ROUTE.write_text(alt)
+        fehler("Caddy wuerde die Route ablehnen - zurueckgenommen:\n"
+               + (p.stderr or p.stdout)[-600:])
+    lauf(["systemctl", "reload", "caddy"])
+
+
+# --- compose -----------------------------------------------------------------
+def profile(m: dict, s: dict) -> list:
+    return [x["name"] for x in m.get("schalter", [])
+            if x.get("art") == "profil" and s["schalter"].get(x["name"])]
+
+
+def compose(sch: str, *args, profile_liste=()):
+    befehl = ["docker", "compose"]
+    for p in profile_liste:
+        befehl += ["--profile", p]
+    return lauf(befehl + list(args), cwd=str(verzeichnis(sch)))
+
+
+def anwenden(sch: str, ruhig=False):
+    m, s = modul(sch), stand(sch)
+    if not installiert(sch):
+        fehler(f"{sch} ist nicht installiert")
+    prometheus_schreiben(sch, m, s)
+    grafana_schreiben(sch, m, s)
+    env_schreiben(sch, m, s)
+    if "messabstand" in s["einstellungen"]:
+        timer_abstand(s["einstellungen"]["messabstand"])
+    an = profile(m, s)
+    p = compose(sch, "up", "-d", "--remove-orphans", profile_liste=an)
+    if p.returncode != 0:
+        fehler("docker compose: " + (p.stderr or p.stdout)[-400:])
+    # Abgeschaltete Profile ausdruecklich abraeumen. "up --remove-orphans"
+    # laesst einen Container stehen, dessen Profil nicht mehr aktiv ist - er
+    # liefe weiter, obwohl der Schalter aus ist, und niemand saehe es.
+    # *Explicitly remove containers of deactivated profiles: they would keep
+    #  running with the switch off.*
+    for x in m.get("schalter", []):
+        if x.get("art") == "profil" and not s["schalter"].get(x["name"]):
+            compose(sch, "rm", "-s", "-f", x["name"], profile_liste=[x["name"]])
+    # Prometheus die neue Konfiguration sagen, ohne ihn neu zu starten.
+    compose(sch, "kill", "-s", "SIGHUP", "prometheus", profile_liste=an)
+    if not ruhig:
+        print(f"ok\t{sch} angewandt\tProfile: {' '.join(an) or 'keine'}")
+
+
+# --- Aktionen ----------------------------------------------------------------
+def zeige_katalog():
+    for sch, m in sorted(katalog().items()):
+        print(f"{sch}\t{m['name']}\t{m['kurz']}\t"
+              f"{'installiert' if installiert(sch) else 'frei'}\t"
+              f"{m['mem_gb']}\t{m['platte_gb']}\t{m.get('route', '')}\t{m.get('rolle', 'admin')}")
+
+
+def zeige_status(sch: str):
+    m, s = modul(sch), stand(sch)
+    da = installiert(sch)
+    laufend = ""
+    if da:
+        laufend = ",".join(sorted(
+            z for z in compose(sch, "ps", "--services", "--status", "running",
+                               profile_liste=profile(m, s)).stdout.split()))
+    print(f"installiert\t{'ja' if da else 'nein'}")
+    print(f"laeuft\t{laufend}")
+    for k, v in s["schalter"].items():
+        print(f"schalter\t{k}\t{'an' if v else 'aus'}")
+    for k, v in s["einstellungen"].items():
+        print(f"einstellung\t{k}\t{v}")
+
+
+def installieren(sch: str):
+    m = modul(sch)
+    if installiert(sch):
+        fehler(f"{sch} ist bereits installiert")
+    if freier_ram_gb() < m["mem_gb"] + 2:
+        fehler(f"zu wenig Arbeitsspeicher: {m['name']} braucht {m['mem_gb']} GB, "
+               f"frei sind {freier_ram_gb()} GB")
+    frei = freie_gb()
+    if frei - m["platte_gb"] < RESERVE_GB:
+        fehler(f"zu wenig Platte: {m['name']} braucht rund {m['platte_gb']} GB, "
+               f"frei sind {frei} GB, {RESERVE_GB} GB sollen frei bleiben")
+    belegt = belegte_ports()
+    kollision = [p for p in m.get("ports", []) if port_und_proto(p) in belegt]
+    if kollision:
+        fehler("Port bereits belegt: " + ", ".join(kollision))
+    quelle = VORLAGEN / sch
+    if not (quelle / "compose.yaml").exists():
+        fehler(f"Vorlage fehlt: {quelle}/compose.yaml")
+
+    verz = verzeichnis(sch)
+    verz.mkdir(parents=True)
+    verz.chmod(0o750)
+    try:
+        shutil.chown(verz, "root", "panel")
+    except Exception:
+        pass
+    shutil.copy2(quelle / "compose.yaml", verz / "compose.yaml")
+    (verz / "compose.yaml").chmod(0o644)
+    daten = Path(m["daten"])
+    for unter in m.get("unterordner", []):
+        (daten / unter).mkdir(parents=True, exist_ok=True)
+    # Eigentuemer wie die Images sie erwarten: Prometheus laeuft als 65534,
+    # Grafana als 472. Gehoeren die Ordner root, startet der Container, legt
+    # nichts an und wiederholt das stumm - das Bild ist eine leere Statistik.
+    # *Ownership as the images expect; otherwise the containers start, write
+    #  nothing and repeat that silently.*
+    for unter, uid in (("prometheus", 65534), ("grafana", 472)):
+        p = daten / unter
+        if p.exists():
+            os.chown(p, uid, uid)
+    stand_schreiben(sch, stand(sch))
+    anwenden(sch, ruhig=True)
+    if m.get("ausschluss"):
+        ausschluss_setzen(sch, m["ausschluss"])
+    caddy_route_schreiben()
+    lauf(["systemctl", "enable", "--now", "platzwart-metriken.timer"])
+    print(f"ok\t{m['name']}\tinstalliert\t{m.get('route', '')}")
+
+
+def ausschluss_setzen(sch: str, pfade: list):
+    """Die Zeitreihendatenbank gehoert NICHT in die Sicherung: Sie waere das
+    groesste Archiv im Repositorium und enthielte Messwerte, die man nach einem
+    Verlust am wenigsten braucht. Block mit Marke, wie ihn die Katalogspiele
+    bekommen."""
+    datei = Path("/etc/borg-ausschluss.txt")
+    if not datei.exists():
+        return
+    marke_auf, marke_zu = f"# >>> modul:{sch}", f"# <<< modul:{sch}"
+    zeilen, drin = [], False
+    for z in datei.read_text().splitlines():
+        if z.strip() == marke_auf:
+            drin = True
+            continue
+        if z.strip() == marke_zu:
+            drin = False
+            continue
+        if not drin:
+            zeilen.append(z)
+    zeilen += [marke_auf] + [f"{p}/" for p in pfade] + [marke_zu]
+    datei.write_text("\n".join(zeilen).rstrip() + "\n")
+
+
+def ausschluss_entfernen(sch: str):
+    datei = Path("/etc/borg-ausschluss.txt")
+    if not datei.exists():
+        return
+    marke_auf, marke_zu = f"# >>> modul:{sch}", f"# <<< modul:{sch}"
+    zeilen, drin = [], False
+    for z in datei.read_text().splitlines():
+        if z.strip() == marke_auf:
+            drin = True
+            continue
+        if z.strip() == marke_zu:
+            drin = False
+            continue
+        if not drin:
+            zeilen.append(z)
+    datei.write_text("\n".join(zeilen).rstrip() + "\n")
+
+
+def entfernen(sch: str, auch_daten=False):
+    m = modul(sch)
+    if not installiert(sch):
+        fehler(f"{sch} ist nicht installiert")
+    alle = [x["name"] for x in m.get("schalter", []) if x.get("art") == "profil"]
+    p = compose(sch, "down", "--remove-orphans", profile_liste=alle)
+    if p.returncode != 0:
+        fehler("docker compose down: " + (p.stderr or p.stdout)[-400:])
+    shutil.rmtree(verzeichnis(sch))
+    ausschluss_entfernen(sch)
+    caddy_route_schreiben()
+    geloescht = "Messwerte behalten"
+    if auch_daten:
+        shutil.rmtree(m["daten"], ignore_errors=True)
+        geloescht = "Messwerte geloescht"
+    if not any(installiert(x) for x in katalog()):
+        lauf(["systemctl", "disable", "--now", "platzwart-metriken.timer"])
+        for rest in Path("/var/lib/platzwart-metriken").glob("*.prom"):
+            rest.unlink()
+    print(f"ok\t{m['name']}\tentfernt\t{geloescht}")
+
+
+def schalter_setzen(sch: str, name: str, wert: str):
+    m, s = modul(sch), stand(sch)
+    erlaubt = {x["name"] for x in m.get("schalter", [])}
+    if name not in erlaubt:
+        fehler(f"unbekannter Schalter: {name}")
+    if wert not in ("an", "aus"):
+        fehler("Wert muss 'an' oder 'aus' sein")
+    s["schalter"][name] = wert == "an"
+    stand_schreiben(sch, s)
+    anwenden(sch, ruhig=True)
+    print(f"ok\t{name}\t{wert}")
+
+
+def einstellung_setzen(sch: str, name: str, wert: str):
+    m, s = modul(sch), stand(sch)
+    eintrag = next((x for x in m.get("einstellungen", []) if x["name"] == name), None)
+    if not eintrag:
+        fehler(f"unbekannte Einstellung: {name}")
+    if wert not in eintrag["werte"]:
+        fehler(f"unzulaessiger Wert: {wert} (erlaubt: {', '.join(eintrag['werte'])})")
+    s["einstellungen"][name] = wert
+    stand_schreiben(sch, s)
+    anwenden(sch, ruhig=True)
+    print(f"ok\t{name}\t{wert}")
+
+
+echte_exists, echte_read, echte_write = Path.exists, Path.read_text, Path.write_text
+
+
+def selbsttest():
+    import tempfile
+    schlecht = 0
+
+    def pruefe(bedingung, was):
+        nonlocal schlecht
+        print(f"  {'ok    ' if bedingung else 'FEHLER'} {was}")
+        if not bedingung:
+            schlecht += 1
+
+    tmp = Path(tempfile.mkdtemp())
+    globals()["STACKS"] = tmp / "stacks"
+    globals()["VORLAGEN"] = tmp / "module"
+    globals()["CADDY_ROUTE"] = tmp / "module.conf"
+    globals()["CADDYFILE"] = tmp / "fehlt-absichtlich"
+    globals()["KATALOG"] = tmp / "katalog.json"
+    (tmp / "stacks").mkdir()
+    quelle = Path(__file__).resolve().parent.parent
+    kat = quelle / "etc/module-katalog.json"
+    if kat.exists():
+        shutil.copy2(kat, tmp / "katalog.json")
+        shutil.copytree(quelle / "etc/module", tmp / "module")
+    else:
+        print("  (Repositorium nicht daneben - nur Formpruefungen)")
+    pruefe("statistik" in katalog(), "Katalog gelesen")
+    s = stand("statistik")
+    pruefe(s["schalter"]["zahlen"] is True, "Vorgabe: Platzwart-Zahlen an")
+    pruefe(s["schalter"]["cadvisor"] is False, "Vorgabe: cAdvisor aus")
+    pruefe(s["einstellungen"]["aufbewahrung"] == "90d", "Vorgabe: 90 Tage")
+    m = katalog()["statistik"]
+    pruefe(profile(m, s) == [], "kein Profil aktiv ohne Schalter")
+    s["schalter"]["cadvisor"] = True
+    pruefe(profile(m, s) == ["cadvisor"], "Schalter an -> Profil aktiv")
+    pruefe(port_und_proto("127.0.0.1:19030:3000/tcp") == (19030, "tcp"), "Portform lokal")
+    pruefe(port_und_proto("9987:9987/udp") == (9987, "udp"), "Portform udp")
+    # Prometheus-Vorlage: Bloecke nur mit Schalter.
+    verzeichnis("statistik").mkdir(parents=True, exist_ok=True)
+    prometheus_schreiben("statistik", m, {"schalter": {"cadvisor": False, "probe": False}})
+    text = (verzeichnis("statistik") / "prometheus.yml").read_text()
+    pruefe("node-exporter:9100" in text, "Grundziel bleibt")
+    pruefe("cadvisor:8080" not in text, "Schalter aus -> Block fehlt")
+    prometheus_schreiben("statistik", m, {"schalter": {"cadvisor": True, "probe": False}})
+    text = (verzeichnis("statistik") / "prometheus.yml").read_text()
+    pruefe("cadvisor:8080" in text, "Schalter an -> Block da")
+    pruefe("schalter:cadvisor" not in text, "Marken selbst stehen nicht in der Ausgabe")
+    try:
+        import yaml
+        yaml.safe_load(text)
+        pruefe(True, "erzeugte prometheus.yml ist gueltiges YAML")
+    except ImportError:
+        pass
+    except Exception as e:
+        pruefe(False, f"erzeugte prometheus.yml ist gueltiges YAML ({e})")
+    # Caddy-Route: ohne Modul leer, mit Modul ein Block.
+    caddy_route_schreiben()
+    pruefe("handle /statistik" not in CADDY_ROUTE.read_text(), "nicht installiert -> keine Route")
+    shutil.copy2(VORLAGEN / "statistik/compose.yaml", verzeichnis("statistik") / "compose.yaml")
+    caddy_route_schreiben()
+    r = CADDY_ROUTE.read_text()
+    pruefe("handle /statistik* {" in r, "installiert -> Route da")
+    pruefe("uri /auth-modul?modul=statistik" in r, "Route fragt das Panel")
+    pruefe("reverse_proxy 127.0.0.1:19030" in r, "Route zeigt auf Grafana")
+    pruefe(r.count("{") == r.count("}"), "erzeugte Route hat ausgewogene Klammern")
+    pruefe(not list(CADDY_ROUTE.parent.glob("*.conf.neu")), "keine halbe Routendatei uebrig")
+    # Ausschlussblock: setzen, zweimal setzen (nicht doppeln), wieder entfernen.
+    import unittest.mock
+    datei = tmp / "borg-ausschluss.txt"
+    datei.write_text("/srv/games/valheim/install/\n")
+    with unittest.mock.patch.object(Path, "exists", lambda self: True if str(self) == "/etc/borg-ausschluss.txt" else echte_exists(self)), \
+         unittest.mock.patch.object(Path, "read_text", lambda self, **kw: datei.read_text() if str(self) == "/etc/borg-ausschluss.txt" else echte_read(self, **kw)), \
+         unittest.mock.patch.object(Path, "write_text", lambda self, t, **kw: datei.write_text(t) if str(self) == "/etc/borg-ausschluss.txt" else echte_write(self, t, **kw)):
+        ausschluss_setzen("statistik", ["/srv/dienste/statistik/prometheus"])
+        ausschluss_setzen("statistik", ["/srv/dienste/statistik/prometheus"])
+        inhalt = datei.read_text()
+        pruefe(inhalt.count("# >>> modul:statistik") == 1, "Ausschlussblock steht genau einmal")
+        pruefe("/srv/dienste/statistik/prometheus/" in inhalt, "Ausschluss eingetragen")
+        pruefe("/srv/games/valheim/install/" in inhalt, "fremde Zeilen bleiben")
+        ausschluss_entfernen("statistik")
+        inhalt = datei.read_text()
+        pruefe("modul:statistik" not in inhalt, "Ausschlussblock wieder weg")
+        pruefe("/srv/games/valheim/install/" in inhalt, "fremde Zeilen bleiben auch danach")
+    print()
+    shutil.rmtree(tmp)
+    if schlecht:
+        print(f"{schlecht} FEHLER")
+        return 1
+    print("alles gruen.")
+    return 0
+
+
+def main():
+    if "--selbsttest" in sys.argv:
+        return selbsttest()
+    a = sys.argv[1:]
+    if not a:
+        print(__doc__.strip())
+        return 0
+    if os.geteuid() != 0 and a[0] not in ("katalog", "status"):
+        fehler("als root ausfuehren")
+    if a[0] == "katalog" and len(a) == 1:
+        zeige_katalog()
+    elif a[0] == "status" and len(a) == 2:
+        zeige_status(a[1])
+    elif a[0] == "installieren" and len(a) == 2:
+        installieren(a[1])
+    elif a[0] == "entfernen" and len(a) in (2, 3):
+        entfernen(a[1], auch_daten=(len(a) == 3 and a[2] == "--auch-daten"))
+    elif a[0] == "schalter" and len(a) == 4:
+        schalter_setzen(a[1], a[2], a[3])
+    elif a[0] == "einstellung" and len(a) == 4:
+        einstellung_setzen(a[1], a[2], a[3])
+    elif a[0] == "anwenden" and len(a) == 2:
+        anwenden(a[1])
+    else:
+        fehler("unbekannte Aktion - ohne Argumente zeigt das Programm seine Hilfe")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

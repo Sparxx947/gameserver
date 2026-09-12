@@ -432,6 +432,56 @@ PRUEF
 echo "== Ports des Spielekatalogs (Grenze 4, Beitrittsport, Kollisionen) =="
 python3 werkzeuge/katalog-ports.py || fehler=1
 
+# --- Module: Ports und Dashboards -------------------------------------------
+#
+# Dieselbe Regel wie fuer den Spielekatalog, an einer zweiten Stelle: Ein Modul
+# ist ein Dienst fuer Menschen, nicht fuer Spieler - JEDER seiner Ports gehoert
+# auf 127.0.0.1, davor steht Caddy mit der Anmeldung des Panels. Bis #163 stand
+# die Portregel nur als Kopie im Generator und griff nie; eine zweite Liste ohne
+# eigene Pruefung waere derselbe Fehler noch einmal.
+# *The same rule as for the game catalogue, at a second place: every port of a
+#  module belongs on localhost. A second list without its own check would repeat
+#  the mistake of #163.*
+echo "== Ports der Module (alle auf 127.0.0.1) =="
+if [ -f etc/module-katalog.json ]; then
+  python3 - <<'PY' || fehler=1
+import json, sys
+schlecht = 0
+for m in json.load(open("etc/module-katalog.json")).get("module", []):
+    for p in m.get("ports", []):
+        if not p.startswith("127.0.0.1:"):
+            print(f"  {m['schluessel']}: {p} bindet nicht auf 127.0.0.1")
+            schlecht += 1
+    for f in ("route", "ziel", "rolle", "daten"):
+        if not m.get(f):
+            print(f"  {m['schluessel']}: Feld '{f}' fehlt")
+            schlecht += 1
+    if m.get("ziel") and not m["ziel"].startswith("127.0.0.1:"):
+        print(f"  {m['schluessel']}: Ziel {m['ziel']} liegt nicht auf 127.0.0.1")
+        schlecht += 1
+    for s in m.get("schalter", []):
+        if s.get("art") not in ("profil", "sammler", "grafana"):
+            print(f"  {m['schluessel']}/{s.get('name')}: unbekannte Art {s.get('art')!r}")
+            schlecht += 1
+    for e in m.get("einstellungen", []):
+        if e.get("vorgabe") not in e.get("werte", []):
+            print(f"  {m['schluessel']}/{e.get('name')}: Vorgabe steht nicht in den Werten")
+            schlecht += 1
+print(f"  {len(json.load(open('etc/module-katalog.json')).get('module', []))} Modul(e) - Ports in Ordnung."
+      if not schlecht else f"  {schlecht} Beanstandung(en)")
+sys.exit(1 if schlecht else 0)
+PY
+fi
+
+# Dashboards sind erzeugt (werkzeuge/statistik-dashboards.py). Von Hand
+# nachgebessert weichen sie vom Generator ab, und der naechste Lauf wirft die
+# Handarbeit weg - lieber hier melden.
+# *Dashboards are generated; hand edits drift and the next run discards them.*
+echo "== Stimmen die Grafana-Dashboards mit ihrem Generator? =="
+if [ -f werkzeuge/statistik-dashboards.py ]; then
+  python3 werkzeuge/statistik-dashboards.py --pruefen || fehler=1
+fi
+
 echo
 [ $fehler -eq 0 ] && echo "vollstaendig." || echo "UNVOLLSTAENDIG — siehe oben."
 exit $fehler

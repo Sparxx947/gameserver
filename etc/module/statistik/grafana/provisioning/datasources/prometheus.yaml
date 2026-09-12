@@ -1,0 +1,14 @@
+# Feste uid: Die Dashboards im Repositorium verweisen darauf. Ohne feste uid
+# vergibt Grafana beim ersten Start eine zufaellige, und jedes mitgelieferte
+# Dashboard zeigt "Datasource not found" - sichtbar erst beim Ansehen.
+# *A fixed uid: the dashboards reference it; a random one breaks every shipped
+#  dashboard, and only when someone opens it.*
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    uid: platzwart-prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false

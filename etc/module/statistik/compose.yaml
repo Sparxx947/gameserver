@@ -1,0 +1,143 @@
+# Modul "Statistik" — Prometheus speichert, Grafana zeigt, node_exporter misst.
+#
+# Diese Datei wird NICHT bearbeitet: Die Oberflaeche setzt nur Profile (welche
+# optionalen Dienste laufen) und Werte in der .env daneben, beides gegen eine
+# Positivliste geprueft. So bleibt die compose-Datei byte-gleich mit der
+# Vorlage im Repositorium und der Abgleich sieht jede Abweichung.
+# *Never edited: the panel only sets profiles and .env values, both checked
+#  against an allow-list, so this file stays byte-identical to the template.*
+#
+# Kein Port zeigt nach aussen. Grafana lauscht auf 127.0.0.1; davor steht Caddy
+# mit der Anmeldung des Panels. Prometheus und die Exporter sind nur im
+# compose-Netz erreichbar und veroeffentlichen ueberhaupt keinen Port.
+# *No port faces outward: Grafana on localhost behind Caddy and the panel's
+#  login, everything else only inside the compose network.*
+
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: statistik-prometheus
+    restart: unless-stopped
+    user: "65534:65534"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      # Zwei Grenzen, und die Platte greift zuerst: Eine reine Zeitgrenze
+      # laesst die Datenbank wachsen, bis die Platte voll ist - und dann steht
+      # nicht die Statistik, sondern der Spielserver daneben.
+      # *Two limits, size first: a time-only limit grows until the disk is full,
+      #  and then it is not the statistics that stop but the game server.*
+      - --storage.tsdb.retention.time=${AUFBEWAHRUNG}
+      - --storage.tsdb.retention.size=${PLATTE_GB}GB
+      - --web.enable-lifecycle
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - /srv/dienste/statistik/prometheus:/prometheus
+    mem_limit: 1g
+
+  grafana:
+    image: grafana/grafana-oss:latest
+    container_name: statistik-grafana
+    restart: unless-stopped
+    user: "472:472"
+    depends_on:
+      - prometheus
+    environment:
+      GF_SERVER_ROOT_URL: https://@@PANEL_DOMAIN@@/statistik/
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      # Anmeldung kommt vom Panel: Caddy fragt vorher /auth-statistik und reicht
+      # Benutzer und Rolle als Kopfzeile weiter. Grafana legt den Benutzer an
+      # und meldet ihn an - kein zweites Passwort, keine zweite Benutzerliste.
+      # Das eigene Anmeldeformular ist deshalb AUS: Es waere ein zweiter Weg
+      # hinein, an der Anmeldung des Panels vorbei.
+      # *The panel authenticates: Caddy asks it first and passes user and role
+      #  as headers. Grafana's own login form stays off - it would be a second
+      #  way in, past the panel's login.*
+      GF_AUTH_PROXY_ENABLED: "true"
+      GF_AUTH_PROXY_HEADER_NAME: X-Webauth-User
+      GF_AUTH_PROXY_HEADER_PROPERTY: username
+      GF_AUTH_PROXY_HEADERS: Role:X-Webauth-Role
+      GF_AUTH_PROXY_AUTO_SIGN_UP: "true"
+      GF_AUTH_PROXY_SYNC_TTL: "60"
+      # Nur aus dem Docker-Netz, also von Caddy auf dieser Maschine: Der Port
+      # ist ohnehin an 127.0.0.1 gebunden, aber eine Kopfzeile, die jeden
+      # anmeldet, braucht beide Schloesser.
+      # *Only from the docker bridge: the port is bound to localhost anyway, but
+      #  a header that logs anyone in deserves both locks.*
+      GF_AUTH_PROXY_WHITELIST: 172.16.0.0/12
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_AUTH_BASIC_ENABLED: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_USERS_AUTO_ASSIGN_ORG_ROLE: Viewer
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      GF_LOG_MODE: console
+      # Gewuerfelt von modul-verwalten und in der .env abgelegt. Das eingebaute
+      # Konto ist ohne Anmeldeformular und ohne Basic Auth nicht benutzbar -
+      # aber "admin/admin" soll auch dann nicht dastehen.
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PW}
+    ports:
+      - "127.0.0.1:19030:3000"
+    volumes:
+      - /srv/dienste/statistik/grafana:/var/lib/grafana
+      # Erzeugt: Datenquelle, Dashboard-Anbieter und - nur wenn eingeschaltet -
+      # die Alarmregeln. Deshalb aus dem Stack-Verzeichnis und nicht aus /etc.
+      - ./grafana-provisioning:/etc/grafana/provisioning:ro
+      - /etc/module/statistik/grafana/dashboards:/var/lib/grafana/dashboards-platzwart:ro
+    mem_limit: 512m
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: statistik-node
+    restart: unless-stopped
+    pid: host
+    command:
+      - --path.rootfs=/host
+      # Der Textdatei-Sammler ist der Grund, warum hier kein cAdvisor stehen
+      # muss: platzwart-metriken schreibt auf der Maschine .prom-Dateien, und
+      # node_exporter liest sie mit. Kein Docker-Socket in einem Container.
+      # *The textfile collector is why no cAdvisor is needed by default:
+      #  platzwart-metriken writes .prom files on the host and node_exporter
+      #  reads them - no Docker socket in a container.*
+      - --collector.textfile.directory=/textfile
+    volumes:
+      - /:/host:ro,rslave
+      - /var/lib/platzwart-metriken:/textfile:ro
+    mem_limit: 128m
+
+  # --- Nur mit Profil: kostet Speicher oder weicht eine Grenze auf ----------
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: statistik-cadvisor
+    restart: unless-stopped
+    profiles: ["cadvisor"]
+    # ACHTUNG: Dieser Container liest den Docker-Socket. Wer den Socket hat,
+    # kann jeden Container starten, auch einen mit "/" darin - er ist damit
+    # faktisch root. Deshalb steht er hinter einem Profil, ist ab Werk aus und
+    # die Oberflaeche verlangt dafuer eine eigene Bestaetigung.
+    # *This container reads the Docker socket and is therefore effectively root.
+    #  Hence a profile, off by default, with its own confirmation in the panel.*
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    devices:
+      - /dev/kmsg
+    mem_limit: 512m
+
+  blackbox:
+    image: prom/blackbox-exporter:latest
+    container_name: statistik-probe
+    restart: unless-stopped
+    profiles: ["probe"]
+    # Diese Probe laeuft AUF der Maschine. Sie beweist, dass hier etwas lauscht
+    # - nicht, dass es durch Firewall und Anbieter hindurchkommt. Der
+    # Unterschied hat hier schon einmal Zeit gekostet.
+    # *Runs on the machine: it proves something listens here, not that it is
+    #  reachable from outside.*
+    mem_limit: 128m

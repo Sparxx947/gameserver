@@ -1,0 +1,91 @@
+{
+  "_hinweis": "Module sind KEINE Spiele. Der Spielekatalog bringt Beitrittspasswort, DNS-Name, Kanal und Spielerzaehlung mit - ein Dienst braucht nichts davon, und eine gelockerte Fassung des Spielwegs waere eine Rechteausweitung (CLAUDE.md, Grenze 2). Deshalb eine eigene Liste mit eigener Aktion und eigener Positivliste. *Modules are not games: the game path brings join passwords, DNS names, channels and player counting, and a loosened version of it would widen rights. Hence their own list, action and allow-list.*",
+  "_schalter_arten": "profil = ein compose-Profil (eigener Container); sammler = nur eine Quelle im Sammler platzwart-metriken, kein Container; grafana = wirkt in der Grafana-Bereitstellung.",
+  "module": [
+    {
+      "schluessel": "statistik",
+      "name": "Statistik",
+      "kurz": "Langzeitzahlen: Prometheus speichert, Grafana zeigt, node_exporter misst die Maschine.",
+      "mem_gb": 1,
+      "platte_gb": 8,
+      "daten": "/srv/dienste/statistik",
+      "unterordner": ["prometheus", "grafana"],
+      "ports": ["127.0.0.1:19030:3000/tcp"],
+      "route": "/statistik",
+      "rolle": "verwalten",
+      "ziel": "127.0.0.1:19030",
+      "csp": "grafana",
+      "ausschluss": ["/srv/dienste/statistik/prometheus"],
+      "schalter": [
+        {
+          "name": "zahlen",
+          "titel": "Platzwart-Zahlen",
+          "art": "sammler",
+          "vorgabe": true,
+          "beschreibung": "CPU, Speicher und Netz je Spielserver, Spielerzahlen, Groesse und Alter der Sicherungen, Platte je Server. Misst der Sammler auf der Maschine - kein Container, kein Docker-Socket."
+        },
+        {
+          "name": "caddy",
+          "titel": "Caddy-Zugriffe",
+          "art": "sammler",
+          "vorgabe": false,
+          "beschreibung": "Anfragen, Antwortzeiten und Zertifikatslage aus Caddys Verwaltungsschnittstelle auf 127.0.0.1:2019. Der Sammler holt sie; es kommt kein Port und kein Container dazu."
+        },
+        {
+          "name": "tailscale",
+          "titel": "Tailscale",
+          "art": "sammler",
+          "vorgabe": false,
+          "beschreibung": "Verbindungen und Durchsatz im Tailnet, aus 'tailscale status'. Ohne Tailscale auf der Maschine bleibt der Schalter wirkungslos."
+        },
+        {
+          "name": "cadvisor",
+          "titel": "Container-Tiefenwerte (cAdvisor)",
+          "art": "profil",
+          "vorgabe": false,
+          "warnung": "cAdvisor braucht den Docker-Socket. Ein Container mit diesem Socket kann jeden anderen Container starten, auch einen mit dem ganzen Dateisystem darin - er ist damit faktisch root auf der Maschine. Die Oberflaeche selbst bekommt den Socket weiterhin NICHT (Grenze 1); hier entscheidest du bewusst fuer einen zusaetzlichen Container.",
+          "beschreibung": "Platten-I/O je Container, gedrosselte CPU-Zeit, OOM-Ereignisse, Sekundenaufloesung."
+        },
+        {
+          "name": "probe",
+          "titel": "Erreichbarkeitsprobe",
+          "art": "profil",
+          "vorgabe": false,
+          "warnung": "Diese Probe laeuft AUF dieser Maschine. Sie sagt, ob ein Dienst hier lauscht - nicht, ob er durch Firewall und Anbieter hindurch von aussen erreichbar ist. Wer das verwechselt, untersucht am Ende den Messpunkt statt das Ziel.",
+          "beschreibung": "blackbox_exporter prueft regelmaessig die Spiel- und Panelports."
+        },
+        {
+          "name": "alarme",
+          "titel": "Alarme nach Discord",
+          "art": "grafana",
+          "vorgabe": false,
+          "warnung": "Die Wache meldet Absturz, Sicherung und volle Platte bereits. Alarme aus Grafana koennen dieselbe Lage ein zweites Mal melden.",
+          "beschreibung": "Grafana meldet in den Stoerungskanal aus /etc/platzwart-melden.conf: Platte laeuft in 14 Tagen voll, Speicher dauerhaft knapp, Sicherung zu alt, Server unerwartet aus."
+        }
+      ],
+      "einstellungen": [
+        {
+          "name": "aufbewahrung",
+          "titel": "Aufbewahrung",
+          "werte": ["30d", "90d", "365d"],
+          "vorgabe": "90d",
+          "beschreibung": "Wie weit zurueck Prometheus Werte haelt. Die Obergrenze der Platte steht daneben und greift zuerst."
+        },
+        {
+          "name": "platte_gb",
+          "titel": "Platte fuer Messwerte",
+          "werte": ["1", "2", "5", "10"],
+          "vorgabe": "2",
+          "beschreibung": "Obergrenze der Zeitreihendatenbank in GB. Ist sie erreicht, wirft Prometheus die aeltesten Werte weg - auch vor Ablauf der Aufbewahrung."
+        },
+        {
+          "name": "messabstand",
+          "titel": "Messabstand des Sammlers",
+          "werte": ["30s", "1min", "5min"],
+          "vorgabe": "5min",
+          "beschreibung": "Wie oft der Sammler die Platzwart-Zahlen schreibt. 'docker stats' kostet je Lauf rund zwei Sekunden; die Maschinenwerte misst node_exporter unabhaengig davon alle 30 Sekunden."
+        }
+      ]
+    }
+  ]
+}

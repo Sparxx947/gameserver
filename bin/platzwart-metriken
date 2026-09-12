@@ -1,0 +1,409 @@
+#!/usr/bin/env python3
+"""platzwart-metriken — schreibt die Zahlen des Platzwarts fuer Prometheus.
+
+Der uebliche Weg zu Container-Metriken ist cAdvisor, und cAdvisor will den
+Docker-Socket. Wer den Socket hat, kann einen Container mit "/" darin starten
+und ist damit root auf der Maschine - genau die Grenze, auf der dieses Projekt
+steht (CLAUDE.md, Grenze 1). Deshalb misst dieses Programm auf der MASCHINE als
+root und legt Textdateien ab; node_exporter liest sie mit (textfile collector)
+und Prometheus holt sie dort ab. Kein Socket in einem Container.
+
+*The usual route to container metrics is cAdvisor, which wants the Docker
+ socket - and whoever holds it is effectively root. So this runs on the host and
+ writes text files that node_exporter picks up. No socket in a container.*
+
+  platzwart-metriken [--zeigen] [--selbsttest]
+
+Geschrieben wird nach /var/lib/platzwart-metriken/*.prom, jede Datei ueber eine
+temporaere Datei und rename(): Der Sammler in node_exporter liest die Dateien
+jederzeit, und eine halb geschriebene Datei wird als kaputt verworfen - dann
+fehlen alle Werte, nicht nur die neuen.
+
+*Each file is written via a temporary file and rename(): the collector may read
+ at any moment, and a half-written file is discarded whole.*
+
+Welche Quellen laufen, steht in /opt/stacks/statistik/modul.json - dieselben
+Schalter, die die Oberflaeche setzt. Fehlt die Datei, laeuft nur der Grundsatz
+("zahlen").
+"""
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+ZIEL = Path(os.environ.get("METRIKEN_ZIEL", "/var/lib/platzwart-metriken"))
+MODUL = Path(os.environ.get("METRIKEN_MODUL", "/opt/stacks/statistik/modul.json"))
+SPIELER = Path(os.environ.get("METRIKEN_SPIELER", "/var/lib/platzwart-spieler.json"))
+GROESSEN = Path(os.environ.get("METRIKEN_GROESSEN", "/var/lib/spiele-sicherung.groessen"))
+SCHLAF = Path(os.environ.get("METRIKEN_SCHLAF", "/var/lib/platzwart-schlaf.liste"))
+AUTOUPDATE = Path(os.environ.get("METRIKEN_AUTOUPDATE", "/var/lib/spiele-autoupdate.liste"))
+STACKS = Path(os.environ.get("METRIKEN_STACKS", "/opt/stacks"))
+PLATTE_STAND = ZIEL / ".platte.json"
+# Platte messen kostet: "du" laeuft ueber zehntausende Dateien. Alle fuenf
+# Minuten waere das Unfug fuer einen Wert, der sich in Stunden bewegt.
+# *Measuring disk usage walks tens of thousands of files; pointless every five
+#  minutes for a value that moves over hours.*
+PLATTE_ALTER_S = int(os.environ.get("METRIKEN_PLATTE_ALTER", "3600"))
+CADDY_URL = os.environ.get("METRIKEN_CADDY_URL", "http://127.0.0.1:2019/metrics")
+
+
+def fehler(*t):
+    print("FEHLER:", *t, file=sys.stderr)
+    sys.exit(1)
+
+
+# --- Ausgabe -----------------------------------------------------------------
+class Datei:
+    """Sammelt Zeilen und schreibt sie in einem Zug."""
+
+    def __init__(self, name):
+        self.pfad = ZIEL / name
+        self.zeilen = []
+        self.bekannt = set()
+
+    def wert(self, name, wert, labels=None, hilfe=None, art="gauge"):
+        if name not in self.bekannt:
+            self.bekannt.add(name)
+            if hilfe:
+                self.zeilen.append(f"# HELP {name} {hilfe}")
+            self.zeilen.append(f"# TYPE {name} {art}")
+        if labels:
+            teile = ",".join(f'{k}="{str(v)}"' for k, v in labels.items())
+            name = f"{name}{{{teile}}}"
+        self.zeilen.append(f"{name} {wert}")
+
+    def roh(self, text):
+        self.zeilen.append(text.rstrip("\n"))
+
+    def schreiben(self):
+        ZIEL.mkdir(parents=True, exist_ok=True)
+        ZIEL.chmod(0o755)
+        tmp = self.pfad.with_suffix(".prom.neu")
+        tmp.write_text("\n".join(self.zeilen) + "\n")
+        tmp.chmod(0o644)
+        tmp.rename(self.pfad)
+
+
+def wegwerfen(name):
+    """Eine Quelle ist aus: ihre Datei muss WEG, sonst zeigt Prometheus den
+    letzten Stand fuer immer weiter - ein eingefrorener Wert sieht aus wie ein
+    gemessener.
+    *A switched-off source must have its file removed, or the last value lives
+     on forever and looks measured.*"""
+    p = ZIEL / name
+    if p.exists():
+        p.unlink()
+
+
+# --- Quellen -----------------------------------------------------------------
+def schalter() -> dict:
+    an = {"zahlen": True, "caddy": False, "tailscale": False}
+    try:
+        d = json.loads(MODUL.read_text())
+        for k in list(an):
+            if k in d.get("schalter", {}):
+                an[k] = bool(d["schalter"][k])
+    except Exception:
+        pass
+    return an
+
+
+def _bytes(s: str) -> float:
+    """"1.259GiB" -> Bytes. Docker mischt die Einheiten je nach Groesse."""
+    s = s.strip()
+    for endung, faktor in (("GiB", 1024**3), ("MiB", 1024**2), ("KiB", 1024),
+                           ("GB", 1e9), ("MB", 1e6), ("kB", 1e3), ("B", 1)):
+        if s.endswith(endung):
+            try:
+                return float(s[: -len(endung)]) * faktor
+            except ValueError:
+                return 0.0
+    return 0.0
+
+
+def docker_stats() -> dict:
+    """{name: (bytes, cpu, netz_rein, netz_raus)} der laufenden Container.
+
+    EIN Aufruf fuer alle Container: je Container gerufen kostete dieselbe
+    Auskunft im Panel 13,2 statt 2,0 Sekunden (gemessen 2026-09-06)."""
+    try:
+        r = subprocess.run(["docker", "stats", "--no-stream", "--format",
+                            "{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}"],
+                           capture_output=True, text=True, timeout=60)
+    except Exception:
+        return {}
+    werte = {}
+    for z in r.stdout.splitlines():
+        f = z.split("\t")
+        if len(f) < 4:
+            continue
+        name, cpu, mem, netz = f[0], f[1], f[2], f[3]
+        try:
+            cpu_z = float(cpu.rstrip("%").replace(",", "."))
+        except ValueError:
+            cpu_z = 0.0
+        rein, _, raus = netz.partition("/")
+        werte[name] = (_bytes(mem.split("/")[0]), cpu_z, _bytes(rein), _bytes(raus))
+    return werte
+
+
+def stacks() -> list:
+    return sorted(p.name for p in STACKS.glob("*") if p.is_dir()) if STACKS.exists() else []
+
+
+def datenpfad(s: str):
+    for basis in ("/srv/games", "/srv/dienste"):
+        p = Path(basis) / s
+        if p.is_dir():
+            return p
+    return None
+
+
+def platte(namen) -> dict:
+    """{stack: bytes}, hoechstens stuendlich neu gemessen."""
+    stand = {}
+    try:
+        stand = json.loads(PLATTE_STAND.read_text())
+    except Exception:
+        pass
+    jetzt = time.time()
+    for s in namen:
+        alt = stand.get(s)
+        if alt and jetzt - alt[1] < PLATTE_ALTER_S:
+            continue
+        p = datenpfad(s)
+        if not p:
+            continue
+        try:
+            r = subprocess.run(["du", "-sb", str(p)], capture_output=True,
+                               text=True, timeout=600)
+            stand[s] = [int(r.stdout.split()[0]), jetzt]
+        except Exception:
+            continue
+    for s in list(stand):
+        if s not in namen:
+            del stand[s]
+    try:
+        PLATTE_STAND.parent.mkdir(parents=True, exist_ok=True)
+        PLATTE_STAND.write_text(json.dumps(stand))
+    except Exception:
+        pass
+    return {s: w[0] for s, w in stand.items()}
+
+
+def liste(pfad: Path) -> set:
+    try:
+        return {z.strip() for z in pfad.read_text().splitlines() if z.strip()}
+    except Exception:
+        return set()
+
+
+def spieler() -> dict:
+    try:
+        return json.loads(SPIELER.read_text())
+    except Exception:
+        return {}
+
+
+def sicherungen() -> dict:
+    """{archiv: (bytes, zeit)} aus /var/lib/spiele-sicherung.groessen."""
+    werte = {}
+    try:
+        for z in GROESSEN.read_text().splitlines():
+            f = z.split()
+            if len(f) >= 3:
+                werte[f[0]] = (int(f[1]), int(f[2]))
+    except Exception:
+        pass
+    return werte
+
+
+def caddy_zeilen() -> list:
+    """Nur die caddy_*-Zeilen. Caddys Ausgabe enthaelt auch go_* und process_*,
+    und die hat node_exporter selbst - doppelte Zeitreihen lassen den ganzen
+    Abruf scheitern, nicht nur die doppelten.
+    *Only caddy_* lines: go_* and process_* would collide with node_exporter's
+     own and break the whole scrape, not just the duplicates.*"""
+    try:
+        import urllib.request
+        with urllib.request.urlopen(CADDY_URL, timeout=10) as a:
+            text = a.read().decode("utf-8", "replace")
+    except Exception:
+        return []
+    return [z for z in text.splitlines()
+            if z.startswith("caddy_")
+            or (z.startswith("# ") and " caddy_" in z)]
+
+
+def tailscale_werte():
+    try:
+        r = subprocess.run(["tailscale", "status", "--json"], capture_output=True,
+                           text=True, timeout=30)
+        d = json.loads(r.stdout)
+    except Exception:
+        return None
+    peers = d.get("Peer") or {}
+    return {"verbunden": 1 if d.get("BackendState") == "Running" else 0,
+            "peers": len(peers),
+            "peers_online": sum(1 for p in peers.values() if p.get("Online")),
+            "rx": sum(int(p.get("RxBytes") or 0) for p in peers.values()),
+            "tx": sum(int(p.get("TxBytes") or 0) for p in peers.values())}
+
+
+# --- Lauf --------------------------------------------------------------------
+def lauf(zeigen=False):
+    begonnen = time.time()
+    an = schalter()
+    d = Datei("platzwart.prom")
+    namen = stacks()
+
+    if an["zahlen"]:
+        st = docker_stats()
+        sp = spieler()
+        schlafend = liste(SCHLAF)
+        autoupdate = liste(AUTOUPDATE)
+        pl = platte(namen)
+        sich = sicherungen()
+        for s in namen:
+            laeuft = 1 if s in st else 0
+            d.wert("platzwart_server_laeuft", laeuft, {"stack": s},
+                   "1, wenn der Container des Servers laeuft")
+            if laeuft:
+                mem, cpu, rein, raus = st[s]
+                d.wert("platzwart_server_speicher_bytes", int(mem), {"stack": s},
+                       "Belegter Arbeitsspeicher des Containers")
+                d.wert("platzwart_server_cpu_prozent", cpu, {"stack": s},
+                       "Prozessorlast des Containers in Prozent eines Kerns")
+                d.wert("platzwart_server_netz_bytes_total", int(rein),
+                       {"stack": s, "richtung": "herein"},
+                       "Netzverkehr des Containers seit seinem Start", "counter")
+                d.wert("platzwart_server_netz_bytes_total", int(raus),
+                       {"stack": s, "richtung": "hinaus"}, art="counter")
+            d.wert("platzwart_schlaeft", 1 if s in schlafend else 0, {"stack": s},
+                   "1, wenn der Server im Leerlauf schlaeft")
+            d.wert("platzwart_autoupdate", 1 if s in autoupdate else 0, {"stack": s},
+                   "1, wenn das automatische Update fuer den Server an ist")
+            if s in pl:
+                d.wert("platzwart_platte_bytes", pl[s], {"stack": s},
+                       "Belegte Platte der Spieldaten")
+        for s, w in sp.items():
+            if not isinstance(w, dict):
+                continue
+            if isinstance(w.get("spieler"), int):
+                d.wert("platzwart_spieler", w["spieler"], {"stack": s},
+                       "Spieler auf dem Server")
+            if isinstance(w.get("max"), int):
+                d.wert("platzwart_spieler_max", w["max"], {"stack": s},
+                       "Plaetze auf dem Server")
+        for name, (gr, zeit) in sich.items():
+            d.wert("platzwart_sicherung_groesse_bytes", gr, {"archiv": name},
+                   "Deduplizierte Groesse des letzten Archivs", "gauge")
+            d.wert("platzwart_sicherung_zeit_sekunden", zeit, {"archiv": name},
+                   "Zeitpunkt des letzten Archivs (Unixzeit)")
+    else:
+        d.zeilen.append("# Schalter 'zahlen' ist aus.")
+
+    if an["tailscale"]:
+        t = tailscale_werte()
+        if t:
+            d.wert("platzwart_tailscale_verbunden", t["verbunden"], None,
+                   "1, wenn Tailscale laeuft und verbunden ist")
+            d.wert("platzwart_tailscale_peers", t["peers"], None, "Bekannte Gegenstellen")
+            d.wert("platzwart_tailscale_peers_online", t["peers_online"], None,
+                   "Davon gerade erreichbar")
+            d.wert("platzwart_tailscale_bytes_total", t["rx"], {"richtung": "herein"},
+                   "Verkehr im Tailnet", "counter")
+            d.wert("platzwart_tailscale_bytes_total", t["tx"], {"richtung": "hinaus"},
+                   art="counter")
+
+    d.wert("platzwart_metriken_lauf_zeit_sekunden", int(begonnen), None,
+           "Zeitpunkt des letzten Sammlerlaufs (Unixzeit)")
+    d.wert("platzwart_metriken_dauer_sekunden", round(time.time() - begonnen, 3), None,
+           "Dauer des letzten Sammlerlaufs")
+
+    if zeigen:
+        print("\n".join(d.zeilen))
+    else:
+        d.schreiben()
+
+    if an["caddy"]:
+        zeilen = caddy_zeilen()
+        if zeilen:
+            c = Datei("caddy.prom")
+            for z in zeilen:
+                c.roh(z)
+            if zeigen:
+                print("\n".join(c.zeilen[:5]), "...")
+            else:
+                c.schreiben()
+        elif not zeigen:
+            wegwerfen("caddy.prom")
+    elif not zeigen:
+        wegwerfen("caddy.prom")
+    return 0
+
+
+def selbsttest():
+    import tempfile
+    schlecht = 0
+
+    def pruefe(bedingung, was):
+        nonlocal schlecht
+        print(f"  {'ok    ' if bedingung else 'FEHLER'} {was}")
+        if not bedingung:
+            schlecht += 1
+
+    pruefe(_bytes("1.5GiB") == 1.5 * 1024**3, "Einheit GiB")
+    pruefe(_bytes("512MiB") == 512 * 1024**2, "Einheit MiB")
+    pruefe(_bytes("quatsch") == 0.0, "unbekannte Einheit -> 0")
+    tmp = Path(tempfile.mkdtemp())
+    globals()["ZIEL"] = tmp
+    globals()["PLATTE_STAND"] = tmp / ".platte.json"
+    globals()["MODUL"] = tmp / "modul.json"
+    globals()["SPIELER"] = tmp / "spieler.json"
+    globals()["GROESSEN"] = tmp / "groessen"
+    globals()["SCHLAF"] = tmp / "schlaf"
+    globals()["AUTOUPDATE"] = tmp / "auto"
+    globals()["STACKS"] = tmp / "stacks"
+    (tmp / "stacks/valheim").mkdir(parents=True)
+    (tmp / "groessen").write_text("valheim 1234 1700000000\nconfig 99 1700000001\n")
+    (tmp / "spieler.json").write_text(json.dumps({"valheim": {"spieler": 3, "max": 10}}))
+    (tmp / "schlaf").write_text("valheim\n")
+    (tmp / "modul.json").write_text(json.dumps({"schalter": {"zahlen": True, "caddy": False}}))
+    lauf()
+    text = (tmp / "platzwart.prom").read_text()
+    pruefe('platzwart_spieler{stack="valheim"} 3' in text, "Spielerzahl geschrieben")
+    pruefe('platzwart_schlaeft{stack="valheim"} 1' in text, "Schlafzustand geschrieben")
+    pruefe('platzwart_sicherung_groesse_bytes{archiv="valheim"} 1234' in text,
+           "Sicherungsgroesse geschrieben")
+    pruefe("# TYPE platzwart_sicherung_zeit_sekunden gauge" in text, "TYPE-Zeile je Name")
+    pruefe(text.count("# TYPE platzwart_spieler ") == 1, "TYPE-Zeile nur einmal")
+    pruefe(text.endswith("\n"), "Datei endet mit Zeilenumbruch")
+    pruefe(not list(tmp.glob("*.neu")), "keine halbe Datei liegen geblieben")
+    # Alarmpfad: Schalter aus -> die Werte duerfen NICHT mehr dastehen.
+    (tmp / "modul.json").write_text(json.dumps({"schalter": {"zahlen": False}}))
+    lauf()
+    pruefe("platzwart_spieler{" not in (tmp / "platzwart.prom").read_text(),
+           "Schalter aus -> keine Werte")
+    # Eine alte caddy.prom muss verschwinden, wenn der Schalter aus ist.
+    (tmp / "caddy.prom").write_text("caddy_alt 1\n")
+    lauf()
+    pruefe(not (tmp / "caddy.prom").exists(), "abgeschalteter Quelle ihre Datei genommen")
+    shutil.rmtree(tmp)
+    print()
+    if schlecht:
+        print(f"{schlecht} FEHLER")
+        return 1
+    print("alles gruen.")
+    return 0
+
+
+if __name__ == "__main__":
+    if "--selbsttest" in sys.argv:
+        sys.exit(selbsttest())
+    if os.geteuid() != 0 and "--zeigen" not in sys.argv:
+        fehler("als root ausfuehren (oder --zeigen)")
+    sys.exit(lauf(zeigen="--zeigen" in sys.argv))

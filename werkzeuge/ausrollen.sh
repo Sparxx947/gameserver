@@ -76,6 +76,9 @@ wohin() {
     etc/spiele-adressen.json) echo "/etc/spiele-adressen.json 0644 root:root" ;;
     etc/spiele-mods.json) echo "/etc/spiele-mods.json 0644 root:root" ;;
     etc/spiele-workshop.json) echo "/etc/spiele-workshop.json 0644 root:root" ;;
+    etc/module-katalog.json) echo "/etc/module-katalog.json 0644 root:root" ;;
+    # Vorlagen der Zusatzmodule, Pfad fuer Pfad wie unter /etc/module.
+    etc/module/*)        echo "/etc/module/${1#etc/module/} 0644 root:root" ;;
     # Die Symbole erzeugt werkzeuge/logo.py; sie gehoeren dem Panelnutzer,
     # weil bilder/ das einzige beschreibbare Verzeichnis des Panels ist.
     panel/bilder/*) echo "/opt/panel/bilder/${1#panel/bilder/} 0644 panel:panel" ;;

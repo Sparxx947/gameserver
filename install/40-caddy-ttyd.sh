@@ -125,6 +125,18 @@ else
 fi
 chmod 0644 "$ZERT_KONF"
 
+# Die Routendatei der Zusatzmodule. Leer, aber vorhanden: Die Caddyfile bindet
+# sie unbedingt ein, ein fehlender Import bricht "caddy validate" ab - und
+# vorhandene Routen darf diese Stufe nicht wegwerfen, deshalb nur anlegen,
+# wenn sie fehlt.
+# *Empty but present: the Caddyfile imports it unconditionally. Only created
+#  when missing, so an existing module route survives a re-run of this stage.*
+MODUL_KONF=/etc/caddy/module.conf
+if [ ! -f "$MODUL_KONF" ]; then
+  printf '# Erzeugt von modul-verwalten. Ohne Modul leer.\n' > "$MODUL_KONF"
+fi
+chmod 0644 "$MODUL_KONF"
+
 log "Konfiguration"
 einsetzen "$REPO/etc/caddy/Caddyfile" /etc/caddy/Caddyfile 0644 root:root
 einsetzen "$REPO/systemd/ttyd.service" /etc/systemd/system/ttyd.service

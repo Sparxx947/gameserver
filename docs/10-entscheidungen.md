@@ -1241,3 +1241,71 @@ Stelle ändert, fällt dort auf.
 > without a valid configuration) and so keeps its own validation — the same
 > rules in two places, cushioned by `lib.sh` re-checking the written file on the
 > first stage run.*
+
+---
+
+## E35 — Module gehen einen eigenen Weg, nicht den der Spiele
+
+**Naheliegend wäre:** Das Statistik-Modul als Eintrag im Spielekatalog — die
+Kategorie „Dienste" gibt es schon, TeamSpeak steht darin, und der Installer
+funktioniert.
+
+**Stattdessen** ein zweiter, kleiner Weg: `etc/module-katalog.json`,
+`modul-verwalten`, `panel-aktion modul …` (#261).
+
+**Warum:** Der Spielweg bringt Beitrittspasswort, DNS-Name, Kanal,
+Spielerzählung, Endsicherung und die Regel mit, dass der Port erst nach dem
+bestätigten Passwort aufgeht (E23, E26, E27). Ein Dienst braucht nichts davon.
+Ihn dort durchzuschicken hieße, Ausnahmen in genau den Code zu bauen, der keine
+haben darf — „wenn kein Spiel, dann kein Passwort, dann kein Port". CLAUDE.md
+verlangt für eine neue Fähigkeit eine **eigene** Prüfung statt einer gelockerten
+bestehenden (Grenze 2); ein Modul ist eine neue Fähigkeit.
+
+**Dagegen:** Zwei Wege, die Ähnliches tun — Stack anlegen, Ports prüfen, Platz
+prüfen. Die Dopplung ist gewollt und klein gehalten: Der Modulweg kann weniger,
+nicht mehr. Er veröffentlicht keine Ports nach außen, vergibt keine Passwörter
+und fasst kein Spielverzeichnis an.
+
+> *E35 — modules take their own path, not the games'. The obvious route would be
+> a catalogue entry (the "services" category exists and TeamSpeak uses it).
+> Instead: a second, small path with its own catalogue, tool and bridge action.
+> The game path brings join passwords, DNS names, channels, player counting, a
+> final backup and the rule that the port opens only after a confirmed password;
+> a service needs none of it, and routing it through would build exceptions into
+> exactly the code that must not have them. A new capability gets its own check
+> (boundary 2). Against: two paths doing similar things — deliberate and kept
+> small, since the module path can do less, not more: no outward ports, no
+> passwords, no game directories.*
+
+## E36 — Container-Zahlen kommen vom Sammler, nicht von cAdvisor
+
+**Naheliegend wäre:** Prometheus, node_exporter und **cAdvisor** — das übliche
+Rezept für Container-Metriken, in jeder Anleitung so beschrieben.
+
+**Stattdessen** misst `platzwart-metriken` auf der Maschine und legt
+Textdateien ab, die node_exporter mitliest.
+
+**Warum:** cAdvisor will den Docker-Socket. Wer den Socket hat, kann einen
+Container mit dem ganzen Dateisystem darin starten — er ist damit faktisch root.
+Die Oberfläche bekommt ihn deshalb nie (Grenze 1), und es wäre merkwürdig, ihn
+stattdessen einem Beobachtungscontainer zu geben, damit man Kurven sieht.
+
+Der Sammler misst ohnehin, was gebraucht wird, und liefert dazu, was cAdvisor
+gar nicht weiß: Spielerzahlen, Größe und Alter der Sicherungen, belegte Platte
+je Spiel, Schlaf- und Update-Zustand. Damit zeigen die Dashboards **diese**
+Maschine und nicht irgendein Container-Monitoring.
+
+**Nicht verboten, nur aus:** cAdvisor steht als Schalter im Katalog, hinter einer
+Bestätigungsseite, die den Preis nennt. Wer Platten-I/O je Container oder
+OOM-Ereignisse braucht, entscheidet das bewusst — und sieht dabei, was er
+eintauscht.
+
+> *E36 — container numbers come from the collector, not cAdvisor. The usual
+> recipe is Prometheus, node_exporter and cAdvisor; instead `platzwart-metriken`
+> measures on the host and writes text files node_exporter reads. cAdvisor wants
+> the Docker socket, and whoever holds it can start a container with the whole
+> filesystem inside — effectively root. The panel never gets it (boundary 1), and
+> handing it to an observability container instead would be odd. The collector
+> measures what is needed anyway and adds what cAdvisor cannot know: players,
+> backup size and age, disk per game, sleep and update state. Not forbidden, just
+> off: cAdvisor is a switch behind a confirmation page naming the price.*

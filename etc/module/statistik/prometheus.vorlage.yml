@@ -1,0 +1,43 @@
+# Vorlage. modul-verwalten schreibt daraus /opt/stacks/statistik/prometheus.yml
+# und laesst die Bloecke weg, deren Schalter aus ist - dasselbe Muster wie die
+# Katalogbloecke in /etc/borg-ausschluss.txt.
+#
+# Warum ueberhaupt weglassen und nicht einfach alles eintragen: Ein Ziel, das
+# nicht laeuft, steht in Prometheus dauerhaft als "down". Wer sich daran
+# gewoehnt, sieht das echte "down" nicht mehr.
+# *Why leave blocks out instead of listing everything: a target that is not
+#  running shows as permanently down, and one gets used to it.*
+global:
+  scrape_interval: 30s
+  scrape_timeout: 10s
+
+scrape_configs:
+  - job_name: maschine
+    static_configs:
+      - targets: ["node-exporter:9100"]
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+# >>> schalter:cadvisor
+  - job_name: container
+    static_configs:
+      - targets: ["cadvisor:8080"]
+# <<< schalter:cadvisor
+
+# >>> schalter:probe
+  - job_name: erreichbarkeit
+    metrics_path: /probe
+    params:
+      module: [tcp_connect]
+    static_configs:
+      - targets: []
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox:9115
+# <<< schalter:probe
