@@ -22,7 +22,7 @@ fehlen alle Werte, nicht nur die neuen.
 *Each file is written via a temporary file and rename(): the collector may read
  at any moment, and a half-written file is discarded whole.*
 
-Welche Quellen laufen, steht in /opt/stacks/statistik/modul.json - dieselben
+Welche Quellen laufen, steht in /opt/module/statistik/modul.json - dieselben
 Schalter, die die Oberflaeche setzt. Fehlt die Datei, laeuft nur der Grundsatz
 ("zahlen").
 """
@@ -35,7 +35,7 @@ import time
 from pathlib import Path
 
 ZIEL = Path(os.environ.get("METRIKEN_ZIEL", "/var/lib/platzwart-metriken"))
-MODUL = Path(os.environ.get("METRIKEN_MODUL", "/opt/stacks/statistik/modul.json"))
+MODUL = Path(os.environ.get("METRIKEN_MODUL", "/opt/module/statistik/modul.json"))
 SPIELER = Path(os.environ.get("METRIKEN_SPIELER", "/var/lib/platzwart-spieler.json"))
 GROESSEN = Path(os.environ.get("METRIKEN_GROESSEN", "/var/lib/spiele-sicherung.groessen"))
 SCHLAF = Path(os.environ.get("METRIKEN_SCHLAF", "/var/lib/platzwart-schlaf.liste"))

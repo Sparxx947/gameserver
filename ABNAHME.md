@@ -288,7 +288,7 @@ Optional — das Modul kostet rund 0,5 GB Arbeitsspeicher. Wer es nicht will,
 modul-verwalten katalog                       # statistik ... frei
 # Im Panel: Module -> installieren. Danach auf der Maschine:
 modul-verwalten status statistik
-cd /opt/stacks/statistik && docker compose ps
+cd /opt/module/statistik && docker compose ps
 curl -sI https://<PANEL_DOMAIN>/statistik/ | head -1     # ohne Anmeldung: 401
 grep -c . /etc/caddy/module.conf; ls /var/lib/platzwart-metriken/
 systemctl is-active platzwart-metriken.timer
@@ -303,14 +303,14 @@ systemctl is-active platzwart-metriken.timer
 | 3.6.5 Zahlen | `platzwart_spieler`, `platzwart_sicherung_groesse_bytes` und `node_load1` liefern Werte |
 | 3.6.6 Schalter mit Warnung | „cAdvisor einschalten" führt auf eine Bestätigungsseite, die den Docker-Socket nennt |
 | 3.6.7 Ports | `ss -tulnH \| grep 19030` zeigt **nur** `127.0.0.1` |
-| 3.6.8 Sicherung | `/etc/borg-ausschluss.txt` enthält den Block `# >>> modul:statistik` |
-| 3.6.9 Entfernen | danach ist `/etc/caddy/module.conf` leer, `/statistik` antwortet 404, der Zeitgeber ist aus, Spielstände sind unberührt |
+| 3.6.8 Keine Spielsicht | das Modul steht **nicht** in `panel-aktion status`, nicht in der Übersicht und nicht in `platzwart_server_laeuft` |
+| 3.6.9 Entfernen | danach ist `/etc/caddy/module.conf` leer, `/statistik` antwortet 404, der Zeitgeber ist aus, `/opt/module` ist leer, Spielstände sind unberührt |
 
 > *Optional module check: install from the panel, three containers running and no
 > cAdvisor; `/statistik/` answers 401 without a session and opens Grafana without
 > a second login with one; roles map to Grafana Admin and Viewer; the metrics
 > deliver values; a warned switch leads to its confirmation page; the published
-> port is localhost only; the backup exclusion block exists; and after removal
+> port is localhost only; the module appears in no game view; and after removal
 > the route file is empty, the path answers 404, the timer is off and the game
 > saves are untouched.*
 

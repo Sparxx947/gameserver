@@ -1,5 +1,5 @@
 {
-  "_hinweis": "Module sind KEINE Spiele. Der Spielekatalog bringt Beitrittspasswort, DNS-Name, Kanal und Spielerzaehlung mit - ein Dienst braucht nichts davon, und eine gelockerte Fassung des Spielwegs waere eine Rechteausweitung (CLAUDE.md, Grenze 2). Deshalb eine eigene Liste mit eigener Aktion und eigener Positivliste. *Modules are not games: the game path brings join passwords, DNS names, channels and player counting, and a loosened version of it would widen rights. Hence their own list, action and allow-list.*",
+  "_hinweis": "Module sind KEINE Spiele. Der Spielekatalog bringt Beitrittspasswort, DNS-Name, Kanal und Spielerzaehlung mit - ein Dienst braucht nichts davon, und eine gelockerte Fassung des Spielwegs waere eine Rechteausweitung (CLAUDE.md, Grenze 2). Deshalb eine eigene Liste mit eigener Aktion und eigener Positivliste. *Modules are not games: the game path brings join passwords, DNS names, channels and player counting, and a loosened version of it would widen rights. Hence their own list, action and allow-list.* Module liegen unter /opt/module und ihre Daten unter /srv/module - NICHT unter /opt/stacks und /srv/games bzw. /srv/dienste: Alles, was Spielserver zaehlt, sichert oder weckt, laeuft ueber diese Verzeichnisse, und ein Modul dort taucht als gestoppter Spielserver auf (#263). *Modules live outside the directories the game tools walk; inside them a module appears as a stopped game server.*",
   "_schalter_arten": "profil = ein compose-Profil (eigener Container); sammler = nur eine Quelle im Sammler platzwart-metriken, kein Container; grafana = wirkt in der Grafana-Bereitstellung.",
   "module": [
     {
@@ -8,14 +8,18 @@
       "kurz": "Langzeitzahlen: Prometheus speichert, Grafana zeigt, node_exporter misst die Maschine.",
       "mem_gb": 1,
       "platte_gb": 8,
-      "daten": "/srv/dienste/statistik",
-      "unterordner": ["prometheus", "grafana"],
-      "ports": ["127.0.0.1:19030:3000/tcp"],
+      "daten": "/srv/module/statistik",
+      "unterordner": [
+        "prometheus",
+        "grafana"
+      ],
+      "ports": [
+        "127.0.0.1:19030:3000/tcp"
+      ],
       "route": "/statistik",
       "rolle": "verwalten",
       "ziel": "127.0.0.1:19030",
       "csp": "grafana",
-      "ausschluss": ["/srv/dienste/statistik/prometheus"],
       "schalter": [
         {
           "name": "zahlen",
@@ -67,21 +71,34 @@
         {
           "name": "aufbewahrung",
           "titel": "Aufbewahrung",
-          "werte": ["30d", "90d", "365d"],
+          "werte": [
+            "30d",
+            "90d",
+            "365d"
+          ],
           "vorgabe": "90d",
           "beschreibung": "Wie weit zurueck Prometheus Werte haelt. Die Obergrenze der Platte steht daneben und greift zuerst."
         },
         {
           "name": "platte_gb",
           "titel": "Platte fuer Messwerte",
-          "werte": ["1", "2", "5", "10"],
+          "werte": [
+            "1",
+            "2",
+            "5",
+            "10"
+          ],
           "vorgabe": "2",
           "beschreibung": "Obergrenze der Zeitreihendatenbank in GB. Ist sie erreicht, wirft Prometheus die aeltesten Werte weg - auch vor Ablauf der Aufbewahrung."
         },
         {
           "name": "messabstand",
           "titel": "Messabstand des Sammlers",
-          "werte": ["30s", "1min", "5min"],
+          "werte": [
+            "30s",
+            "1min",
+            "5min"
+          ],
           "vorgabe": "5min",
           "beschreibung": "Wie oft der Sammler die Platzwart-Zahlen schreibt. 'docker stats' kostet je Lauf rund zwei Sekunden; die Maschinenwerte misst node_exporter unabhaengig davon alle 30 Sekunden."
         }

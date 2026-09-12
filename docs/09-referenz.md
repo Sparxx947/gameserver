@@ -487,7 +487,7 @@ Aufruf ~2 s, je Container gerufen 13 s), dazu Spielerzahlen, Schlaf- und
 Update-Listen, Größe und Zeit der letzten Archive aus
 `/var/lib/spiele-sicherung.groessen` und — höchstens stündlich — die belegte
 Platte je Server. Welche Quellen laufen, steht in
-`/opt/stacks/statistik/modul.json`; eine abgeschaltete Quelle bekommt ihre Datei
+`/opt/module/statistik/modul.json`; eine abgeschaltete Quelle bekommt ihre Datei
 **gelöscht**, damit kein eingefrorener Wert wie ein gemessener aussieht.
 
 Jede Datei entsteht über eine temporäre Datei und `rename()`: node_exporter
@@ -517,7 +517,9 @@ modul-verwalten anwenden <modul> | --selbsttest
 
 Der Modulweg neben dem Spielweg (#261, E35): eigener Katalog
 (`/etc/module-katalog.json`), eigene Positivliste, keine Spielmaschinerie.
-Installiert nach `/opt/stacks/<modul>`, Daten nach `/srv/dienste/<modul>`,
+Installiert nach `/opt/module/<modul>`, Daten nach `/srv/module/<modul>` —
+**nicht** in die Verzeichnisse der Spielserver: Dort erschien das Modul als
+Spielserver, der immer gestoppt ist (#263).
 kopiert die compose-Datei **unverändert** aus `/etc/module/<modul>/` und
 erzeugt daneben `prometheus.yml`, `grafana-provisioning/`, `.env` und
 `modul.json`.
@@ -537,8 +539,9 @@ Umgebungsvariablen für Tests: `MODUL_KATALOG`, `MODUL_VORLAGEN`, `MODUL_STACKS`
 `MODUL_CADDY`, `MODUL_CADDYFILE`, `MODUL_MELDEN`, `MODUL_TIMER`.
 
 > *The module path beside the game path: its own catalogue, its own allow-list,
-> none of the game machinery. Installs to `/opt/stacks/<module>` with data in
-> `/srv/dienste/<module>`, copies the compose file unchanged and generates the
+> none of the game machinery. Installs to `/opt/module/<module>` with data in
+> `/srv/module/<module>` — outside the game servers' directories, where it showed
+> up as a permanently stopped server (#263) — copies the compose file unchanged and generates the
 > rest beside it. Switches set compose profiles and settings go into the .env, so
 > the compose file is never rewritten; deactivated profiles are explicitly
 > removed, or a container would keep running with its switch off. The Caddy route
@@ -1672,12 +1675,12 @@ schon einmal dazu geführt, dass Aufrufe still fehlschlugen.
 | `/etc/spiele-adressen.json` | `0644 root` | Beitrittsadressen der von Hand gebauten Server; gelesen von Panel **und** Statusseite |
 | `/etc/spiele-mods.json` | `0644 root` | wohin ein Mod je Spiel gehört; **fehlt der Eintrag, wird der Upload abgewiesen** statt geraten |
 | `/etc/spiele-workshop.json` | `0644 root` | Workshop-Anbindung je Spiel: Art, Datei, Inhaltsordner, gemessen |
-| `/etc/borg-ausschluss.txt` | `0644 root` | was nicht gesichert wird; Katalogspiele hängen Blöcke `# >>> panel:<spiel>` an, Module `# >>> modul:<name>` |
+| `/etc/borg-ausschluss.txt` | `0644 root` | was nicht gesichert wird; Katalogspiele hängen Blöcke `# >>> panel:<spiel>` an |
 | `/etc/module-katalog.json` | `0644 root` | die installierbaren Module samt Schaltern und erlaubten Werten — die Positivliste des Modulwegs |
 | `/etc/module/<modul>/` | `0644 root` | Vorlagen eines Moduls: compose-Datei, Prometheus-Vorlage, Grafana-Bereitstellung, Dashboards |
 | `/etc/caddy/module.conf` | `0644 root` | **erzeugt**: je installiertem Modul ein `handle`-Block; ohne Modul leer, von der Caddyfile fest eingebunden |
-| `/opt/stacks/<modul>/modul.json` | `0640 root:panel` | Stand der Schalter und Einstellungen; die Oberfläche liest ihn, schreibt aber nie hinein |
-| `/opt/stacks/<modul>/.env` | `0600 root` | Werte für compose (Aufbewahrung, Plattengrenze) und das gewürfelte Grafana-Administratorpasswort |
+| `/opt/module/<modul>/modul.json` | `0640 root:panel` | Stand der Schalter und Einstellungen; die Oberfläche liest ihn, schreibt aber nie hinein |
+| `/opt/module/<modul>/.env` | `0600 root` | Werte für compose (Aufbewahrung, Plattengrenze) und das gewürfelte Grafana-Administratorpasswort |
 | `/var/lib/platzwart-metriken/*.prom` | `0644 root` | die Zahlen für Prometheus; `.platte.json` daneben merkt sich die stündliche Plattenmessung |
 | `/etc/caddy/Caddyfile` | `0644 root` | HTTPS, Vorschaltung, Kopfzeilen, Statusseite |
 | `/etc/caddy/zertifikat.conf` | `0644 root` | **erzeugt**: leer bei `http-01`, `acme_dns …` bei `dns-01` |
