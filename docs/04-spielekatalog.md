@@ -1,9 +1,9 @@
 # 04 — Der Spielekatalog
 
-`/etc/spiele-katalog.json` — 179 Spiele, die sich über die Oberfläche mit einem
+`/etc/spiele-katalog.json` — 184 Spiele, die sich über die Oberfläche mit einem
 Klick installieren und wieder entfernen lassen.
 
-> *179 games installable and removable from the panel with a single click.*
+> *184 games installable and removable from the panel with a single click.*
 
 ---
 
@@ -79,11 +79,11 @@ im Katalog nach, und den Katalog kann die Oberfläche nur lesen.
 
 | | ich777 | LinuxGSM | eigenes Image |
 |---|---|---|---|
-| Image | `ghcr.io/ich777/steamcmd:<spiel>` und 18 eigene ich777-Images | `gameservermanagers/gameserver:<kürzel>` | `itzg/minecraft-server`, `itzg/minecraft-bedrock-server`, `factoriotools/factorio`, `devidian/vintagestory`, `teamspeak` |
+| Image | `ghcr.io/ich777/steamcmd:<spiel>` und 18 eigene ich777-Images | `gameservermanagers/gameserver:<kürzel>` | `itzg/minecraft-server`, `itzg/minecraft-bedrock-server`, `factoriotools/factorio`, `devidian/vintagestory`, `teamspeak`, dazu die fünf gemessenen Fremdimages (siehe unten) |
 | Datenverzeichnis | `/serverdata` | `/data` | je Image |
 | Umgebung | `GAME_ID`, `GAME_PARAMS`, `UID`/`GID` | `GAMESERVER`, `UID`/`GID` | je Image |
 | Konfiguration | je Spiel verschieden | `config-lgsm/<gs>/` **und** `serverfiles/` | je Image |
-| Einträge | 82 | 85 | 12 |
+| Einträge | 82 | 85 | 17 |
 
 Erzeugt werden sie aus den Vorlagen der jeweiligen Quelle —
 `werkzeuge/katalog-ergaenzen.py`, `werkzeuge/katalog-lgsm.py` und
@@ -95,8 +95,8 @@ Herkunft.
 Bei GoldSrc teilen sich **13 Spiele** die Sammel-ID 90 (Half-Life Dedicated
 Server) — ein Abgleich darüber hätte Counter-Strike 1.6, Day of Defeat, Natural
 Selection und zehn weitere fälschlich als Duplikate verworfen. Verglichen wird
-gegen den Katalog **und** gegen die handgebauten Stacks: Palworld und
-Satisfactory laufen, stehen aber in keinem Katalog.
+gegen den Katalog **und** gegen die installierten Stacks — bis 2026-09-12 liefen
+fünf Server, die in keinem Katalog standen.
 
 > *Three build styles — 82 from ich777 (the shared steamcmd image plus 18 of
 > ich777's own images), 85 from LinuxGSM and 12 with images of their own
@@ -105,8 +105,57 @@ Satisfactory laufen, stehen aber in keinem Katalog.
 > hand; `bauart` names the origin. Duplicates are
 > matched by name, never by app id: 13 GoldSrc games share the collective id 90,
 > and matching on it would have discarded Counter-Strike 1.6, Day of Defeat and
-> eleven others. The comparison covers the catalogue and the hand-built stacks —
-> Palworld and Satisfactory run but appear in no catalogue.*
+> eleven others. The comparison covers the catalogue and the installed stacks —
+> until 2026-09-12 five servers ran that were in no catalogue.*
+
+### Die fünf Server, die aus keinem Katalog kamen
+
+Enshrouded, FOUNDRY, Palworld, Satisfactory und Windrose kamen 2026-09-06 beim
+Umzug von Nitrado und GPortal von Hand auf die Maschine. Sie liefen, aber sie
+standen in keinem Katalog: Ein zweiter Server desselben Spiels wäre nur wieder
+von Hand entstanden, und was ihre Einträge wissen müssten, wusste nur die
+laufende Maschine. Seit 2026-09-12 stehen sie im Katalog, **gemessen an den
+laufenden Servern** — Image, Ports, Umgebung, Speicher- und Platzbedarf,
+Sicherungsausschlüsse.
+
+Drei Stellen weichen bewusst vom laufenden Server ab, und zwar jede aus einem
+gemessenen Grund:
+
+| Eintrag | Abweichung | warum |
+|---|---|---|
+| Palworld | **ohne** `DISABLE_GENERATE_SETTINGS` | Der laufende Server hat ihn, damit seine von Nitrado übernommenen Einstellungen bleiben. Mit dem Schalter wendet das Image **keine** Umgebungsvariable an — auch die Passwörter nicht (#286). Ein frisch installierter Server hätte damit keins |
+| Windrose | Hostport 7780 statt 7777 | Satisfactory hält 7777; zwei Katalogeinträge dürfen sich keinen Hostport teilen |
+| alle fünf | `{PASSWORT}`/`{ADMIN}` statt fester Werte | Die Installation würfelt die Passwörter je Server frisch |
+
+Was die Einträge **nicht** tun: Die fünf laufenden Server werden dadurch nicht
+zu Katalogservern. Sie haben keine `panel.json`, und daran hängt mehr, als es
+aussieht — `spiel-verwalten ausschluesse` gleicht nur solche Server an, und
+**entfernen** lässt sich nur, was eine `panel.json` hat. Beides bleibt wie
+vorher: Ein Klick im Panel kann diese Server weder überschreiben (der
+Stack-Ordner existiert, die Installation lehnt ab) noch löschen.
+
+Zwei Fallstricke stehen im `hinweis` des jeweiligen Eintrags, weil sie sonst
+niemand sieht: FOUNDRYs Image läuft fest als uid 1000 und setzt die Eigentümer
+beim Start selbst; und Satisfactorys Port 8888 ist die HTTPS-Schnittstelle, über
+die der **Spielclient** den Server verwaltet — sie muss öffentlich bleiben,
+anders als jeder andere Verwaltungsport (Regel 1 der Portprüfung).
+
+> *Enshrouded, FOUNDRY, Palworld, Satisfactory and Windrose arrived by hand on
+> 2026-09-06 when the servers moved off Nitrado and GPortal, and were in no
+> catalogue: a second server of the same game would again have been hand-built,
+> and what their entries needed to know lived only on the running machine. They
+> are catalogued since 2026-09-12, measured from the running servers — image,
+> ports, environment, memory and disk, backup exclusions. Three details
+> deliberately differ: Palworld's entry omits `DISABLE_GENERATE_SETTINGS`
+> (with it the image applies no environment variable at all, passwords included,
+> so a fresh server would have none, #286), Windrose uses host port 7780 because
+> Satisfactory holds 7777, and all five carry password placeholders rather than
+> fixed values. The five running servers do **not** become catalogue servers:
+> they have no `panel.json`, and both exclusion alignment and removal require
+> one, so no click can overwrite or delete them. Two traps live in each entry's
+> `hinweis`: FOUNDRY's image is fixed to uid 1000 and fixes ownership itself, and
+> Satisfactory's port 8888 is the HTTPS interface the game client administers
+> through — it must stay public, unlike every other management port.*
 
 ### Vier Eigenheiten von LinuxGSM
 
@@ -540,11 +589,13 @@ wenn Liste und Katalog auseinandergehen.
 | `dys` | Dystopia | shooter | linuxgsm | — |
 | `eco` | ECO | aufbau | ich777 | `382310` |
 | `em` | Empires Mod | shooter | linuxgsm | `17740` |
+| `enshrouded` | Enshrouded | survival | eigenes-image | `1203620` |
 | `etl` | ET: Legacy | shooter | linuxgsm | — |
 | `eurotrucksimulator2` | EuroTruckSimulator2 | rennen | ich777 | `227300` |
 | `factorio` | Factorio | aufbau | eigenes-image | `427520` |
 | `fistfuloffrags` | FistfulOfFrags | shooter | ich777 | `265630` |
 | `fivem` | FiveM | sandbox | ich777 | — |
+| `foundry` | FOUNDRY | aufbau | eigenes-image | `983870` |
 | `frozenflame` | FrozenFlame | survival | ich777 | `715400` |
 | `garrysmod` | GarrysMod | sandbox | ich777 | `4000` |
 | `halflife2deathmatch` | HalfLife2DeathMatch | shooter | ich777 | `232370` |
@@ -596,6 +647,7 @@ wenn Liste und Katalog auseinandergehen.
 | `openrct2` | OpenRCT2 | aufbau | ich777 | — |
 | `openttd` | OpenTTD | aufbau | ich777 | `1536610` |
 | `opfor` | Opposing Force | shooter | linuxgsm | — |
+| `palworld` | Palworld | survival | eigenes-image | `1623730` |
 | `pc` | Project Cars | rennen | linuxgsm | `234630` |
 | `pc2` | Project Cars 2 | rennen | linuxgsm | `378860` |
 | `postscriptum` | PostScriptum | shooter | ich777 | `746200` |
@@ -614,6 +666,7 @@ wenn Liste und Katalog auseinandergehen.
 | `rust` | RUST | survival | ich777 | `252490` |
 | `rw` | Rising World | survival | linuxgsm | `324080` |
 | `samp` | San Andreas Multiplayer | sandbox | linuxgsm | — |
+| `satisfactory` | Satisfactory | aufbau | eigenes-image | `526870` |
 | `sbots` | StickyBots | shooter | linuxgsm | `889400` |
 | `scpsecretlaboratory` | SCP SecretLaboratory | shooter | ich777 | `996560` |
 | `scpslsm` | SCP: Secret Laboratory ServerMod | shooter | linuxgsm | — |
@@ -655,6 +708,7 @@ wenn Liste und Katalog auseinandergehen.
 | `vs` | Vampire Slayer | shooter | linuxgsm | `3043210` |
 | `wet` | Wolfenstein: Enemy Territory | shooter | linuxgsm | `1873030` |
 | `wf` | Warfork | arena | linuxgsm | `671610` |
+| `windrose` | Windrose | survival | eigenes-image | — |
 | `windward` | Windward | survival | ich777 | `326410` |
 | `wurmunlimited` | WurmUnlimited | survival | ich777 | `366220` |
 | `xonotic` | Xonotic | arena | ich777 | — |

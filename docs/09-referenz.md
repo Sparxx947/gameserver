@@ -1794,7 +1794,7 @@ schon einmal dazu geführt, dass Aufrufe still fehlschlugen.
 
 | Pfad | Rechte | Inhalt |
 |---|---|---|
-| `/etc/spiele-katalog.json` | `0644 root` | 179 installierbare Spiele |
+| `/etc/spiele-katalog.json` | `0644 root` | 184 installierbare Spiele |
 | `/etc/spiele-adressen.json` | `0644 root` | Beitrittsadressen der von Hand gebauten Server; gelesen von Panel **und** Statusseite |
 | `/etc/spiele-mods.json` | `0644 root` | wohin ein Mod je Spiel gehört; **fehlt der Eintrag, wird der Upload abgewiesen** statt geraten |
 | `/etc/spiele-workshop.json` | `0644 root` | Workshop-Anbindung je Spiel: Art, Datei, Inhaltsordner, gemessen |

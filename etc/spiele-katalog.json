@@ -2883,6 +2883,62 @@
       "kategorie": "shooter"
     },
     {
+      "schluessel": "enshrouded",
+      "name": "Enshrouded",
+      "kurz": "Survival-Rollenspiel im Nebelland: bauen, erkunden, kaempfen",
+      "appid": 1203620,
+      "image": "mornedhels/enshrouded-server:latest",
+      "mem_gb": 6,
+      "platte_gb": 12,
+      "ports": [
+        "15637:15637/udp"
+      ],
+      "volumes": [
+        "/srv/games/enshrouded:/opt/enshrouded"
+      ],
+      "env": {
+        "SERVER_NAME": "@@WELT_NAME@@",
+        "SERVER_SLOT_COUNT": "{SPIELER}",
+        "SERVER_ENABLE_TEXT_CHAT": "true",
+        "SERVER_ROLE_0_NAME": "Admin",
+        "SERVER_ROLE_0_PASSWORD": "{ADMIN}",
+        "SERVER_ROLE_0_CAN_KICK_BAN": "true",
+        "SERVER_ROLE_0_CAN_ACCESS_INVENTORIES": "true",
+        "SERVER_ROLE_0_CAN_EDIT_WORLD": "true",
+        "SERVER_ROLE_0_CAN_EDIT_BASE": "true",
+        "SERVER_ROLE_0_CAN_EXTEND_BASE": "true",
+        "SERVER_ROLE_0_RESERVED_SLOTS": "1",
+        "SERVER_ROLE_1_NAME": "Freunde",
+        "SERVER_ROLE_1_PASSWORD": "{PASSWORT}",
+        "SERVER_ROLE_1_CAN_KICK_BAN": "false",
+        "SERVER_ROLE_1_CAN_ACCESS_INVENTORIES": "true",
+        "SERVER_ROLE_1_CAN_EDIT_WORLD": "true",
+        "SERVER_ROLE_1_CAN_EDIT_BASE": "true",
+        "SERVER_ROLE_1_CAN_EXTEND_BASE": "true",
+        "BACKUP_CRON": "*/30 * * * *",
+        "BACKUP_MAX_COUNT": "8",
+        "PUID": "4711",
+        "PGID": "4711"
+      },
+      "passwort": {
+        "art": "env",
+        "feld": "SERVER_ROLE_1_PASSWORD"
+      },
+      "adresse_port": 15637,
+      "spieler": 4,
+      "hinweis": "Enshrouded kennt zwei Beitrittspasswoerter: Rolle \"Admin\" (Adminpasswort) und Rolle \"Freunde\" (Beitrittspasswort) - beide stehen in der Umgebung. Die Installation belegt rund 9 GB; gesichert werden nur savegame und die Serverkonfiguration.",
+      "ausschluss": [
+        "server/*.dat",
+        "server/*.exe",
+        "server/*.kfc*",
+        "server/*.pdb",
+        "server/logs",
+        "server/steamapps"
+      ],
+      "bauart": "eigenes-image",
+      "kategorie": "survival"
+    },
+    {
       "schluessel": "etl",
       "name": "ET: Legacy",
       "kurz": "Freier Nachbau von Wolfenstein: ET",
@@ -3115,6 +3171,43 @@
       ],
       "bauart": "ich777",
       "kategorie": "sandbox"
+    },
+    {
+      "schluessel": "foundry",
+      "name": "FOUNDRY",
+      "kurz": "Fabrikbau in einer endlosen Voxelwelt",
+      "appid": 983870,
+      "image": "luxusburg/docker-foundry:latest",
+      "mem_gb": 6,
+      "platte_gb": 6,
+      "ports": [
+        "3724:3724/udp",
+        "27016:27016/udp"
+      ],
+      "volumes": [
+        "/srv/games/foundry/server:/home/foundry/server_files",
+        "/srv/games/foundry/data:/home/foundry/persistent_data"
+      ],
+      "env": {
+        "SERVER_NAME": "@@WELT_NAME@@",
+        "SERVER_PWD": "{PASSWORT}",
+        "SERVER_PORT": "3724",
+        "SERVER_QUERY_PORT": "27016",
+        "SERVER_MAX_PLAYERS": "{SPIELER}",
+        "PAUSE_SERVER_WHEN_EMPTY": "false"
+      },
+      "passwort": {
+        "art": "env",
+        "feld": "SERVER_PWD"
+      },
+      "adresse_port": 3724,
+      "spieler": 4,
+      "hinweis": "PAUSE_SERVER_WHEN_EMPTY steht mit Absicht auf false: Mit true haelt der Server an, solange niemand spielt, und legt dann auch keinen Spielstand an - genau so stand FOUNDRY hier einmal ohne jede Sicherung da. Das Abbild laeuft fest als uid 1000 und setzt die Eigentuemer beim Start selbst. Mods gehoeren nach server/Mods, das im Sicherungsausschluss liegt: Ein Mod dort ueberlebt keine Neuinstallation.",
+      "ausschluss": [
+        "server"
+      ],
+      "bauart": "eigenes-image",
+      "kategorie": "aufbau"
     },
     {
       "schluessel": "frozenflame",
@@ -5563,6 +5656,57 @@
       "kategorie": "shooter"
     },
     {
+      "schluessel": "palworld",
+      "name": "Palworld",
+      "kurz": "Survival-Crafting mit sammelbaren Kreaturen, die mitarbeiten und mitkaempfen",
+      "appid": 1623730,
+      "image": "thijsvanloef/palworld-server-docker:latest",
+      "mem_gb": 12,
+      "platte_gb": 10,
+      "ports": [
+        "8211:8211/udp",
+        "27015:27015/udp"
+      ],
+      "volumes": [
+        "/srv/games/palworld:/palworld/"
+      ],
+      "env": {
+        "TZ": "Europe/Berlin",
+        "PUID": "4711",
+        "PGID": "4711",
+        "PORT": "8211",
+        "PLAYERS": "{SPIELER}",
+        "SERVER_NAME": "@@WELT_NAME@@",
+        "SERVER_PASSWORD": "{PASSWORT}",
+        "ADMIN_PASSWORD": "{ADMIN}",
+        "BACKUP_ENABLED": "true",
+        "BACKUP_CRON_EXPRESSION": "0 */6 * * *",
+        "DELETE_OLD_BACKUPS": "true",
+        "OLD_BACKUP_DAYS": "14",
+        "AUTO_UPDATE_ENABLED": "false",
+        "COMMUNITY": "true"
+      },
+      "passwort": {
+        "art": "env",
+        "feld": "SERVER_PASSWORD"
+      },
+      "adresse_port": 8211,
+      "spieler": 4,
+      "hinweis": "Palworlds Serverprozess leckt Speicher, linear mit der Laufzeit - deshalb die Grenze von 12 GB und ein Neustart alle zwoelf Stunden (palworld-neustart.timer, von Stufe 60 eingesetzt). DISABLE_GENERATE_SETTINGS wird hier bewusst NICHT gesetzt: Mit diesem Schalter wendet das Abbild keine einzige Umgebungsvariable an, auch die Passwoerter nicht (#286). COMMUNITY=true traegt den Server in die oeffentliche Liste ein; er ist trotzdem nur mit Passwort betretbar.",
+      "ausschluss": [
+        "*.so",
+        "Engine",
+        "Pal/Binaries",
+        "Pal/Content",
+        "Pal/Plugins",
+        "PalServer.sh",
+        "steamapps",
+        "steamclient*"
+      ],
+      "bauart": "eigenes-image",
+      "kategorie": "survival"
+    },
+    {
       "schluessel": "pc",
       "name": "Project Cars",
       "kurz": "Rennsimulation mit vielen Klassen",
@@ -6473,6 +6617,43 @@
       ],
       "bauart": "linuxgsm",
       "kategorie": "sandbox"
+    },
+    {
+      "schluessel": "satisfactory",
+      "name": "Satisfactory",
+      "kurz": "Fabrikbau aus der Ego-Perspektive auf einem fremden Planeten",
+      "appid": 526870,
+      "image": "wolveix/satisfactory-server:latest",
+      "mem_gb": 10,
+      "platte_gb": 8,
+      "ports": [
+        "7777:7777/tcp",
+        "7777:7777/udp",
+        "8888:8888/tcp"
+      ],
+      "volumes": [
+        "/srv/games/satisfactory:/config"
+      ],
+      "env": {
+        "MAXPLAYERS": "{SPIELER}",
+        "PUID": "4711",
+        "PGID": "4711",
+        "STEAMBETA": "false",
+        "AUTOPAUSE": "true",
+        "AUTOSAVEINTERVAL": "300"
+      },
+      "passwort": {
+        "art": "keins"
+      },
+      "adresse_port": 7777,
+      "spieler": 4,
+      "hinweis": "Satisfactory kennt kein Beitrittspasswort in der Umgebung: Der erste Spieler uebernimmt den Server im Spiel und vergibt dort Administrator- und Beitrittspasswort. Deshalb geht der Port erst nach einer Freigabe von Hand auf (#183). Port 8888 ist die HTTPS-Schnittstelle, ueber die der Spielclient den Server verwaltet - sie muss oeffentlich bleiben, anders als sonstige Verwaltungsports.",
+      "ausschluss": [
+        "gamefiles",
+        "logs"
+      ],
+      "bauart": "eigenes-image",
+      "kategorie": "aufbau"
     },
     {
       "schluessel": "sbots",
@@ -8487,6 +8668,49 @@
       ],
       "bauart": "linuxgsm",
       "kategorie": "arena"
+    },
+    {
+      "schluessel": "windrose",
+      "name": "Windrose",
+      "kurz": "PvE-Survival im Piratenzeitalter, zu Land und zu Wasser",
+      "appid": 0,
+      "image": "mornedhels/windrose-server:latest",
+      "mem_gb": 8,
+      "platte_gb": 8,
+      "ports": [
+        "7780:7777/tcp",
+        "7780:7777/udp"
+      ],
+      "volumes": [
+        "/srv/games/windrose:/opt/windrose"
+      ],
+      "env": {
+        "SERVER_NAME": "@@WELT_NAME@@",
+        "SERVER_PASSWORD": "{PASSWORT}",
+        "SERVER_MAX_PLAYER_COUNT": "{SPIELER}",
+        "SERVER_USER_SELECTED_REGION": "EU",
+        "BACKUP_CRON": "*/30 * * * *",
+        "BACKUP_MAX_COUNT": "8",
+        "PUID": "4711",
+        "PGID": "4711"
+      },
+      "passwort": {
+        "art": "env",
+        "feld": "SERVER_PASSWORD"
+      },
+      "adresse_port": 7780,
+      "spieler": 4,
+      "hinweis": "Der Spielport liegt im Container auf 7777 und auf dem Host auf 7780, weil Satisfactory 7777 haelt. Unter server/ liegen Installation UND Spielstand (R5/Saved): Deshalb schliesst die Sicherung gezielt die dicken Brocken aus statt server/ pauschal. Steam fuehrt Windrose unter der App-ID 3041230, liefert dafuer aber kein header.jpg - deshalb steht appid auf 0 und das Titelbild wird selbst gezeichnet.",
+      "ausschluss": [
+        "server/Engine",
+        "server/R5/.sentry-native",
+        "server/R5/Binaries",
+        "server/R5/Content",
+        "server/R5/Plugins",
+        "server/steamapps"
+      ],
+      "bauart": "eigenes-image",
+      "kategorie": "survival"
     },
     {
       "schluessel": "windward",
