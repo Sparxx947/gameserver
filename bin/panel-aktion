@@ -40,6 +40,11 @@
 # Nach aussen:
 #   panel-aktion dns <setzen|entfernen> <name> | dns <liste|pruefen>
 #   panel-aktion kanaele <abgleich|vorschau <stack>|pruefen|pruefen-discord>
+# Zusatzmodule (kein Spiel, eigene Liste und eigene Pruefung):
+#   panel-aktion modul katalog | status <modul>
+#   panel-aktion modul installieren <modul> | entfernen <modul> [--auch-daten]
+#   panel-aktion modul schalter <modul> <name> <an|aus>
+#   panel-aktion modul einstellung <modul> <name> <wert>
 set -uo pipefail
 umask 077
 
@@ -829,6 +834,43 @@ PY
       pruefe_stack "$n"
       /usr/local/bin/dns-pflegen "$was" "$n"
     fi
+    ;;
+  modul)
+    # Zusatzmodule (#261). Die Oberflaeche schickt NIE einen Pfad, ein Abbild
+    # oder eine Portangabe - nur einen Modulnamen aus dem Katalog und, beim
+    # Schalten, einen Namen samt Wert daraus. Geprueft wird hier die FORM,
+    # gegen den Katalog prueft modul-verwalten.
+    # *The panel never sends a path, image or port - only a key from the module
+    #  catalogue and, when toggling, a switch name and value from it.*
+    m="${3:-}"
+    pruefe_modul() {
+      [[ "$1" =~ ^[a-z][a-z0-9-]{1,30}$ ]] || fehler "unzulaessiger Modulname"
+    }
+    case "${2:-}" in
+      katalog)      exec /usr/local/bin/modul-verwalten katalog ;;
+      status)       pruefe_modul "$m"; exec /usr/local/bin/modul-verwalten status "$m" ;;
+      installieren) pruefe_modul "$m"; exec /usr/local/bin/modul-verwalten installieren "$m" ;;
+      entfernen)
+        pruefe_modul "$m"
+        # Die Messwerte loescht nur, wer es ausdruecklich sagt - und die
+        # Bestaetigungsseite sagt vorher, was verschwindet.
+        case "${4:-}" in
+          "")           exec /usr/local/bin/modul-verwalten entfernen "$m" ;;
+          --auch-daten) exec /usr/local/bin/modul-verwalten entfernen "$m" --auch-daten ;;
+          *)            fehler "unzulaessiger Zusatz" ;;
+        esac ;;
+      schalter)
+        pruefe_modul "$m"
+        [[ "${4:-}" =~ ^[a-z][a-z0-9-]{1,30}$ ]] || fehler "unzulaessiger Schalter"
+        case "${5:-}" in an|aus) ;; *) fehler "Wert muss an oder aus sein" ;; esac
+        exec /usr/local/bin/modul-verwalten schalter "$m" "$4" "$5" ;;
+      einstellung)
+        pruefe_modul "$m"
+        [[ "${4:-}" =~ ^[a-z_][a-z0-9_]{1,30}$ ]] || fehler "unzulaessige Einstellung"
+        [[ "${5:-}" =~ ^[A-Za-z0-9]{1,12}$ ]] || fehler "unzulaessiger Wert"
+        exec /usr/local/bin/modul-verwalten einstellung "$m" "$4" "$5" ;;
+      *) fehler "unbekannte Modulaktion" ;;
+    esac
     ;;
   *) fehler "unbekannte Aktion" ;;
 esac

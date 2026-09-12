@@ -1,0 +1,17 @@
+# Die Dashboards kommen aus dem Repositorium, nicht aus Grafanas Datenbank:
+# Nach einem Neuaufbau sind sie damit wieder da, ohne dass jemand sie
+# nachbaut. Wer im Browser etwas aendert, kann es speichern - beim naechsten
+# Start setzt die Bereitstellung es aber zurueck (allowUiUpdates: false).
+# *Dashboards come from the repository so a rebuild brings them back.*
+apiVersion: 1
+providers:
+  - name: platzwart
+    orgId: 1
+    folder: Platzwart
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 60
+    options:
+      path: /var/lib/grafana/dashboards-platzwart
+      foldersFromFilesStructure: false

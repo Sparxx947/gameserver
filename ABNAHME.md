@@ -264,7 +264,8 @@ Probe packt aus, vergleicht und räumt ihr Wegwerfverzeichnis weg.
 
 ```bash
 for w in spiele-sicherung platzwart-wache platzwart-schlaf platzwart-verlauf \
-         spieler-zaehlen sicherung-probe mod-verwalten workshop kanal-verwalten; do
+         spieler-zaehlen sicherung-probe mod-verwalten workshop kanal-verwalten \
+         modul-verwalten platzwart-metriken; do
   echo "== $w"; $w --selbsttest >/dev/null 2>&1 && echo gruen || echo ROT
 done
 ```
@@ -275,6 +276,43 @@ done
 
 > *Self-tests: every tool with a `--selbsttest` must pass; each self-test checks,
 > beside the quiet case, one that must fire.*
+
+---
+
+### 3.6 Modul „Statistik" (nur wenn es installiert werden soll)
+
+Optional — das Modul kostet rund 0,5 GB Arbeitsspeicher. Wer es nicht will,
+überspringt diesen Abschnitt; die Abnahme gilt trotzdem.
+
+```bash
+modul-verwalten katalog                       # statistik ... frei
+# Im Panel: Module -> installieren. Danach auf der Maschine:
+modul-verwalten status statistik
+cd /opt/stacks/statistik && docker compose ps
+curl -sI https://<PANEL_DOMAIN>/statistik/ | head -1     # ohne Anmeldung: 401
+grep -c . /etc/caddy/module.conf; ls /var/lib/platzwart-metriken/
+systemctl is-active platzwart-metriken.timer
+```
+
+| Prüfpunkt | Erwartet |
+|---|---|
+| 3.6.1 Installation | drei Container laufen (`prometheus`, `grafana`, `node-exporter`), cAdvisor **nicht** |
+| 3.6.2 Ohne Anmeldung | `/statistik/` antwortet **401**, nicht 200 |
+| 3.6.3 Mit Anmeldung | im Browser: Grafana öffnet sich **ohne zweite Anmeldung**, Ordner „Platzwart" mit zwei Dashboards |
+| 3.6.4 Rolle `verwalten` | sieht die Dashboards, hat in Grafana die Rolle `Viewer`; `admin` hat `Admin` |
+| 3.6.5 Zahlen | `platzwart_spieler`, `platzwart_sicherung_groesse_bytes` und `node_load1` liefern Werte |
+| 3.6.6 Schalter mit Warnung | „cAdvisor einschalten" führt auf eine Bestätigungsseite, die den Docker-Socket nennt |
+| 3.6.7 Ports | `ss -tulnH \| grep 19030` zeigt **nur** `127.0.0.1` |
+| 3.6.8 Sicherung | `/etc/borg-ausschluss.txt` enthält den Block `# >>> modul:statistik` |
+| 3.6.9 Entfernen | danach ist `/etc/caddy/module.conf` leer, `/statistik` antwortet 404, der Zeitgeber ist aus, Spielstände sind unberührt |
+
+> *Optional module check: install from the panel, three containers running and no
+> cAdvisor; `/statistik/` answers 401 without a session and opens Grafana without
+> a second login with one; roles map to Grafana Admin and Viewer; the metrics
+> deliver values; a warned switch leads to its confirmation page; the published
+> port is localhost only; the backup exclusion block exists; and after removal
+> the route file is empty, the path answers 404, the timer is off and the game
+> saves are untouched.*
 
 ---
 

@@ -347,6 +347,7 @@ Jeder Punkt ist ein realer Vorfall, nicht eine Vermutung.
 | Cloudflare `proxied` | Der Proxy kann nur HTTP(S). Ein Spielport dahinter ist von außen tot. |
 | `borg extract` | Läuft von `/` aus, weil die Archive absolute Pfade tragen. Aus einem anderen Verzeichnis entsteht ein Unterbaum an falscher Stelle, und der Server startet mit leerer Welt — ohne Fehlermeldung. |
 | `borg extract` auf einer neuen Maschine | Stellt Eigentümer nach **Namen** her. Trägt die neue Maschine denselben Namen unter anderer UID, gehört die Welt danach der falschen Nummer (nachgestellt: 1000 kam als 1001 zurück), und ein Container mit fester UID kann nicht mehr schreiben. Spielstände mit `--numeric-ids` auspacken; Panel-Daten nach Namen (dort zählt der neu nummerierte Benutzer `panel`). |
+| `caddy validate` als Netz | Fängt eine unbekannte Direktive (`rc=1`), eine **offene geschweifte Klammer am Ende eines importierten Schnipsels aber nicht** (`rc=0`, gemessen): Die schließende Klammer des Site-Blocks schließt sie, und es entsteht eine gültige, aber falsche Konfiguration — der Auffangblock des Panels läge dann im fremden `handle`. Wer solche Schnipsel erzeugt, zählt die Klammern selbst und schreibt atomar. |
 | ich777-Images | Erwarten `UID`/`GID`, **nicht** `PUID`/`PGID`, und brauchen `steamcmd/` und `serverfiles/` vor dem ersten Start. |
 | Pfadprüfung | **Erst auflösen, dann prüfen.** Unter StarRupture lag ein Symlink `z: -> /` (jedes Wine-Präfix legt ihn an); eine Prüfung vor dem Auflösen macht aus jedem Editor einen Root-Schreibzugriff aufs ganze System. |
 | Spielserver und ihre Konfiguration | Viele schreiben sie beim Start **selbst neu**. Bei Minecraft nachgemessen: geänderte Werte überleben, eigene Kommentare und unbekannte Zeilen verschwinden. |
@@ -384,6 +385,8 @@ Jeder Punkt ist ein realer Vorfall, nicht eine Vermutung.
 > after three quick logins; `pkill -f`/`pgrep -f` match their own command line;
 > `echo` prints `\t` literally; `docker compose stop` disables unless-stopped
 > and `on-failure` restarts after a stop; A2S needs the challenge step; some
+> `caddy validate` catches an unknown directive but not an unclosed brace at the
+> end of an imported snippet, which yields a valid but wrong config; some
 > games announce their container port; relay-capable servers are reachable
 > without a published port; Steam's Workshop API names one field two ways and
 > reports size 0 without a key; a Discord bot without the message content intent

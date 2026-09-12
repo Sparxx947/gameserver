@@ -83,6 +83,10 @@ Alle Aktionen:
 | `kanaele vorschau <stack>` | was beim Entfernen mit den Kanälen geschieht | Stack |
 | `kanaele pruefen` / `pruefen-discord` | TeamSpeak-Zugang bzw. Discord-Bot prüfen, Zugangsdaten über stdin | — |
 | `dns setzen\|entfernen <name>` · `dns liste\|pruefen` | über `dns-pflegen` | Aktion aus der Liste; Name wie Stack |
+| `modul katalog` · `modul status <modul>` | Zusatzmodule auflisten, Stand eines Moduls | Modulname `^[a-z][a-z0-9-]{1,30}$` |
+| `modul installieren\|entfernen <modul> [--auch-daten]` | Modul einrichten oder entfernen | Modulname; als Zusatz ist **nur** `--auch-daten` erlaubt |
+| `modul schalter <modul> <name> <an\|aus>` | einen Schalter des Moduls setzen | Name wie oben; Wert nur `an` oder `aus`; ob es den Schalter gibt, prüft `modul-verwalten` gegen den Katalog |
+| `modul einstellung <modul> <name> <wert>` | eine Einstellung setzen | Name `^[a-z_][a-z0-9_]{1,30}$`, Wert `^[A-Za-z0-9]{1,12}$`; erlaubte Werte stehen im Katalog |
 
 `status` holt **einen** `docker stats` für alle Container, nicht einen je
 Container: Ein Aufruf kostet rund 1,9 s unabhängig von der Anzahl. Einzeln
@@ -466,6 +470,81 @@ Container, endet es ohne Fehler; antwortet Docker nicht, mit Fehler.
 > Every sample carries its own timestamp so gaps stay visible; only fresh player
 > counts are recorded. Only containers that no longer exist are dropped. Nothing
 > running is not an error; Docker not answering is.*
+
+### `platzwart-metriken`
+
+```
+platzwart-metriken [--zeigen] [--selbsttest]
+```
+
+Schreibt die Zahlen des Platzwarts für Prometheus nach
+`/var/lib/platzwart-metriken/*.prom`; node_exporter liest den Ordner mit
+(*textfile collector*). Gibt es nur zusammen mit dem Modul **Statistik**
+([12](12-module-und-statistik.md)) — sein Zeitgeber ist sonst aus.
+
+Gemessen wird je Lauf einmal `docker stats` für alle Container zusammen (ein
+Aufruf ~2 s, je Container gerufen 13 s), dazu Spielerzahlen, Schlaf- und
+Update-Listen, Größe und Zeit der letzten Archive aus
+`/var/lib/spiele-sicherung.groessen` und — höchstens stündlich — die belegte
+Platte je Server. Welche Quellen laufen, steht in
+`/opt/stacks/statistik/modul.json`; eine abgeschaltete Quelle bekommt ihre Datei
+**gelöscht**, damit kein eingefrorener Wert wie ein gemessener aussieht.
+
+Jede Datei entsteht über eine temporäre Datei und `rename()`: node_exporter
+liest jederzeit und verwirft eine halb geschriebene Datei ganz.
+
+Der Grund für dieses Werkzeug ist eine Grenze: Container-Metriken kämen sonst
+von cAdvisor, und cAdvisor will den Docker-Socket (Grenze 1, E36).
+
+> *Writes the Platzwart's numbers for Prometheus into `.prom` files that
+> node_exporter reads. Exists only with the statistics module. One `docker stats`
+> call per run for all containers, plus player counts, sleep and update lists,
+> backup size and time, and hourly disk usage per server. Which sources run comes
+> from the module's state file; a switched-off source has its file deleted so no
+> frozen value looks measured. Files are written atomically. It exists because
+> container metrics would otherwise come from cAdvisor, which wants the Docker
+> socket (boundary 1, E36).*
+
+### `modul-verwalten`
+
+```
+modul-verwalten katalog | status <modul>
+modul-verwalten installieren <modul> | entfernen <modul> [--auch-daten]
+modul-verwalten schalter <modul> <name> <an|aus>
+modul-verwalten einstellung <modul> <name> <wert>
+modul-verwalten anwenden <modul> | --selbsttest
+```
+
+Der Modulweg neben dem Spielweg (#261, E35): eigener Katalog
+(`/etc/module-katalog.json`), eigene Positivliste, keine Spielmaschinerie.
+Installiert nach `/opt/stacks/<modul>`, Daten nach `/srv/dienste/<modul>`,
+kopiert die compose-Datei **unverändert** aus `/etc/module/<modul>/` und
+erzeugt daneben `prometheus.yml`, `grafana-provisioning/`, `.env` und
+`modul.json`.
+
+Schalter setzen **compose-Profile**, Einstellungen landen in der `.env` — die
+compose-Datei wird nie umgeschrieben und bleibt byte-gleich mit der Vorlage.
+Abgeschaltete Profile werden ausdrücklich abgeräumt, sonst liefe ein Container
+weiter, dessen Schalter aus ist.
+
+Die Caddy-Route entsteht in `/etc/caddy/module.conf`: erst Klammern zählen, dann
+atomar schreiben, dann `caddy validate`, dann `systemctl reload caddy` — und bei
+einer Ablehnung die alte Datei zurück. Die Klammernzählung ist nicht überflüssig:
+`caddy validate` erkennt eine unbekannte Direktive, eine offene Klammer am
+Dateiende aber nicht (gemessen).
+
+Umgebungsvariablen für Tests: `MODUL_KATALOG`, `MODUL_VORLAGEN`, `MODUL_STACKS`,
+`MODUL_CADDY`, `MODUL_CADDYFILE`, `MODUL_MELDEN`, `MODUL_TIMER`.
+
+> *The module path beside the game path: its own catalogue, its own allow-list,
+> none of the game machinery. Installs to `/opt/stacks/<module>` with data in
+> `/srv/dienste/<module>`, copies the compose file unchanged and generates the
+> rest beside it. Switches set compose profiles and settings go into the .env, so
+> the compose file is never rewritten; deactivated profiles are explicitly
+> removed, or a container would keep running with its switch off. The Caddy route
+> is written after counting braces, atomically, then validated and reloaded, with
+> a rollback if Caddy refuses — the brace count is not redundant, since validation
+> catches an unknown directive but not an unclosed brace at the end (measured).*
 
 ### `platzwart-status`
 
@@ -950,6 +1029,23 @@ ein falsches.
 > SERVER app id, while artwork exists only for the game id, so 44 tiles had no
 > image. Only exact name matches count — the store search is fuzzy, and a
 > generic image beats a stranger's artwork.*
+
+### `statistik-dashboards.py`
+
+```
+werkzeuge/statistik-dashboards.py             Dashboards schreiben
+werkzeuge/statistik-dashboards.py --pruefen   nur berichten (Exit 1 = veraltet)
+```
+
+Erzeugt die beiden Grafana-Dashboards des Statistik-Moduls (`Maschine`,
+`Spielserver`) nach `etc/module/statistik/grafana/dashboards/`. Von Hand sind
+das mehrere hundert Zeilen JSON, in denen Datenquelle, Einheit und Rasterlage
+zwanzigmal wiederholt werden; hier steht je Tafel eine Zeile. Wird von
+`vollstaendigkeit.sh` mitgeprüft.
+
+> *Generates the module's two Grafana dashboards; by hand they are hundreds of
+> lines of JSON repeating the same fields, here one line per panel. Checked by
+> the completeness check.*
 
 ### `katalog-doku.py`
 
@@ -1530,6 +1626,7 @@ Rechte `0600`, ein fehlender Wert bricht ab).
 | `panel.service` | dauerhaft | Weboberfläche, `User=panel`, uvicorn auf `127.0.0.1:8099` |
 | `ttyd.service` | dauerhaft | Webterminal, `User=<admin>`, `127.0.0.1:7681` |
 | `spiele-sicherung.timer` | `*:0/15`, ±60 s | Sicherung laufender Spiele (aus bei `BORG_REPO=aus`) |
+| `platzwart-metriken.timer` | `*:0/5`, abschaltbar | Zahlen für Prometheus; **aus**, solange kein Modul installiert ist. Der Messabstand kommt aus einer Ergänzungsdatei (`30s`, `1min`, `5min`) |
 | `spiele-sicherung-voll.timer` | täglich 04:00, ±300 s | Vollsicherung samt `config-*`, `etc-*`, `panel-*` (aus bei `BORG_REPO=aus`) |
 | `spiel-einrichtung.timer` | alle 2 min, ab 3 min nach dem Start | Passwörter frischer Server setzen, Ports veröffentlichen |
 | `kanal-abgleich.timer` | alle 5 min, ab 4 min nach dem Start | TeamSpeak- und Discord-Kanäle angleichen; zusätzlich nach Installation und Entfernung angestoßen |
@@ -1575,7 +1672,13 @@ schon einmal dazu geführt, dass Aufrufe still fehlschlugen.
 | `/etc/spiele-adressen.json` | `0644 root` | Beitrittsadressen der von Hand gebauten Server; gelesen von Panel **und** Statusseite |
 | `/etc/spiele-mods.json` | `0644 root` | wohin ein Mod je Spiel gehört; **fehlt der Eintrag, wird der Upload abgewiesen** statt geraten |
 | `/etc/spiele-workshop.json` | `0644 root` | Workshop-Anbindung je Spiel: Art, Datei, Inhaltsordner, gemessen |
-| `/etc/borg-ausschluss.txt` | `0644 root` | was nicht gesichert wird; Katalogspiele hängen Blöcke `# >>> panel:<spiel>` an |
+| `/etc/borg-ausschluss.txt` | `0644 root` | was nicht gesichert wird; Katalogspiele hängen Blöcke `# >>> panel:<spiel>` an, Module `# >>> modul:<name>` |
+| `/etc/module-katalog.json` | `0644 root` | die installierbaren Module samt Schaltern und erlaubten Werten — die Positivliste des Modulwegs |
+| `/etc/module/<modul>/` | `0644 root` | Vorlagen eines Moduls: compose-Datei, Prometheus-Vorlage, Grafana-Bereitstellung, Dashboards |
+| `/etc/caddy/module.conf` | `0644 root` | **erzeugt**: je installiertem Modul ein `handle`-Block; ohne Modul leer, von der Caddyfile fest eingebunden |
+| `/opt/stacks/<modul>/modul.json` | `0640 root:panel` | Stand der Schalter und Einstellungen; die Oberfläche liest ihn, schreibt aber nie hinein |
+| `/opt/stacks/<modul>/.env` | `0600 root` | Werte für compose (Aufbewahrung, Plattengrenze) und das gewürfelte Grafana-Administratorpasswort |
+| `/var/lib/platzwart-metriken/*.prom` | `0644 root` | die Zahlen für Prometheus; `.platte.json` daneben merkt sich die stündliche Plattenmessung |
 | `/etc/caddy/Caddyfile` | `0644 root` | HTTPS, Vorschaltung, Kopfzeilen, Statusseite |
 | `/etc/caddy/zertifikat.conf` | `0644 root` | **erzeugt**: leer bei `http-01`, `acme_dns …` bei `dns-01` |
 | `/etc/systemd/system/caddy.service.d/dns01.conf` | `0644 root` | **erzeugt**, nur bei `dns-01`: eigener Caddy, `EnvironmentFile`, **kein** `--environ` |

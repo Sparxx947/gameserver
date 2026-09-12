@@ -43,7 +43,7 @@ log "Werkzeuge nach /usr/local/bin"
 # spiele-sicherung (Stufe 50) gerufen, muss also vor beiden liegen.
 # *Installed here although it is not part of the panel: both stage 30 and
 #  stage 50 call it, so it has to exist before either.*
-for w in dns-pflegen compose-feld kanal-verwalten katalog-vorpruefung katalogbilder-holen konfig-datei panel-aktion platzwart-melden platzwart-wache mod-verwalten workshop platzwart-schlaf sicherung-probe platzwart-status platzwart-verlauf port-ermitteln spieler-zaehlen spiel-einrichtung spiel-verwalten spiele-wiederanlauf spiele-autoupdate; do
+for w in dns-pflegen compose-feld kanal-verwalten katalog-vorpruefung katalogbilder-holen konfig-datei panel-aktion platzwart-melden platzwart-wache mod-verwalten workshop platzwart-schlaf sicherung-probe platzwart-status platzwart-verlauf platzwart-metriken modul-verwalten port-ermitteln spieler-zaehlen spiel-einrichtung spiel-verwalten spiele-wiederanlauf spiele-autoupdate; do
   einsetzen "$REPO/bin/$w" "/usr/local/bin/$w" 0755 root:root
 done
 einsetzen "$REPO/etc/spiele-katalog.json" /etc/spiele-katalog.json 0644 root:root
@@ -59,6 +59,20 @@ fi
 einsetzen "$REPO/etc/spiele-adressen.json" /etc/spiele-adressen.json 0644 root:root
 einsetzen "$REPO/etc/spiele-mods.json" /etc/spiele-mods.json 0644 root:root
 einsetzen "$REPO/etc/spiele-workshop.json" /etc/spiele-workshop.json 0644 root:root
+einsetzen "$REPO/etc/module-katalog.json" /etc/module-katalog.json 0644 root:root
+
+# Vorlagen der Zusatzmodule (#261). Sie liegen unter /etc, weil modul-verwalten
+# sie beim Installieren braucht - ein Klon des Repositoriums ist auf der
+# Maschine nicht garantiert, und ein Modul, das sich nur aus dem Klon
+# installieren laesst, waere nach einem Neuaufbau nicht nachinstallierbar.
+# *Templates live under /etc because the module manager needs them at install
+#  time; a repository clone on the machine is not guaranteed.*
+log "Vorlagen der Zusatzmodule"
+while IFS= read -r q; do
+  rel="${q#"$REPO"/etc/module/}"
+  mkdir -p "/etc/module/$(dirname "$rel")"
+  einsetzen "$q" "/etc/module/$rel" 0644 root:root
+done < <(find "$REPO/etc/module" -type f | sort)
 
 # Die sudo-Regel ist die einzige Rechteerweiterung der Oberflaeche. visudo -c
 # prueft sie VOR dem Einbau: eine kaputte Datei in /etc/sudoers.d legt sudo
@@ -102,6 +116,8 @@ einsetzen "$REPO/systemd/platzwart-schlaf.timer"     /etc/systemd/system/platzwa
 einsetzen "$REPO/systemd/platzwart-wecken@.service"  /etc/systemd/system/platzwart-wecken@.service
 einsetzen "$REPO/systemd/platzwart-verlauf.service" /etc/systemd/system/platzwart-verlauf.service
 einsetzen "$REPO/systemd/platzwart-verlauf.timer"   /etc/systemd/system/platzwart-verlauf.timer
+einsetzen "$REPO/systemd/platzwart-metriken.service" /etc/systemd/system/platzwart-metriken.service
+einsetzen "$REPO/systemd/platzwart-metriken.timer"   /etc/systemd/system/platzwart-metriken.timer
 einsetzen "$REPO/systemd/platzwart-status.service" /etc/systemd/system/platzwart-status.service
 einsetzen "$REPO/systemd/platzwart-status.timer"   /etc/systemd/system/platzwart-status.timer
 einsetzen "$REPO/systemd/spieler-zaehlen.service"  /etc/systemd/system/spieler-zaehlen.service
@@ -130,6 +146,13 @@ systemctl enable --now platzwart-schlaf.timer
 # *Runs, but channels stay off until switched on under Integrations.*
 systemctl enable --now kanal-abgleich.timer
 systemctl enable --now platzwart-verlauf.timer
+# platzwart-metriken.timer bleibt AUS: Er schreibt Zahlen fuer Prometheus, und
+# ohne installiertes Modul liest sie niemand. Eingeschaltet wird er von
+# modul-verwalten bei der Installation und wieder aus, wenn das letzte Modul
+# geht - ein Zeitgeber, der fuer niemanden misst, kostet nur "du" ueber alle
+# Spieldaten.
+# *Stays off: nothing reads these metrics without the module; modul-verwalten
+#  turns it on at install time and off with the last module.*
 systemctl enable --now platzwart-status.timer
 systemctl enable --now spieler-zaehlen.timer
 systemctl enable --now platzwart-wache.timer

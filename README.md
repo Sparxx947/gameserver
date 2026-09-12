@@ -122,6 +122,11 @@ Datei.
 * **Zurückspielen** über das Panel, mit Kopie des Ist-Stands vorher, bei
   laufendem Server vorbereitet; **herunterladen** als tar-Strom; **probeweise
   zurückspielen**, ohne den Server anzufassen.
+* **Statistik** als nachinstallierbares Modul: Prometheus, Grafana und
+  node_exporter hinter der Anmeldung des Panels, mit Dashboards für Maschine und
+  Spielserver — Spieler, Speicher, Plattenwachstum, Größe und Alter der
+  Sicherungen. Alles Weitere ist ein Schalter
+  ([docs/12](docs/12-module-und-statistik.md)).
 * **Wiederaufbau einer verlorenen Maschine**, geführt: `install/assistent.sh`
   holt Konfiguration, Benutzer samt zweiten Faktoren und jeden Spielstand auf
   eine frische Maschine zurück ([docs/11](docs/11-neueinrichtung.md#9-wiederaufbau-aus-der-sicherung)).
@@ -132,7 +137,10 @@ Datei.
 > so a safety net that reports itself intact while catching nothing is noticed.
 > Restore through the panel with a copy of the current state taken first and the
 > extraction prepared while the server still runs; download as a tar stream;
-> test restores that never touch the server. Rebuilding a lost machine is
+> test restores that never touch the server. Statistics come as an optional
+> module — Prometheus, Grafana and node_exporter behind the panel's login, with
+> dashboards for the machine and the game servers; everything else is a switch.
+> Rebuilding a lost machine is
 > guided: `install/assistent.sh` brings configuration, users with their second
 > factors and every save back onto a fresh machine.*
 
@@ -415,6 +423,7 @@ Dokumentation hier.
 | [09 Referenz](docs/09-referenz.md) | Jedes Werkzeug, jede Unit, jede Datei, jeder Schalter |
 | [10 Entscheidungen](docs/10-entscheidungen.md) | Warum es so ist und nicht anders |
 | [11 Neueinrichtung](docs/11-neueinrichtung.md) | Von nichts zum laufenden Server: Maschine, Domain, Sicherung, der Assistent, Wiederaufbau |
+| [12 Module und Statistik](docs/12-module-und-statistik.md) | Nachinstallierbare Dienste; Prometheus, Grafana und die Zahlen dieser Maschine |
 | [ABNAHME](ABNAHME.md) | Prüfliste für einen Neuaufbau auf einer frischen Maschine |
 
 ---

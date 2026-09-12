@@ -1,0 +1,17 @@
+[Unit]
+Description=Platzwart: Zahlen fuer Prometheus schreiben
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/platzwart-metriken
+# Keine Haertung, die NoNewPrivileges impliziert: Der Sammler ruft "docker
+# stats" - und genau dafuer gibt es ihn, damit KEIN Container den Socket
+# braucht. Dieselbe Begruendung wie beim Verlauf.
+ProtectHome=yes
+PrivateTmp=yes
+# "du" ueber alle Spieldaten darf den Spielern nicht die Platte wegnehmen:
+# niedrigste Priorität, damit der Sammler wartet und nicht der Server.
+Nice=10
+IOSchedulingClass=idle

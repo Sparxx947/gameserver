@@ -1,0 +1,18 @@
+[Unit]
+Description=Platzwart: Messwerte fuer die Statistik schreiben
+
+[Timer]
+# Fuenf Minuten ab Werk. Das Modul "Statistik" kann den Abstand ueber eine
+# Ergaenzungsdatei aendern (30s, 1min, 5min) - deshalb steht hier OnCalendar
+# und nicht OnUnitActiveSec: Eine Ergaenzung kann OnCalendar leeren und durch
+# OnUnitActiveSec ersetzen, umgekehrt ginge es nicht.
+# *Five minutes by default; the module can override via a drop-in, which is why
+#  this is OnCalendar - a drop-in can clear it and set OnUnitActiveSec instead.*
+OnCalendar=*:0/5
+# Ein verpasster Lauf wird NICHT nachgeholt: Prometheus bekaeme sonst einen
+# Wert mit der Zeit des Abrufs statt der Messung - und die Luecke, die man
+# sehen soll, waere zugeschuettet.
+Persistent=false
+
+[Install]
+WantedBy=timers.target

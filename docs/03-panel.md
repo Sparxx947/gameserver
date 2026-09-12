@@ -1859,6 +1859,48 @@ Volllauf mit. Einzelheiten in [05-sicherung.md](05-sicherung.md#über-die-oberfl
 
 ---
 
+## Module `/module` (nur admin)
+
+Optionale Dienste, die **nachinstalliert** werden können — heute genau einer,
+das **Statistik**-Modul (Prometheus, Grafana, node_exporter). Ausführlich in
+[12-module-und-statistik.md](12-module-und-statistik.md); hier, was die Seite
+tut.
+
+Die Seite zeigt je Modul entweder den Bedarf und einen Knopf **installieren**
+oder — wenn es installiert ist — was gerade läuft, einen Link auf seine Seite,
+eine Tabelle aller **Schalter**, die **Einstellungen** als Auswahl und
+**entfernen**. Jeder Knopf ruft `panel-aktion modul …`; die Oberfläche schickt
+dabei nie einen Pfad, ein Abbild oder eine Portangabe, sondern ausschließlich
+Namen und Werte aus dem Modulkatalog.
+
+Zwei Rückfragen sind eingebaut:
+
+* **Entfernen** sagt vorher, was verschwindet, und lässt die gesammelten
+  Messwerte auf Wunsch liegen — eine wieder installierte Statistik zeigt dann
+  die alte Geschichte weiter.
+* **Ein Schalter mit Warnung** (cAdvisor, Erreichbarkeitsprobe) führt auf eine
+  eigene Seite, die den Preis nennt, bevor er umgelegt wird. Der Text steht im
+  Katalog, nicht in der Seite: Wer einen Schalter hinzufügt, schreibt ihn einmal
+  und kann ihn nicht vergessen.
+
+Wer die Modulseite selbst sehen darf, entscheidet der Katalog (`rolle`). Beim
+Statistik-Modul ist das `verwalten` — dieselbe Rolle, die auch die Spiele
+verwaltet; die Modulverwaltung hier bleibt bei `admin`.
+
+> *Optional services that can be added later — today exactly one, the statistics
+> module. Per module the page shows either what it needs and an install button,
+> or what is running, a link to its page, a table of switches, the settings as
+> selects and a remove button. Every button calls `panel-aktion modul …`, and the
+> panel never sends a path, image or port — only names and values from the module
+> catalogue. Two confirmations are built in: removal says what disappears and can
+> keep the collected metrics, and a switch carrying a warning (cAdvisor, the
+> reachability probe) leads to its own page stating the price first, with the text
+> taken from the catalogue so it cannot be forgotten. Who may see a module's own
+> page is decided by the catalogue (`rolle`) — `verwalten` for statistics, while
+> managing modules stays with `admin`.*
+
+---
+
 ## Alle Routen
 
 Rollen: **—** ohne Anmeldung · **alle** jede angemeldete Rolle · **verwalten**
@@ -1904,7 +1946,10 @@ und führte `/konfig` und `/archive` noch als admin-only.
 | GET | `/integrationen` · POST `/integrationen/steam` | admin | Schlüssel fremder Dienste (Steam-Web-API) |
 | POST | `/integrationen/teamspeak` | admin | Kanäle je Server (#137): TeamSpeak-Zugang und Discord-Bot (je geprüft), Schalter, Oberkanal/Kategorie, Namensmuster |
 | GET | `/neustart-fragen` · POST `/neustart` | admin | Maschine neu starten |
+| GET | `/module` · POST `/modul-installieren` · `/modul-entfernen` · `/modul-schalter` · `/modul-einstellung` | admin | Zusatzmodule: installieren, schalten, entfernen (#261) |
+| GET | `/modul-entfernen-fragen/{modul}` · `/modul-schalter-fragen/{modul}/{name}` | admin | Rückfragen dazu — vor dem Entfernen und vor einem Schalter mit Warnung |
 | GET | `/auth-check` | admin | interne Prüfung für Caddy (Terminal) |
+| GET | `/auth-modul` | laut Katalog | interne Prüfung für Caddy (Modulseiten); gibt Benutzer und Rolle als Kopfzeile zurück |
 
 `docs_url`, `redoc_url` und `openapi_url` sind abgeschaltet: eine
 Schnittstellenbeschreibung, die jeder abrufen kann, verrät den Aufbau ohne
