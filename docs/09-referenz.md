@@ -137,6 +137,8 @@ spiel-verwalten katalog                     Katalog als Tabelle, mit Zustand je 
 spiel-verwalten installieren <schluessel>
 spiel-verwalten deinstallieren <stack>      nur mit panel.json
 spiel-verwalten fremd-entfernen <stack>     nur OHNE panel.json (von Hand gebaut)
+spiel-verwalten uebernehmen <stack>         von Hand gebauten Server in den Katalog
+                                            holen, --probe zeigt es nur
 spiel-verwalten groesse <stack>             was beim Entfernen gelöscht würde
 spiel-verwalten ausschluesse                Sicherungsausschlüsse installierter
                                             Katalogspiele an den Katalog angleichen
@@ -157,6 +159,20 @@ startet nichts) und startet, wenn der freie Arbeitsspeicher `mem_gb` + 2 GB
 beträgt. Öffentliche Ports stehen dann noch **nicht** in der compose.yaml — die
 trägt `port-ermitteln` ein, sobald das Beitrittspasswort steht.
 
+**Übernehmen** macht aus einem von Hand gebauten Server einen Katalogserver,
+ohne ihn neu aufzubauen (E37): Es verlangt einen Katalogeintrag, vergleicht
+dessen `image` mit dem laufenden Container (weicht es ab, beschreibt der Eintrag
+diesen Server nicht und es bricht ab), liest das Beitritts- und Adminpasswort
+dort aus der compose-Datei, **wo der Katalog seine Platzhalter `{PASSWORT}` und
+`{ADMIN}` trägt** — beide Schreibweisen der Umgebung (`KEY: wert` und
+`- KEY=wert`, #289). Fehlt das erwartete Passwort, wird nichts geschrieben:
+lieber keine Zugangsdaten als falsche. Danach entstehen `panel.json` (`0640
+root:panel`, `einrichtung_offen: false`, Stand „von Hand gebaut, in den Katalog
+übernommen"), Zugangsdaten, Ausschlussblock und Titelbild. Die compose-Datei
+bleibt unangetastet — Palworld behält damit seinen Schalter
+`DISABLE_GENERATE_SETTINGS` und seine 15 abweichenden Einstellungen. `--probe`
+schreibt nichts und zeigt nur, was entstünde.
+
 **Deinstallieren** zieht **erst** eine Endsicherung (Wartezeit bis 1800 s);
 schlägt sie fehl, wird nichts gelöscht. Danach Leerlauf abräumen
 (`platzwart-schlaf --vergessen`, ohne zu starten), `docker compose down`,
@@ -164,7 +180,19 @@ Datenverzeichnis, Stack-Verzeichnis, Ausschlussblock, Titelbild, Zugangsdaten
 und den Auto-Update-Eintrag. Verlangt zwingend eine `panel.json` und schützt
 damit die von Hand gebauten Stacks. **Fremd-entfernen** ist derselbe Ablauf für
 Stacks ohne `panel.json`; die Datenverzeichnisse kommen dann aus der
-compose.yaml, begrenzt auf `/srv/games/`.
+compose.yaml, begrenzt auf `/srv/games/`. Seit alle sieben Stacks übernommen
+sind, trifft `fremd-entfernen` nichts mehr — es bleibt für Server, die jemand
+künftig doch von Hand baut.
+
+> *`uebernehmen` turns a hand-built server into a catalogue server without
+> rebuilding it (E37): it requires a catalogue entry, refuses when its `image`
+> differs from the running container, and reads the join and admin passwords from
+> the compose file exactly where the catalogue carries its `{PASSWORT}` and
+> `{ADMIN}` placeholders, in both environment spellings. If the expected password
+> is missing nothing is written — no credentials beat wrong credentials. It then
+> creates `panel.json`, credentials, the exclusion block and the cover, leaving
+> the compose file untouched, so Palworld keeps its switch and its 15 differing
+> settings. `--probe` only shows what would happen.*
 
 **Katalog-Abgleich** läuft in Stufe 30 und nach jedem `ausrollen.sh` mit dem
 Katalog oder der Ausschlussliste — die Fassung der Ausschlussliste im

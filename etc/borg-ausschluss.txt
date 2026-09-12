@@ -10,30 +10,15 @@ sh:/srv/games/*/server/logs
 sh:/srv/games/*/.steam
 sh:/srv/games/*/steamcmd
 sh:/srv/games/*/current_version
-# Palworld (Image thijsvanloef): Installation und SteamCMD bleiben draussen,
-# gesichert werden Pal/Saved (Welt, Spielerstaende, Konfiguration) und backups/.
-sh:/srv/games/palworld/Pal/Binaries
-sh:/srv/games/palworld/Pal/Content
-sh:/srv/games/palworld/Pal/Plugins
-sh:/srv/games/palworld/Engine
-sh:/srv/games/palworld/steamapps
-sh:/srv/games/palworld/PalServer.sh
-sh:/srv/games/palworld/*.so
-sh:/srv/games/palworld/steamclient*
-# Satisfactory: Installation raus, "saved" und "backups" bleiben drin.
-sh:/srv/games/satisfactory/gamefiles
-sh:/srv/games/satisfactory/logs
-# FOUNDRY: Installation raus, "data" (Spielstaende) bleibt.
-sh:/srv/games/foundry/server
-# Windrose: alles unter server/ ist Installation AUSSER R5/Saved und
-# R5/ServerDescription.json — deshalb gezielt die dicken Brocken ausschliessen
-# statt "server" pauschal, sonst faellt der Spielstand mit heraus.
-sh:/srv/games/windrose/server/steamapps
-sh:/srv/games/windrose/server/Engine
-sh:/srv/games/windrose/server/R5/Content
-sh:/srv/games/windrose/server/R5/Binaries
-sh:/srv/games/windrose/server/R5/Plugins
-sh:/srv/games/windrose/server/R5/.sentry-native
+# Die Bloecke je Spiel standen bis 2026-09-12 hier von Hand: Palworld,
+# Satisfactory, FOUNDRY und Windrose waren handgebaut und kannten keinen
+# Katalog. Seit sie uebernommen sind (spiel-verwalten uebernehmen), liefert der
+# Katalog ihre Ausschluesse wie bei jedem anderen Server - zwei Wahrheiten
+# waeren eine zu viel. Die Platzhalterzeilen oben bleiben als Netz.
+# *The per-game blocks used to sit here by hand; since those servers were
+#  adopted into the catalogue it supplies their exclusions like everyone else.
+#  The wildcard lines above stay as a safety net.*
+#
 # Ab hier haengt spiel-verwalten Bloecke der Form
 #   # >>> panel:<spiel> ... # <<< panel:<spiel>
 # an, sobald ein Spiel aus dem Katalog installiert wird. Diese Bloecke gehoeren

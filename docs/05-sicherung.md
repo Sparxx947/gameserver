@@ -78,7 +78,9 @@ Enshrouded allein sind 8,9 GB, die sich nie ändern. Sie mitzunehmen kostet Plat
 und Zeit, ohne einen einzigen Wiederherstellungsfall zu verbessern.
 
 Die Trennlinie steht in `/etc/borg-ausschluss.txt` und ist **pro Spiel
-handgearbeitet**, weil die Bilder ihre Verzeichnisse unterschiedlich anordnen:
+verschieden**, weil die Bilder ihre Verzeichnisse unterschiedlich anordnen. Seit
+E37 kommt sie für jeden Server aus dem Katalog; bis 2026-09-12 stand sie für die
+handgebauten Stacks von Hand in der Datei:
 
 | Spiel | Warum es nicht pauschal geht |
 |---|---|

@@ -127,12 +127,21 @@ gemessenen Grund:
 | Windrose | Hostport 7780 statt 7777 | Satisfactory hält 7777; zwei Katalogeinträge dürfen sich keinen Hostport teilen |
 | alle fünf | `{PASSWORT}`/`{ADMIN}` statt fester Werte | Die Installation würfelt die Passwörter je Server frisch |
 
-Was die Einträge **nicht** tun: Die fünf laufenden Server werden dadurch nicht
-zu Katalogservern. Sie haben keine `panel.json`, und daran hängt mehr, als es
-aussieht — `spiel-verwalten ausschluesse` gleicht nur solche Server an, und
-**entfernen** lässt sich nur, was eine `panel.json` hat. Beides bleibt wie
-vorher: Ein Klick im Panel kann diese Server weder überschreiben (der
-Stack-Ordner existiert, die Installation lehnt ab) noch löschen.
+Am selben Tag sind auch die **laufenden** Server nachgezogen worden
+(E37): `spiel-verwalten uebernehmen <stack>` schreibt einem von Hand gebauten
+Server die fehlende `panel.json` aus dem Katalogeintrag und den Werten, die in
+seiner compose-Datei stehen — Passwörter dort, wo der Katalog seine Platzhalter
+`{PASSWORT}`/`{ADMIN}` trägt, nicht geraten. Danach greifen Zugangsdaten,
+Ausschlussabgleich, Einrichtungsstand und die Wache wie bei jedem anderen
+Server. `--probe` zeigt vorher, was entstünde.
+
+Damit sind alle sieben Stacks Katalogserver, und die von Hand gepflegten Blöcke
+in `etc/borg-ausschluss.txt` sind weg: Der Katalog liefert sie. Nachgemessen
+hat das an den Sicherungen nichts geändert — die Trockenläufe treffen die
+zuletzt echt gemessenen Archivgrößen (74,19 · 201,90 · 312,78 · 22,24 MB).
+**Der Preis:** Ein übernommener Server ist im Panel löschbar wie jeder
+Katalogserver; der alte Schutz „von Hand gebaut, also nicht entfernbar" fällt
+damit weg.
 
 Zwei Fallstricke stehen im `hinweis` des jeweiligen Eintrags, weil sie sonst
 niemand sieht: FOUNDRYs Image läuft fest als uid 1000 und setzt die Eigentümer
@@ -155,7 +164,15 @@ anders als jeder andere Verwaltungsport (Regel 1 der Portprüfung).
 > one, so no click can overwrite or delete them. Two traps live in each entry's
 > `hinweis`: FOUNDRY's image is fixed to uid 1000 and fixes ownership itself, and
 > Satisfactory's port 8888 is the HTTPS interface the game client administers
-> through — it must stay public, unlike every other management port.*
+> through — it must stay public, unlike every other management port. The running
+> servers were adopted the same day (E37): `spiel-verwalten uebernehmen <stack>`
+> writes the missing `panel.json` from the catalogue entry and the values in the
+> stack's compose file, reading passwords where the catalogue carries its
+> `{PASSWORT}`/`{ADMIN}` placeholders rather than guessing, and `--probe` shows
+> what would be written. All seven stacks are catalogue servers now, the
+> hand-maintained exclusion blocks are gone, and the backups came out
+> byte-identical. The price: an adopted server is deletable in the panel like any
+> other.*
 
 ### Vier Eigenheiten von LinuxGSM
 
