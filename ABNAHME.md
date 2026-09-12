@@ -279,6 +279,30 @@ done
 
 ---
 
+### 3.5b Modpaket für Mitspieler (nur wenn Mods im Spiel sind)
+
+```bash
+mod-verwalten paket <stack>                      # freigeben
+curl -sI https://<PANEL_DOMAIN>/modpaket/<stack>.zip | head -1
+curl -s -o /dev/null -w "%{http_code}\n" https://<PANEL_DOMAIN>/modpaket/
+mod-verwalten paket-weg <stack>                  # zurücknehmen
+```
+
+| Prüfpunkt | Erwartet |
+|---|---|
+| 3.5b.1 Freigabe | nennt Dateizahl und Größe; leeres Modverzeichnis wird **abgewiesen** |
+| 3.5b.2 Abruf | `200`, und das ZIP enthält genau die Moddateien |
+| 3.5b.3 Listing | `/modpaket/` antwortet **404** |
+| 3.5b.4 Rücknahme | danach `404`, Verzeichnis leer |
+| 3.5b.5 Statusseite | zeigt den Link nur, solange freigegeben ist |
+
+> *Modpack check: releasing names file count and size and refuses an empty
+> directory; the package is fetchable and contains exactly the mod files; the
+> directory itself gives 404; withdrawing leaves 404 and an empty directory; and
+> the status page links it only while released.*
+
+---
+
 ### 3.6 Modul „Statistik" (nur wenn es installiert werden soll)
 
 Optional — das Modul kostet rund 0,5 GB Arbeitsspeicher. Wer es nicht will,

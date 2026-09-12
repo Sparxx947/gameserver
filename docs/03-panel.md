@@ -1901,6 +1901,53 @@ verwaltet; die Modulverwaltung hier bleibt bei `admin`.
 
 ---
 
+## Modpaket für Mitspieler (#280)
+
+Auf der Mod-Seite eines Servers, unter dem Hochladen: **für Mitspieler
+freigeben**. Der Platzwart packt dann den Inhalt des Modverzeichnisses als ZIP
+und legt es unter `/modpaket/<stack>.zip` ab — **öffentlich, ohne Anmeldung**,
+und die Statusseite verlinkt es neben der Beitrittsadresse.
+
+Warum überhaupt: `etc/spiele-mods.json` sagt es für Valheim selbst — *„Viele Mods
+brauchen dieselbe Version bei jedem Mitspieler, sonst kommt niemand mehr auf den
+Server."* Bis hierher musste der Betreiber jedem einzeln sagen, welche Dateien in
+welcher Fassung; jetzt holt sich jeder genau die, die der Server fährt.
+
+Warum als **Freigabe** und nicht als Nebeneffekt des Hochladens: Das Paket
+verlässt die Maschine und ist für jeden abrufbar, der den Link kennt. Das ist
+dieselbe Art Entscheidung wie die Freigabe eines Servers ohne Beitrittspasswort
+(E26) — sie gehört dem Menschen, nicht dem Ablauf. Zurückgenommen wird sie mit
+demselben Knopf; Datei **und** Stand verschwinden, denn eine liegengebliebene
+Datei wäre weiter abrufbar, während die Oberfläche „nicht freigegeben" sagt.
+
+Was **nicht** mitgepackt wird: Verknüpfungen. Ein Link im Archiv zeigt beim
+Auspacken irgendwohin, und was hier hineingerät, liegt öffentlich — die Seite
+nennt hinterher, was ausgelassen wurde. Gepackt wird ausschließlich das
+Modverzeichnis aus dem Katalog, nie ein geratener Pfad.
+
+Wird danach ein Mod hochgeladen oder entfernt, **packt der Platzwart das Paket
+selbst neu**: Sonst installierten Mitspieler weiter eine Datei, die der Server
+nicht mehr hat — und kämen genau deswegen nicht mehr herein. Ohne Freigabe
+geschieht nichts.
+
+Caddy liefert das Verzeichnis ohne Listing: Wer den Namen des Servers kennt,
+bekommt sein Paket; sonst antwortet die Route 404.
+
+> *On a server's mod page: release the modpack for players. Platzwart zips the
+> mod directory and serves it publicly at `/modpaket/<stack>.zip`, linked from the
+> status page next to the join address — because mods usually have to match
+> version for version, and until now every player had to be told by hand. It is a
+> release, not a side effect of uploading: the package leaves the machine, which
+> is the same kind of decision as releasing a server without a join password
+> (E26). Withdrawing removes file and state together, since a left-over file would
+> still be fetchable while the panel says "not released". Symlinks are never
+> packed and are named afterwards; only the catalogue's mod directory is packed.
+> Uploading or removing a mod repacks automatically — otherwise players keep
+> installing a file the server no longer has. No listing: knowing the server's
+> name is enough, everything else answers 404.*
+
+---
+
 ## Alle Routen
 
 Rollen: **—** ohne Anmeldung · **alle** jede angemeldete Rolle · **verwalten**
@@ -1941,6 +1988,7 @@ und führte `/konfig` und `/archive` noch als admin-only.
 | GET | `/passwoerter` · POST `/zugang-anlegen` · `/zugang-loeschen` | verwalten | Zugangsdaten |
 | GET | `/entfernen-fragen/{stack}` · POST `/fremd-entfernen` | admin | von Hand gebauten Server entfernen |
 | GET | `/mods/{stack}` · POST `/mod-hochladen` · `/mod-entfernen` | admin | Mods |
+| POST | `/modpaket` | admin | Modpaket für Mitspieler freigeben oder zurückziehen (#280) |
 | GET | `/nutzer` · POST `/nutzer-anlegen` · `/mfa-zuruecksetzen` · `/nutzer-loeschen` | admin | Benutzerverwaltung |
 | GET | `/protokoll` | admin | Protokoll aller Aktionen |
 | GET | `/integrationen` · POST `/integrationen/steam` | admin | Schlüssel fremder Dienste (Steam-Web-API) |

@@ -2729,10 +2729,77 @@ def mods(request: Request, stack: str, meldung: str = ""):
             '<b>vor</b> dem Entpacken geprüft, und Archive mit Symlinks werden '
             'abgewiesen.</p>')
 
+        koerper += modpaket_abschnitt(s, stack)
+
     m = f'<div class=m>{esc(meldung)}</div>' if meldung else ""
     return HTMLResponse(KOPF + RUMPF + kopfleiste(s) +
                         f'<div class=card><h1>Mods: {esc(stack)}</h1>{m}{koerper}'
                         f'<p><a class=b href="{einstellungen_von(stack)}">zurück</a></p></div>' + FUSS)
+
+
+MODPAKETE = Path("/var/lib/platzwart-modpakete")
+
+
+def modpaket_stand(stack: str) -> dict:
+    try:
+        return json.loads((MODPAKETE / f"{stack}.json").read_text())
+    except Exception:
+        return {}
+
+
+def modpaket_abschnitt(s: dict, stack: str) -> str:
+    """Die Freigabe des Modpakets - bewusst neben dem Hochladen, nicht darin.
+
+    Das Paket ist danach OEFFENTLICH abrufbar, ohne Anmeldung. Das ist dieselbe
+    Art Entscheidung wie die Freigabe eines Servers ohne Beitrittspasswort
+    (E26): Sie gehoert dem Menschen, nicht dem Ablauf.
+    *The package is public afterwards: the same kind of decision as releasing a
+     server without a join password - it belongs to a person, not a process.*
+    """
+    st = modpaket_stand(stack)
+    if st.get("freigegeben"):
+        mb = round(st.get("bytes", 0) / 1048576, 1)
+        ausgelassen = st.get("uebersprungen") or []
+        hinweis = (f'<div class=z>{len(ausgelassen)} Verknüpfung(en) nicht mitgepackt: '
+                   f'{esc(", ".join(ausgelassen[:5]))}</div>' if ausgelassen else "")
+        return ('<h2>Modpaket für Mitspieler</h2>'
+                f'<p>Freigegeben: <b>{st.get("dateien", 0)} Dateien</b>, {mb} MB. '
+                f'Link zum Weitergeben: <code>/modpaket/{esc(stack)}.zip</code></p>'
+                + hinweis +
+                '<form method=post action=/modpaket style="display:flex;gap:6px">'
+                f'<input type=hidden name=csrf value="{s["csrf"]}">'
+                f'<input type=hidden name=stack value="{esc(stack)}">'
+                '<button class=b name=was value=bauen>neu packen</button>'
+                '<button class="b x" name=was value=weg>Freigabe zurücknehmen</button>'
+                '</form>'
+                '<p class=z>Wird ein Mod hochgeladen oder entfernt, packt der Platzwart '
+                'das Paket selbst neu — sonst installierten Mitspieler eine Datei, die '
+                'der Server nicht mehr hat.</p>')
+    return ('<h2>Modpaket für Mitspieler</h2>'
+            '<p class=z>Nicht freigegeben. Mit der Freigabe wird der Inhalt des '
+            'Modverzeichnisses als ZIP gepackt und unter '
+            f'<code>/modpaket/{esc(stack)}.zip</code> <b>öffentlich</b> abrufbar — '
+            'ohne Anmeldung, damit Mitspieler genau die Dateien bekommen, die dieser '
+            'Server fährt. Verknüpfungen werden nicht mitgepackt.</p>'
+            '<form method=post action=/modpaket>'
+            f'<input type=hidden name=csrf value="{s["csrf"]}">'
+            f'<input type=hidden name=stack value="{esc(stack)}">'
+            '<button class="b y" name=was value=bauen>für Mitspieler freigeben</button>'
+            '</form>')
+
+
+@app.post("/modpaket")
+def modpaket(request: Request, csrf: str = Form(""), stack: str = Form(""),
+             was: str = Form("")):
+    s = pruefe(request, csrf)
+    if not ist_admin(s):
+        return RedirectResponse("/", 303)
+    if was not in ("bauen", "weg"):
+        return RedirectResponse(f"/mods/{stack}", 303)
+    rc, aus = aktion("modpaket", was, stack, timeout=600)
+    protokoll(s, "Modpaket freigegeben" if was == "bauen" else "Modpaket zurückgezogen",
+              stack, aus[:120] if rc == 0 else f"gescheitert: {aus[:120]}")
+    return RedirectResponse(f"/mods/{stack}?meldung={quote(aus[:200])}", 303)
 
 
 @app.post("/mod-hochladen")
