@@ -4,7 +4,7 @@
 
 Vollständiger Bausatz für einen selbst gehosteten **Spieleserver mit Weboberfläche**:
 Docker-Serverstacks, ein Panel mit Zwei-Faktor-Anmeldung, Rollen und Passkeys,
-ein Katalog von 184 installierbaren Spielen, Sicherung nach Borg mit
+ein Katalog von 185 installierbaren Spielen, Sicherung nach Borg mit
 Großvater-Vater-Sohn, Steam-Workshop und Mod-Upload, Kanäle auf TeamSpeak und
 Discord je Spielserver, Meldungen nach Discord, eine öffentliche Statusseite und
 automatisch gepflegte DNS-Namen.
@@ -17,7 +17,7 @@ Datei.
 
 > *Complete kit for a self-hosted **game server with a web panel**: Docker
 > service stacks, a panel with two-factor login, roles and passkeys,
-> a catalogue of 184 installable games, Borg backups on a grandfather-father-son rotation,
+> a catalogue of 185 installable games, Borg backups on a grandfather-father-son rotation,
 > Steam Workshop and mod upload, TeamSpeak and Discord channels per game server,
 > notifications to Discord, a public status page, and automatically maintained
 > DNS records. This repository documents the actual state of a running machine

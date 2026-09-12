@@ -6804,6 +6804,47 @@
       "kategorie": "shooter"
     },
     {
+      "schluessel": "scum",
+      "name": "SCUM",
+      "kurz": "Survival mit Metabolismus-Simulation, Gefangeneninsel",
+      "appid": 513710,
+      "image": "ghcr.io/evilolaf/scum:latest",
+      "mem_gb": 16,
+      "platte_gb": 25,
+      "ports": [
+        "7790:7777/udp",
+        "27030:27015/udp"
+      ],
+      "volumes": [
+        "/srv/games/scum:/opt/scumserver"
+      ],
+      "env": {
+        "GAMEPORT": "7777",
+        "QUERYPORT": "27015",
+        "MAXPLAYERS": "{SPIELER}"
+      },
+      "passwort": {
+        "art": "datei",
+        "pfad": "",
+        "feld": ""
+      },
+      "adresse_port": 7790,
+      "spieler": 4,
+      "hinweis": "Gemessen am 2026-09-12 auf einer Testinstallation: Der Server laedt 17 GB, laeuft als Windows-Programm unter Wine und braucht 12 bis 16 GB Arbeitsspeicher - mit einer Grenze von 8 GB erschlug ihn der OOM-Killer bei 7,9 GB. Das Beitrittspasswort steht in SCUM/Saved/Config/WindowsServer/ServerSettings.ini (scum.ServerPassword) und wird erst nach dem ersten Start gesetzt; der Port geht auf, sobald der Server per A2S 'Passwort noetig' meldet. Der Container laeuft als root und legt seine Dateien als root an - anders als alle anderen Server hier. Gemessen lauscht er auf 7777/udp (Spiel), 27015/udp (Abfrage) und 7779/tcp (Zweck ungeklaert, bewusst nicht veroeffentlicht).",
+      "ausschluss": [
+        "*.dll",
+        "Engine",
+        "SCUM/Binaries",
+        "SCUM/Content",
+        "SCUM/Plugins",
+        "SCUM/Saved/Crashes",
+        "SCUM/Saved/Logs",
+        "SCUM/Shaders"
+      ],
+      "bauart": "eigenes-image",
+      "kategorie": "survival"
+    },
+    {
       "schluessel": "sfc",
       "name": "SourceForts Classic",
       "kurz": "Teamshooter mit baubaren Festungen",
