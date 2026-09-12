@@ -148,6 +148,20 @@ services:
     command:
       - --listen_ip=127.0.0.1
       - --port=19080
+    # Die Gesundheitsprobe steckt im Abbild und fragt $CADVISOR_HEALTHCHECK_URL -
+    # ab Werk "http://localhost:8080/healthz". Wir fahren cAdvisor aber auf
+    # 127.0.0.1:19080, weil hier kein Moduldienst auf einem Standardport und
+    # keiner nach aussen lauscht. Ohne diese Zeile fragt die Probe einen Port,
+    # auf dem nichts ist, und der Container steht dauerhaft auf "unhealthy",
+    # waehrend er tadellos misst - Prometheus holt ihn als Ziel "container" und
+    # meldet "up". Ein Zustand, der immer rot ist, bringt einem bei, rot zu
+    # uebersehen; deshalb die Adresse mitgeben.
+    # *The image's healthcheck asks $CADVISOR_HEALTHCHECK_URL, which defaults to
+    #  port 8080; we run on 19080, so without this the container is permanently
+    #  "unhealthy" while measuring perfectly. A state that is always red teaches
+    #  people to overlook red.*
+    environment:
+      CADVISOR_HEALTHCHECK_URL: "http://127.0.0.1:19080/healthz"
     # ACHTUNG: Dieser Container liest den Docker-Socket. Wer den Socket hat,
     # kann jeden Container starten, auch einen mit "/" darin - er ist damit
     # faktisch root. Deshalb steht er hinter einem Profil, ist ab Werk aus und
