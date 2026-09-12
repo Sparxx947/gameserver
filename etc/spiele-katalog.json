@@ -8714,7 +8714,7 @@
       "schluessel": "windrose",
       "name": "Windrose",
       "kurz": "PvE-Survival im Piratenzeitalter, zu Land und zu Wasser",
-      "appid": 0,
+      "appid": 3041230,
       "image": "mornedhels/windrose-server:latest",
       "mem_gb": 8,
       "platte_gb": 8,
@@ -8741,7 +8741,7 @@
       },
       "adresse_port": 7780,
       "spieler": 4,
-      "hinweis": "Der Spielport liegt im Container auf 7777 und auf dem Host auf 7780, weil Satisfactory 7777 haelt. Unter server/ liegen Installation UND Spielstand (R5/Saved): Deshalb schliesst die Sicherung gezielt die dicken Brocken aus statt server/ pauschal. Steam fuehrt Windrose unter der App-ID 3041230, liefert dafuer aber kein header.jpg - deshalb steht appid auf 0 und das Titelbild wird selbst gezeichnet.",
+      "hinweis": "Der Spielport liegt im Container auf 7777 und auf dem Host auf 7780, weil Satisfactory 7777 haelt. Unter server/ liegen Installation UND Spielstand (R5/Saved): Deshalb schliesst die Sicherung gezielt die dicken Brocken aus statt server/ pauschal. Steam liefert fuer Windrose kein header.jpg, wohl aber library_hero.jpg - katalogbilder-holen fragt seit #305 mehrere Namen ab.",
       "ausschluss": [
         "server/Engine",
         "server/R5/.sentry-native",

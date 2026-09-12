@@ -475,10 +475,11 @@ if [ "$ALLE" -eq 1 ] && [ -z "$NUR" ]; then
   # */etc and the panel data without sichere() (both are small and would trip the
   #  "practically empty" check), but with an error status - the /etc archive used
   #  to fail silently.*
-  klein_sichern() {   # klein_sichern <praefix> <pfad>
-    borg create --compression zstd,6 "$REPO::$1-${ZEIT}" "$2" >/dev/null 2>&1 \
-      && borg prune --glob-archives "$1-*" "${prune_regeln[@]}" "$REPO" >/dev/null 2>&1 \
-      || { echo "FEHLER: Sicherung $1 ($2)" >&2; fehler=1; }
+  klein_sichern() {   # klein_sichern <praefix> <pfad>...
+    local praefix="$1"; shift
+    borg create --compression zstd,6 "$REPO::$praefix-${ZEIT}" "$@" >/dev/null 2>&1 \
+      && borg prune --glob-archives "$praefix-*" "${prune_regeln[@]}" "$REPO" >/dev/null 2>&1 \
+      || { echo "FEHLER: Sicherung $praefix ($*)" >&2; fehler=1; }
   }
   klein_sichern etc /etc
   # Panel-Daten (#218): Benutzer mit Passwort-Hashes, TOTP-Geheimnissen und
@@ -488,7 +489,13 @@ if [ "$ALLE" -eq 1 ] && [ -z "$NUR" ]; then
   # /etc liegen dort schon.
   # *Users with hashes, TOTP secrets and passkeys, credentials and audit log -
   #  previously in no archive at all.*
-  klein_sichern panel /opt/panel/daten
+  # Seit 2026-09-12 auch die Bilder: Sie galten als jederzeit nachladbar, aber
+  # die Kachelbilder der installierten Server liegen von Hand dort, und
+  # ueberschrieben war eines unwiederbringlich - im Archiv stand nur daten/.
+  # 7,6 MB, die borg zwischen den Laeufen ohnehin wiederverwendet.
+  # *Also the images since then: they counted as re-fetchable, but the card
+  #  images are hand-placed and one overwritten file was gone for good.*
+  klein_sichern panel /opt/panel/daten /opt/panel/bilder
 fi
 
 borg compact "$REPO" >/dev/null 2>&1

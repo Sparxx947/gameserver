@@ -53,7 +53,15 @@ from pathlib import Path
 KATALOG = Path("/etc/spiele-katalog.json")
 ZIEL    = Path("/opt/panel/bilder/katalog")
 EIGENE  = Path("/opt/panel/bilder/eigene")
-URL     = "https://cdn.cloudflare.steamstatic.com/steam/apps/{}/header.jpg"
+# Mehrere Namen, weil Steam fuer neuere Spiele KEIN header.jpg mehr ablegt:
+# Windrose (App 3041230) liefert darauf 404, hat aber library_hero.jpg. Wer nur
+# den ersten Namen fragt, haelt ein modernes Spiel faelschlich fuer "nicht bei
+# Steam" und zeichnet ein Ersatzbild - so geschehen am 2026-09-12.
+# *Several names because Steam no longer ships header.jpg for newer titles; a
+#  single-name lookup mistakes a modern game for "not on Steam".*
+URLS = ["https://cdn.cloudflare.steamstatic.com/steam/apps/{}/header.jpg",
+        "https://cdn.cloudflare.steamstatic.com/steam/apps/{}/library_hero.jpg",
+        "https://cdn.cloudflare.steamstatic.com/steam/apps/{}/capsule_616x353.jpg"]
 ZEITABLAUF   = 20    # Sekunden je Abruf
 NETZ_ABBRUCH = 5     # so viele Netzfehler hintereinander, dann ohne Steam weiter
 
@@ -68,15 +76,22 @@ def hole(appid: int) -> tuple[str, bytes | None]:
     *The distinction drives the give-up decision: a missing image is normal and
      instant, a network failure costs the full timeout. Only the latter counts.*
     """
-    try:
-        with urllib.request.urlopen(URL.format(appid), timeout=ZEITABLAUF) as r:
-            daten = r.read()
-    except urllib.error.HTTPError:
-        # 404 und Verwandte: Steam antwortet, kennt das Bild nur nicht.
-        # *Steam answers, it just has no such image.*
-        return "kein-bild", None
-    except Exception:
-        return "netz", None
+    daten, fehlt = None, False
+    for muster in URLS:
+        try:
+            with urllib.request.urlopen(muster.format(appid), timeout=ZEITABLAUF) as r:
+                daten = r.read()
+            break
+        except urllib.error.HTTPError:
+            # 404 und Verwandte: Steam antwortet, kennt DIESEN Namen nur nicht -
+            # der naechste kann trotzdem da sein.
+            # *Steam answers, it just has no image under this name.*
+            fehlt = True
+            continue
+        except Exception:
+            return "netz", None
+    if daten is None:
+        return ("kein-bild", None) if fehlt else ("netz", None)
     # Steam antwortet auf unbekannte IDs auch mit einer winzigen Platzhalterdatei
     # statt mit 404 - die Groesse ist hier das verlaesslichere Kriterium.
     # *Steam answers unknown ids with a tiny placeholder rather than a 404,

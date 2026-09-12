@@ -726,7 +726,7 @@ wenn Liste und Katalog auseinandergehen.
 | `vs` | Vampire Slayer | shooter | linuxgsm | `3043210` |
 | `wet` | Wolfenstein: Enemy Territory | shooter | linuxgsm | `1873030` |
 | `wf` | Warfork | arena | linuxgsm | `671610` |
-| `windrose` | Windrose | survival | eigenes-image | — |
+| `windrose` | Windrose | survival | eigenes-image | `3041230` |
 | `windward` | Windward | survival | ich777 | `326410` |
 | `wurmunlimited` | WurmUnlimited | survival | ich777 | `366220` |
 | `xonotic` | Xonotic | arena | ich777 | — |

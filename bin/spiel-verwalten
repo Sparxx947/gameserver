@@ -500,8 +500,14 @@ def bild_holen(g: dict):
         except Exception:
             pass      # weiter zum Vorrat - lieber ein eigenes Bild als keins
 
+    # Das gezeichnete Ersatzbild NUR, wenn noch keins da ist. Am 2026-09-12
+    # ueberschrieb eine Uebernahme damit Windroses vorhandenes Kartenbild - und
+    # die Bilder liegen in keiner Sicherung, das Original war weg. Ein
+    # Ersatzbild darf eine Luecke fuellen, nie etwas Vorhandenes ersetzen.
+    # *The drawn stand-in only when nothing is there: an adoption overwrote an
+    #  existing card image with it, and these files are in no backup.*
     eigen = EIGENE_BILDER / f'{g["schluessel"]}.jpg'
-    if eigen.is_file():
+    if eigen.is_file() and not ziel.is_file():
         ablegen(eigen.read_bytes())
     # Bleibt beides aus, ist die Kachel blass - alles andere funktioniert.
 
