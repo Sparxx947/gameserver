@@ -321,6 +321,15 @@ Satisfactory haben so einen Schalter), oder es kommt nicht mehr zum Schreiben."
   rm -f "$tmp"
 }
 
+# Rueckgabewert von borg create bewerten. Borg 1.2+: 0 = sauber, 1 = WARNUNG
+# (Archiv IST geschrieben, aber z. B. verschwand eine Datei waehrend des Lesens),
+# ab 2 = Fehler, kein Archiv. Palworld raeumt seine eigenen Backup-Ordner im
+# Minutentakt um; erwischte borg einen davon beim Lesen, meldete der Lauf bisher
+# "MIT FEHLERN", obwohl das Archiv vollstaendig war (2026-09-21).
+# *Borg exit 1 is a warning - the archive exists. Palworld rotates its own backup
+#  folders every few minutes, and catching one mid-read used to fail the run.*
+borg_rc_bewerten() { [ "${1:-2}" -le 1 ] 2>/dev/null; }
+
 sichere() {   # sichere <name> <pfad>
   local name="$1" pfad="$2" aus
   # --stats gibt die Dateizahl gleich mit aus - ein zweiter borg-Aufruf nur zum
@@ -330,9 +339,20 @@ sichere() {   # sichere <name> <pfad>
         "$REPO::${name}-${ZEIT}" "$pfad" 2>&1)
   local rc=$?
   printf '%s\n' "$aus" | grep -vE "^$"
-  if [ $rc -ne 0 ]; then
-    echo "FEHLER: borg create fuer $name endete mit $rc" >&2; fehler=1; return
+  if ! borg_rc_bewerten "$rc"; then
+    echo "FEHLER: borg create fuer $name endete mit $rc" >&2; fehler=1
+    # Haengende Sperre erkennbar machen (2026-09-21: der borgserver-Container
+    # wurde mitten in einem Lauf neu gebaut, seine Sperre blieb unter altem
+    # Hostnamen liegen, und 20 Stunden lang wartete jeder Lauf 15 min je Spiel).
+    # *Make a stale lock recognisable: a container rebuild left one behind under
+    #  its old hostname and every run waited 15 minutes per game for 20 hours.*
+    case "$aus" in *"Failed to create/acquire the lock"*)
+      echo "HINWEIS: Repository gesperrt. Laeuft KEIN anderer borg-Prozess, ist die Sperre verwaist:" >&2
+      echo "         borg break-lock $REPO" >&2 ;;
+    esac
+    return
   fi
+  [ "$rc" -eq 1 ] && echo "WARNUNG: borg create fuer $name endete mit 1 - Archiv geschrieben, aber Dateien aenderten sich beim Lesen (siehe oben)" >&2
   # borg --stats nennt die Groesse mit Einheit ("13.44 kB"). Gerechnet wird in
   # Bytes, damit ein Vergleich ueberhaupt moeglich ist - "2.43 GB" und "258 kB"
   # lassen sich als Text nicht vergleichen.
@@ -415,8 +435,15 @@ if [ "$SELBSTTEST" -eq 1 ]; then
   # *Not a precaution on suspicion: this happened twice in one day (#141). The
   #  checks were right and delivered nothing; a test that only does arithmetic
   #  would never have seen it.*
+  echo "== borg-Rueckgabewert: Warnung ist kein Fehler (1 = Archiv geschrieben) =="
+  pruef ja   "0 - sauber"                                -- borg_rc_bewerten 0
+  pruef ja   "1 - Warnung, der Palworld-Fall"            -- borg_rc_bewerten 1
+  pruef nein "2 - Fehler, z. B. Sperre nicht bekommen"   -- borg_rc_bewerten 2
+  pruef nein "130 - abgebrochen"                         -- borg_rc_bewerten 130
+  pruef nein "leer - im Zweifel Fehler"                  -- borg_rc_bewerten ""
+
   echo "== Verdrahtung: sind die Helfer hier schon definiert? =="
-  for helfer in melden in_bytes laeuft pruefe_plausibel \
+  for helfer in melden in_bytes laeuft pruefe_plausibel borg_rc_bewerten \
                 befund_leer befund_einbruch befund_neu ist_ausgenommen befund_still; do
     if declare -F "$helfer" >/dev/null; then
       echo "  ok      $helfer() steht vor der Schleife"
@@ -477,9 +504,11 @@ if [ "$ALLE" -eq 1 ] && [ -z "$NUR" ]; then
   #  to fail silently.*
   klein_sichern() {   # klein_sichern <praefix> <pfad>...
     local praefix="$1"; shift
-    borg create --compression zstd,6 "$REPO::$praefix-${ZEIT}" "$@" >/dev/null 2>&1 \
+    local rc
+    borg create --compression zstd,6 "$REPO::$praefix-${ZEIT}" "$@" >/dev/null 2>&1; rc=$?
+    borg_rc_bewerten "$rc" \
       && borg prune --glob-archives "$praefix-*" "${prune_regeln[@]}" "$REPO" >/dev/null 2>&1 \
-      || { echo "FEHLER: Sicherung $praefix ($*)" >&2; fehler=1; }
+      || { echo "FEHLER: Sicherung $praefix ($*), borg create endete mit $rc" >&2; fehler=1; }
   }
   klein_sichern etc /etc
   # Panel-Daten (#218): Benutzer mit Passwort-Hashes, TOTP-Geheimnissen und
