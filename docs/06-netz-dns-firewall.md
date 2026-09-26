@@ -679,6 +679,21 @@ die in einem A-Eintrag nichts zu suchen hat.
 > over IPv6 these services answer with the IPv6 address, which has no place in an
 > A record.*
 
+**Ein fehlgeschlagenes Anlegen wird gemeldet** (#325). Die Installation eines
+Spiels scheitert nicht an einem fehlenden DNS-Eintrag — das Spiel läuft auch über
+die Adresse. Bis 2026-09-26 wurde der Fehlschlag dabei aber komplett verschluckt:
+Icarus und Soulmask standen zwei Wochen ohne Eintrag da, der Wildcard antwortete
+und schickte Spieler auf die falsche Maschine, und im Journal fand sich nichts.
+Jetzt steht der Grund im Journal (`logger -t panel`), und `#platzwart-stoerung`
+bekommt eine Meldung mit dem Befehl zum Nachholen.
+
+> *A failed record is reported (#325). Installing a game still does not fail over
+> a missing DNS record — the game works via the address too — but until
+> 2026-09-26 the failure was discarded entirely: two servers went two weeks
+> without a record while the wildcard sent players elsewhere, leaving nothing in
+> the journal. Now the reason goes to the journal and #platzwart-stoerung gets a
+> message with the command to catch up.*
+
 ### Anbieter und Token
 
 `/etc/dns-gameserver.conf`, `0600 root`:

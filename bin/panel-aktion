@@ -848,8 +848,19 @@ PY
     # DNS-Namen anlegen, wenn der Cloudflare-Zugang eingerichtet ist. Ein
     # fehlender Zugang ist kein Grund, die Installation als gescheitert zu
     # melden - das Spiel laeuft auch ueber die IP-Adresse.
+    #
+    # Ein Fehlschlag wird aber GEMELDET, nicht verschluckt (#325): Bis 2026-09-26
+    # stand hier ">/dev/null 2>&1 || true". Icarus und Soulmask bekamen am 12.09.
+    # keinen Eintrag, der Wildcard der Zone antwortete stattdessen und schickte
+    # Spieler zwei Wochen lang auf die falsche Maschine - ohne jede Spur im Journal.
+    # *A failure is reported, not swallowed: two servers went two weeks without a
+    #  record while the zone's wildcard sent players elsewhere, leaving no trace.*
     if [ -f /etc/dns-gameserver.conf ]; then
-      /usr/local/bin/dns-pflegen setzen "$s" >/dev/null 2>&1 || true
+      if ! dns_aus=$(/usr/local/bin/dns-pflegen setzen "$s" 2>&1); then
+        logger -t panel "DNS-Eintrag fuer $s NICHT angelegt: $(printf %s "$dns_aus" | tail -2 | tr "\n" " ")"
+        /usr/local/bin/platzwart-melden stoerung "DNS-Eintrag fehlt: $s" \
+          "Installation fertig, aber dns-pflegen setzen $s schlug fehl: $(printf %s "$dns_aus" | tail -2 | tr "\n" " ") - von Hand nachholen, sonst antwortet der Wildcard." >/dev/null 2>&1 || true
+      fi
     fi
     ;;
   kanaele)
