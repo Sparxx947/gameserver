@@ -63,6 +63,37 @@ if [ "$SELBSTTEST" -eq 0 ]; then
   export BORG_PASSPHRASE=$(cat /root/.borg-passphrase)
   export BORG_RSH="ssh -o BatchMode=yes -o ConnectTimeout=15"
 fi
+
+# Lokaler Puffer (#331): Ist das Ziel nicht erreichbar, wird in ein Repository auf
+# DIESER Maschine gesichert statt gar nicht. Vom 20. bis 25.09.2026 scheiterten 29
+# Laeufe, jedes Mal "connect to host ... port 22: Connection timed out" - Strom-
+# ausfall und Akkutausch zu Hause. Gespielt wurde weiter, gesichert nichts.
+# Der Puffer ersetzt die Sicherung ausser Haus NICHT: Er liegt auf derselben
+# Platte wie die Spielstaende und haelt nur drei Tage. gameserver-check-backup
+# prueft weiter das eigentliche Ziel und meldet einen laengeren Ausfall trotzdem.
+# Abschalten: PUFFER=aus in der Umgebung oder /etc/spiele-sicherung-puffer.aus.
+# *Local buffer: when the target is unreachable, back up to a repository on this
+#  machine instead of not at all (29 failed runs 20-25 Sept 2026). It does not
+#  replace the off-site backup - same disk, three days - and the backup check
+#  still watches the real target, so a longer outage is still reported.*
+PUFFER="${PUFFER:-/srv/sicherung-puffer/gameserver.borg}"
+PUFFER_AKTIV=0
+if [ "$SELBSTTEST" -eq 0 ] && [ "$PUFFER" != aus ] && [ ! -f /etc/spiele-sicherung-puffer.aus ]; then
+  # Host aus ssh://nutzer@host[:port]/pfad. Geprueft wird nur, ob der Port
+  # antwortet - ein borg-Aufruf dafuer haette die Sperre des Repositorys noetig.
+  ziel_host=$(printf %s "$REPO" | sed -nE 's#^ssh://([^@/]+@)?([^:/]+).*#\2#p')
+  ziel_port=$(printf %s "$REPO" | sed -nE 's#^ssh://([^@/]+@)?[^:/]+:([0-9]+)/.*#\2#p')
+  ziel_host="${PUFFER_TESTZIEL:-$ziel_host}"   # nur fuer den Test des Pufferwegs
+  if [ -n "$ziel_host" ] && ! timeout 20 bash -c "</dev/tcp/$ziel_host/${ziel_port:-22}" 2>/dev/null; then
+    echo "WARNUNG: $ziel_host:${ziel_port:-22} nicht erreichbar - sichere in den lokalen Puffer $PUFFER" >&2
+    if [ ! -d "$PUFFER" ]; then
+      install -d -m 0700 "$(dirname "$PUFFER")"
+      borg init --encryption=repokey-blake2 "$PUFFER" >/dev/null 2>&1 \
+        || { echo "FEHLER: Puffer $PUFFER liess sich nicht anlegen" >&2; exit 1; }
+    fi
+    REPO="$PUFFER"; PUFFER_AKTIV=1
+  fi
+fi
 ZEIT=$(date +%Y%m%d-%H%M%S)
 
 ALLE=0; NUR=""
@@ -81,6 +112,11 @@ done
 #   Grossvater ein Stand je Woche, 8 Wochen         (--keep-weekly 8)
 #              ein Stand je Monat, 12 Monate        (--keep-monthly 12)
 prune_regeln=(--keep-within 2d --keep-daily 14 --keep-weekly 8 --keep-monthly 12)
+# Im Puffer nur drei Tage: Er soll eine Luecke ueberbruecken, keine zweite
+# Langzeitsicherung auf derselben Platte werden.
+# *The buffer keeps three days only - it bridges a gap, it is not a second
+#  long-term archive on the same disk.*
+[ "$PUFFER_AKTIV" -eq 1 ] && prune_regeln=(--keep-within 3d)
 
 fehler=0
 
@@ -562,4 +598,5 @@ elif [ -e "$MARKE" ]; then
   rm -f "$MARKE"
 fi
 
+[ $fehler -eq 0 ] && [ "$PUFFER_AKTIV" -eq 1 ] && echo "Sicherung abgeschlossen IM LOKALEN PUFFER (Ziel nicht erreichbar): $ZEIT - $PUFFER" >&2
 [ $fehler -eq 0 ] && echo "Sicherung abgeschlossen: $ZEIT" || { echo "Sicherung MIT FEHLERN: $ZEIT" >&2; exit 1; }
