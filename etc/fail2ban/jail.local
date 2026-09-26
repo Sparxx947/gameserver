@@ -12,4 +12,8 @@ bantime  = 48h
 
 [sshd]
 backend = systemd
+# Debian 12: die Unit heisst ssh.service - der Standardfilter sucht sshd.service und
+# sah seit der Einrichtung 0 Zeilen (#335, gemessen 2026-09-26: 45 Zeilen, 16 Treffer).
+# *Debian 12 names the unit ssh.service; the default filter looked for sshd.service.*
+journalmatch = _SYSTEMD_UNIT=ssh.service + _COMM=sshd
 enabled = true
