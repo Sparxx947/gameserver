@@ -16,9 +16,29 @@ if ! command -v docker >/dev/null; then
   apt-get update -qq
 fi
 
+# daemon.json VOR dem ersten Start (#329): Logrotation und live-restore.
+# Ohne max-size wuchs das Log eines einzigen Containers auf 112 MB in 13 Tagen,
+# und ohne live-restore hielt jedes Docker-Update ALLE Spielserver an. Die Werte
+# gelten nur fuer neu erzeugte Container - deshalb gleich zu Beginn.
+# *daemon.json before the first start: log rotation and live-restore. Without
+#  max-size one container's log reached 112 MB in 13 days; without live-restore
+#  every Docker update stopped all game servers. Only new containers pick up the
+#  log options, hence right at the start.*
+install -m 0755 -d /etc/docker
+if ! cmp -s "$REPO/etc/docker/daemon.json" /etc/docker/daemon.json; then
+  install -m 0644 -o root -g root "$REPO/etc/docker/daemon.json" /etc/docker/daemon.json
+  DAEMON_NEU=1
+fi
+
 log "Docker installieren"
 apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 systemctl enable --now docker
+# War Docker schon da, liest es die geaenderte daemon.json erst nach einem
+# Neustart. Auf einer laufenden Maschine haelt der die Spielserver an - einmal,
+# danach verhindert live-restore genau das.
+# *An existing Docker reads a changed daemon.json only after a restart, which
+#  stops the game servers once - live-restore prevents that from then on.*
+[ "${DAEMON_NEU:-0}" = 1 ] && systemctl restart docker
 
 # ACHTUNG: den Menschen NICHT in die Gruppe "docker" aufnehmen. Wer mit Docker
 # sprechen darf, kann sich mit einem Einzeiler root verschaffen

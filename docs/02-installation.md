@@ -135,9 +135,21 @@ alt für `docker compose` in Plugin-Form.
 sich mit einem Einzeiler root verschaffen (`docker run -v /:/host`). Für die
 Oberfläche gibt es stattdessen die enge sudo-Brücke.
 
+**`/etc/docker/daemon.json` kommt aus dem Repositorium** (#329): Logrotation
+(`max-size` 20 MB, drei Dateien je Container) und `live-restore`. Ohne die
+Rotation wuchs das Log eines einzigen Containers auf 112 MB in 13 Tagen; ohne
+`live-restore` hält jedes Docker-Update — und Docker-Pakete spielt
+unattended-upgrades hier bewusst nicht ein — **alle** Spielserver an. Die
+Log-Optionen gelten nur für neu erzeugte Container; auf einer laufenden Maschine
+also nach dem Einspielen einmal `docker compose up -d --force-recreate` je Stack.
+
 > *Stage 20: Docker CE from upstream, because Debian's `docker.io` is too old
 > for the compose plugin. Nobody joins the `docker` group — socket access is
-> equivalent to root.*
+> equivalent to root. `/etc/docker/daemon.json` comes from the
+> repository (#329): log rotation (20 MB, three files per container) and
+> live-restore — without them one container's log reached 112 MB in 13 days and
+> every Docker update stopped all game servers. Log options apply to newly
+> created containers only, so recreate each stack once after rolling it out.*
 
 ### 25 — DNS-Grundgerüst (übersprungen ohne Token)
 

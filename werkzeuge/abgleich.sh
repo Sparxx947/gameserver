@@ -60,6 +60,7 @@ PAARE=(
   "bin/konfig-datei:/usr/local/bin/konfig-datei"
   "bin/compose-feld:/usr/local/bin/compose-feld"
   "bin/panel-aktion:/usr/local/bin/panel-aktion"
+  "etc/docker/daemon.json:/etc/docker/daemon.json"
   "bin/spiel-einrichtung:/usr/local/bin/spiel-einrichtung"
   "bin/kanal-verwalten:/usr/local/bin/kanal-verwalten"
   "bin/spiel-verwalten:/usr/local/bin/spiel-verwalten"
