@@ -198,6 +198,21 @@ signierer = URLSafeTimedSerializer(daten["secret"], salt="panel-sitzung")
 # Einrichtungs-Token darf niemals als Sitzungscookie durchgehen.
 einrichtung = URLSafeTimedSerializer(daten["secret"], salt="panel-mfa-einrichtung")
 EINRICHTUNG_MAXALTER = 10 * 60
+# Frist fuer die ERSTE Einrichtung des zweiten Faktors (#327). Bis dahin blieb ein
+# Konto ohne bestaetigte 2FA unbegrenzt "zu haben": Wer das Anfangspasswort
+# kannte, landete direkt auf der Einrichtungsseite und band SEIN Geraet. Ein
+# Konto mit der Rolle "verwalten" stand am 2026-09-26 seit zwei Wochen so da.
+# Konten ohne Frist-Feld (vor #327 angelegt) gelten als abgelaufen - lieber ein
+# Admin-Klick zu viel als ein offenes Konto.
+# *Deadline for the first 2FA setup (#327): until then an account without
+#  confirmed 2FA stayed claimable forever by whoever knew the initial password.
+#  Accounts created before #327 have no deadline field and count as expired.*
+EINRICHTUNGSFRIST = 7 * 24 * 3600
+
+
+def einrichtung_offen(n: dict) -> bool:
+    """Darf dieses Konto seinen zweiten Faktor (noch) einrichten?"""
+    return (not n.get("totp_bestaetigt")) and n.get("einrichten_bis", 0) > time.time()
 
 
 def eigene_laden() -> list[dict]:
@@ -2069,6 +2084,14 @@ def login(request: Request, nutzer: str = Form(""), passwort: str = Form(""), co
     # Erste Anmeldung: Passwort stimmt, aber der zweite Faktor ist noch nicht
     # eingerichtet. Dann NICHT anmelden, sondern zur Einrichtung schicken — mit
     # einem kurzlebigen, eigens signierten Token, das keine Sitzung ist.
+    if passwort_ok and not n.get("totp_bestaetigt") and not einrichtung_offen(n):
+        # Richtiges Passwort, aber die Frist ist um (#327): nicht einrichten
+        # lassen. Die Meldung darf deutlich sein - das Passwort stimmte ja.
+        # *Correct password but the deadline has passed: no setup.*
+        protokoll({"nutzer": nutzer, "rolle": n.get("rolle", "?")},
+                  "Einrichtung abgelehnt: Frist abgelaufen", "", "abgelehnt", ip=ip)
+        return login_form(request, "Die Frist zum Einrichten des zweiten Faktors ist "
+                                   "abgelaufen. Ein Administrator muss ihn zurücksetzen.")
     if passwort_ok and not n.get("totp_bestaetigt"):
         fehlversuche.pop(ip, None)
         marke = einrichtung.dumps({"nutzer": nutzer})
@@ -2129,7 +2152,10 @@ def einrichtungs_nutzer(request: Request) -> str | None:
     n = laden()["nutzer"].get(name)
     # Nach der Bestaetigung ist dieser Weg zu — sonst koennte jemand mit einem
     # alten Token jederzeit den QR-Code eines fremden Kontos nachladen.
-    return name if n and not n.get("totp_bestaetigt") else None
+    # Die Frist gilt auch hier (#327) - sonst liefe ein vor Ablauf ausgestelltes
+    # Einrichtungs-Token noch weiter.
+    # *The deadline applies here too, or a token issued before it would still work.*
+    return name if n and einrichtung_offen(n) else None
 
 
 @app.get("/qr")
@@ -3727,16 +3753,22 @@ def nutzer_liste(request: Request, neu: str = "", fehler: str = ""):
     zeilen = []
     for name, n in sorted(d["nutzer"].items()):
         fertig = n.get("totp_bestaetigt")
+        offen = einrichtung_offen(n)
         mfa = ('<span class="s on">eingerichtet</span>' if fertig
-               else '<span class="s off">wartet auf erste Anmeldung</span>')
+               else '<span class="s off">wartet auf erste Anmeldung (bis '
+                    + time.strftime("%d.%m. %H:%M", time.localtime(n["einrichten_bis"])) + ')</span>'
+               if offen else '<span class="s off">Einrichtungsfrist abgelaufen – gesperrt</span>')
         knoepfe = ""
-        if fertig:
+        # Auch bei abgelaufener Frist (#327): Zuruecksetzen gibt das Konto fuer
+        # weitere sieben Tage frei.
+        if fertig or not offen:
             knoepfe += (f'<form method=post action=/mfa-zuruecksetzen>'
                         f'<input type=hidden name=csrf value="{s["csrf"]}">'
                         f'<input type=hidden name=name value="{name}">'
                         f'<button class=y title="Neues TOTP-Geheimnis; Wiederherstellungscodes und '
-                        f'Passkeys werden ungültig. Eingerichtet wird bei der nächsten Anmeldung.">'
-                        f'2FA zurücksetzen</button></form> ')
+                        f'Passkeys werden ungültig. Eingerichtet wird bei der nächsten Anmeldung '
+                        f'(Frist 7 Tage).">'
+                        f'{"2FA zurücksetzen" if fertig else "Frist erneuern"}</button></form> ')
         knoepfe += ("<span class=z>(eigenes Konto)</span>" if name == s["nutzer"] else
                     f'<form method=post action=/nutzer-loeschen><input type=hidden name=csrf value="{s["csrf"]}">'
                     f'<input type=hidden name=name value="{name}"><button class=x>löschen</button></form>')
@@ -4204,7 +4236,8 @@ def nutzer_anlegen(request: Request, csrf: str = Form(""), name: str = Form(""),
     # bekommt es bei seiner ersten Anmeldung selbst als QR-Code. So muss es
     # niemand weitergeben, und der Administrator sieht es nie.
     d["nutzer"][name] = {"passwort_hash": hasher.hash(passwort), "totp": pyotp.random_base32(),
-                         "rolle": rolle, "totp_bestaetigt": False}
+                         "rolle": rolle, "totp_bestaetigt": False,
+                         "einrichten_bis": int(time.time()) + EINRICHTUNGSFRIST}
     speichern(d)
     protokoll(s, "Benutzer angelegt", name, rolle=rolle)
     return RedirectResponse(f"/nutzer?neu={name}", 303)
@@ -4222,6 +4255,10 @@ def mfa_zuruecksetzen(request: Request, csrf: str = Form(""), name: str = Form("
     if name in d["nutzer"]:
         d["nutzer"][name]["totp"] = pyotp.random_base32()
         d["nutzer"][name]["totp_bestaetigt"] = False
+        # Neue Frist (#327): Zuruecksetzen ist zugleich der Weg, ein abgelaufenes
+        # Konto wieder freizugeben.
+        # *A reset also renews the deadline - the way to release an expired account.*
+        d["nutzer"][name]["einrichten_bis"] = int(time.time()) + EINRICHTUNGSFRIST
         # Die alten Wiederherstellungscodes MUESSEN mit weg. Sie gehoeren zum
         # alten zweiten Faktor; blieben sie liegen, waere das Zuruecksetzen
         # keines - wer die Liste hat, kaeme weiterhin herein.

@@ -1664,6 +1664,18 @@ richtet der Benutzer den zweiten Faktor neu ein. Die Passkeys blieben bis #254
 gültig — ein Passkey auf dem verlorenen Gerät war nach dem Zurücksetzen weiter
 ein zweiter Faktor, genau der Fall, für den es den Knopf gibt.
 
+**Sieben Tage Frist für die erste Einrichtung** (#327). Ein neues Konto muss
+seinen zweiten Faktor innerhalb von sieben Tagen einrichten; die Tabelle zeigt
+„wartet auf erste Anmeldung (bis …)". Danach steht dort „Einrichtungsfrist
+abgelaufen – gesperrt", und die Anmeldung lehnt ab, auch mit richtigem Passwort.
+`Frist erneuern` (derselbe Knopf wie `2FA zurücksetzen`) gibt es für weitere
+sieben Tage frei. Anlass: Bis dahin blieb ein Konto ohne bestätigte 2FA
+unbegrenzt „zu haben" — wer das Startpasswort kannte, landete auf der
+Einrichtungsseite und band **sein** Gerät. Ein `verwalten`-Konto stand am
+2026-09-26 seit zwei Wochen so da. Konten ohne Fristangabe (vor #327 angelegt)
+gelten als abgelaufen: lieber ein Klick des Administrators zu viel als ein
+offenes Konto.
+
 Beim Anlegen entsteht ein TOTP-Geheimnis, das **niemandem angezeigt wird** —
 auch nicht dem Administrator. Der neue Benutzer bekommt es bei seiner ersten
 Anmeldung selbst als QR-Code. So muss es nie über einen Kanal weitergegeben
@@ -1691,7 +1703,13 @@ Fehlversuch weiterhin genau das, was eingetippt wurde.
 > `nutzer.json` by hand. Resetting 2FA renews the TOTP secret and revokes the
 > account's recovery codes and passkeys; the user enrols again at the next
 > login. Passkeys stayed valid until #254 — one on the lost device remained a
-> second factor after the reset, exactly the case the button exists for. A new TOTP secret is
+> second factor after the reset, exactly the case the button exists for. A new
+> account must enrol its second factor within seven days (#327); afterwards it
+> shows as "setup deadline expired – locked" and login is refused even with the
+> right password, until "renew deadline" (the reset button) releases it for
+> another seven days — before, an account without confirmed 2FA stayed
+> claimable forever by whoever knew the initial password; accounts created
+> before #327 count as expired. A new TOTP secret is
 > shown to nobody, not even the administrator — the new user receives it as a QR
 > code on their first login, so it never travels over a channel. Deleting your
 > own account is blocked: it would lock the last administrator out of user
