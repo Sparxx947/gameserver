@@ -1310,6 +1310,15 @@ enthält `LastTagTime`, und der Zeitstempel ändert sich bei jedem `pull`, auch
 wenn dasselbe Image erneut geholt wurde. Der erste Anlauf meldete deshalb immer
 „aktualisiert", und ein Knopf, der immer dasselbe sagt, wird nicht mehr gelesen.
 
+**Verglichen wird das Image hinter dem Tag, nicht das der Container** (#321). Bis
+2026-09-26 stand dort `docker compose images -q` — das nennt, worauf die Container
+laufen, und das ändert ein `pull` nie. Die Antwort war dadurch immer „schon
+aktuell", der Neustart lief nie: TeamSpeak lief noch auf dem Image vom 22.06.,
+obwohl das Tag seit dem 17.09. auf ein neues zeigte. Zusätzlich zählt ein
+**Rückstand** als Grund zum Aktualisieren: Läuft ein Container auf einem anderen
+Image als sein Tag, wird neu gestartet, auch wenn der `pull` selbst nichts Neues
+brachte — sonst bliebe liegen, was der alte Vergleich aufgestaut hat.
+
 **Ein gestoppter Server bleibt gestoppt.** Er wird nicht kurz gestartet, um die
 neue Fassung zu übernehmen — das Image ist geholt und greift beim nächsten Start.
 Der erste Anlauf startete ihn und hielt ihn wieder an; er kam mit **Exit 137**
@@ -1326,7 +1335,11 @@ raten.
 > entirely, the update does not happen — enforced in `panel-aktion`, because a
 > safeguard another entry point bypasses is not one. "Already current" and
 > "updated" are distinguished by image ID, not by the JSON output, which carries
-> a timestamp that changes on every pull. A stopped server stays stopped rather
+> a timestamp that changes on every pull — and by the image behind the tag, not
+> the containers' image, which a pull never changes (#321: until 2026-09-26 the
+> answer was always "already current"); a container running an image other than
+> its tag's also counts, so the backlog left by the old comparison is picked up.
+> A stopped server stays stopped rather
 > than being briefly started, which returned exit 137 on the first attempt.*
 
 ---

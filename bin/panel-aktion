@@ -561,10 +561,40 @@ PYENDE
     # nachgemessen ueber einen erneuten pull hinweg.
     # *The image ID, not the JSON: that carries LastTagTime, which changes on
     #  every pull even when nothing new arrived.*
-    vorher=$(docker compose images -q 2>/dev/null | sort | tr -d "\n")
+    #
+    # Verglichen wird das Image HINTER DEM TAG, nicht das der Container. Bis #321
+    # stand hier `docker compose images -q` - das nennt das Image, auf dem die
+    # Container laufen, und das aendert ein `pull` nicht. Vorher und nachher waren
+    # damit immer gleich, der Neustartzweig lief nie: TeamSpeak meldete jede Nacht
+    # "schon aktuell" und lief am 2026-09-26 noch auf dem Image vom 22.06., obwohl
+    # das Tag seit dem 17.09. auf ein neues zeigte.
+    # *Compare the image behind the TAG, not the containers' image: `compose images`
+    #  reports what the containers run, which a pull never changes - so the answer
+    #  was always "already current" and the restart branch never ran (#321).*
+    tag_ids() {
+      docker compose config --images 2>/dev/null | sort -u | while read -r bild; do
+        docker image inspect -f "{{.Id}}" "$bild" 2>/dev/null
+      done | sort | tr -d "\n"
+    }
+    # Rueckstand: ein Container laeuft auf einem anderen Image als sein Tag. Das
+    # faengt auch den Stand ab, den der alte Vergleich aufgestaut hat - dort war
+    # das neue Image laengst geholt, und ein zweiter pull holt nichts mehr.
+    # *Backlog: a container runs an image other than its tag's. This also catches
+    #  what the old comparison left behind - the new image was already pulled, so
+    #  another pull fetches nothing.*
+    rueckstand() {
+      local c soll ist
+      for c in $(docker compose ps -aq 2>/dev/null); do
+        soll=$(docker image inspect -f "{{.Id}}" "$(docker inspect -f "{{.Config.Image}}" "$c")" 2>/dev/null)
+        ist=$(docker inspect -f "{{.Image}}" "$c" 2>/dev/null)
+        [ -n "$soll" ] && [ "$soll" != "$ist" ] && return 0
+      done
+      return 1
+    }
+    vorher=$(tag_ids)
     aus=$(docker compose pull 2>&1) || fehler "Abholen fehlgeschlagen: $(printf %s "$aus" | tail -2 | tr "\n" " ")"
-    nachher=$(docker compose images -q 2>/dev/null | sort | tr -d "\n")
-    if [ "$vorher" = "$nachher" ]; then
+    nachher=$(tag_ids)
+    if [ "$vorher" = "$nachher" ] && ! rueckstand; then
       echo "ok	schon aktuell	$s war bereits auf der neuesten Fassung"
       exit 0
     fi

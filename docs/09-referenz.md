@@ -51,7 +51,7 @@ Alle Aktionen:
 | `laufende-vorher` | welche Container gerade laufen (für die Rückfrage vor dem Neustart) | — |
 | `neustart` | merkt die laufenden Stacks, hält sie an, startet die Maschine neu | bricht ab, wenn gerade `borg create/prune/compact` läuft |
 | `logs <stack> [zeilen]` | letzte Zeilen aus `docker logs`, mit Zeitstempeln, `2>&1` | Zahl, 1–2000 |
-| `aktualisieren <stack>` | Sicherung **als Bedingung**, dann `docker compose pull`, Neustart nur wenn er lief; Antwort „schon aktuell" oder „aktualisiert" nach Image-ID | Stack; ohne Sicherung kein Update |
+| `aktualisieren <stack>` | Sicherung **als Bedingung**, dann `docker compose pull`, Neustart nur wenn er lief; Antwort „schon aktuell" oder „aktualisiert" nach Image-ID **des Tags** (plus Rückstand Container ≠ Tag, #321) | Stack; ohne Sicherung kein Update |
 | `auto-update <stack> an\|aus` · `auto-update-liste` | Zeile in `/var/lib/spiele-autoupdate.liste` setzen/löschen · Liste ausgeben | `an`/`aus` |
 | `schlaf <stack> an\|aus` · `schlaf-liste` | Zeile in `/var/lib/platzwart-schlaf.liste`; `aus` weckt einen schlafenden Server sofort · Liste ausgeben | `an`/`aus` |
 | `konfig-lesen <stack>` | die elf Felder der Positivliste, `mem_limit` und bei Palworld die wirksamen Werte aus `PalWorldSettings.ini` | Stack |
