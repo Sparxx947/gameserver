@@ -1,0 +1,11 @@
+[Unit]
+Description=Platzwart: Module (Statistik) aktualisieren und Gesundheit pruefen
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/modul-verwalten aktualisieren --alle
+# Ein Grafana-Sprung migriert beim ersten Start seine Datenbank; die Pruefung
+# danach wartet bis zu drei Minuten.
+TimeoutStartSec=20min

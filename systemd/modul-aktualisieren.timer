@@ -1,0 +1,15 @@
+[Unit]
+# Woechentlich, nach dem naechtlichen Spiele-Update (05:15 + bis 30 min). Nicht
+# taeglich: Die Module stehen auf :latest, und ein Sprung soll nicht jede Nacht
+# moeglich sein, sondern einmal in der Woche - mit Pruefung und Meldung (#333).
+# *Weekly, after the nightly game update. Modules run :latest, so a jump should
+#  be possible once a week with a check and an alert, not every night.*
+Description=Platzwart: Module woechentlich aktualisieren
+
+[Timer]
+OnCalendar=Sun *-*-* 06:00
+RandomizedDelaySec=600
+Persistent=false
+
+[Install]
+WantedBy=timers.target

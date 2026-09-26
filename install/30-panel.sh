@@ -123,6 +123,8 @@ einsetzen "$REPO/systemd/platzwart-ereignisse.service" /etc/systemd/system/platz
 einsetzen "$REPO/systemd/platzwart-ereignisse.timer"   /etc/systemd/system/platzwart-ereignisse.timer
 einsetzen "$REPO/systemd/platzwart-status.service" /etc/systemd/system/platzwart-status.service
 einsetzen "$REPO/systemd/platzwart-status.timer"   /etc/systemd/system/platzwart-status.timer
+einsetzen "$REPO/systemd/modul-aktualisieren.service" /etc/systemd/system/modul-aktualisieren.service
+einsetzen "$REPO/systemd/modul-aktualisieren.timer"   /etc/systemd/system/modul-aktualisieren.timer
 einsetzen "$REPO/systemd/spieler-zaehlen.service"  /etc/systemd/system/spieler-zaehlen.service
 einsetzen "$REPO/systemd/spieler-zaehlen.timer"    /etc/systemd/system/spieler-zaehlen.timer
 einsetzen "$REPO/systemd/platzwart-wache.service"  /etc/systemd/system/platzwart-wache.service
@@ -152,6 +154,10 @@ systemctl enable --now kanal-abgleich.timer
 # den Discord-Kanaelen. Ein Zeitgeber, der nur eine Datei vergleicht, kostet
 # nichts - eine Einheit, die man erst einschalten muss, wird vergessen.
 systemctl enable --now platzwart-ereignisse.timer
+# Module woechentlich aktualisieren (#333) - ohne installiertes Modul tut der
+# Lauf nichts, der Timer darf also immer an sein.
+# *Weekly module updates; with no module installed the run does nothing.*
+systemctl enable --now modul-aktualisieren.timer
 systemctl enable --now platzwart-verlauf.timer
 # platzwart-metriken.timer bleibt AUS: Er schreibt Zahlen fuer Prometheus, und
 # ohne installiertes Modul liest sie niemand. Eingeschaltet wird er von

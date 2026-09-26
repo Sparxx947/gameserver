@@ -20,6 +20,7 @@ Positivliste (CLAUDE.md, Grenze 2).
   modul-verwalten einstellung <modul> <name> <wert>
   modul-verwalten anwenden <modul>
   modul-verwalten dashboards <modul>      je Spielserver ein Dashboard erzeugen
+  modul-verwalten aktualisieren <modul|--alle>  Images holen, neu anwenden, Gesundheit pruefen
   modul-verwalten --selbsttest
 
 Was die Oberflaeche schickt, ist IMMER nur ein Name aus dem Katalog und ein
@@ -658,6 +659,58 @@ def compose(sch: str, *args, profile_liste=()):
     return lauf(befehl + list(args), cwd=str(verzeichnis(sch)))
 
 
+def container_des_moduls(sch: str) -> dict:
+    """{name: image-id} aller Container des Compose-Projekts."""
+    aus = lauf(["docker", "ps", "-a", "--filter", f"label=com.docker.compose.project={sch}",
+                "--format", "{{.Names}}"]).stdout.split()
+    return {c: lauf(["docker", "inspect", "-f", "{{.Image}}", c]).stdout.strip() for c in aus}
+
+
+def aktualisieren(sch: str) -> int:
+    """Images holen, anwenden, und erst dann "fertig" sagen, wenn alles gesund ist.
+
+    Bis #{n} gab es fuer Module keinen Update-Weg: Die Statistik lief nach neun
+    Monaten noch auf den Images vom Einrichtungstag - darunter cAdvisor mit dem
+    Docker-Socket und das ueber das Panel erreichbare Grafana. Weil die Images auf
+    :latest stehen, kann ein Sprung etwas brechen; deshalb wird danach gewartet
+    und jeder Container geprueft (laeuft, und wo es einen Healthcheck gibt:
+    healthy). Scheitert das, geht eine Stoerung nach Discord.
+    *Pull, apply, and only report done once everything is healthy: modules had no
+     update path at all (#{n}). Images are on :latest, so a jump may break
+     something - hence the wait and the per-container check, with a Discord alert
+     on failure.*
+    """
+    m = modul(sch)
+    s = stand(sch)
+    if not installiert(sch):
+        fehler(f"{sch} ist nicht installiert")
+    vorher = container_des_moduls(sch)
+    p = compose(sch, "pull", "--quiet", profile_liste=profile(m, s))
+    if p.returncode != 0:
+        fehler("docker compose pull: " + (p.stderr or p.stdout)[-400:])
+    anwenden(sch, ruhig=True)
+    krank = []
+    for _ in range(18):          # bis 3 Minuten: Grafana braucht beim Migrieren
+        time.sleep(10)
+        krank = []
+        for c in container_des_moduls(sch):
+            z = lauf(["docker", "inspect", "-f",
+                      "{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}", c]).stdout.split()
+            if not z or z[0] != "running" or (len(z) > 1 and z[1] != "healthy"):
+                krank.append(f"{c}={' '.join(z) or '?'}")
+        if not krank:
+            break
+    nachher = container_des_moduls(sch)
+    neu = sorted(c for c in nachher if vorher.get(c) != nachher[c])
+    if krank:
+        lauf(["/usr/local/bin/platzwart-melden", "stoerung", f"Modul {sch} nach Update nicht gesund",
+              "Nicht gesund: " + ", ".join(krank) + f". Neu: {', '.join(neu) or '-'}."])
+        print(f"fehler\t{sch} nicht gesund\t{', '.join(krank)}")
+        return 1
+    print(f"ok\t{'aktualisiert' if neu else 'schon aktuell'}\t{sch}: {', '.join(neu) or 'keine neuen Images'}")
+    return 0
+
+
 def anwenden(sch: str, ruhig=False, s=None, speichern=False):
     m = modul(sch)
     s = s or stand(sch)
@@ -681,6 +734,7 @@ def anwenden(sch: str, ruhig=False, s=None, speichern=False):
     server_dashboards(sch)
     env_schreiben(sch, m, s)
     an = profile(m, s)
+    prom_vorher = compose(sch, "ps", "-q", "prometheus", profile_liste=an).stdout.strip()
     p = compose(sch, "up", "-d", "--remove-orphans", profile_liste=an)
     if p.returncode != 0:
         # Die erzeugten Dateien tragen schon den neuen Stand - zurueck auf den
@@ -713,8 +767,18 @@ def anwenden(sch: str, ruhig=False, s=None, speichern=False):
     if speichern:
         stand_schreiben(sch, s)
 
-    # Prometheus die neue Konfiguration sagen, ohne ihn neu zu starten.
-    compose(sch, "kill", "-s", "SIGHUP", "prometheus", profile_liste=an)
+    # Prometheus die neue Konfiguration sagen, ohne ihn neu zu starten - aber NUR,
+    # wenn "up" ihn nicht gerade neu erzeugt hat. Am 2026-09-26 (erstes
+    # Modul-Update, #333) traf das SIGHUP den frisch gestarteten Prometheus, bevor
+    # er es abfing: Exit 129, und weil es per "docker kill" kam, galt er als
+    # absichtlich gestoppt - unless-stopped startete ihn nicht wieder. Ein neuer
+    # Container liest seine Konfiguration beim Start ohnehin.
+    # *Only SIGHUP a Prometheus that "up" did not just recreate: the signal hit a
+    #  freshly started one before it handled it (exit 129), and a "docker kill"
+    #  counts as a deliberate stop, so the restart policy left it down.*
+    prom_nachher = compose(sch, "ps", "-q", "prometheus", profile_liste=an).stdout.strip()
+    if prom_nachher and prom_nachher == prom_vorher:
+        compose(sch, "kill", "-s", "SIGHUP", "prometheus", profile_liste=an)
     # Grafana liest die LISTE der Bereitstellungsanbieter nur beim Start. Ein
     # neues Dashboard in einem bekannten Ordner findet es von selbst (alle 60 s),
     # ein neuer Anbieter nicht: Die Ordner lagen richtig, die Dateien auch, und
@@ -1172,6 +1236,9 @@ def main():
         einstellung_setzen(a[1], a[2], a[3])
     elif a[0] == "anwenden" and len(a) == 2:
         anwenden(a[1])
+    elif a[0] == "aktualisieren" and len(a) == 2:
+        ziele = ([x for x in katalog() if installiert(x)] if a[1] == "--alle" else [a[1]])
+        return max([aktualisieren(x) for x in ziele] or [0])
     elif a[0] == "dashboards" and len(a) == 2:
         # Eigene Aktion, damit jeder Weg, der einen Server anlegt oder entfernt,
         # sie billig nachziehen kann - ohne die Container anzufassen.
