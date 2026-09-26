@@ -113,13 +113,21 @@ und alles auf `tailscale0`. **Spielports stehen bewusst nicht drin** — die mac
 Docker selbst auf, und zwar an ufw vorbei (siehe
 [06-netz-dns-firewall.md](06-netz-dns-firewall.md)).
 
+**fail2ban liest das Journal der Unit `ssh.service`** (#335). Debian 12 nennt den
+Dienst so; der mitgelieferte Filter sucht `sshd.service` und sah bis 2026-09-26
+**keine einzige Zeile** — der Jail lief seit der Einrichtung blind. Deshalb steht
+`journalmatch = _SYSTEMD_UNIT=ssh.service + _COMM=sshd` in `jail.local`.
+
 **Was die SSH-Härtung setzt:** `SSH_PASSWORT_AUTH` und `SSH_ROOT_LOGIN` aus
 `konfiguration.env`, Vorgabe `no` und `prohibit-password` — Anmeldung nur mit
 Schlüssel. Lehnt `sshd -t` die Datei ab, nimmt die Stufe sie zurück und bricht
 ab, statt weiterzulaufen. Die Werte und ihre Folgen stehen in
 [06-netz-dns-firewall.md](06-netz-dns-firewall.md#ssh).
 
-> *Stage 10: packages, the three users, SSH hardening, ufw and fail2ban. ufw
+> *Stage 10: packages, the three users, SSH hardening, ufw and fail2ban. fail2ban
+> reads the journal of `ssh.service` (#335): Debian 12 names the unit that way and
+> the stock filter looked for `sshd.service`, so the jail had seen not a single
+> line since setup. ufw
 > opens 22 from `ADMIN_IP` only, 80/443 for everyone, and everything on
 > `tailscale0`. Game ports are deliberately absent — Docker opens those itself,
 > bypassing ufw. SSH hardening takes its two values from `konfiguration.env`,
