@@ -163,6 +163,14 @@ beweist, dass hier etwas lauscht — nicht, dass es durch Firewall und Anbieter
 hindurch von außen erreichbar ist. Diese Verwechslung hat hier schon Zeit
 gekostet, deshalb steht sie in der Warnung und nicht im Kleingedruckten.
 
+**Geprüft werden nur TCP-Ports** (#323). Die Probe verbindet per `tcp_connect`;
+die meisten Spielports sind aber UDP (TeamSpeak-Sprache, Palworld, Enshrouded,
+FOUNDRY). Bis 2026-09-26 standen sie trotzdem in der Zielliste, scheiterten bei
+jedem Abruf — rund 34.500 Fehlerzeilen am Tag — und leuchteten dauerhaft rot.
+Ein UDP-Port lässt sich ohne das Protokoll des Spiels nicht prüfen; ihn
+wegzulassen ist ehrlicher als eine Anzeige, die immer „down" zeigt und einen
+echten Ausfall damit unsichtbar macht.
+
 > *Two switches carry a warning and lead through their own confirmation page.
 > cAdvisor needs the Docker socket, which makes a container effectively root —
 > the panel never gets it (boundary 1). The switch does not loosen that boundary
@@ -170,7 +178,11 @@ gekostet, deshalb steht sie in der Warnung und nicht im Kleingedruckten.
 > access, switched on by hand after a question naming the price. Off by default,
 > and nothing in the dashboards is missing without it. The reachability probe
 > runs on the same machine as the services: it proves something listens here, not
-> that it is reachable from outside — a confusion that has cost time before.*
+> that it is reachable from outside — a confusion that has cost time before. It
+> checks TCP ports only (#323): it connects with tcp_connect, and the UDP game
+> ports it used to include failed on every scrape (about 34,500 error lines a day)
+> and showed as permanently down — which would hide a real outage. A UDP port
+> cannot be checked without the game's protocol, so it is left out.*
 
 ### Die Einstellungen
 

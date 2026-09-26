@@ -242,7 +242,17 @@ def probe_ziele() -> dict:
     aus = lauf(["docker", "ps", "--format", "{{.Names}}\t{{.Ports}}"]).stdout
     for zeile in aus.splitlines():
         name, _, ports = zeile.partition("\t")
-        for m in re.finditer(r"0\.0\.0\.0:(\d+)->", ports):
+        # Nur TCP-Freigaben: Die Probe ist tcp_connect. Bis #323 traf das Muster
+        # auch "0.0.0.0:9987->9987/udp" - sechs UDP-Spielports scheiterten dann bei
+        # jedem Abruf (rund 34.500 Fehlerzeilen am Tag, 112 MB Log in 13 Tagen) und
+        # standen dauerhaft als "down" in der Tafel. Ein UDP-Spielport laesst sich
+        # ohne Spielprotokoll nicht pruefen; ihn wegzulassen ist ehrlicher als eine
+        # Anzeige, die immer rot ist.
+        # *TCP publications only - the probe is tcp_connect. The pattern used to
+        #  match UDP game ports too, which failed on every scrape and showed as
+        #  permanently down. A UDP game port cannot be checked without the game's
+        #  protocol; leaving it out is more honest than a panel that is always red.*
+        for m in re.finditer(r"0\.0\.0\.0:(\d+)->\d+(?:-\d+)?/tcp", ports):
             # 127.0.0.1, weil die Probe im Netz der Maschine laeuft: Sie prueft
             # denselben Sockel, den auch ein Spieler traefe, nur ohne den Weg
             # von aussen - und genau das steht in der Warnung zum Schalter.
@@ -1002,9 +1012,13 @@ def selbsttest():
     import unittest.mock as um
     with um.patch.object(sys.modules[__name__], "lauf",
                          lambda b, **k: subprocess.CompletedProcess(
-                             b, 0, "valheim\t0.0.0.0:2456->2456/udp\npalworld\t0.0.0.0:8211->8211/udp\n", "")):
+                             b, 0, "valheim\t0.0.0.0:2456->2456/udp\n"
+                                   "palworld\t0.0.0.0:8211->8211/udp, 0.0.0.0:8212->8212/tcp\n", "")):
         z = probe_ziele()
-    pruefe(z.get("127.0.0.1:8211") == "palworld", "Probe-Ziel traegt den Servernamen")
+    pruefe(z.get("127.0.0.1:8212") == "palworld", "Probe-Ziel traegt den Servernamen")
+    # UDP gehoert nicht in eine tcp_connect-Probe (#323) - sonst dauerhaft "down".
+    pruefe("127.0.0.1:8211" not in z and "127.0.0.1:2456" not in z,
+           "UDP-Freigaben stehen nicht in der Probe")
     with um.patch.object(sys.modules[__name__], "probe_ziele",
                          lambda: {"172.17.0.1:8211": "palworld"}):
         prometheus_schreiben("statistik", m, {"schalter": {"cadvisor": False, "probe": True}})
