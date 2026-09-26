@@ -220,6 +220,34 @@ das häufig gesicherte Spiel verdrängt das seltene.
 > that, one game would evict another's archives, because the rules would apply to
 > the shared pool and the frequently saved game would crowd out the rare one.*
 
+### Lokaler Puffer, wenn das Ziel nicht erreichbar ist
+
+Antwortet der borgserver nicht (Prüfung: TCP-Port des Ziels, 20 Sekunden), sichert
+`spiele-sicherung` in ein Repository **auf dieser Maschine**:
+`/srv/sicherung-puffer/gameserver.borg`, verschlüsselt mit derselben Passphrase,
+Aufbewahrung nur `--keep-within 3d` (#331). Im Journal steht dann `WARNUNG: … nicht
+erreichbar - sichere in den lokalen Puffer` und am Ende `Sicherung abgeschlossen
+IM LOKALEN PUFFER`.
+
+Anlass: Vom 20. bis 25.09.2026 scheiterten 29 Läufe, jedes Mal an der Verbindung —
+Stromausfall und Akkutausch zu Hause. Gespielt wurde weiter, gesichert nichts.
+
+Der Puffer **ersetzt die Sicherung außer Haus nicht**: Er liegt auf derselben
+Platte wie die Spielstände. `gameserver-check-backup` prüft weiterhin das
+eigentliche Ziel und meldet einen längeren Ausfall trotzdem. Zurückholen während
+eines Ausfalls von Hand: `borg list /srv/sicherung-puffer/gameserver.borg`, dann
+`borg extract` wie unten. Abschalten: `/etc/spiele-sicherung-puffer.aus` anlegen.
+
+> *Local buffer: when the borgserver does not answer (TCP port check, 20 s),
+> spiele-sicherung writes to a repository on this machine,
+> /srv/sicherung-puffer/gameserver.borg — same passphrase, kept three days only
+> (#331); the journal says so in a warning and the final line. Reason: 29 runs
+> failed between 20 and 25 Sept 2026 on the connection while people kept
+> playing. The buffer does not replace the off-site backup — same disk as the
+> saves — and the backup check still watches the real target, so a longer outage
+> is still reported. Restore by hand during an outage with borg list/extract on
+> the buffer path; disable by creating /etc/spiele-sicherung-puffer.aus.*
+
 Archivnamen: `<spiel>-JJJJMMTT-HHMMSS`, zum Beispiel `necesse-20260906-155744`.
 Dieses Format ist Teil der Prüfung in `panel-aktion` — die Oberfläche akzeptiert
 nur Namen dieser Form, und nur solche, die mit dem angefragten Stack beginnen.
