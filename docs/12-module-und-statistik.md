@@ -184,6 +184,26 @@ echten Ausfall damit unsichtbar macht.
 > and showed as permanently down — which would hide a real outage. A UDP port
 > cannot be checked without the game's protocol, so it is left out.*
 
+### Aktualisieren
+
+`modul-verwalten aktualisieren <modul>` (bzw. `--alle`) holt die Images, wendet
+das Modul neu an und sagt erst dann „fertig", wenn **jeder Container läuft** und,
+wo es einen Healthcheck gibt, **healthy** meldet — bis zu drei Minuten, weil
+Grafana beim Versionssprung seine Datenbank migriert. Sonst geht eine Störung nach
+Discord. Der Timer `modul-aktualisieren.timer` macht das sonntags um 06:00, nach
+dem nächtlichen Spiele-Update. Bis #333 gab es dafür keinen Weg: Die Statistik
+lief neun Monate auf den Images vom Einrichtungstag, darunter cAdvisor mit dem
+Docker-Socket und das über das Panel erreichbare Grafana.
+
+> *`modul-verwalten aktualisieren <module>` (or `--alle`) pulls the images,
+> re-applies the module and reports done only once every container runs and, where
+> it has a healthcheck, reports healthy — up to three minutes, since Grafana
+> migrates its database on a version jump; otherwise a fault goes to Discord. The
+> timer does this on Sundays at 06:00, after the nightly game update. Until #333
+> there was no way at all: the statistics ran for nine months on the images from
+> setup day, including cAdvisor with the Docker socket and Grafana, which is
+> reachable through the panel.*
+
 ### Die Einstellungen
 
 | Einstellung | Werte | Vorgabe |

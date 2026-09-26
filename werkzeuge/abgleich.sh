@@ -76,6 +76,8 @@ PAARE=(
   "bin/modul-verwalten:/usr/local/bin/modul-verwalten"
   "systemd/platzwart-metriken.service:/etc/systemd/system/platzwart-metriken.service"
   "systemd/platzwart-metriken.timer:/etc/systemd/system/platzwart-metriken.timer"
+  "systemd/modul-aktualisieren.service:/etc/systemd/system/modul-aktualisieren.service"
+  "systemd/modul-aktualisieren.timer:/etc/systemd/system/modul-aktualisieren.timer"
   "etc/module-katalog.json:/etc/module-katalog.json"
   "etc/module/statistik/compose.yaml:/etc/module/statistik/compose.yaml"
   "etc/module/statistik/prometheus.vorlage.yml:/etc/module/statistik/prometheus.vorlage.yml"
