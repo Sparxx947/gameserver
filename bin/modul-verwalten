@@ -242,7 +242,17 @@ def probe_ziele() -> dict:
     aus = lauf(["docker", "ps", "--format", "{{.Names}}\t{{.Ports}}"]).stdout
     for zeile in aus.splitlines():
         name, _, ports = zeile.partition("\t")
-        for m in re.finditer(r"0\.0\.0\.0:(\d+)->", ports):
+        # Nur TCP-Freigaben: Die Probe ist tcp_connect. Bis #323 traf das Muster
+        # auch "0.0.0.0:9987->9987/udp" - sechs UDP-Spielports scheiterten dann bei
+        # jedem Abruf (rund 34.500 Fehlerzeilen am Tag, 112 MB Log in 13 Tagen) und
+        # standen dauerhaft als "down" in der Tafel. Ein UDP-Spielport laesst sich
+        # ohne Spielprotokoll nicht pruefen; ihn wegzulassen ist ehrlicher als eine
+        # Anzeige, die immer rot ist.
+        # *TCP publications only - the probe is tcp_connect. The pattern used to
+        #  match UDP game ports too, which failed on every scrape and showed as
+        #  permanently down. A UDP game port cannot be checked without the game's
+        #  protocol; leaving it out is more honest than a panel that is always red.*
+        for m in re.finditer(r"0\.0\.0\.0:(\d+)->\d+(?:-\d+)?/tcp", ports):
             # 127.0.0.1, weil die Probe im Netz der Maschine laeuft: Sie prueft
             # denselben Sockel, den auch ein Spieler traefe, nur ohne den Weg
             # von aussen - und genau das steht in der Warnung zum Schalter.
